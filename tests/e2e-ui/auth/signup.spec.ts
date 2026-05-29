@@ -11,6 +11,7 @@ test.describe('Signup Page', () => {
     await expect(page.getByPlaceholder('John Doe')).toBeVisible();
     await expect(page.getByPlaceholder('you@company.com')).toBeVisible();
     await expect(page.getByPlaceholder('Minimum 8 characters')).toBeVisible();
+    await expect(page.getByPlaceholder('Repeat your password')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create account' })).toBeVisible();
   });
 

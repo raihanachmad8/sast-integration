@@ -1,10 +1,11 @@
-import { APP_NAME } from '@/commons/constants';
-import { AUTH_THEME } from '@/commons/constants';
+import { APP_NAME, AUTH_THEME } from '@/commons/constants';
+import { MAIL } from './constants';
+
+const { THEME, TEMPLATES } = MAIL;
 
 /**
  * Base email layout wrapper.
  * All emails share consistent branding, typography, and footer.
- * Individual templates only provide the body content.
  *
  * @param content - Inner HTML content for the email body
  * @returns Complete HTML email string
@@ -13,24 +14,19 @@ function baseLayout(content: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+<body style="margin:0;padding:0;background:${THEME.BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;padding:40px 24px">
     <tr><td>
-      <!-- Header -->
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:32px">
-        <tr>
-          <td style="font-size:18px;font-weight:700;color:${AUTH_THEME.PRIMARY}">${APP_NAME}</td>
-        </tr>
+        <tr><td style="font-size:18px;font-weight:700;color:${AUTH_THEME.PRIMARY}">${APP_NAME}</td></tr>
       </table>
-      <!-- Content -->
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;border:1px solid #e2e8f0;padding:32px">
-        <tr><td style="color:#1e293b;font-size:15px;line-height:1.6">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:${THEME.CARD_BG};border-radius:8px;border:1px solid ${THEME.CARD_BORDER};padding:32px">
+        <tr><td style="color:${THEME.TEXT};font-size:15px;line-height:1.6">
           ${content}
         </td></tr>
       </table>
-      <!-- Footer -->
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px">
-        <tr><td style="font-size:12px;color:#94a3b8;text-align:center">
+        <tr><td style="font-size:12px;color:${THEME.TEXT_FOOTER};text-align:center">
           This email was sent by ${APP_NAME}. If you did not expect this, you can safely ignore it.
         </td></tr>
       </table>
@@ -66,8 +62,8 @@ export function resetPasswordTemplate(name: string, resetUrl: string): string {
   return baseLayout(`
     <p style="margin:0 0 16px">Hi ${name},</p>
     <p style="margin:0 0 8px">You requested a password reset. Click the button below to set a new password:</p>
-    ${ctaButton('Reset Password', resetUrl)}
-    <p style="margin:0;font-size:13px;color:#64748b">This link expires in 1 hour. If you didn't request this, ignore this email.</p>
+    ${ctaButton(TEMPLATES.RESET_CTA, resetUrl)}
+    <p style="margin:0;font-size:13px;color:${THEME.TEXT_MUTED}">${TEMPLATES.RESET_EXPIRY}</p>
   `);
 }
 
@@ -82,7 +78,7 @@ export function verifyEmailTemplate(name: string, verifyUrl: string): string {
   return baseLayout(`
     <p style="margin:0 0 16px">Hi ${name},</p>
     <p style="margin:0 0 8px">Please verify your email address by clicking the button below:</p>
-    ${ctaButton('Verify Email', verifyUrl)}
-    <p style="margin:0;font-size:13px;color:#64748b">This link expires in 24 hours.</p>
+    ${ctaButton(TEMPLATES.VERIFY_CTA, verifyUrl)}
+    <p style="margin:0;font-size:13px;color:${THEME.TEXT_MUTED}">${TEMPLATES.VERIFY_EXPIRY}</p>
   `);
 }

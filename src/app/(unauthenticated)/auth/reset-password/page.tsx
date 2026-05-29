@@ -1,6 +1,7 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
+import { PasswordStrength } from '@/components/shared/password-strength';
 import { Form, Input, Button, Typography, Alert, Result, Spin } from 'antd';
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
@@ -12,6 +13,7 @@ const { Title, Text } = Typography;
 function ResetForm() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
+  const [passwordValue, setPasswordValue] = useState('');
 
   const mutation = useMutation({
     mutationFn: async (password: string) => {
@@ -54,7 +56,20 @@ function ResetForm() {
           label={<span style={{ fontWeight: 600, fontSize: 13 }}>New password</span>}
           rules={[{ required: true, message: 'Please enter a new password' }, { min: 8, message: 'Minimum 8 characters' }]}
         >
-          <Input.Password placeholder="Minimum 8 characters" size="large" autoComplete="new-password" />
+          <Input.Password placeholder="Minimum 8 characters" size="large" autoComplete="new-password" onChange={(e) => setPasswordValue(e.target.value)} />
+        </Form.Item>
+        <PasswordStrength value={passwordValue} />
+
+        <Form.Item
+          name="confirmPassword"
+          label={<span style={{ fontWeight: 600, fontSize: 13 }}>Confirm password</span>}
+          dependencies={['password']}
+          rules={[
+            { required: true, message: 'Please confirm your password' },
+            ({ getFieldValue }) => ({ validator(_, value) { return !value || getFieldValue('password') === value ? Promise.resolve() : Promise.reject(new Error('Passwords do not match')); } }),
+          ]}
+        >
+          <Input.Password placeholder="Repeat your password" size="large" autoComplete="new-password" />
         </Form.Item>
 
         <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
@@ -80,3 +95,4 @@ export default function ResetPasswordPage() {
     </Suspense>
   );
 }
+

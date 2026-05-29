@@ -46,7 +46,7 @@ export const authFlowsService = {
     const resetUrl = buildAppUrl(ROUTES.AUTH.RESET_PASSWORD, { token });
     await sendMail({
       to: user.email,
-      subject: 'Reset your password',
+      subject: MAIL.SUBJECTS.RESET_PASSWORD,
       html: resetPasswordTemplate(user.name, resetUrl),
     });
   },
@@ -96,7 +96,7 @@ export const authFlowsService = {
     const verifyUrl = buildAppUrl(ROUTES.AUTH.VERIFY_EMAIL, { token });
     await sendMail({
       to: user.email,
-      subject: 'Verify your email',
+      subject: MAIL.SUBJECTS.VERIFY_EMAIL,
       html: verifyEmailTemplate(user.name, verifyUrl),
     });
   },

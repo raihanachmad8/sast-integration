@@ -1,6 +1,8 @@
 'use client';
 
-import { Suspense } from 'react';
+import { PasswordStrength } from '@/components/shared/password-strength';
+
+import { Suspense, useState } from 'react';
 import { Form, Input, Button, Typography, Alert, Spin } from 'antd';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -12,6 +14,7 @@ function AcceptInviteForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
+  const [passwordValue, setPasswordValue] = useState('');
 
   const accept = useMutation({
     mutationFn: async (values: { name: string; password: string }) => {
@@ -52,7 +55,20 @@ function AcceptInviteForm() {
           label={<span style={{ fontWeight: 600, fontSize: 13 }}>Password</span>}
           rules={[{ required: true, message: 'Please enter a password' }, { min: 8, message: 'Password must be at least 8 characters' }]}
         >
-          <Input.Password placeholder="Minimum 8 characters" size="large" autoComplete="new-password" />
+          <Input.Password placeholder="Minimum 8 characters" size="large" autoComplete="new-password" onChange={(e) => setPasswordValue(e.target.value)} />
+        </Form.Item>
+        <PasswordStrength value={passwordValue} />
+
+        <Form.Item
+          name="confirmPassword"
+          label={<span style={{ fontWeight: 600, fontSize: 13 }}>Confirm password</span>}
+          dependencies={['password']}
+          rules={[
+            { required: true, message: 'Please confirm your password' },
+            ({ getFieldValue }) => ({ validator(_, value) { return !value || getFieldValue('password') === value ? Promise.resolve() : Promise.reject(new Error('Passwords do not match')); } }),
+          ]}
+        >
+          <Input.Password placeholder="Repeat your password" size="large" autoComplete="new-password" />
         </Form.Item>
 
         <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
@@ -72,3 +88,5 @@ export default function AcceptInvitePage() {
     </Suspense>
   );
 }
+
+
