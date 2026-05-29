@@ -331,3 +331,120 @@ Public endpoint exposing application mode configuration.
   "exp": 1717604800
 }
 ```
+
+---
+
+## POST /auth/forgot-password
+
+Request a password reset email. Silent on unknown email (security).
+
+**Auth:** None
+
+**Request:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Password reset email sent",
+  "data": null,
+  "meta": { "requestId": "...", "timestamp": "..." }
+}
+```
+
+**Errors:**
+| Status | Code | Message |
+|--------|------|---------|
+| 429 | AUTH_ERROR | Please wait before requesting another email |
+| 422 | VALIDATION_ERROR | Validation failed |
+
+---
+
+## POST /auth/reset-password
+
+Verify reset token and set new password.
+
+**Auth:** None
+
+**Request:**
+```json
+{
+  "token": "hex_token_from_email",
+  "password": "newPassword123!"
+}
+```
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Password reset successful",
+  "data": null,
+  "meta": { "requestId": "...", "timestamp": "..." }
+}
+```
+
+**Errors:**
+| Status | Code | Message |
+|--------|------|---------|
+| 410 | AUTH_ERROR | Token expired or invalid |
+| 410 | AUTH_ERROR | Token already used |
+
+---
+
+## GET /auth/verify-email?token=
+
+Verify email address from link sent to user.
+
+**Auth:** None
+
+**Query params:** `token` (required)
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Email verified successfully",
+  "data": null,
+  "meta": { "requestId": "...", "timestamp": "..." }
+}
+```
+
+**Errors:**
+| Status | Code | Message |
+|--------|------|---------|
+| 400 | AUTH_ERROR | Token required |
+| 410 | AUTH_ERROR | Token expired or invalid |
+| 410 | AUTH_ERROR | Token already used |
+
+---
+
+## POST /auth/resend-verification
+
+Resend email verification link. Rate limited (5 min cooldown).
+
+**Auth:** Bearer token required
+
+**Request:** Empty body
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Verification email sent",
+  "data": null,
+  "meta": { "requestId": "...", "timestamp": "..." }
+}
+```
+
+**Errors:**
+| Status | Code | Message |
+|--------|------|---------|
+| 400 | AUTH_ERROR | Email already verified |
+| 429 | AUTH_ERROR | Please wait before requesting another email |
+| 401 | AUTH_ERROR | No token provided |
