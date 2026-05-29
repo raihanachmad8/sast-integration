@@ -60,6 +60,7 @@ test.describe('Password Reset Flow', () => {
 
     await gotoAuthPage(page, `${AUTH_PATHS.resetPassword}?token=test-token`, 'Reset password');
     await page.getByPlaceholder('Minimum 8 characters').fill('new-password');
+    await page.getByPlaceholder('Repeat your password').fill('new-password');
     await page.getByRole('button', { name: 'Reset password' }).click();
 
     await expect(page.getByText('Password reset')).toBeVisible();
