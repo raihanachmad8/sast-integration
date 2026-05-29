@@ -1,5 +1,5 @@
 {
-  "id": "1b971a20-82e9-4a15-9a66-52ffa97b500f",
+  "id": "4b657b81-ffc8-48f5-8fd1-aa89786fc184",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -534,6 +534,19 @@
           "tableTo": "findings",
           "columnsFrom": [
             "finding_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ai_verifications_model_id_ai_models_id_fk": {
+          "name": "ai_verifications_model_id_ai_models_id_fk",
+          "tableFrom": "ai_verifications",
+          "tableTo": "ai_models",
+          "columnsFrom": [
+            "model_id"
           ],
           "columnsTo": [
             "id"
