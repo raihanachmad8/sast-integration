@@ -1,7 +1,11 @@
+import { AuthProvider } from '@/lib/auth/auth-provider';
+
 export default function UnauthenticatedLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-      {children}
-    </div>
+    <AuthProvider>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f5f5f5' }}>
+        {children}
+      </div>
+    </AuthProvider>
   );
 }
