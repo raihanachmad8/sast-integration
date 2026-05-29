@@ -1,47 +1,30 @@
 'use client';
 
-import { useState } from 'react';
 import { Form, Input, Button, Card, Typography, Alert, Space } from 'antd';
 import { MailOutlined, LockOutlined } from '@ant-design/icons';
-import { useAuth } from '@/lib/auth/auth-provider';
+import { useSigninMutation } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 const { Title, Text } = Typography;
 
-interface SigninForm {
-  email: string;
-  password: string;
-}
-
 export default function SigninPage() {
-  const { signin } = useAuth();
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const signin = useSigninMutation();
 
-  const onFinish = async (values: SigninForm) => {
-    setError(null);
-    setLoading(true);
-    try {
-      await signin(values.email, values.password);
-      router.push('/');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Sign in failed');
-    } finally {
-      setLoading(false);
-    }
+  const onFinish = (values: { email: string; password: string }) => {
+    signin.mutate(values, { onSuccess: () => router.push('/') });
   };
 
   return (
     <Card style={{ width: 400 }}>
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
         <div style={{ textAlign: 'center' }}>
           <Title level={3} style={{ margin: 0 }}>Sign In</Title>
           <Text type="secondary">Enter your credentials to continue</Text>
         </div>
 
-        {error && <Alert message={error} type="error" showIcon closable onClose={() => setError(null)} />}
+        {signin.error && <Alert message={signin.error.message} type="error" showIcon closable />}
 
         <Form layout="vertical" onFinish={onFinish} autoComplete="off" requiredMark={false}>
           <Form.Item name="email" rules={[{ required: true, message: 'Email is required' }, { type: 'email', message: 'Invalid email' }]}>
@@ -53,7 +36,7 @@ export default function SigninPage() {
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 12 }}>
-            <Button type="primary" htmlType="submit" loading={loading} block size="large">
+            <Button type="primary" htmlType="submit" loading={signin.isPending} block size="large">
               Sign In
             </Button>
           </Form.Item>

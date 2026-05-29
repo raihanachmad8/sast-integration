@@ -48,7 +48,7 @@ function AcceptInviteForm() {
 
   return (
     <Card style={{ width: 400 }}>
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
         <div style={{ textAlign: 'center' }}>
           <Title level={3} style={{ margin: 0 }}>Accept Invitation</Title>
           <Text type="secondary">Set up your account to join the workspace</Text>
