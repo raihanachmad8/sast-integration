@@ -147,6 +147,45 @@ test.describe('Signin Page', () => {
 
     await expect(page).toHaveURL('/personal-test', { timeout: 10000 });
   });
+
+  test('should redirect to workspace chooser after successful signin without current workspace', async ({ page }) => {
+    await page.route('**/api/v1/auth/signin', async (route) => {
+      await addMockRefreshCookie(page);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: {
+          'Set-Cookie': 'refresh_token=test-refresh-token; Path=/; HttpOnly; SameSite=Lax',
+        },
+        body: JSON.stringify({
+          success: true,
+          message: 'Login successful',
+          data: {
+            tokenType: 'Bearer',
+            accessToken: 'test-access-token',
+            expiresAt: new Date(Date.now() + 900_000).toISOString(),
+            expiresIn: 900,
+            user: {
+              id: 'user-1',
+              email: 'user@example.com',
+              name: 'Test User',
+              emailVerified: true,
+              currentWorkspaceId: null,
+            },
+            workspace: null,
+          },
+          meta: { timestamp: new Date().toISOString() },
+        }),
+      });
+    });
+
+    await gotoAuthPage(page, AUTH_PATHS.signin, 'Sign in');
+    await page.getByPlaceholder('you@company.com').fill('user@example.com');
+    await page.getByPlaceholder('Enter your password').fill('password123');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    await expect(page).toHaveURL('/workspaces', { timeout: 10000 });
+  });
 });
 
 test.describe('Signin Page - Desktop only', () => {

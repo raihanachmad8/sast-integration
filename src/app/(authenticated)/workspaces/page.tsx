@@ -1,5 +1,4 @@
 'use client';
-import { useEffect } from 'react';
 import { Card, Button, Typography, Spin, Modal, Form, Input, Empty, Tag } from 'antd';
 import { PlusOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
@@ -18,14 +17,7 @@ export default function WorkspaceChooserPage() {
   const signout = useSignoutMutation();
   const [showCreate, setShowCreate] = useState(false);
   const hasPersonal = workspaces.data?.some((ws) => ws.type === WORKSPACE.TYPE.PERSONAL);
-  // Auto-select if only 1 workspace
-  useEffect(() => {
-    if (workspaces.data?.length === 1) {
-      const ws = workspaces.data[0];
-      switchMutation.mutate(ws.id, { onSuccess: () => router.push(ROUTES.WORKSPACE.DASHBOARD(ws.slug)) });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaces.data]);
+
   const handleSelect = (ws: { id: string; slug: string }) => {
     switchMutation.mutate(ws.id, { onSuccess: () => router.push(ROUTES.WORKSPACE.DASHBOARD(ws.slug)) });
   };

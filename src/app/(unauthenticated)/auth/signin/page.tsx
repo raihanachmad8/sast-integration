@@ -14,7 +14,7 @@ function resolvePostSigninPath(redirect: string | null, workspaceSlug?: string |
     return redirect;
   }
 
-  return workspaceSlug ? ROUTES.WORKSPACE.DASHBOARD(workspaceSlug) : '/';
+  return workspaceSlug ? ROUTES.WORKSPACE.DASHBOARD(workspaceSlug) : ROUTES.CHOOSER;
 }
 
 function SigninForm() {
