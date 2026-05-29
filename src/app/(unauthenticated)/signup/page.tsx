@@ -1,7 +1,6 @@
 'use client';
 
 import { Form, Input, Button, Typography, Alert, Result } from 'antd';
-import { MailOutlined, LockOutlined, UserOutlined } from '@ant-design/icons';
 import { useSignupMutation, useConfigQuery } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -29,20 +28,41 @@ export default function SignupPage() {
       {signup.error && <Alert message={signup.error.message} type="error" showIcon style={{ marginTop: 16 }} />}
 
       <Form layout="vertical" onFinish={onFinish} autoComplete="off" requiredMark={false} style={{ marginTop: 24 }}>
-        <Form.Item name="name" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Full name</span>} rules={[{ required: true, message: 'Name is required' }, { min: 2, message: 'Min 2 characters' }]}>
-          <Input prefix={<UserOutlined />} size="large" />
+        <Form.Item
+          name="name"
+          label={<span style={{ fontWeight: 600, fontSize: 13 }}>Full name</span>}
+          rules={[
+            { required: true, message: 'Please enter your full name' },
+            { min: 2, message: 'Name must be at least 2 characters' },
+          ]}
+        >
+          <Input placeholder="John Doe" size="large" autoComplete="name" />
         </Form.Item>
 
-        <Form.Item name="email" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Email</span>} rules={[{ required: true, message: 'Email is required' }, { type: 'email', message: 'Invalid email' }]}>
-          <Input prefix={<MailOutlined />} size="large" />
+        <Form.Item
+          name="email"
+          label={<span style={{ fontWeight: 600, fontSize: 13 }}>Email</span>}
+          rules={[
+            { required: true, message: 'Please enter your email' },
+            { type: 'email', message: 'Please enter a valid email address' },
+          ]}
+        >
+          <Input placeholder="you@company.com" size="large" autoComplete="email" />
         </Form.Item>
 
-        <Form.Item name="password" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Password</span>} rules={[{ required: true, message: 'Password is required' }, { min: 8, message: 'Min 8 characters' }]}>
-          <Input.Password prefix={<LockOutlined />} size="large" />
+        <Form.Item
+          name="password"
+          label={<span style={{ fontWeight: 600, fontSize: 13 }}>Password</span>}
+          rules={[
+            { required: true, message: 'Please enter a password' },
+            { min: 8, message: 'Password must be at least 8 characters' },
+          ]}
+        >
+          <Input.Password placeholder="Minimum 8 characters" size="large" autoComplete="new-password" />
         </Form.Item>
 
-        <Form.Item style={{ marginBottom: 0 }}>
-          <Button type="primary" htmlType="submit" loading={signup.isPending} block size="large">
+        <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
+          <Button type="primary" htmlType="submit" loading={signup.isPending} block size="large" style={{ height: 44, fontWeight: 600 }}>
             Create account
           </Button>
         </Form.Item>

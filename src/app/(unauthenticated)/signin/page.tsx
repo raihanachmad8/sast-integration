@@ -1,7 +1,6 @@
 'use client';
 
 import { Form, Input, Button, Typography, Alert } from 'antd';
-import { MailOutlined, LockOutlined } from '@ant-design/icons';
 import { useSigninMutation } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -24,16 +23,27 @@ export default function SigninPage() {
       {signin.error && <Alert message={signin.error.message} type="error" showIcon style={{ marginTop: 16 }} />}
 
       <Form layout="vertical" onFinish={onFinish} autoComplete="off" requiredMark={false} style={{ marginTop: 24 }}>
-        <Form.Item name="email" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Email</span>} rules={[{ required: true, message: 'Email is required' }, { type: 'email', message: 'Invalid email' }]}>
-          <Input prefix={<MailOutlined />} size="large" />
+        <Form.Item
+          name="email"
+          label={<span style={{ fontWeight: 600, fontSize: 13 }}>Email</span>}
+          rules={[
+            { required: true, message: 'Please enter your email' },
+            { type: 'email', message: 'Please enter a valid email address' },
+          ]}
+        >
+          <Input placeholder="you@company.com" size="large" autoComplete="email" />
         </Form.Item>
 
-        <Form.Item name="password" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Password</span>} rules={[{ required: true, message: 'Password is required' }]}>
-          <Input.Password prefix={<LockOutlined />} size="large" />
+        <Form.Item
+          name="password"
+          label={<span style={{ fontWeight: 600, fontSize: 13 }}>Password</span>}
+          rules={[{ required: true, message: 'Please enter your password' }]}
+        >
+          <Input.Password placeholder="Enter your password" size="large" autoComplete="current-password" />
         </Form.Item>
 
-        <Form.Item style={{ marginBottom: 0 }}>
-          <Button type="primary" htmlType="submit" loading={signin.isPending} block size="large">
+        <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
+          <Button type="primary" htmlType="submit" loading={signin.isPending} block size="large" style={{ height: 44, fontWeight: 600 }}>
             Sign in
           </Button>
         </Form.Item>
