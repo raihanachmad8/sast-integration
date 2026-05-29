@@ -56,6 +56,10 @@ function SigninForm() {
           <Input.Password placeholder="Enter your password" size="large" autoComplete="current-password" />
         </Form.Item>
 
+        <div style={{ marginTop: -8, marginBottom: 12, textAlign: 'right', fontSize: 13 }}>
+          <Link href={ROUTES.AUTH.FORGOT_PASSWORD} style={{ fontWeight: 600, color: AUTH_THEME.PRIMARY }}>Forgot password?</Link>
+        </div>
+
         <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
           <Button type="primary" htmlType="submit" loading={signin.isPending} block size="large" style={{ width: '100%', height: 44, fontWeight: 600 }}>
             Sign in
@@ -79,3 +83,4 @@ export default function SigninPage() {
     </Suspense>
   );
 }
+
