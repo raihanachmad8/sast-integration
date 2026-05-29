@@ -1,16 +1,11 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import { Form, Input, Button, Card, Typography, Alert, Space, Spin } from 'antd';
+import { Form, Input, Button, Typography, Alert, Spin } from 'antd';
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 const { Title, Text } = Typography;
-
-interface AcceptForm {
-  name: string;
-  password: string;
-}
 
 function AcceptInviteForm() {
   const router = useRouter();
@@ -20,14 +15,10 @@ function AcceptInviteForm() {
   const [loading, setLoading] = useState(false);
 
   if (!token) {
-    return (
-      <Card style={{ width: 400 }}>
-        <Alert type="error" message="Invalid invitation link" description="No token provided." showIcon />
-      </Card>
-    );
+    return <Alert type="error" message="Invalid invitation link" description="No token provided." showIcon />;
   }
 
-  const onFinish = async (values: AcceptForm) => {
+  const onFinish = async (values: { name: string; password: string }) => {
     setError(null);
     setLoading(true);
     try {
@@ -47,38 +38,34 @@ function AcceptInviteForm() {
   };
 
   return (
-    <Card style={{ width: 400 }}>
-      <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-        <div style={{ textAlign: 'center' }}>
-          <Title level={3} style={{ margin: 0 }}>Accept Invitation</Title>
-          <Text type="secondary">Set up your account to join the workspace</Text>
-        </div>
+    <>
+      <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Accept Invitation</Title>
+      <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>Set up your account to join the workspace.</Text>
 
-        {error && <Alert message={error} type="error" showIcon closable onClose={() => setError(null)} />}
+      {error && <Alert message={error} type="error" showIcon style={{ marginTop: 16 }} />}
 
-        <Form layout="vertical" onFinish={onFinish} autoComplete="off" requiredMark={false}>
-          <Form.Item name="name" rules={[{ required: true, message: 'Name is required' }, { min: 2, message: 'Min 2 characters' }]}>
-            <Input prefix={<UserOutlined />} placeholder="Full name" size="large" />
-          </Form.Item>
+      <Form layout="vertical" onFinish={onFinish} autoComplete="off" requiredMark={false} style={{ marginTop: 24 }}>
+        <Form.Item name="name" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Full name</span>} rules={[{ required: true, message: 'Name is required' }, { min: 2, message: 'Min 2 characters' }]}>
+          <Input prefix={<UserOutlined />} size="large" />
+        </Form.Item>
 
-          <Form.Item name="password" rules={[{ required: true, message: 'Password is required' }, { min: 8, message: 'Min 8 characters' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="Password" size="large" />
-          </Form.Item>
+        <Form.Item name="password" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Password</span>} rules={[{ required: true, message: 'Password is required' }, { min: 8, message: 'Min 8 characters' }]}>
+          <Input.Password prefix={<LockOutlined />} size="large" />
+        </Form.Item>
 
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading} block size="large">
-              Accept & Join
-            </Button>
-          </Form.Item>
-        </Form>
-      </Space>
-    </Card>
+        <Form.Item style={{ marginBottom: 0 }}>
+          <Button type="primary" htmlType="submit" loading={loading} block size="large">
+            Accept & Join
+          </Button>
+        </Form.Item>
+      </Form>
+    </>
   );
 }
 
 export default function AcceptInvitePage() {
   return (
-    <Suspense fallback={<Card style={{ width: 400 }}><Spin /></Card>}>
+    <Suspense fallback={<Spin />}>
       <AcceptInviteForm />
     </Suspense>
   );

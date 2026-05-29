@@ -41,7 +41,6 @@ describe('authService.signin', () => {
   });
 
   it('should return tokens and user on valid credentials', async () => {
-    const hashedPassword = '$2a$12$LJ3/FfCJP.JJxHGME5Y5/.Oj5891qx5mR5rN5Fy5C5Fy5C5Fy5C'; // mock
     mockRepo.findUserByEmail.mockResolvedValue({
       id: 'user-1',
       email: 'test@example.com',

@@ -1,6 +1,6 @@
 'use client';
 
-import { Form, Input, Button, Card, Typography, Alert, Space } from 'antd';
+import { Form, Input, Button, Typography, Alert } from 'antd';
 import { MailOutlined, LockOutlined } from '@ant-design/icons';
 import { useSigninMutation } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
@@ -17,37 +17,33 @@ export default function SigninPage() {
   };
 
   return (
-    <Card style={{ width: 400 }}>
-      <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-        <div style={{ textAlign: 'center' }}>
-          <Title level={3} style={{ margin: 0 }}>Sign In</Title>
-          <Text type="secondary">Enter your credentials to continue</Text>
-        </div>
+    <>
+      <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Sign in</Title>
+      <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>Workspace selection appears after authentication.</Text>
 
-        {signin.error && <Alert message={signin.error.message} type="error" showIcon closable />}
+      {signin.error && <Alert message={signin.error.message} type="error" showIcon style={{ marginTop: 16 }} />}
 
-        <Form layout="vertical" onFinish={onFinish} autoComplete="off" requiredMark={false}>
-          <Form.Item name="email" rules={[{ required: true, message: 'Email is required' }, { type: 'email', message: 'Invalid email' }]}>
-            <Input prefix={<MailOutlined />} placeholder="Email" size="large" />
-          </Form.Item>
+      <Form layout="vertical" onFinish={onFinish} autoComplete="off" requiredMark={false} style={{ marginTop: 24 }}>
+        <Form.Item name="email" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Email</span>} rules={[{ required: true, message: 'Email is required' }, { type: 'email', message: 'Invalid email' }]}>
+          <Input prefix={<MailOutlined />} size="large" />
+        </Form.Item>
 
-          <Form.Item name="password" rules={[{ required: true, message: 'Password is required' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="Password" size="large" />
-          </Form.Item>
+        <Form.Item name="password" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Password</span>} rules={[{ required: true, message: 'Password is required' }]}>
+          <Input.Password prefix={<LockOutlined />} size="large" />
+        </Form.Item>
 
-          <Form.Item style={{ marginBottom: 12 }}>
-            <Button type="primary" htmlType="submit" loading={signin.isPending} block size="large">
-              Sign In
-            </Button>
-          </Form.Item>
+        <Form.Item style={{ marginBottom: 0 }}>
+          <Button type="primary" htmlType="submit" loading={signin.isPending} block size="large">
+            Sign in
+          </Button>
+        </Form.Item>
+      </Form>
 
-          <div style={{ textAlign: 'center' }}>
-            <Text type="secondary">
-              Don&apos;t have an account? <Link href="/signup">Sign up</Link>
-            </Text>
-          </div>
-        </Form>
-      </Space>
-    </Card>
+      <div style={{ marginTop: 20, textAlign: 'center', fontSize: 13 }}>
+        <Text type="secondary">
+          New reviewer? <Link href="/signup" style={{ fontWeight: 600, color: '#0f766e' }}>Create an account</Link>
+        </Text>
+      </div>
+    </>
   );
 }

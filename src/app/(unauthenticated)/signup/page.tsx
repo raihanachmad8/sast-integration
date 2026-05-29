@@ -1,6 +1,6 @@
 'use client';
 
-import { Form, Input, Button, Card, Typography, Alert, Space, Result } from 'antd';
+import { Form, Input, Button, Typography, Alert, Result } from 'antd';
 import { MailOutlined, LockOutlined, UserOutlined } from '@ant-design/icons';
 import { useSignupMutation, useConfigQuery } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
@@ -14,11 +14,7 @@ export default function SignupPage() {
   const config = useConfigQuery();
 
   if (config.data?.registrationMode === 'invite') {
-    return (
-      <Card style={{ width: 400 }}>
-        <Result status="info" title="Invitation Only" subTitle="Registration is disabled. Please use an invitation link to join." />
-      </Card>
-    );
+    return <Result status="info" title="Invitation Only" subTitle="Registration is disabled. Please use an invitation link to join." />;
   }
 
   const onFinish = (values: { email: string; password: string; name: string }) => {
@@ -26,41 +22,37 @@ export default function SignupPage() {
   };
 
   return (
-    <Card style={{ width: 400 }}>
-      <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-        <div style={{ textAlign: 'center' }}>
-          <Title level={3} style={{ margin: 0 }}>Sign Up</Title>
-          <Text type="secondary">Create your account</Text>
-        </div>
+    <>
+      <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Create account</Title>
+      <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>A Personal Workspace will be available immediately.</Text>
 
-        {signup.error && <Alert message={signup.error.message} type="error" showIcon closable />}
+      {signup.error && <Alert message={signup.error.message} type="error" showIcon style={{ marginTop: 16 }} />}
 
-        <Form layout="vertical" onFinish={onFinish} autoComplete="off" requiredMark={false}>
-          <Form.Item name="name" rules={[{ required: true, message: 'Name is required' }, { min: 2, message: 'Min 2 characters' }]}>
-            <Input prefix={<UserOutlined />} placeholder="Full name" size="large" />
-          </Form.Item>
+      <Form layout="vertical" onFinish={onFinish} autoComplete="off" requiredMark={false} style={{ marginTop: 24 }}>
+        <Form.Item name="name" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Full name</span>} rules={[{ required: true, message: 'Name is required' }, { min: 2, message: 'Min 2 characters' }]}>
+          <Input prefix={<UserOutlined />} size="large" />
+        </Form.Item>
 
-          <Form.Item name="email" rules={[{ required: true, message: 'Email is required' }, { type: 'email', message: 'Invalid email' }]}>
-            <Input prefix={<MailOutlined />} placeholder="Email" size="large" />
-          </Form.Item>
+        <Form.Item name="email" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Email</span>} rules={[{ required: true, message: 'Email is required' }, { type: 'email', message: 'Invalid email' }]}>
+          <Input prefix={<MailOutlined />} size="large" />
+        </Form.Item>
 
-          <Form.Item name="password" rules={[{ required: true, message: 'Password is required' }, { min: 8, message: 'Min 8 characters' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="Password" size="large" />
-          </Form.Item>
+        <Form.Item name="password" label={<span style={{ fontWeight: 600, fontSize: 13 }}>Password</span>} rules={[{ required: true, message: 'Password is required' }, { min: 8, message: 'Min 8 characters' }]}>
+          <Input.Password prefix={<LockOutlined />} size="large" />
+        </Form.Item>
 
-          <Form.Item style={{ marginBottom: 12 }}>
-            <Button type="primary" htmlType="submit" loading={signup.isPending} block size="large">
-              Sign Up
-            </Button>
-          </Form.Item>
+        <Form.Item style={{ marginBottom: 0 }}>
+          <Button type="primary" htmlType="submit" loading={signup.isPending} block size="large">
+            Create account
+          </Button>
+        </Form.Item>
+      </Form>
 
-          <div style={{ textAlign: 'center' }}>
-            <Text type="secondary">
-              Already have an account? <Link href="/signin">Sign in</Link>
-            </Text>
-          </div>
-        </Form>
-      </Space>
-    </Card>
+      <div style={{ marginTop: 20, textAlign: 'center', fontSize: 13 }}>
+        <Text type="secondary">
+          Already registered? <Link href="/signin" style={{ fontWeight: 600, color: '#0f766e' }}>Sign in</Link>
+        </Text>
+      </div>
+    </>
   );
 }
