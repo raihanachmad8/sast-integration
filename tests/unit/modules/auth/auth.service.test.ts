@@ -14,6 +14,13 @@ vi.mock('@/server/modules/auth/repositories/auth.repository', () => ({
     createInvitation: vi.fn(),
     findInvitationByToken: vi.fn(),
     markInvitationAccepted: vi.fn(),
+    getUserWorkspace: vi.fn(),
+  },
+}));
+
+vi.mock('@/server/modules/auth/services/auth-flows.service', () => ({
+  authFlowsService: {
+    sendVerificationEmail: vi.fn(),
   },
 }));
 
@@ -32,8 +39,10 @@ vi.mock('@/server/env', () => ({
 }));
 
 import { authRepository } from '@/server/modules/auth/repositories/auth.repository';
+import { authFlowsService } from '@/server/modules/auth/services/auth-flows.service';
 
 const mockRepo = vi.mocked(authRepository);
+const mockFlows = vi.mocked(authFlowsService);
 
 describe('authService.signin', () => {
   beforeEach(() => {
@@ -168,6 +177,32 @@ describe('authService.signup', () => {
     await expect(
       authService.signup({ email: 'existing@example.com', password: 'password123', name: 'User' })
     ).rejects.toThrow(AUTH.ERRORS.EMAIL_EXISTS);
+  });
+
+  it('should send a verification email to a newly registered user', async () => {
+    mockRepo.findUserByEmail.mockResolvedValue(null);
+    mockRepo.createUser.mockResolvedValue({
+      id: 'user-1',
+      email: 'new@example.com',
+      name: 'New User',
+      passwordHash: 'hash',
+      avatarUrl: null,
+      twoFactorSecret: null,
+      twoFactorConfirmedAt: null,
+      emailVerifiedAt: null,
+      currentWorkspaceId: null,
+      rememberToken: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+      deletedBy: null,
+    });
+    mockFlows.sendVerificationEmail.mockResolvedValue(undefined);
+
+    const result = await authService.signup({ email: 'new@example.com', password: 'password123', name: 'New User' });
+
+    expect(result.id).toBe('user-1');
+    expect(mockFlows.sendVerificationEmail).toHaveBeenCalledWith('user-1');
   });
 });
 

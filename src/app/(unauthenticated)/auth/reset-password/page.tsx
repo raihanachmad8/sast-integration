@@ -27,7 +27,7 @@ function ResetForm() {
   });
 
   if (!token) {
-    return <Alert type="error" message="Invalid reset link" description="No token provided." showIcon />;
+    return <Alert type="error" title="Invalid reset link" description="No token provided." showIcon />;
   }
 
   if (mutation.isSuccess) {
@@ -46,7 +46,7 @@ function ResetForm() {
       <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Reset password</Title>
       <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>Enter your new password below.</Text>
 
-      {mutation.error && <Alert message={mutation.error.message} type="error" showIcon style={{ marginTop: 16 }} />}
+      {mutation.error && <Alert title={mutation.error.message} type="error" showIcon style={{ marginTop: 16 }} />}
 
       <Form layout="vertical" onFinish={(v) => mutation.mutate(v.password)} autoComplete="off" requiredMark={false} style={{ marginTop: 24 }}>
         <Form.Item
@@ -58,7 +58,7 @@ function ResetForm() {
         </Form.Item>
 
         <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
-          <Button type="primary" htmlType="submit" loading={mutation.isPending} block size="large" style={{ height: 44, fontWeight: 600 }}>
+          <Button type="primary" htmlType="submit" loading={mutation.isPending} block size="large" style={{ width: '100%', height: 44, fontWeight: 600 }}>
             Reset password
           </Button>
         </Form.Item>

@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 import { hash } from 'bcryptjs';
-import { eq, and, gt } from 'drizzle-orm';
+import { eq, and, gt, sql } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { users, passwordResetTokens, emailVerificationTokens } from '../../../../../drizzle/schema';
 import { sendMail } from '@/server/modules/mail/mail.service';
@@ -9,8 +9,15 @@ import { MAIL } from '@/server/modules/mail/constants';
 import { AUTH } from '@/server/modules/auth/constants';
 import { AppError } from '@/server/http/errors';
 import { TOKEN_BYTES } from '@/server/http/constants';
+import { ROUTES } from '@/commons/constants/routes';
 
 const APP_URL = () => process.env.APP_URL ?? 'http://localhost:3000';
+
+function buildAppUrl(path: string, params: Record<string, string>) {
+  const url = new URL(path, APP_URL());
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+  return url.toString();
+}
 
 export const authFlowsService = {
   /**
@@ -25,7 +32,7 @@ export const authFlowsService = {
     const [recent] = await db.select().from(passwordResetTokens)
       .where(and(
         eq(passwordResetTokens.userId, user.id),
-        gt(passwordResetTokens.createdAt, new Date(Date.now() - MAIL.RATE_LIMIT.RESET_COOLDOWN_MS)),
+        gt(passwordResetTokens.createdAt, sql`NOW() - INTERVAL '5 minutes'`),
       )).limit(1);
     if (recent) throw new AppError(MAIL.MESSAGES.RATE_LIMITED, 429, MAIL.ERROR_CODE);
 
@@ -36,7 +43,7 @@ export const authFlowsService = {
       expiresAt: new Date(Date.now() + MAIL.TOKEN_EXPIRY.PASSWORD_RESET),
     });
 
-    const resetUrl = `${APP_URL()}/reset-password?token=${token}`;
+    const resetUrl = buildAppUrl(ROUTES.AUTH.RESET_PASSWORD, { token });
     await sendMail({
       to: user.email,
       subject: 'Reset your password',
@@ -75,7 +82,7 @@ export const authFlowsService = {
     const [recent] = await db.select().from(emailVerificationTokens)
       .where(and(
         eq(emailVerificationTokens.userId, userId),
-        gt(emailVerificationTokens.createdAt, new Date(Date.now() - MAIL.RATE_LIMIT.RESET_COOLDOWN_MS)),
+        gt(emailVerificationTokens.createdAt, sql`NOW() - INTERVAL '5 minutes'`),
       )).limit(1);
     if (recent) throw new AppError(MAIL.MESSAGES.RATE_LIMITED, 429, MAIL.ERROR_CODE);
 
@@ -86,7 +93,7 @@ export const authFlowsService = {
       expiresAt: new Date(Date.now() + MAIL.TOKEN_EXPIRY.EMAIL_VERIFICATION),
     });
 
-    const verifyUrl = `${APP_URL()}/api/v1/auth/verify-email?token=${token}`;
+    const verifyUrl = buildAppUrl(ROUTES.AUTH.VERIFY_EMAIL, { token });
     await sendMail({
       to: user.email,
       subject: 'Verify your email',

@@ -4,6 +4,9 @@ export const AUTH_PATHS = {
   signin: '/auth/signin',
   signup: '/auth/signup',
   invite: '/auth/invite',
+  forgotPassword: '/auth/forgot-password',
+  resetPassword: '/auth/reset-password',
+  verifyEmail: '/auth/verify-email',
 } as const;
 
 export async function gotoAuthPage(page: Page, path: string, submitButtonName: string) {

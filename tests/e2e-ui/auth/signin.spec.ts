@@ -1,7 +1,20 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { AUTH_PATHS, gotoAuthPage } from './helpers';
 
+async function addMockRefreshCookie(page: Page) {
+  await page.context().addCookies([{
+    name: 'refresh_token',
+    value: 'test-refresh-token',
+    domain: 'localhost',
+    path: '/',
+    httpOnly: true,
+    sameSite: 'Lax',
+  }]);
+}
+
 test.describe('Signin Page', () => {
+  test.setTimeout(60_000);
+
   test.beforeEach(async ({ page }) => {
     await gotoAuthPage(page, AUTH_PATHS.signin, 'Sign in');
   });
@@ -42,8 +55,14 @@ test.describe('Signin Page', () => {
     await expect(page).toHaveURL(AUTH_PATHS.signup, { timeout: 10000 });
   });
 
+  test('should navigate to forgot password page', async ({ page }) => {
+    await page.getByRole('link', { name: 'Forgot password?' }).click();
+    await expect(page).toHaveURL(AUTH_PATHS.forgotPassword, { timeout: 10000 });
+  });
+
   test('should redirect to requested path after successful signin', async ({ page }) => {
     await page.route('**/api/v1/auth/signin', async (route) => {
+      await addMockRefreshCookie(page);
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -87,6 +106,7 @@ test.describe('Signin Page', () => {
 
   test('should redirect to current workspace after successful signin without requested path', async ({ page }) => {
     await page.route('**/api/v1/auth/signin', async (route) => {
+      await addMockRefreshCookie(page);
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

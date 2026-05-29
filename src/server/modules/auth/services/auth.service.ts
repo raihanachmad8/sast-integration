@@ -1,6 +1,7 @@
 import { hash, compare } from 'bcryptjs';
 import { randomUUID, randomBytes } from 'crypto';
 import { authRepository } from '../repositories/auth.repository';
+import { authFlowsService } from './auth-flows.service';
 import { signAccessToken, signRefreshToken } from './jwt.service';
 import { AUTH, WORKSPACE_DEFAULTS, REGISTRATION_MODE, WORKSPACE_MODE } from '../constants';
 import { env } from '@/server/env';
@@ -64,6 +65,8 @@ export const authService = {
 
       return { id: user.id, email: user.email, name: user.name };
     });
+
+    await authFlowsService.sendVerificationEmail(result.id);
 
     return result;
   },

@@ -1,14 +1,18 @@
+/** Mail module constants — providers, token expiry, rate limits, messages */
 export const MAIL = {
   PROVIDER: {
     SMTP: 'smtp',
     CONSOLE: 'console',
   },
   TOKEN_EXPIRY: {
-    PASSWORD_RESET: 60 * 60 * 1000, // 1 hour
-    EMAIL_VERIFICATION: 24 * 60 * 60 * 1000, // 24 hours
+    /** Password reset token validity: 1 hour */
+    PASSWORD_RESET: 60 * 60 * 1000,
+    /** Email verification token validity: 24 hours */
+    EMAIL_VERIFICATION: 24 * 60 * 60 * 1000,
   },
   RATE_LIMIT: {
-    RESET_COOLDOWN_MS: 5 * 60 * 1000, // 5 minutes
+    /** Minimum interval between reset/verify emails per user: 5 minutes */
+    RESET_COOLDOWN_MS: 5 * 60 * 1000,
   },
   MESSAGES: {
     RESET_SENT: 'Password reset email sent',

@@ -30,7 +30,7 @@ export default function ForgotPasswordPage() {
       <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Forgot password</Title>
       <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>Enter your email and we will send a reset link.</Text>
 
-      {mutation.error && <Alert message={mutation.error.message} type="error" showIcon style={{ marginTop: 16 }} />}
+      {mutation.error && <Alert title={mutation.error.message} type="error" showIcon style={{ marginTop: 16 }} />}
 
       <Form layout="vertical" onFinish={(v) => mutation.mutate(v.email)} autoComplete="off" requiredMark={false} style={{ marginTop: 24 }}>
         <Form.Item
@@ -42,7 +42,7 @@ export default function ForgotPasswordPage() {
         </Form.Item>
 
         <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
-          <Button type="primary" htmlType="submit" loading={mutation.isPending} block size="large" style={{ height: 44, fontWeight: 600 }}>
+          <Button type="primary" htmlType="submit" loading={mutation.isPending} block size="large" style={{ width: '100%', height: 44, fontWeight: 600 }}>
             Send reset link
           </Button>
         </Form.Item>
