@@ -30,7 +30,8 @@ export const env: Env = new Proxy({} as Env, {
     if (!_env) {
       const result = envSchema.safeParse(process.env);
       if (!result.success) {
-        throw new Error(`Invalid environment variables:\n${result.error.format()._errors.join('\n')}`);
+        const issues = result.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
+        throw new Error(`Invalid environment variables:\n${issues}`);
       }
       _env = result.data;
     }

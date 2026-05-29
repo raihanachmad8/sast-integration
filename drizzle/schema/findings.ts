@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, integer, numeric, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, integer, numeric, jsonb } from 'drizzle-orm/pg-core';
 import { aiModels } from './integrations';
 
 export const findingGroups = pgTable('finding_groups', {

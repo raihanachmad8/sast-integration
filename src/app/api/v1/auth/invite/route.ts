@@ -23,6 +23,6 @@ export async function POST(request: NextRequest) {
     return ApiResponse.success(AUTH.MESSAGES.INVITE_SENT, { email: result.email });
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
-    return ApiResponse.error(AUTH.ERRORS.INVALID_CREDENTIALS, AUTH.ERROR_CODE.AUTH, undefined, 400);
+    return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
   }
 }

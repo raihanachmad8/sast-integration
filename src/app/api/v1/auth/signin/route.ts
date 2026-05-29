@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
         expiresAt: result.expiresAt,
         expiresIn: result.expiresIn,
         user: result.user,
+        workspace: result.workspace,
       },
       meta: buildMeta(),
     });
@@ -41,6 +42,6 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
-    return ApiResponse.error(AUTH.ERRORS.INVALID_CREDENTIALS, AUTH.ERROR_CODE.AUTH, undefined, 401);
+    return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
   }
 }

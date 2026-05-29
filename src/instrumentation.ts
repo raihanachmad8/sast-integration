@@ -1,0 +1,12 @@
+/**
+ * Next.js instrumentation - runs once on server startup.
+ * Validates environment variables early so missing config is caught immediately.
+ */
+export async function register() {
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { env } = await import('@/server/env');
+    // Access any property to trigger lazy validation
+    void env.NODE_ENV;
+    console.log('[env] ✓ Environment validated');
+  }
+}

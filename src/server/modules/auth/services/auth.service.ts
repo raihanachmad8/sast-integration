@@ -97,6 +97,9 @@ export const authService = {
     const accessToken = await signAccessToken({ sub: user.id, email: user.email, sessionId });
     const refreshToken = await signRefreshToken(sessionId);
     const expiresAt = new Date(Date.now() + parseExpiry(env.JWT_EXPIRES_IN));
+    const workspace = user.currentWorkspaceId
+      ? await authRepository.getUserWorkspace(user.id, user.currentWorkspaceId)
+      : null;
 
     return {
       tokenType: 'Bearer' as const,
@@ -112,6 +115,7 @@ export const authService = {
         emailVerified: !!user.emailVerifiedAt,
         currentWorkspaceId: user.currentWorkspaceId,
       },
+      workspace,
     };
   },
 

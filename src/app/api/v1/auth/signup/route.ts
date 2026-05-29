@@ -15,6 +15,6 @@ export async function POST(request: NextRequest) {
     return ApiResponse.success(AUTH.MESSAGES.SIGNUP_SUCCESS, user);
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
-    return ApiResponse.error(AUTH.ERRORS.INVALID_CREDENTIALS, AUTH.ERROR_CODE.AUTH, undefined, 500);
+    return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
   }
 }
