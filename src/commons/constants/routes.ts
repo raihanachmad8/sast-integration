@@ -3,6 +3,8 @@ export const ROUTES = {
     SIGNIN: '/auth/signin',
     SIGNUP: '/auth/signup',
     INVITE: '/auth/invite',
+    FORGOT_PASSWORD: '/auth/forgot-password',
+    RESET_PASSWORD: '/auth/reset-password',
   },
   WORKSPACE: {
     DASHBOARD: (slug: string) => `/${slug}`,
@@ -19,5 +21,7 @@ export const PUBLIC_PATHS = [
   ROUTES.AUTH.SIGNIN,
   ROUTES.AUTH.SIGNUP,
   ROUTES.AUTH.INVITE,
+  ROUTES.AUTH.FORGOT_PASSWORD,
+  ROUTES.AUTH.RESET_PASSWORD,
   '/api/',
 ] as const;
