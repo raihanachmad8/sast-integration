@@ -1,4 +1,5 @@
 import { pgTable, uuid, varchar, text, timestamp, boolean, integer, numeric, jsonb } from 'drizzle-orm/pg-core';
+import { aiModels } from './integrations';
 
 export const findingGroups = pgTable('finding_groups', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -32,7 +33,7 @@ export const findings = pgTable('findings', {
 export const aiVerifications = pgTable('ai_verifications', {
   id: uuid('id').primaryKey().defaultRandom(),
   finding_id: uuid('finding_id').references(() => findings.id),
-  model_id: uuid('model_id'),
+  model_id: uuid('model_id').references(() => aiModels.id),
   verdict: varchar('verdict', { length: 20 }).notNull(), // 'true_positive' | 'false_positive' | 'error'
   confidence: numeric('confidence', { precision: 3, scale: 2 }), // 0.00 - 1.00
   explanation: text('explanation'),
