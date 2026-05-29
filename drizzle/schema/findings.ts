@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean, integer, numeric, jsonb } from 'drizzle-orm/pg-core';
 
 export const findingGroups = pgTable('finding_groups', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -21,6 +21,9 @@ export const findings = pgTable('findings', {
   line_number: integer('line_number'),
   code_snippet: text('code_snippet'),
   description: text('description'),
+  rule: varchar('rule', { length: 500 }),
+  scanner: varchar('scanner', { length: 50 }),
+  message: text('message'),
   assigned_to: uuid('assigned_to'),
   created_at: timestamp('created_at').defaultNow(),
   updated_at: timestamp('updated_at').defaultNow(),
@@ -29,10 +32,17 @@ export const findings = pgTable('findings', {
 export const aiVerifications = pgTable('ai_verifications', {
   id: uuid('id').primaryKey().defaultRandom(),
   finding_id: uuid('finding_id').references(() => findings.id),
-  is_valid: boolean('is_valid'),
-  confidence: integer('confidence'),
-  reasoning: text('reasoning'),
-  model_version: varchar('model_version', { length: 50 }),
+  model_id: uuid('model_id'),
+  verdict: varchar('verdict', { length: 20 }).notNull(), // 'true_positive' | 'false_positive' | 'error'
+  confidence: numeric('confidence', { precision: 3, scale: 2 }), // 0.00 - 1.00
+  explanation: text('explanation'),
+  data_flow: text('data_flow'),
+  taint_source: text('taint_source'),
+  match_detail: text('match_detail'),
+  likely_cwe: jsonb('likely_cwe'), // ["CWE-89"]
+  fix_suggestion: text('fix_suggestion'),
+  latency_ms: integer('latency_ms'),
+  raw_response: text('raw_response'),
   created_at: timestamp('created_at').defaultNow(),
 });
 
