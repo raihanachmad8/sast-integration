@@ -7,6 +7,7 @@ export const ROUTES = {
     RESET_PASSWORD: '/auth/reset-password',
     VERIFY_EMAIL: '/auth/verify-email',
   },
+  CHOOSER: '/workspaces',
   WORKSPACE: {
     DASHBOARD: (slug: string) => `/${slug}`,
     PROJECTS: (slug: string) => `/${slug}/projects`,
