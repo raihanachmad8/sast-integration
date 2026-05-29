@@ -1,7 +1,8 @@
 'use client';
 
 import { Form, Input, Button, Typography, Alert, Result } from 'antd';
-import { useSignupMutation, useConfigQuery } from '@/lib/auth';
+import { useSignupMutation, useConfigQuery } from '@/modules/auth/queries';
+import { ROUTES, AUTH_THEME } from '@/commons/constants';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -12,12 +13,12 @@ export default function SignupPage() {
   const signup = useSignupMutation();
   const config = useConfigQuery();
 
-  if (config.data?.registrationMode === 'invite') {
+  if (config.isSuccess && config.data?.registrationMode === 'invite') {
     return <Result status="info" title="Invitation Only" subTitle="Registration is disabled. Please use an invitation link to join." />;
   }
 
   const onFinish = (values: { email: string; password: string; name: string }) => {
-    signup.mutate(values, { onSuccess: () => router.push('/signin') });
+    signup.mutate(values, { onSuccess: () => router.push(ROUTES.AUTH.SIGNIN) });
   };
 
   return (
@@ -25,7 +26,7 @@ export default function SignupPage() {
       <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Create account</Title>
       <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>A Personal Workspace will be available immediately.</Text>
 
-      {signup.error && <Alert message={signup.error.message} type="error" showIcon style={{ marginTop: 16 }} />}
+      {signup.error && <Alert title={signup.error.message} type="error" showIcon style={{ marginTop: 16 }} />}
 
       <Form layout="vertical" onFinish={onFinish} autoComplete="off" requiredMark={false} style={{ marginTop: 24 }}>
         <Form.Item
@@ -62,7 +63,7 @@ export default function SignupPage() {
         </Form.Item>
 
         <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
-          <Button type="primary" htmlType="submit" loading={signup.isPending} block size="large" style={{ height: 44, fontWeight: 600 }}>
+          <Button type="primary" htmlType="submit" loading={signup.isPending} block size="large" style={{ width: '100%', height: 44, fontWeight: 600 }}>
             Create account
           </Button>
         </Form.Item>
@@ -70,7 +71,7 @@ export default function SignupPage() {
 
       <div style={{ marginTop: 20, textAlign: 'center', fontSize: 13 }}>
         <Text type="secondary">
-          Already registered? <Link href="/signin" style={{ fontWeight: 600, color: '#0f766e' }}>Sign in</Link>
+          Already registered? <Link href={ROUTES.AUTH.SIGNIN} style={{ fontWeight: 600, color: AUTH_THEME.PRIMARY }}>Sign in</Link>
         </Text>
       </div>
     </>

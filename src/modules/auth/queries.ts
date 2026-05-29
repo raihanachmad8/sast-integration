@@ -33,7 +33,7 @@ export function useSigninMutation() {
     onSuccess: (data: SigninResponse) => {
       queryClient.setQueryData(authKeys.session(), {
         user: data.user,
-        workspace: null,
+        workspace: data.workspace,
         accessToken: data.accessToken,
       });
     },

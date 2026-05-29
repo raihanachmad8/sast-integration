@@ -1,0 +1,156 @@
+import { test, expect } from '@playwright/test';
+import { AUTH_PATHS, gotoAuthPage } from './helpers';
+
+test.describe('Signin Page', () => {
+  test.beforeEach(async ({ page }) => {
+    await gotoAuthPage(page, AUTH_PATHS.signin, 'Sign in');
+  });
+
+  test('should render signin form', async ({ page }) => {
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByPlaceholder('you@company.com')).toBeVisible();
+    await expect(page.getByPlaceholder('Enter your password')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  });
+
+  test('should show link to signup', async ({ page }) => {
+    await expect(page.getByText('Create an account')).toBeVisible();
+  });
+
+  test('should show validation error on empty submit', async ({ page }) => {
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    // Ant Design shows validation messages in .ant-form-item-explain-error
+    await expect(page.locator('.ant-form-item-explain-error').first()).toBeVisible({ timeout: 5000 });
+  });
+
+  test('should show validation error on invalid email', async ({ page }) => {
+    await page.getByPlaceholder('you@company.com').fill('not-an-email');
+    await page.getByPlaceholder('Enter your password').fill('password123');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.locator('.ant-form-item-explain-error').first()).toBeVisible({ timeout: 5000 });
+  });
+
+  test('should show error on invalid credentials', async ({ page }) => {
+    await page.getByPlaceholder('you@company.com').fill('wrong@example.com');
+    await page.getByPlaceholder('Enter your password').fill('wrongpassword');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByRole('alert')).toBeVisible({ timeout: 10000 });
+  });
+
+  test('should navigate to signup page', async ({ page }) => {
+    await page.locator(`a[href="${AUTH_PATHS.signup}"]`).click();
+    await expect(page).toHaveURL(AUTH_PATHS.signup, { timeout: 10000 });
+  });
+
+  test('should redirect to requested path after successful signin', async ({ page }) => {
+    await page.route('**/api/v1/auth/signin', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: {
+          'Set-Cookie': 'refresh_token=test-refresh-token; Path=/; HttpOnly; SameSite=Lax',
+        },
+        body: JSON.stringify({
+          success: true,
+          message: 'Login successful',
+          data: {
+            tokenType: 'Bearer',
+            accessToken: 'test-access-token',
+            expiresAt: new Date(Date.now() + 900_000).toISOString(),
+            expiresIn: 900,
+            user: {
+              id: 'user-1',
+              email: 'user@example.com',
+              name: 'Test User',
+              emailVerified: true,
+              currentWorkspaceId: 'workspace-1',
+            },
+            workspace: {
+              id: 'workspace-1',
+              name: 'Personal Workspace',
+              slug: 'personal-test',
+              role: 'owner',
+            },
+          },
+          meta: { timestamp: new Date().toISOString() },
+        }),
+      });
+    });
+
+    await gotoAuthPage(page, `${AUTH_PATHS.signin}?redirect=/some-workspace`, 'Sign in');
+    await page.getByPlaceholder('you@company.com').fill('user@example.com');
+    await page.getByPlaceholder('Enter your password').fill('password123');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    await expect(page).toHaveURL('/some-workspace', { timeout: 10000 });
+  });
+
+  test('should redirect to current workspace after successful signin without requested path', async ({ page }) => {
+    await page.route('**/api/v1/auth/signin', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: {
+          'Set-Cookie': 'refresh_token=test-refresh-token; Path=/; HttpOnly; SameSite=Lax',
+        },
+        body: JSON.stringify({
+          success: true,
+          message: 'Login successful',
+          data: {
+            tokenType: 'Bearer',
+            accessToken: 'test-access-token',
+            expiresAt: new Date(Date.now() + 900_000).toISOString(),
+            expiresIn: 900,
+            user: {
+              id: 'user-1',
+              email: 'user@example.com',
+              name: 'Test User',
+              emailVerified: true,
+              currentWorkspaceId: 'workspace-1',
+            },
+            workspace: {
+              id: 'workspace-1',
+              name: 'Personal Workspace',
+              slug: 'personal-test',
+              role: 'owner',
+            },
+          },
+          meta: { timestamp: new Date().toISOString() },
+        }),
+      });
+    });
+
+    await gotoAuthPage(page, AUTH_PATHS.signin, 'Sign in');
+    await page.getByPlaceholder('you@company.com').fill('user@example.com');
+    await page.getByPlaceholder('Enter your password').fill('password123');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    await expect(page).toHaveURL('/personal-test', { timeout: 10000 });
+  });
+});
+
+test.describe('Signin Page - Desktop only', () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test('should show branding panel on desktop', async ({ page }) => {
+    await gotoAuthPage(page, AUTH_PATHS.signin, 'Sign in');
+    await expect(page.getByText('SAST Integration')).toBeVisible();
+    await expect(page.getByText('Review scanner findings')).toBeVisible();
+  });
+});
+
+test.describe('Signin Page - Mobile', () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test('should hide branding panel on mobile', async ({ page }) => {
+    await gotoAuthPage(page, AUTH_PATHS.signin, 'Sign in');
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByText('Review scanner findings')).toBeHidden();
+  });
+
+  test('should render form on mobile', async ({ page }) => {
+    await gotoAuthPage(page, AUTH_PATHS.signin, 'Sign in');
+    await expect(page.getByPlaceholder('you@company.com')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  });
+});

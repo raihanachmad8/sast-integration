@@ -3,7 +3,7 @@ export const AUTH = {
   COOKIE: {
     REFRESH_TOKEN: 'refresh_token',
     MAX_AGE: 7 * 24 * 60 * 60,
-    PATH: '/api/v1/auth/refresh',
+    PATH: '/',
   },
   ERROR_CODE: {
     AUTH: 'AUTH_ERROR',

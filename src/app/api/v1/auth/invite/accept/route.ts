@@ -15,6 +15,6 @@ export async function POST(request: NextRequest) {
     return ApiResponse.success(AUTH.MESSAGES.INVITE_ACCEPTED, user);
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
-    return ApiResponse.error(AUTH.ERRORS.INVITE_EXPIRED, AUTH.ERROR_CODE.AUTH, undefined, 400);
+    return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
   }
 }

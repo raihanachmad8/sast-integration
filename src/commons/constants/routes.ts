@@ -1,7 +1,8 @@
 export const ROUTES = {
   AUTH: {
-    LOGIN: () => '/login',
-    REGISTER: () => '/register',
+    SIGNIN: '/auth/signin',
+    SIGNUP: '/auth/signup',
+    INVITE: '/auth/invite',
   },
   WORKSPACE: {
     DASHBOARD: (slug: string) => `/${slug}`,
@@ -10,4 +11,13 @@ export const ROUTES = {
     REPORTS: (slug: string) => `/${slug}/reports`,
     SETTINGS: (slug: string) => `/${slug}/settings`,
   },
-};
+} as const;
+
+export const API_BASE = '/api/v1';
+
+export const PUBLIC_PATHS = [
+  ROUTES.AUTH.SIGNIN,
+  ROUTES.AUTH.SIGNUP,
+  ROUTES.AUTH.INVITE,
+  '/api/',
+] as const;

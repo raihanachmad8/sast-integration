@@ -3,18 +3,27 @@ import postgres from 'postgres';
 import * as schema from '../../../drizzle/schema';
 import { env } from '@/server/env';
 
-let _db: ReturnType<typeof drizzle> | null = null;
+let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
+
+function getDb() {
+  if (!_db) {
+    const queryClient = postgres(env.DATABASE_URL);
+    _db = drizzle(queryClient, { schema });
+  }
+  return _db;
+}
 
 /**
  * Lazily initialized database client.
  * Connection established on first access, not at import/build time.
  */
-export const db = new Proxy({} as ReturnType<typeof drizzle>, {
+export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
   get(_, prop) {
-    if (!_db) {
-      const queryClient = postgres(env.DATABASE_URL);
-      _db = drizzle(queryClient, { schema });
+    const instance = getDb();
+    const value = (instance as unknown as Record<string | symbol, unknown>)[prop];
+    if (typeof value === 'function') {
+      return value.bind(instance);
     }
-    return (_db as unknown as Record<string | symbol, unknown>)[prop];
+    return value;
   },
 });

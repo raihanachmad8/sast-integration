@@ -11,6 +11,9 @@ export async function POST(request: NextRequest) {
   await authService.signout(auth.context.sessionId);
 
   const response = NextResponse.json({ success: true, message: AUTH.MESSAGES.SIGNOUT_SUCCESS, data: null, meta: buildMeta() });
-  response.cookies.delete(AUTH.COOKIE.REFRESH_TOKEN);
+  response.cookies.set(AUTH.COOKIE.REFRESH_TOKEN, '', {
+    path: AUTH.COOKIE.PATH,
+    maxAge: 0,
+  });
   return response;
 }

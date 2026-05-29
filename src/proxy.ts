@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const PUBLIC_PATHS = ['/signin', '/signup', '/invite', '/api/', '/login'];
+import { PUBLIC_PATHS, ROUTES } from '@/commons/constants';
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -11,7 +10,7 @@ export function proxy(request: NextRequest) {
 
   const refreshToken = request.cookies.get('refresh_token')?.value;
   if (!refreshToken) {
-    const signinUrl = new URL('/signin', request.url);
+    const signinUrl = new URL(ROUTES.AUTH.SIGNIN, request.url);
     signinUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(signinUrl);
   }

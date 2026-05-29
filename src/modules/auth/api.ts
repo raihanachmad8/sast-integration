@@ -1,7 +1,7 @@
-const API = '/api/v1';
+import { API_BASE } from '@/commons/constants';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
   });
@@ -36,6 +36,7 @@ export interface SigninResponse {
   expiresAt: string;
   expiresIn: number;
   user: User;
+  workspace: Workspace | null;
 }
 
 export interface ConfigData {

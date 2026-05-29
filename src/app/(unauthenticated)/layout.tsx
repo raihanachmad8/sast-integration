@@ -1,5 +1,6 @@
 import { QueryProvider } from '@/components/providers/query-provider';
 import { ConfigProvider } from 'antd';
+import { AUTH_THEME } from '@/commons/constants';
 import styles from './auth.module.css';
 
 function ShieldIcon() {
@@ -13,24 +14,23 @@ function ShieldIcon() {
 export default function UnauthenticatedLayout({ children }: { children: React.ReactNode }) {
   return (
     <QueryProvider>
-      <ConfigProvider theme={{ token: { colorPrimary: '#0f766e' } }}>
+      <ConfigProvider theme={{ token: { colorPrimary: AUTH_THEME.PRIMARY } }}>
         <div className={styles.authLayout}>
-          {/* Left panel */}
           <div className={styles.brandPanel}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: AUTH_THEME.PANEL_ICON_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <ShieldIcon />
               </div>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 700 }}>SAST Integration</div>
-                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#99f6e4' }}>Security Review Console</div>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: AUTH_THEME.TEXT_SUBTLE }}>Security Review Console</div>
               </div>
             </div>
 
             <h1 style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.3, margin: 0 }}>
               Review scanner findings<br />with clear AI attribution.
             </h1>
-            <p style={{ marginTop: 12, fontSize: 14, lineHeight: 1.6, color: '#ccfbf1', maxWidth: 380 }}>
+            <p style={{ marginTop: 12, fontSize: 14, lineHeight: 1.6, color: AUTH_THEME.TEXT_MUTED, maxWidth: 380 }}>
               Connect repositories, queue scans, verify findings with AI, and manage workspace access — all in one place.
             </p>
 
@@ -40,9 +40,9 @@ export default function UnauthenticatedLayout({ children }: { children: React.Re
                 { value: 'QLoRA', label: 'AI Verifier' },
                 { value: 'RBAC', label: 'Permissions' },
               ].map((item) => (
-                <div key={item.label} style={{ borderRadius: 10, background: 'rgba(255,255,255,0.1)', padding: '10px 8px', textAlign: 'center' }}>
+                <div key={item.label} style={{ borderRadius: 10, background: AUTH_THEME.PANEL_BG, padding: '10px 8px', textAlign: 'center' }}>
                   <div style={{ fontSize: 18, fontWeight: 700 }}>{item.value}</div>
-                  <div style={{ fontSize: 10, color: '#99f6e4', marginTop: 2 }}>{item.label}</div>
+                  <div style={{ fontSize: 10, color: AUTH_THEME.TEXT_SUBTLE, marginTop: 2 }}>{item.label}</div>
                 </div>
               ))}
             </div>
@@ -54,14 +54,13 @@ export default function UnauthenticatedLayout({ children }: { children: React.Re
                 'AI-assisted TP/FP with confidence score',
                 'Workspace RBAC with 4 role levels',
               ].map((text) => (
-                <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#ccfbf1' }}>
-                  <span style={{ color: '#5eead4' }}>✓</span> {text}
+                <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: AUTH_THEME.TEXT_MUTED }}>
+                  <span style={{ color: AUTH_THEME.ACCENT }}>✓</span> {text}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Right panel */}
           <div className={styles.formPanel}>
             <div className={styles.formWrapper}>
               {children}
