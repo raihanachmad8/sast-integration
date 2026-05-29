@@ -46,7 +46,7 @@
 
 ### v0.3.0 — Auth & Session
 
-- Auth API (register/login/logout with JWT)
+- Auth API (signup/signin/signout with JWT)
 - Auth UI (pages + middleware)
 - Password reset & email verification
 

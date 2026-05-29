@@ -1,0 +1,25 @@
+import { env } from '@/server/env';
+
+/** Base URL for E2E tests */
+export const BASE_URL = env.APP_URL ?? 'http://localhost:3000';
+export const API_URL = `${BASE_URL}/api/v1`;
+
+/** Test user fixtures */
+export const TEST_USER = {
+  email: 'test@example.com',
+  password: 'Password123!',
+  name: 'Test User',
+} as const;
+
+export const INVALID_USER = {
+  email: 'nobody@example.com',
+  password: 'wrong-password',
+} as const;
+
+/** Helper to make API requests */
+export async function api(path: string, options: RequestInit = {}) {
+  return fetch(`${API_URL}${path}`, {
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+    ...options,
+  });
+}
