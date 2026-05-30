@@ -22,13 +22,25 @@ Built as a thesis project targeting defense in **June 2026**.
 - 🤖 AI-powered finding verification (multi-model, per-model detail output)
 - 📊 Unified vulnerability dashboard with analytics
 - 🏢 Multi-workspace with RBAC (24 granular permissions, 4 roles)
+- 👥 Member management (invite by email, role assignment, revoke)
+- 🔐 Production hardening (env validation, reject dev secrets in prod)
 - 🔗 SCM integration (GitHub, GitLab, Gitea)
 - 📋 Scan policies & quality gates for PR blocking
 - 📄 Report generation (PDF, XLSX)
-- 👥 Teams & project management
 - 🧠 Knowledge base (CWE, NVD, custom rules)
 - 🔔 Webhooks & notifications
 - ⏰ Scheduled recurring scans
+
+---
+
+## Workspace Mode
+
+Configured via `WORKSPACE_MODE` environment variable:
+
+| Mode | Behavior |
+|------|----------|
+| `single` | One organization workspace, invitation-only, signup disabled, org seeded at `db:seed` |
+| `multiple` | Open self-signup, users create personal workspaces, join orgs by invitation |
 
 ---
 
@@ -57,7 +69,7 @@ Built as a thesis project targeting defense in **June 2026**.
 | M1: Project Setup | v0.1.0 | ✅ Done |
 | M2: Database & Schema | v0.2.0 | ✅ Done |
 | M3: Auth & Session | v0.3.0 | ✅ Done |
-| M4: Workspace | v0.4.0 | ⏳ |
+| M4: Workspace Management | v0.4.0 | ✅ Done |
 | M5: Projects & Repos | v0.5.0 | ⏳ |
 | M6: Scanning Pipeline | v0.6.0 | ⏳ |
 | M7: Findings & AI | v0.7.0 | ⏳ |
@@ -92,6 +104,17 @@ pnpm db:studio     # Drizzle Studio
 ```
 Email: admin@sast.local
 Password: ChangeMe123!
+```
+
+Override via `OWNER_EMAIL` / `OWNER_PASSWORD` env vars. Production rejects defaults.
+
+### Testing
+
+```bash
+pnpm test          # Unit tests (Vitest)
+pnpm test:ui       # E2E tests (Playwright)
+pnpm lint          # ESLint
+pnpm build         # Production build
 ```
 
 ---
