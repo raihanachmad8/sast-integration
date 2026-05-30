@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, jsonb, unique } from 'drizzle-orm/pg-core';
 import { users } from './users';
 
 export const workspaces = pgTable('workspaces', {
@@ -23,7 +23,7 @@ export const workspaceMembers = pgTable('workspace_members', {
   userId: uuid('user_id').notNull().references(() => users.id),
   role: varchar('role', { length: 20 }).notNull().$type<'owner' | 'manager' | 'reviewer' | 'member'>(),
   joinedAt: timestamp('joined_at').defaultNow().notNull(),
-});
+}, (t) => [unique().on(t.workspaceId, t.userId)]);
 
 export const workspaceSettings = pgTable('workspace_settings', {
   id: uuid('id').primaryKey().defaultRandom(),

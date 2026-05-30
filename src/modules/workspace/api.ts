@@ -25,7 +25,7 @@ export const workspaceApi = {
   list: (token: string) =>
     request<WorkspaceItem[]>('/workspaces', { headers: { Authorization: `Bearer ${token}` } }),
 
-  create: (token: string, data: { name: string; slug?: string; description?: string }) =>
+  create: (token: string, data: { name: string; slug?: string; description?: string; type?: 'personal' | 'organization' }) =>
     request<WorkspaceItem>('/workspaces', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(data) }),
 
   switchWorkspace: (token: string, workspaceId: string) =>

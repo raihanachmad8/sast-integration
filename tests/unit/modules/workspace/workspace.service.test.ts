@@ -8,6 +8,7 @@ vi.mock('@/server/modules/workspace/workspace.repository', () => ({
     listByUser: vi.fn(),
     findById: vi.fn(),
     findBySlug: vi.fn(),
+    findActivePersonalByOwner: vi.fn(),
     getMemberRole: vi.fn(),
     create: vi.fn(),
     addMember: vi.fn(),
@@ -18,10 +19,17 @@ vi.mock('@/server/modules/workspace/workspace.repository', () => ({
 }));
 
 vi.mock('@/server/db/client', () => ({
-  db: { transaction: vi.fn((fn) => fn({ insert: vi.fn().mockReturnValue({ values: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: 'ws-1' }]) }) }) })) },
+  db: { transaction: vi.fn((fn) => fn({})) },
+}));
+
+vi.mock('@/server/env', () => ({
+  env: {
+    WORKSPACE_MODE: 'multiple',
+  },
 }));
 
 import { workspaceRepository } from '@/server/modules/workspace/workspace.repository';
+import { env } from '@/server/env';
 const mockRepo = vi.mocked(workspaceRepository);
 
 describe('workspaceService.list', () => {
@@ -48,11 +56,49 @@ describe('workspaceService.getById', () => {
 });
 
 describe('workspaceService.create', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (env as { WORKSPACE_MODE: string }).WORKSPACE_MODE = 'multiple';
+  });
 
-  it('should throw on slug conflict', async () => {
-    mockRepo.findBySlug.mockResolvedValue({ id: 'existing' } as never);
-    await expect(workspaceService.create({ name: 'Test' }, 'user-1')).rejects.toThrow(WORKSPACE.ERRORS.SLUG_CONFLICT);
+  it('should reject self-service workspace creation when workspace mode is single', async () => {
+    (env as { WORKSPACE_MODE: string }).WORKSPACE_MODE = 'single';
+
+    await expect(
+      workspaceService.create({ name: 'Personal Workspace', type: WORKSPACE.TYPE.PERSONAL }, 'user-1')
+    ).rejects.toThrow(WORKSPACE.ERRORS.SELF_SERVICE_DISABLED);
+    expect(mockRepo.findActivePersonalByOwner).not.toHaveBeenCalled();
+  });
+
+  it('should reject self-service organization workspace creation', async () => {
+    await expect(workspaceService.create({ name: 'Test' }, 'user-1')).rejects.toThrow(WORKSPACE.ERRORS.SELF_SERVICE_DISABLED);
+    expect(mockRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('should reject personal workspace creation when active personal exists', async () => {
+    mockRepo.findActivePersonalByOwner.mockResolvedValue({ id: 'personal-1' } as never);
+
+    await expect(
+      workspaceService.create({ name: 'Personal Workspace', type: WORKSPACE.TYPE.PERSONAL }, 'user-1')
+    ).rejects.toThrow(WORKSPACE.ERRORS.PERSONAL_EXISTS);
+  });
+
+  it('should create personal workspace when none is active', async () => {
+    mockRepo.findActivePersonalByOwner.mockResolvedValue(null);
+    mockRepo.findBySlug.mockResolvedValue(null);
+    mockRepo.create.mockResolvedValue({ id: 'ws-1', name: 'Personal Workspace', slug: 'personal-user-1' } as never);
+    mockRepo.addMember.mockResolvedValue(undefined);
+    mockRepo.switchWorkspace.mockResolvedValue(undefined);
+
+    const result = await workspaceService.create({ name: 'Personal Workspace', type: WORKSPACE.TYPE.PERSONAL }, 'user-1');
+
+    expect(result.id).toBe('ws-1');
+    expect(mockRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Personal Workspace', type: WORKSPACE.TYPE.PERSONAL, createdBy: 'user-1' }),
+      expect.anything(),
+    );
+    expect(mockRepo.addMember).toHaveBeenCalledWith('ws-1', 'user-1', ROLE.OWNER, expect.anything());
+    expect(mockRepo.switchWorkspace).toHaveBeenCalledWith('user-1', 'ws-1', expect.anything());
   });
 });
 

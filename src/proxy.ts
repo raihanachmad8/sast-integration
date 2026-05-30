@@ -14,8 +14,8 @@ export function proxy(request: NextRequest) {
   const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || pathname.startsWith('/_next');
   const isAuthPage = AUTH_PAGES.some((p) => pathname.startsWith(p));
 
-  // Authenticated user trying to access auth pages → redirect to workspace chooser
-  if (refreshToken && isAuthPage) {
+  // Authenticated users always start from the workspace chooser.
+  if (refreshToken && (pathname === '/' || isAuthPage)) {
     return NextResponse.redirect(new URL(ROUTES.CHOOSER, request.url));
   }
 

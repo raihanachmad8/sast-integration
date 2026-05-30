@@ -6,7 +6,8 @@ import { authService } from '@/server/modules/auth/services/auth.service';
 import { inviteSchema } from '@/server/modules/auth/schemas/auth.schema';
 import { AppError } from '@/server/http/errors';
 import { AUTH } from '@/server/modules/auth/constants';
-import { HTTP } from '@/server/http/constants';
+import { requireWorkspaceRole } from '@/server/modules/workspace/workspace.middleware';
+import { ROLE } from '@/commons/constants/permissions';
 
 export async function POST(request: NextRequest) {
   const auth = await authenticate(request);
@@ -15,11 +16,11 @@ export async function POST(request: NextRequest) {
   const validation = await validateBody(request, inviteSchema);
   if (!validation.success) return validation.response;
 
-  const workspaceId = request.headers.get(HTTP.HEADERS.WORKSPACE_ID);
-  if (!workspaceId) return ApiResponse.error(AUTH.ERRORS.WORKSPACE_REQUIRED, AUTH.ERROR_CODE.AUTH, undefined, 400);
+  const workspace = await requireWorkspaceRole(request, auth.context, ROLE.MANAGER);
+  if (!workspace.success) return workspace.response;
 
   try {
-    const result = await authService.invite(validation.data, workspaceId, auth.context.userId);
+    const result = await authService.invite(validation.data, workspace.context.workspaceId, auth.context.userId);
     return ApiResponse.success(AUTH.MESSAGES.INVITE_SENT, { email: result.email });
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

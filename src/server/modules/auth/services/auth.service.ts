@@ -1,15 +1,18 @@
 import { hash, compare } from 'bcryptjs';
 import { randomUUID, randomBytes } from 'crypto';
+import { and, eq, isNull } from 'drizzle-orm';
 import { authRepository } from '../repositories/auth.repository';
 import { authFlowsService } from './auth-flows.service';
 import { signAccessToken, signRefreshToken } from './jwt.service';
-import { AUTH, WORKSPACE_DEFAULTS, REGISTRATION_MODE, WORKSPACE_MODE } from '../constants';
+import { AUTH, WORKSPACE_DEFAULTS, WORKSPACE_MODE } from '../constants';
 import { env } from '@/server/env';
 import { db } from '@/server/db/client';
-import { workspaces, workspaceMembers } from '../../../../../drizzle/schema';
+import { users, workspaces, workspaceMembers } from '../../../../../drizzle/schema';
 import { AppError } from '@/server/http/errors';
 import { TOKEN_BYTES } from '@/server/http/constants';
 import type { SignupInput, SigninInput, AcceptInviteInput, InviteInput } from '../schemas/auth.schema';
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Parse duration string (e.g. "15m", "7d") to milliseconds.
@@ -24,10 +27,57 @@ function parseExpiry(value: string): number {
   return num * (multipliers[match[2]] ?? 60_000);
 }
 
+async function ensurePersonalWorkspace(tx: Tx, user: { id: string }) {
+  const [existingWorkspace] = await tx
+    .select({ id: workspaces.id })
+    .from(workspaces)
+    .where(and(eq(workspaces.createdBy, user.id), eq(workspaces.type, 'personal'), isNull(workspaces.deletedAt)))
+    .limit(1);
+
+  if (existingWorkspace) {
+    return existingWorkspace.id;
+  }
+
+  const baseSlug = `${WORKSPACE_DEFAULTS.PERSONAL_SLUG_PREFIX}${user.id.slice(0, 8)}`;
+  let slug = baseSlug;
+  const [existingSlug] = await tx.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.slug, slug)).limit(1);
+  if (existingSlug) {
+    slug = `${baseSlug}-${randomUUID().slice(0, 6)}`;
+  }
+
+  const [workspace] = await tx.insert(workspaces).values({
+    name: WORKSPACE_DEFAULTS.PERSONAL_NAME,
+    slug,
+    type: 'personal',
+    createdBy: user.id,
+    updatedBy: user.id,
+  }).returning();
+
+  await ensureWorkspaceMembership(tx, workspace.id, user.id, 'owner');
+  return workspace.id;
+}
+
+async function ensureWorkspaceMembership(
+  tx: Tx,
+  workspaceId: string,
+  userId: string,
+  role: 'owner' | 'manager' | 'reviewer' | 'member',
+) {
+  const [existingMember] = await tx
+    .select({ id: workspaceMembers.id })
+    .from(workspaceMembers)
+    .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
+    .limit(1);
+
+  if (!existingMember) {
+    await tx.insert(workspaceMembers).values({ workspaceId, userId, role });
+  }
+}
+
 export const authService = {
   /**
    * Register a new user account.
-   * Creates user, personal workspace (if WORKSPACE_MODE=multiple), and membership in a single transaction.
+   * Creates user, personal workspace, owner membership, and active workspace in a single transaction.
    *
    * @param input - Validated signup data (email, password, name)
    * @returns Created user (id, email, name)
@@ -35,7 +85,7 @@ export const authService = {
    * @throws {AppError} 409 - Email already registered
    */
   async signup(input: SignupInput) {
-    if (env.REGISTRATION_MODE === REGISTRATION_MODE.INVITE) {
+    if (env.WORKSPACE_MODE === WORKSPACE_MODE.SINGLE) {
       throw new AppError(AUTH.ERRORS.REGISTRATION_DISABLED, 403, AUTH.ERROR_CODE.AUTH);
     }
 
@@ -46,22 +96,12 @@ export const authService = {
 
     const result = await db.transaction(async (tx) => {
       const user = await authRepository.createUser({ email: input.email, passwordHash, name: input.name }, tx);
+      const personalWorkspaceId = await ensurePersonalWorkspace(tx, user);
 
-      if (env.WORKSPACE_MODE === WORKSPACE_MODE.MULTIPLE) {
-        const [workspace] = await tx.insert(workspaces).values({
-          name: WORKSPACE_DEFAULTS.PERSONAL_NAME,
-          slug: `${WORKSPACE_DEFAULTS.PERSONAL_SLUG_PREFIX}${user.id.slice(0, 8)}`,
-          type: 'personal',
-          createdBy: user.id,
-          updatedBy: user.id,
-        }).returning();
-
-        await tx.insert(workspaceMembers).values({
-          workspaceId: workspace.id,
-          userId: user.id,
-          role: 'owner',
-        });
-      }
+      await tx
+        .update(users)
+        .set({ currentWorkspaceId: personalWorkspaceId, updatedAt: new Date() })
+        .where(eq(users.id, user.id));
 
       return { id: user.id, email: user.email, name: user.name };
     });
@@ -212,11 +252,18 @@ export const authService = {
         }, tx);
       }
 
-      await tx.insert(workspaceMembers).values({
-        workspaceId: invitation.workspaceId,
-        userId: user.id,
-        role: invitation.role as 'owner' | 'manager' | 'reviewer' | 'member',
-      });
+      await ensurePersonalWorkspace(tx, user);
+      await ensureWorkspaceMembership(
+        tx,
+        invitation.workspaceId,
+        user.id,
+        invitation.role as 'owner' | 'manager' | 'reviewer' | 'member',
+      );
+
+      await tx
+        .update(users)
+        .set({ currentWorkspaceId: invitation.workspaceId, updatedAt: new Date() })
+        .where(eq(users.id, user.id));
 
       await authRepository.markInvitationAccepted(invitation.id, tx);
 

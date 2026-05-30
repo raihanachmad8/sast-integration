@@ -41,7 +41,6 @@ export interface SigninResponse {
 
 export interface ConfigData {
   workspaceMode: string;
-  registrationMode: string;
 }
 
 export const authApi = {

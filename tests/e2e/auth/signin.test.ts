@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { api, TEST_USER, INVALID_USER } from '../helpers/setup';
+import { api, TEST_USER, INVALID_USER } from '../../helpers/setup';
 
 describe('POST /api/v1/auth/signin', () => {
   // Positive cases
@@ -18,7 +18,7 @@ describe('POST /api/v1/auth/signin', () => {
     expect(json.data.expiresIn).toBeGreaterThan(0);
     expect(json.data.user.email).toBe(TEST_USER.email);
     expect(json.data.user).toHaveProperty('emailVerified');
-    expect(json.meta).toBeNull();
+    expect(json.meta).toEqual(expect.objectContaining({ requestId: expect.any(String), timestamp: expect.any(String) }));
   });
 
   it('should set refresh_token cookie', async () => {

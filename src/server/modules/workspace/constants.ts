@@ -11,6 +11,8 @@ export const WORKSPACE = {
     CANNOT_DELETE_PERSONAL: 'Personal workspace cannot be deleted',
     SLUG_CONFLICT: 'Workspace slug already exists',
     WORKSPACE_REQUIRED: 'Workspace ID is required',
+    SELF_SERVICE_DISABLED: 'Workspace creation is invitation-only',
+    PERSONAL_EXISTS: 'Personal workspace already exists',
   },
   MESSAGES: {
     CREATED: 'Workspace created',

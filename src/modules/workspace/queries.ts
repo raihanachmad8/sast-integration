@@ -22,10 +22,26 @@ export function useCreateWorkspaceMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { name: string; slug?: string; description?: string }) =>
-      workspaceApi.create(session.data!.accessToken, data),
-    onSuccess: () => {
+    mutationFn: (data: { name: string; slug?: string; description?: string; type?: 'personal' | 'organization' }) => {
+      if (!session.data?.accessToken) throw new Error('Session expired. Sign in again.');
+      return workspaceApi.create(session.data.accessToken, data);
+    },
+    onSuccess: (workspace) => {
+      queryClient.setQueryData(authKeys.session(), (current: { user: { currentWorkspaceId: string | null }, workspace: unknown } | undefined) => {
+        if (!current) return current;
+        return {
+          ...current,
+          user: { ...current.user, currentWorkspaceId: workspace.id },
+          workspace: {
+            id: workspace.id,
+            name: workspace.name,
+            slug: workspace.slug,
+            role: workspace.role ?? 'owner',
+          },
+        };
+      });
       queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
+      queryClient.invalidateQueries({ queryKey: authKeys.session() });
     },
   });
 }

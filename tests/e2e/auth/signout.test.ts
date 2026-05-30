@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { api, TEST_USER } from '../helpers/setup';
+import { api, TEST_USER } from '../../helpers/setup';
 
 describe('POST /api/v1/auth/signout', () => {
   async function getAccessToken() {

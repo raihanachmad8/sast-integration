@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { users, sessions, workspaceInvitations } from '../../../../../drizzle/schema';
 import { workspaces, workspaceMembers } from '../../../../../drizzle/schema/workspaces';
@@ -130,7 +130,7 @@ export const authRepository = {
       })
       .from(workspaceMembers)
       .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
-      .where(and(eq(workspaceMembers.userId, userId), eq(workspaceMembers.workspaceId, workspaceId)))
+      .where(and(eq(workspaceMembers.userId, userId), eq(workspaceMembers.workspaceId, workspaceId), isNull(workspaces.deletedAt)))
       .limit(1);
     return result ?? null;
   },

@@ -2,29 +2,32 @@
 
 import { Suspense } from 'react';
 import { Form, Input, Button, Typography, Alert } from 'antd';
-import { useSigninMutation } from '@/modules/auth/queries';
+import { useConfigQuery, useSigninMutation } from '@/modules/auth/queries';
 import { ROUTES, AUTH_THEME } from '@/commons/constants';
+import { WORKSPACE_MODE } from '@/server/modules/auth/constants';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 const { Title, Text } = Typography;
 
-function resolvePostSigninPath(redirect: string | null, workspaceSlug?: string | null) {
+function resolvePostSigninPath(redirect: string | null) {
   if (redirect?.startsWith('/') && !redirect.startsWith('//') && !redirect.startsWith(ROUTES.AUTH.SIGNIN)) {
     return redirect;
   }
 
-  return workspaceSlug ? ROUTES.WORKSPACE.DASHBOARD(workspaceSlug) : ROUTES.CHOOSER;
+  return ROUTES.CHOOSER;
 }
 
 function SigninForm() {
   const searchParams = useSearchParams();
   const signin = useSigninMutation();
+  const config = useConfigQuery();
+  const showSignupLink = config.data?.workspaceMode === WORKSPACE_MODE.MULTIPLE;
 
   const onFinish = (values: { email: string; password: string }) => {
     signin.mutate(values, {
-      onSuccess: (data) => {
-        window.location.assign(resolvePostSigninPath(searchParams.get('redirect'), data.workspace?.slug));
+      onSuccess: () => {
+        window.location.assign(resolvePostSigninPath(searchParams.get('redirect')));
       },
     });
   };
@@ -67,11 +70,13 @@ function SigninForm() {
         </Form.Item>
       </Form>
 
-      <div style={{ marginTop: 20, textAlign: 'center', fontSize: 13 }}>
-        <Text type="secondary">
-          New reviewer? <Link href={ROUTES.AUTH.SIGNUP} style={{ fontWeight: 600, color: AUTH_THEME.PRIMARY }}>Create an account</Link>
-        </Text>
-      </div>
+      {showSignupLink && (
+        <div style={{ marginTop: 20, textAlign: 'center', fontSize: 13 }}>
+          <Text type="secondary">
+            New reviewer? <Link href={ROUTES.AUTH.SIGNUP} style={{ fontWeight: 600, color: AUTH_THEME.PRIMARY }}>Create an account</Link>
+          </Text>
+        </div>
+      )}
     </>
   );
 }

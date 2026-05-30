@@ -6,6 +6,7 @@ import { PasswordStrength } from '@/components/shared/password-strength';
 import { Form, Input, Button, Typography, Alert, Result } from 'antd';
 import { useSignupMutation, useConfigQuery } from '@/modules/auth/queries';
 import { ROUTES, AUTH_THEME } from '@/commons/constants';
+import { WORKSPACE_MODE } from '@/server/modules/auth/constants';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -17,7 +18,7 @@ export default function SignupPage() {
   const config = useConfigQuery();
   const [passwordValue, setPasswordValue] = useState('');
 
-  if (config.isSuccess && config.data?.registrationMode === 'invite') {
+  if (config.isSuccess && config.data?.workspaceMode === WORKSPACE_MODE.SINGLE) {
     return <Result status="info" title="Invitation Only" subTitle="Registration is disabled. Please use an invitation link to join." />;
   }
 
