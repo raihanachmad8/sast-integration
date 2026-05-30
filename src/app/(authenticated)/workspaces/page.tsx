@@ -1,13 +1,13 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import { Spin } from 'antd';
 import { useRouter } from 'next/navigation';
 import { useWorkspacesQuery, useCreateWorkspaceMutation, useSwitchWorkspaceMutation } from '@/modules/workspace/queries';
 import { useConfigQuery, useSessionQuery, useSignoutMutation } from '@/modules/auth/queries';
 import { ROUTES, AUTH_THEME } from '@/commons/constants';
 import { WORKSPACE } from '@/server/modules/workspace/constants';
 import { WORKSPACE_MODE } from '@/server/modules/auth/constants';
+import { LoadingState } from '@/components/shared/LoadingState';
 
 function FaIcon({ icon, style }: { icon: string; style?: CSSProperties }) {
   return <i className={`fa-solid ${icon}`} aria-hidden="true" style={style} />;
@@ -182,7 +182,11 @@ export default function WorkspaceChooserPage() {
   };
 
   if (workspaces.isLoading || session.isLoading || config.isLoading) {
-    return <div style={{ ...pageStyle, display: 'flex', justifyContent: 'center', alignItems: 'center' }}><Spin size="large" /></div>;
+    return (
+      <div style={pageStyle}>
+        <LoadingState size="large" text="Loading workspaces..." />
+      </div>
+    );
   }
 
   if (!workspaces.data || workspaces.data.length === 0) {

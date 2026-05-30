@@ -1,6 +1,14 @@
 import { test, expect, type Page } from '@playwright/test';
 import { AUTH_PATHS, getPublicConfig, gotoAuthPage, WORKSPACE_MODE } from './helpers';
 
+/**
+ * Mocks a valid refresh_token cookie in the browser context.
+ *
+ * Used in signin tests that simulate successful authentication responses
+ * (so that subsequent requests can pass authentication checks).
+ *
+ * @param page - Playwright Page object
+ */
 async function addMockRefreshCookie(page: Page) {
   await page.context().addCookies([{
     name: 'refresh_token',
@@ -12,6 +20,15 @@ async function addMockRefreshCookie(page: Page) {
   }]);
 }
 
+/**
+ * Playwright UI tests for the Sign-in page.
+ *
+ * Covers:
+ * - Form rendering and basic validation
+ * - Mode-aware behavior (signup link visibility in SINGLE vs MULTIPLE mode)
+ * - Error states (invalid credentials, validation)
+ * - Post-login redirect behavior
+ */
 test.describe('Signin Page', () => {
   test.setTimeout(60_000);
 
@@ -19,6 +36,9 @@ test.describe('Signin Page', () => {
     await gotoAuthPage(page, AUTH_PATHS.signin, 'Sign in');
   });
 
+  /**
+   * Purpose: Basic smoke test to verify that the sign-in form renders with all essential elements.
+   */
   test('should render signin form', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
     await expect(page.getByPlaceholder('you@company.com')).toBeVisible();
@@ -26,6 +46,10 @@ test.describe('Signin Page', () => {
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
   });
 
+  /**
+   * Purpose: Verify that the "Create an account" link visibility correctly reflects
+   * the current WORKSPACE_MODE (hidden in SINGLE mode, visible in MULTIPLE mode).
+   */
   test('should match signup link to registration mode', async ({ page }) => {
     const config = await getPublicConfig(page);
     const signupLink = page.getByRole('link', { name: 'Create an account' });
@@ -38,19 +62,28 @@ test.describe('Signin Page', () => {
     await expect(signupLink).toBeVisible();
   });
 
-  test('should show validation error on empty submit', async ({ page }) => {
+  /**
+   * Purpose: Verify that submitting the sign-in form without filling any fields triggers visible validation errors.
+   */
+  test('should show validation errors when submitting empty form', async ({ page }) => {
     await page.getByRole('button', { name: 'Sign in' }).click();
     // Ant Design shows validation messages in .ant-form-item-explain-error
     await expect(page.locator('.ant-form-item-explain-error').first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('should show validation error on invalid email', async ({ page }) => {
+  /**
+   * Purpose: Verify that the UI shows a validation error when the user enters an email with invalid format.
+   */
+  test('should show validation error when email format is invalid', async ({ page }) => {
     await page.getByPlaceholder('you@company.com').fill('not-an-email');
     await page.getByPlaceholder('Enter your password').fill('password123');
     await page.getByRole('button', { name: 'Sign in' }).click();
     await expect(page.locator('.ant-form-item-explain-error').first()).toBeVisible({ timeout: 5000 });
   });
 
+  /**
+   * Purpose: Verify that entering wrong credentials shows the proper "Invalid credentials" error message.
+   */
   test('should show error on invalid credentials', async ({ page }) => {
     await page.getByPlaceholder('you@company.com').fill('wrong@example.com');
     await page.getByPlaceholder('Enter your password').fill('wrongpassword');
@@ -76,6 +109,12 @@ test.describe('Signin Page', () => {
     await expect(page).toHaveURL(AUTH_PATHS.forgotPassword, { timeout: 10000 });
   });
 
+  /**
+   * Purpose: Verify that after successful sign-in, the user is redirected to the originally requested page
+   * (passed via the `redirect` query parameter).
+   *
+   * This test uses route mocking to simulate a successful login response.
+   */
   test('should redirect to requested path after successful signin', async ({ page }) => {
     await page.route('**/api/v1/auth/signin', async (route) => {
       await addMockRefreshCookie(page);

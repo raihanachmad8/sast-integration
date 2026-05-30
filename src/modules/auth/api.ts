@@ -1,4 +1,4 @@
-import { API_BASE } from '@/commons/constants';
+import { API_BASE, SECURITY } from '@/commons/constants';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -54,11 +54,20 @@ export const authApi = {
     request<null>('/auth/signout', { method: 'POST', headers: { Authorization: `Bearer ${token}` } }),
 
   refresh: () =>
-    request<{ accessToken: string }>('/auth/refresh', { method: 'POST' }),
+    request<{ accessToken: string }>('/auth/refresh', { 
+      method: 'POST',
+      headers: { [SECURITY.REFRESH_CSRF_HEADER]: SECURITY.REFRESH_CSRF_HEADER_VALUE }
+    }),
 
   me: (token: string) =>
     request<SessionData>('/auth/me', { headers: { Authorization: `Bearer ${token}` } }),
 
   config: () =>
     request<ConfigData>('/config'),
+
+  resendVerification: (token: string) =>
+    request<null>('/auth/resend-verification', { 
+      method: 'POST', 
+      headers: { Authorization: `Bearer ${token}` } 
+    }),
 };

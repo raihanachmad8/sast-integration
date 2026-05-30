@@ -23,6 +23,8 @@ export const sessions = pgTable('sessions', {
   ipAddress: varchar('ip_address', { length: 45 }),
   userAgent: text('user_agent'),
   lastActivity: timestamp('last_activity').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  currentRefreshTokenId: varchar('current_refresh_token_id', { length: 64 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

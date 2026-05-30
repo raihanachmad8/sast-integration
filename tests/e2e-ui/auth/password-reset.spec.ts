@@ -1,6 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
 import { AUTH_PATHS, gotoAuthPage } from './helpers';
 
+/**
+ * Helper to collect Ant Design deprecation warnings from the console.
+ * Used to ensure we are not using deprecated components in error states.
+ */
 function collectDeprecatedAlertWarnings(page: Page) {
   const warnings: string[] = [];
   page.on('console', (message) => {
@@ -12,7 +16,18 @@ function collectDeprecatedAlertWarnings(page: Page) {
   return warnings;
 }
 
+/**
+ * Tests for the password reset and email verification flows.
+ *
+ * These tests focus on:
+ * - Form rendering
+ * - Error state handling (including deprecation warning checks)
+ * - Mocked API responses for reset flows
+ */
 test.describe('Password Reset Flow', () => {
+  /**
+   * Purpose: Verify that the forgot password form renders with all required fields and the submit button.
+   */
   test('should render forgot password form', async ({ page }) => {
     await gotoAuthPage(page, AUTH_PATHS.forgotPassword, 'Send reset link');
 
@@ -21,6 +36,10 @@ test.describe('Password Reset Flow', () => {
     await expect(page.getByRole('button', { name: 'Send reset link' })).toBeVisible();
   });
 
+  /**
+   * Purpose: Verify that when the forgot-password API returns an error (e.g. rate limit),
+   * the error message is displayed correctly without using deprecated Ant Design components.
+   */
   test('should show forgot password API error without deprecated Alert warning', async ({ page }) => {
     const warnings = collectDeprecatedAlertWarnings(page);
     await page.route('**/api/v1/auth/forgot-password', async (route) => {
@@ -40,7 +59,11 @@ test.describe('Password Reset Flow', () => {
     expect(warnings).toEqual([]);
   });
 
-  test('should show invalid reset link without deprecated Alert warning', async ({ page }) => {
+  /**
+   * Purpose: Verify that an invalid or expired reset token shows a clear error message,
+   * without triggering deprecated Ant Design component warnings.
+   */
+  test('should show error for invalid reset link without deprecated Alert warning', async ({ page }) => {
     const warnings = collectDeprecatedAlertWarnings(page);
 
     await page.goto(AUTH_PATHS.resetPassword);
@@ -69,7 +92,14 @@ test.describe('Password Reset Flow', () => {
   });
 });
 
+/**
+ * Tests specifically for the email verification flow (separate from password reset).
+ */
 test.describe('Email Verification Flow', () => {
+  /**
+   * Purpose: Verify the success state after email verification using a mocked API response,
+   * and ensure we are not using deprecated Ant Design components in the success UI.
+   */
   test('should verify email with token without deprecated Alert warning', async ({ page }) => {
     const warnings = collectDeprecatedAlertWarnings(page);
     await page.route((url) => url.pathname.endsWith('/api/v1/auth/verify-email'), async (route) => {

@@ -1,82 +1,57 @@
-# Roadmap
+# Roadmap & Milestone Plan
 
-## Current Version: v0.2.0 (done)
+**Purpose**: This document tracks the phased delivery of SAST Integration toward a production-ready thesis defense in June 2026.
 
-**Target**: v1.0.0 — Thesis Defense (June 2026)
+**Current Status**: M4 (Workspace Management & Collaboration) is complete. The platform now supports secure multi-tenant workspace operations with granular permissions.
+
+**Target**: v1.0.0 — Full thesis defense (June 2026)
 
 ---
 
-## Version Plan
+## Milestone Overview
 
-| Version | Timeline | Focus Area | Issues | Status |
-|---------|----------|------------|--------|--------|
-| v0.1.0 | Week 1 | Project Setup | 3 | ✅ Done |
-| v0.2.0 | Week 2 | Database & Schema | 3 | ✅ Done |
-| v0.3.0 | Week 3 | Auth & Session | 3 | ⏳ Planned |
-| v0.4.0 | Week 4 | Workspace Management | 3 | ⏳ Planned |
-| v0.5.0 | Week 5 | Projects & Repositories | 3 | ⏳ Planned |
-| v0.6.0 | Week 6-7 | Scanning Pipeline | 5 | ⏳ Planned |
-| v0.7.0 | Week 8-9 | Findings & AI Verification | 5 | ⏳ Planned |
-| v0.8.0 | Week 10 | Reports & Dashboard | 3 | ⏳ Planned |
-| v0.9.0 | Week 11 | Teams & RBAC | 3 | ⏳ Planned |
-| v1.0.0 | Week 12 | Deployment & UAT | 3 | 🎯 Target |
-
-**Total: 10 milestones, 34 issues, 12 weeks**
+| Milestone | Version | Focus Area                          | Status     |
+|-----------|---------|-------------------------------------|------------|
+| M1        | v0.1.0  | Project Setup & Architecture        | ✅ Complete |
+| M2        | v0.2.0  | Database Schema & Seeding (41 tables) | ✅ Complete |
+| M3        | v0.3.0  | Authentication, Sessions & Security | ✅ Complete |
+| M4        | v0.4.0  | Multi-Workspace Management & Collaboration | ✅ Complete |
+| M5        | v0.5.0  | Projects, Repositories & SCM Integration | In Progress |
+| M6        | v0.6.0  | Scanning Pipeline & Queue Processing | Planned |
+| M7        | v0.7.0  | Findings Management & AI Verification | Planned |
+| M8        | v0.8.0  | Reporting, Dashboard & Notifications | Planned |
+| M9        | v0.9.0  | Advanced RBAC, Teams & Audit        | Planned |
+| M10       | v1.0.0  | Deployment, UAT & Thesis Defense    | Target (June 2026) |
 
 ---
 
 ## Milestone Details
 
-### v0.1.0 — Project Setup ✅
+### M4 — Workspace Management & Collaboration (v0.4.0) ✅ Complete
 
-- [x] Next.js 16 + TypeScript + pnpm
-- [x] Ant Design 6 with custom theme
-- [x] Modular folder structure
-- [x] Route group layouts
-- [x] Base documentation
+**Objective**: Deliver a secure, production-hardened multi-workspace collaboration layer with self-service and invitation-based access patterns.
 
-### v0.2.0 — Database & Schema ✅
+**Delivered**:
+- Workspace CRUD API + UI (chooser, switcher, creation)
+- `WORKSPACE_MODE` as single source of truth (`single` vs `multiple`)
+- Member management (list, role change, remove) with strict ownership rules
+- Invitation system with email delivery and acceptance flow
+- Modular, env-aware seeding
+- Production environment validation and security headers
 
-- [x] Drizzle ORM + PostgreSQL setup
-- [x] Core schemas (users, workspaces, teams, auth, RBAC)
-- [x] Remaining schemas (41 tables total)
-- [x] AI-informed schema (ai_verifications, ai_models, scan_policies, quality_gates)
-- [x] Seed script (admin, permissions, roles)
-- [x] Migration runner
+### M5 — Projects, Repositories & SCM (In Progress)
 
-### v0.3.0 — Auth & Session
+- Project and repository management
+- SCM provider integrations (GitHub, GitLab, Gitea)
+- Repository import, sync, and webhook handling
 
-- Auth API (signup/signin/signout with JWT)
-- Auth UI (pages + middleware)
-- Password reset & email verification
+### Upcoming Milestones (High-Level Purpose)
 
-### v0.4.0 — Workspace Management
-
-- Workspace CRUD & API
-- Workspace UI (select, create, switch)
-- Members & invitations
-
-### v0.5.0 — Projects & Repositories
-
-- Project CRUD & API
-- SCM providers (GitHub, GitLab, Gitea)
-- Repository import & sync
-
-### v0.6.0 — Scanning Pipeline
-
-- Scanner providers (Semgrep, Gitleaks, Flawfinder) + pg-boss queue
-- Scan trigger & status UI + schedules
-- Output parsing & findings storage + AI trigger
-- Quality gates
-- Scan policies
-
-### v0.7.0 — Findings & AI Verification
-
-- Finding list & detail UI (per-model AI cards)
-- AI verification pipeline (multi-model, prompt presets)
-- Comments, assignment & status
-- AI models settings
-- Knowledge base
+- **M6**: Reliable scanning execution pipeline with background processing and scheduling.
+- **M7**: AI-powered finding verification with multi-model support and transparent reasoning.
+- **M8**: Actionable reporting, dashboards, and external notifications.
+- **M9**: Advanced team structures and comprehensive audit capabilities.
+- **M10**: Production deployment readiness and thesis defense artifacts.
 
 ### v0.8.0 — Reports & Dashboard
 
@@ -98,12 +73,13 @@
 
 ---
 
-## Git Flow
+## Branching & Release Strategy
 
-```
-main ──────────────────────────── tags: v0.1.0, v0.2.0, ... v1.0.0
-  │                                ↑
-  └── dev ─── merge feature PRs ─── release/vX.X.X ─── PR to main
-        ↑         ↑         ↑
-   feature/   feature/   feature/
-```
+The project follows a disciplined trunk-based workflow with protected `main`:
+
+- `main` — Production releases only (tagged)
+- `dev` — Integration branch for all feature work
+- `feature/*`, `fix/*` — Short-lived branches
+- `release/vX.X.X` — Release preparation branches
+
+All significant changes are delivered through well-documented Pull Requests that reference their originating Issue (see [CONTRIBUTING.md](../CONTRIBUTING.md) for standards).

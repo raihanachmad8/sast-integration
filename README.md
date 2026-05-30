@@ -8,39 +8,37 @@
 
 ---
 
-## Overview
+## Purpose
 
-**SAST Integration** is a web-based Static Application Security Testing platform with AI-powered verification. It integrates multiple SAST scanners (Semgrep, Gitleaks, Flawfinder) into a unified dashboard, with QLoRA fine-tuned LLMs verifying findings as True Positive or False Positive.
+SAST Integration is a production-grade, multi-tenant Static Application Security Testing (SAST) platform designed for security teams and development organizations.
 
-Built as a thesis project targeting defense in **June 2026**.
+Its primary objective is to unify multiple SAST scanners, enrich findings with AI-powered verification (using fine-tuned LLMs), and provide a structured workflow for triage, collaboration, and reporting — all within a secure, role-based multi-workspace environment.
 
----
-
-## Features
-
-- 🔍 Multi-engine SAST scanning (Semgrep, Gitleaks, Flawfinder)
-- 🤖 AI-powered finding verification (multi-model, per-model detail output)
-- 📊 Unified vulnerability dashboard with analytics
-- 🏢 Multi-workspace with RBAC (24 granular permissions, 4 roles)
-- 👥 Member management (invite by email, role assignment, revoke)
-- 🔐 Production hardening (env validation, reject dev secrets in prod)
-- 🔗 SCM integration (GitHub, GitLab, Gitea)
-- 📋 Scan policies & quality gates for PR blocking
-- 📄 Report generation (PDF, XLSX)
-- 🧠 Knowledge base (CWE, NVD, custom rules)
-- 🔔 Webhooks & notifications
-- ⏰ Scheduled recurring scans
+This project was developed as a thesis and is targeted for defense in **June 2026**.
 
 ---
 
-## Workspace Mode
+## Core Capabilities
 
-Configured via `WORKSPACE_MODE` environment variable:
+- **Multi-Engine SAST Scanning** — Integration with Semgrep, Gitleaks, and Flawfinder.
+- **AI-Assisted Verification** — QLoRA fine-tuned models to classify findings as True Positive / False Positive with per-model reasoning.
+- **Multi-Workspace Architecture** — Isolated workspaces with granular RBAC (24 permissions across 4 roles: Owner, Manager, Reviewer, Member).
+- **Self-Service & Invitation Workflows** — Personal workspace creation in multiple mode; email-based invitations with role assignment.
+- **Production-Ready Hardening** — Strict environment validation, rejection of development secrets in production, and secure defaults.
+- **SCM & CI Integration** — GitHub, GitLab, Gitea support with planned quality gates for PR blocking.
+- **Reporting & Knowledge Base** — Exportable reports (PDF/XLSX) and integrated CWE/NVD knowledge base.
+- **Operational Features** — Scheduled scans, webhooks, and audit-friendly member management.
 
-| Mode | Behavior |
-|------|----------|
-| `single` | One organization workspace, invitation-only, signup disabled, org seeded at `db:seed` |
-| `multiple` | Open self-signup, users create personal workspaces, join orgs by invitation |
+---
+
+## Workspace Operating Modes
+
+The platform supports two distinct operating models, controlled by the `WORKSPACE_MODE` environment variable. This allows the same codebase to serve both single-organization and multi-tenant / open-registration scenarios.
+
+| Mode       | Purpose                              | Key Behaviors |
+|------------|--------------------------------------|---------------|
+| `single`   | Single-organization / invite-only    | One shared organization workspace. Self-service signup and personal workspace creation are disabled. New users must be invited. The organization workspace is seeded during `pnpm db:seed`. |
+| `multiple` | Multi-user / self-service            | Users can sign up freely and automatically receive a personal workspace. Additional access is granted via invitations to organization workspaces. |
 
 ---
 
@@ -62,22 +60,20 @@ Configured via `WORKSPACE_MODE` environment variable:
 
 ---
 
-## Project Status
+## Current Status
+
+The platform has completed the foundational architecture and the complete multi-workspace collaboration layer (M4).
 
 | Milestone | Version | Status |
 |-----------|---------|--------|
-| M1: Project Setup | v0.1.0 | ✅ Done |
-| M2: Database & Schema | v0.2.0 | ✅ Done |
-| M3: Auth & Session | v0.3.0 | ✅ Done |
-| M4: Workspace Management | v0.4.0 | ✅ Done |
-| M5: Projects & Repos | v0.5.0 | ⏳ |
-| M6: Scanning Pipeline | v0.6.0 | ⏳ |
-| M7: Findings & AI | v0.7.0 | ⏳ |
-| M8: Reports & Dashboard | v0.8.0 | ⏳ |
-| M9: Teams & RBAC | v0.9.0 | ⏳ |
-| M10: Deployment & UAT | v1.0.0 | 🎯 Target |
+| M1: Project Setup | v0.1.0 | ✅ Complete |
+| M2: Database & Schema (41 tables) | v0.2.0 | ✅ Complete |
+| M3: Authentication & Sessions | v0.3.0 | ✅ Complete |
+| M4: Workspace Management & Collaboration | v0.4.0 | ✅ Complete |
+| M5: Projects, Repositories & SCM | v0.5.0 | In Progress |
+| M6–M10 | — | Planned |
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for details.
+For the detailed milestone breakdown and remaining scope, see [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ---
 

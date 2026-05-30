@@ -1,5 +1,7 @@
 # Coding Conventions
 
+**Purpose**: This document defines the consistent coding standards used throughout the SAST Integration codebase to ensure maintainability, readability, and alignment with the project's architectural principles.
+
 ## Naming
 
 - **Language**: English only for code, comments, and variable names

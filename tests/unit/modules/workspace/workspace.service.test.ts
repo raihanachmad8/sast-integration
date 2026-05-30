@@ -1,3 +1,12 @@
+/**
+ * Unit tests for workspaceService
+ *
+ * Tests core workspace business logic including:
+ * - Listing user workspaces
+ * - Retrieving workspace with role
+ * - Creation rules (especially personal workspace restrictions)
+ * - Update and delete permissions
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { workspaceService } from '@/server/modules/workspace/workspace.service';
 import { WORKSPACE } from '@/server/modules/workspace/constants';
@@ -32,8 +41,14 @@ import { workspaceRepository } from '@/server/modules/workspace/workspace.reposi
 import { env } from '@/server/env';
 const mockRepo = vi.mocked(workspaceRepository);
 
+/**
+ * Unit tests for workspaceService.list
+ */
+/**
+ * Unit tests for workspaceService.list
+ */
 describe('workspaceService.list', () => {
-  it('should return user workspaces', async () => {
+  it('should return the list of workspaces the user is a member of', async () => {
     mockRepo.listByUser.mockResolvedValue([{ id: 'ws-1', name: 'Test', slug: 'test', type: 'organization', role: ROLE.OWNER }] as never);
     const result = await workspaceService.list('user-1');
     expect(result).toHaveLength(1);
@@ -41,8 +56,14 @@ describe('workspaceService.list', () => {
   });
 });
 
+/**
+ * Unit tests for workspaceService.getById
+ */
+/**
+ * Unit tests for workspaceService.getById
+ */
 describe('workspaceService.getById', () => {
-  it('should return workspace with role', async () => {
+  it('should return the workspace along with the requester\'s role in it', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.OWNER);
     mockRepo.findById.mockResolvedValue({ id: 'ws-1', name: 'Test', slug: 'test', type: 'organization' } as never);
     const result = await workspaceService.getById('ws-1', 'user-1');
@@ -55,13 +76,18 @@ describe('workspaceService.getById', () => {
   });
 });
 
+/**
+ * Unit tests for workspaceService.create
+ *
+ * Especially important for enforcing personal workspace rules per user.
+ */
 describe('workspaceService.create', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (env as { WORKSPACE_MODE: string }).WORKSPACE_MODE = 'multiple';
   });
 
-  it('should reject self-service workspace creation when workspace mode is single', async () => {
+  it('should reject personal workspace creation when WORKSPACE_MODE is single', async () => {
     (env as { WORKSPACE_MODE: string }).WORKSPACE_MODE = 'single';
 
     await expect(
@@ -102,13 +128,18 @@ describe('workspaceService.create', () => {
   });
 });
 
+/**
+ * Unit tests for workspaceService.update
+ *
+ * Enforces that only owners can update workspace details.
+ */
 describe('workspaceService.update', () => {
-  it('should throw if not owner', async () => {
+  it('should throw NOT_OWNER when a non-owner tries to update the workspace', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.MEMBER);
     await expect(workspaceService.update('ws-1', { name: 'New' }, 'user-1')).rejects.toThrow(WORKSPACE.ERRORS.NOT_OWNER);
   });
 
-  it('should update if owner', async () => {
+  it('should successfully update the workspace when performed by the owner', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.OWNER);
     mockRepo.findBySlug.mockResolvedValue(null);
     mockRepo.update.mockResolvedValue({ id: 'ws-1', name: 'New' } as never);
@@ -117,19 +148,26 @@ describe('workspaceService.update', () => {
   });
 });
 
+/**
+ * Unit tests for workspaceService.delete
+ *
+ * Important rules:
+ * - Personal workspaces cannot be deleted by the user
+ * - Only owners can delete organization workspaces
+ */
 describe('workspaceService.delete', () => {
-  it('should throw if personal workspace', async () => {
+  it('should throw CANNOT_DELETE_PERSONAL when trying to delete a personal workspace', async () => {
     mockRepo.findById.mockResolvedValue({ id: 'ws-1', type: WORKSPACE.TYPE.PERSONAL } as never);
     await expect(workspaceService.delete('ws-1', 'user-1')).rejects.toThrow(WORKSPACE.ERRORS.CANNOT_DELETE_PERSONAL);
   });
 
-  it('should throw if not owner', async () => {
+  it('should throw NOT_OWNER when a non-owner tries to delete the workspace', async () => {
     mockRepo.findById.mockResolvedValue({ id: 'ws-1', type: WORKSPACE.TYPE.ORGANIZATION } as never);
     mockRepo.getMemberRole.mockResolvedValue(ROLE.MEMBER);
     await expect(workspaceService.delete('ws-1', 'user-1')).rejects.toThrow(WORKSPACE.ERRORS.NOT_OWNER);
   });
 
-  it('should delete if owner of org workspace', async () => {
+  it('should successfully delete an organization workspace when performed by the owner', async () => {
     mockRepo.findById.mockResolvedValue({ id: 'ws-1', type: WORKSPACE.TYPE.ORGANIZATION } as never);
     mockRepo.getMemberRole.mockResolvedValue(ROLE.OWNER);
     mockRepo.delete.mockResolvedValue(undefined);
@@ -138,13 +176,18 @@ describe('workspaceService.delete', () => {
   });
 });
 
+/**
+ * Unit tests for workspaceService.switchWorkspace
+ *
+ * Users can only switch to workspaces they are members of.
+ */
 describe('workspaceService.switchWorkspace', () => {
-  it('should throw if not a member', async () => {
+  it('should throw NOT_MEMBER when the user tries to switch to a workspace they do not belong to', async () => {
     mockRepo.getMemberRole.mockResolvedValue(null);
     await expect(workspaceService.switchWorkspace('ws-1', 'user-1')).rejects.toThrow(WORKSPACE.ERRORS.NOT_MEMBER);
   });
 
-  it('should switch if member', async () => {
+  it('should successfully switch the user\'s active workspace when they are a member', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.MEMBER);
     mockRepo.switchWorkspace.mockResolvedValue(undefined);
     await workspaceService.switchWorkspace('ws-1', 'user-1');

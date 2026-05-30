@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Input, Modal, Pagination, Popconfirm, Select, Spin } from 'antd';
+import { Input, Modal, Pagination, Popconfirm, Select } from 'antd';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { API_BASE, AUTH_THEME } from '@/commons/constants';
 import { ROLE } from '@/commons/constants/permissions';
 import { useSessionQuery } from '@/modules/auth/queries';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { LoadingState } from '@/components/shared/LoadingState';
 import styles from './members.module.css';
 
 interface Member {
@@ -391,7 +393,7 @@ export default function MembersPage() {
             </div>
 
             {members.isLoading ? (
-              <div className={styles.loadingState}><Spin /></div>
+              <LoadingState text="Loading members..." />
             ) : filteredMembers.length ? (
               <>
               <div className={styles.tableScroll}>
@@ -465,7 +467,11 @@ export default function MembersPage() {
               </div>
               </>
             ) : (
-              <EmptyState icon="fa-user-magnifying-glass" title="No members found" text="Try a different search term or role filter." />
+              <EmptyState 
+                icon="fa-user-magnifying-glass" 
+                title="No members found" 
+                text="Try a different search term or role filter." 
+              />
             )}
           </div>
         ) : (
@@ -482,7 +488,7 @@ export default function MembersPage() {
             </div>
 
             {invitations.isLoading ? (
-              <div className={styles.loadingState}><Spin /></div>
+              <LoadingState text="Loading members..." />
             ) : filteredInvitations.length ? (
               <>
               <div className={styles.tableScroll}>
@@ -538,7 +544,11 @@ export default function MembersPage() {
               </div>
               </>
             ) : (
-              <EmptyState icon="fa-envelope-circle-check" title="No pending invitations" text="Invitations waiting for acceptance will appear here." />
+              <EmptyState
+                icon="fa-envelope-circle-check"
+                title="No pending invitations"
+                text="Invitations waiting for acceptance will appear here."
+              />
             )}
           </div>
         )}
@@ -616,16 +626,6 @@ export default function MembersPage() {
           </div>
         </div>
       </Modal>
-    </div>
-  );
-}
-
-function EmptyState({ icon, title, text }: { icon: string; title: string; text: string }) {
-  return (
-    <div className={styles.emptyState}>
-      <div className={styles.emptyIcon}><FaIcon icon={icon} /></div>
-      <strong>{title}</strong>
-      <span>{text}</span>
     </div>
   );
 }
