@@ -25,7 +25,27 @@ vi.mock('@/server/modules/auth/services/auth-flows.service', () => ({
 }));
 
 vi.mock('@/server/db/client', () => ({
-  db: { transaction: vi.fn((fn) => fn({ insert: vi.fn().mockReturnValue({ values: vi.fn().mockReturnValue({ returning: vi.fn().mockResolvedValue([{ id: 'ws-1' }]) }) }) })) },
+  db: {
+    transaction: vi.fn((fn) => fn({
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([]),
+          }),
+        }),
+      }),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([{ id: 'ws-1' }]),
+        }),
+      }),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue(undefined),
+        }),
+      }),
+    })),
+  },
 }));
 
 vi.mock('@/server/env', () => ({
@@ -34,7 +54,6 @@ vi.mock('@/server/env', () => ({
     JWT_EXPIRES_IN: '15m',
     REFRESH_EXPIRES_IN: '7d',
     WORKSPACE_MODE: 'multiple',
-    REGISTRATION_MODE: 'open',
   },
 }));
 
@@ -160,15 +179,15 @@ describe('authService.signup', () => {
     vi.clearAllMocks();
   });
 
-  it('should throw when registration mode is invite', async () => {
+  it('should throw when workspace mode is single (registration disabled)', async () => {
     const { env } = await import('@/server/env');
-    (env as { REGISTRATION_MODE: string }).REGISTRATION_MODE = 'invite';
+    (env as { WORKSPACE_MODE: string }).WORKSPACE_MODE = 'single';
 
     await expect(
       authService.signup({ email: 'new@example.com', password: 'password123', name: 'New User' })
     ).rejects.toThrow(AUTH.ERRORS.REGISTRATION_DISABLED);
 
-    (env as { REGISTRATION_MODE: string }).REGISTRATION_MODE = 'open';
+    (env as { WORKSPACE_MODE: string }).WORKSPACE_MODE = 'multiple';
   });
 
   it('should throw when email already exists', async () => {

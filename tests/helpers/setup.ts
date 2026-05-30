@@ -1,14 +1,12 @@
-import { env } from '@/server/env';
-
 /** Base URL for E2E tests */
-export const BASE_URL = env.APP_URL ?? 'http://localhost:3000';
+export const BASE_URL = process.env.APP_URL ?? 'http://localhost:3000';
 export const API_URL = `${BASE_URL}/api/v1`;
 
 /** Test user fixtures */
 export const TEST_USER = {
-  email: 'test@example.com',
-  password: 'Password123!',
-  name: 'Test User',
+  email: 'admin@sast.local',
+  password: 'ChangeMe123!',
+  name: 'Admin',
 } as const;
 
 export const INVALID_USER = {

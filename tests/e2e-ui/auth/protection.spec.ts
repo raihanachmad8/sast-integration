@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { AUTH_PATHS } from './helpers';
+import { AUTH_PATHS, getPublicConfig, WORKSPACE_MODE } from './helpers';
 
 test.describe('Route Protection', () => {
   test('should redirect unauthenticated user to /auth/signin', async ({ page }) => {
@@ -19,9 +19,11 @@ test.describe('Route Protection', () => {
   });
 
   test('should allow access to /auth/signup without redirect', async ({ page }) => {
+    const config = await getPublicConfig(page);
+
     await page.goto(AUTH_PATHS.signup);
     await expect(page).toHaveURL(AUTH_PATHS.signup);
-    await expect(page.getByRole('heading', { name: 'Create account' })).toBeVisible();
+    await expect(page.getByText(config.workspaceMode === WORKSPACE_MODE.SINGLE ? 'Invitation Only' : 'Create account')).toBeVisible();
   });
 
   test('should allow access to /auth/invite without redirect', async ({ page }) => {

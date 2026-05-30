@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { api, TEST_USER } from '../../helpers/setup';
+import { WORKSPACE_MODE } from '@/server/modules/auth/constants';
+
+async function getWorkspaceMode() {
+  const res = await api('/config');
+  const json = await res.json();
+  return json.data.workspaceMode as string;
+}
 
 async function getAccessToken() {
   const res = await api('/auth/signin', {
@@ -42,31 +49,67 @@ describe('POST /api/v1/workspaces', () => {
     expect(res.status).toBe(422);
   });
 
-  it('should create workspace', async () => {
+  it('should reject self-service organization workspace creation', async () => {
     const token = await getAccessToken();
     const res = await api('/workspaces', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name: `Test WS ${Date.now()}` }),
+      body: JSON.stringify({ name: `Test WS ${Date.now()}`, type: 'organization' }),
     });
     const json = await res.json();
-    expect(res.status).toBe(201);
-    expect(json.data.name).toContain('Test WS');
-    expect(json.data.slug).toBeDefined();
+    expect(res.status).toBe(403);
+    expect(json.success).toBe(false);
   });
 
-  it('should return 409 on duplicate slug', async () => {
+  it('should create one personal workspace when self-service registration is open', async () => {
     const token = await getAccessToken();
-    const slug = `dup-${Date.now()}`;
+    const res = await api('/workspaces', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name: 'Personal Workspace', type: 'personal' }),
+    });
+    const json = await res.json();
+
+    if (await getWorkspaceMode() === WORKSPACE_MODE.SINGLE) {
+      expect(res.status).toBe(403);
+      expect(json.success).toBe(false);
+      return;
+    }
+
+    expect(res.status).toBe(201);
+    expect(json.success).toBe(true);
+    expect(json.data).toMatchObject({
+      name: 'Personal Workspace',
+      type: 'personal',
+    });
+
+    const list = await api('/workspaces', { headers: { Authorization: `Bearer ${token}` } });
+    const listJson = await list.json();
+    expect(listJson.data.filter((ws: { type: string }) => ws.type === 'personal')).toHaveLength(1);
+  });
+
+  it('should reject creating a second active personal workspace', async () => {
+    const token = await getAccessToken();
+
+    if (await getWorkspaceMode() === WORKSPACE_MODE.SINGLE) {
+      const res = await api('/workspaces', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: 'Personal Workspace', type: 'personal' }),
+      });
+      expect(res.status).toBe(403);
+      return;
+    }
+
     await api('/workspaces', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name: 'Dup', slug }),
+      body: JSON.stringify({ name: 'Personal Workspace', type: 'personal' }),
     });
     const res = await api('/workspaces', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name: 'Dup2', slug }),
+      body: JSON.stringify({ name: 'Personal Workspace', type: 'personal' }),
     });
     expect(res.status).toBe(409);
   });

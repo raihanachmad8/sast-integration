@@ -4,6 +4,7 @@ export const AUTH = {
     REFRESH_TOKEN: 'refresh_token',
     MAX_AGE: 7 * 24 * 60 * 60,
     PATH: '/',
+    SAME_SITE: 'lax',
   },
   ERROR_CODE: {
     AUTH: 'AUTH_ERROR',
@@ -50,9 +51,4 @@ export const NODE_ENV = {
 export const WORKSPACE_MODE = {
   SINGLE: 'single',
   MULTIPLE: 'multiple',
-} as const;
-
-export const REGISTRATION_MODE = {
-  OPEN: 'open',
-  INVITE: 'invite',
 } as const;

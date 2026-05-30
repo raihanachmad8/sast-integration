@@ -4,9 +4,9 @@ import { validateBody } from '@/server/http/validate';
 import { authService } from '@/server/modules/auth/services/auth.service';
 import { signinSchema } from '@/server/modules/auth/schemas/auth.schema';
 import { AppError } from '@/server/http/errors';
-import { AUTH, NODE_ENV } from '@/server/modules/auth/constants';
+import { AUTH } from '@/server/modules/auth/constants';
+import { setRefreshCookie } from '@/server/modules/auth/cookie';
 import { HTTP } from '@/server/http/constants';
-import { env } from '@/server/env';
 
 export async function POST(request: NextRequest) {
   const validation = await validateBody(request, signinSchema);
@@ -31,13 +31,7 @@ export async function POST(request: NextRequest) {
       meta: buildMeta(),
     });
 
-    response.cookies.set(AUTH.COOKIE.REFRESH_TOKEN, result.refreshToken, {
-      httpOnly: true,
-      secure: env.NODE_ENV === NODE_ENV.PRODUCTION,
-      sameSite: 'lax',
-      path: AUTH.COOKIE.PATH,
-      maxAge: AUTH.COOKIE.MAX_AGE,
-    });
+    setRefreshCookie(response, result.refreshToken);
 
     return response;
   } catch (e) {

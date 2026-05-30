@@ -1,12 +1,27 @@
+import { randomUUID } from 'crypto';
 import { db } from '@/server/db/client';
 import { ROLE } from '@/commons/constants/permissions';
 import { workspaceRepository } from './workspace.repository';
 import { WORKSPACE } from './constants';
+import { WORKSPACE_MODE, WORKSPACE_DEFAULTS } from '@/server/modules/auth/constants';
+import { env } from '@/server/env';
 import { AppError } from '@/server/http/errors';
 import type { CreateWorkspaceInput, UpdateWorkspaceInput } from './schemas';
 
-function slugify(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function nextPersonalSlug(userId: string, tx: Tx) {
+  const baseSlug = `${WORKSPACE_DEFAULTS.PERSONAL_SLUG_PREFIX}${userId.slice(0, 8)}`;
+  const existingBase = await workspaceRepository.findBySlug(baseSlug, tx);
+  if (!existingBase) return baseSlug;
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const slug = `${baseSlug}-${randomUUID().slice(0, 6)}`;
+    const existing = await workspaceRepository.findBySlug(slug, tx);
+    if (!existing) return slug;
+  }
+
+  throw new AppError(WORKSPACE.ERRORS.SLUG_CONFLICT, 409, WORKSPACE.ERROR_CODE);
 }
 
 export const workspaceService = {
@@ -34,19 +49,35 @@ export const workspaceService = {
   },
 
   /**
-   * Create a new workspace. Creator becomes owner.
+   * Create a personal workspace only when the user has no active personal workspace.
+   * Organization workspaces remain invitation-only.
    * @param input - Name, optional slug/description
    * @param userId - Creator user ID
    */
   async create(input: CreateWorkspaceInput, userId: string) {
-    const slug = input.slug ?? slugify(input.name);
+    if (env.WORKSPACE_MODE === WORKSPACE_MODE.SINGLE) {
+      throw new AppError(WORKSPACE.ERRORS.SELF_SERVICE_DISABLED, 403, WORKSPACE.ERROR_CODE);
+    }
 
-    const existing = await workspaceRepository.findBySlug(slug);
-    if (existing) throw new AppError(WORKSPACE.ERRORS.SLUG_CONFLICT, 409, WORKSPACE.ERROR_CODE);
+    if (input.type !== WORKSPACE.TYPE.PERSONAL) {
+      throw new AppError(WORKSPACE.ERRORS.SELF_SERVICE_DISABLED, 403, WORKSPACE.ERROR_CODE);
+    }
+
+    const existingPersonal = await workspaceRepository.findActivePersonalByOwner(userId);
+    if (existingPersonal) {
+      throw new AppError(WORKSPACE.ERRORS.PERSONAL_EXISTS, 409, WORKSPACE.ERROR_CODE);
+    }
 
     return db.transaction(async (tx) => {
-      const ws = await workspaceRepository.create({ name: input.name, slug, description: input.description, createdBy: userId }, tx);
+      const slug = await nextPersonalSlug(userId, tx);
+      const ws = await workspaceRepository.create({
+        name: WORKSPACE_DEFAULTS.PERSONAL_NAME,
+        slug,
+        type: WORKSPACE.TYPE.PERSONAL,
+        createdBy: userId,
+      }, tx);
       await workspaceRepository.addMember(ws.id, userId, ROLE.OWNER, tx);
+      await workspaceRepository.switchWorkspace(userId, ws.id, tx);
       return ws;
     });
   },

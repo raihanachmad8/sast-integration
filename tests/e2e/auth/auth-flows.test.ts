@@ -59,6 +59,8 @@ describe('POST /api/v1/auth/invite/accept', () => {
 });
 
 describe('POST /api/v1/auth/forgot-password', () => {
+  const uniqueEmail = () => `forgot-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
+
   it('should return 200 on valid email (silent on unknown)', async () => {
     const res = await api('/auth/forgot-password', {
       method: 'POST',
@@ -78,9 +80,15 @@ describe('POST /api/v1/auth/forgot-password', () => {
   });
 
   it('should return 200 on known email', async () => {
+    const email = uniqueEmail();
+    await api('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify({ email, password: 'Password123!', name: 'Forgot User' }),
+    });
+
     const res = await api('/auth/forgot-password', {
       method: 'POST',
-      body: JSON.stringify({ email: TEST_USER.email }),
+      body: JSON.stringify({ email }),
     });
     const json = await res.json();
     expect(res.status).toBe(200);

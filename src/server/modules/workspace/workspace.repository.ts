@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { workspaces, workspaceMembers } from '../../../../drizzle/schema/workspaces';
 import { users } from '../../../../drizzle/schema/users';
@@ -24,18 +24,30 @@ export const workspaceRepository = {
       })
       .from(workspaceMembers)
       .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
-      .where(eq(workspaceMembers.userId, userId));
+      .where(and(eq(workspaceMembers.userId, userId), isNull(workspaces.deletedAt)));
   },
 
   /** Find workspace by ID */
   async findById(id: string) {
-    const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
+    const [ws] = await db.select().from(workspaces).where(and(eq(workspaces.id, id), isNull(workspaces.deletedAt))).limit(1);
     return ws ?? null;
   },
 
   /** Find workspace by slug */
-  async findBySlug(slug: string) {
-    const [ws] = await db.select().from(workspaces).where(eq(workspaces.slug, slug)).limit(1);
+  async findBySlug(slug: string, tx?: Tx) {
+    const executor = tx ?? db;
+    const [ws] = await executor.select().from(workspaces).where(eq(workspaces.slug, slug)).limit(1);
+    return ws ?? null;
+  },
+
+  /** Find an active personal workspace created by this user */
+  async findActivePersonalByOwner(userId: string, tx?: Tx) {
+    const executor = tx ?? db;
+    const [ws] = await executor
+      .select()
+      .from(workspaces)
+      .where(and(eq(workspaces.createdBy, userId), eq(workspaces.type, WORKSPACE.TYPE.PERSONAL), isNull(workspaces.deletedAt)))
+      .limit(1);
     return ws ?? null;
   },
 
@@ -43,18 +55,19 @@ export const workspaceRepository = {
   async getMemberRole(workspaceId: string, userId: string) {
     const [member] = await db.select({ role: workspaceMembers.role })
       .from(workspaceMembers)
-      .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
+      .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
+      .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId), isNull(workspaces.deletedAt)))
       .limit(1);
     return member?.role ?? null;
   },
 
   /** Create workspace + return record */
-  async create(data: { name: string; slug: string; description?: string; createdBy: string }, tx?: Tx) {
+  async create(data: { name: string; slug: string; type?: 'personal' | 'organization'; description?: string; createdBy: string }, tx?: Tx) {
     const executor = tx ?? db;
     const [ws] = await executor.insert(workspaces).values({
       name: data.name,
       slug: data.slug,
-      type: WORKSPACE.TYPE.ORGANIZATION,
+      type: data.type ?? WORKSPACE.TYPE.ORGANIZATION,
       description: data.description,
       createdBy: data.createdBy,
       updatedBy: data.createdBy,
@@ -85,8 +98,9 @@ export const workspaceRepository = {
   },
 
   /** Update user's current workspace */
-  async switchWorkspace(userId: string, workspaceId: string) {
-    await db.update(users)
+  async switchWorkspace(userId: string, workspaceId: string, tx?: Tx) {
+    const executor = tx ?? db;
+    await executor.update(users)
       .set({ currentWorkspaceId: workspaceId })
       .where(eq(users.id, userId));
   },

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { AUTH_PATHS, gotoAuthPage } from './helpers';
+import { AUTH_PATHS, getPublicConfig, gotoAuthPage, WORKSPACE_MODE } from './helpers';
 
 async function addMockRefreshCookie(page: Page) {
   await page.context().addCookies([{
@@ -26,8 +26,16 @@ test.describe('Signin Page', () => {
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
   });
 
-  test('should show link to signup', async ({ page }) => {
-    await expect(page.getByText('Create an account')).toBeVisible();
+  test('should match signup link to registration mode', async ({ page }) => {
+    const config = await getPublicConfig(page);
+    const signupLink = page.getByRole('link', { name: 'Create an account' });
+
+    if (config.workspaceMode === WORKSPACE_MODE.SINGLE) {
+      await expect(signupLink).toHaveCount(0);
+      return;
+    }
+
+    await expect(signupLink).toBeVisible();
   });
 
   test('should show validation error on empty submit', async ({ page }) => {
@@ -50,8 +58,16 @@ test.describe('Signin Page', () => {
     await expect(page.getByRole('alert')).toBeVisible({ timeout: 10000 });
   });
 
-  test('should navigate to signup page', async ({ page }) => {
-    await page.locator(`a[href="${AUTH_PATHS.signup}"]`).click();
+  test('should navigate to signup page when registration is open', async ({ page }) => {
+    const config = await getPublicConfig(page);
+    const signupLink = page.locator(`a[href="${AUTH_PATHS.signup}"]`);
+
+    if (config.workspaceMode === WORKSPACE_MODE.SINGLE) {
+      await expect(signupLink).toHaveCount(0);
+      return;
+    }
+
+    await signupLink.click();
     await expect(page).toHaveURL(AUTH_PATHS.signup, { timeout: 10000 });
   });
 
@@ -104,7 +120,7 @@ test.describe('Signin Page', () => {
     await expect(page).toHaveURL('/some-workspace', { timeout: 10000 });
   });
 
-  test('should redirect to current workspace after successful signin without requested path', async ({ page }) => {
+  test('should redirect to workspace chooser after successful signin without requested path', async ({ page }) => {
     await page.route('**/api/v1/auth/signin', async (route) => {
       await addMockRefreshCookie(page);
       await route.fulfill({
@@ -145,7 +161,46 @@ test.describe('Signin Page', () => {
     await page.getByPlaceholder('Enter your password').fill('password123');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
-    await expect(page).toHaveURL('/personal-test', { timeout: 10000 });
+    await expect(page).toHaveURL('/workspaces', { timeout: 10000 });
+  });
+
+  test('should redirect to workspace chooser after successful signin without current workspace', async ({ page }) => {
+    await page.route('**/api/v1/auth/signin', async (route) => {
+      await addMockRefreshCookie(page);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: {
+          'Set-Cookie': 'refresh_token=test-refresh-token; Path=/; HttpOnly; SameSite=Lax',
+        },
+        body: JSON.stringify({
+          success: true,
+          message: 'Login successful',
+          data: {
+            tokenType: 'Bearer',
+            accessToken: 'test-access-token',
+            expiresAt: new Date(Date.now() + 900_000).toISOString(),
+            expiresIn: 900,
+            user: {
+              id: 'user-1',
+              email: 'user@example.com',
+              name: 'Test User',
+              emailVerified: true,
+              currentWorkspaceId: null,
+            },
+            workspace: null,
+          },
+          meta: { timestamp: new Date().toISOString() },
+        }),
+      });
+    });
+
+    await gotoAuthPage(page, AUTH_PATHS.signin, 'Sign in');
+    await page.getByPlaceholder('you@company.com').fill('user@example.com');
+    await page.getByPlaceholder('Enter your password').fill('password123');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    await expect(page).toHaveURL('/workspaces', { timeout: 10000 });
   });
 });
 

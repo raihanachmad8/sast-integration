@@ -9,7 +9,7 @@ PostgreSQL + Drizzle ORM | 41 tables | Single migration
 ```bash
 pnpm db:push       # Push schema to DB (dev)
 pnpm db:migrate    # Run migrations (production)
-pnpm db:seed       # Seed admin + permissions
+pnpm db:seed       # Seed owner + permissions (+ org workspace in single mode)
 pnpm db:studio     # Open Drizzle Studio
 pnpm db:generate   # Generate migration from schema changes
 ```
@@ -159,14 +159,16 @@ drizzle/schema/
 
 ## Seed Data
 
-`pnpm db:seed` creates:
+`pnpm db:seed` runs env-aware modules (override defaults via env):
 
-| Data | Details |
+| Module | Details |
 |------|---------|
-| Admin user | admin@sast.local / ChangeMe123! |
-| Personal workspace | "Personal Workspace" (type: personal) |
-| 24 permissions | All resource:action pairs |
-| Role mappings | owner/manager/reviewer/member → permissions |
+| Permissions | 24 resource:action pairs + role mappings (always) |
+| Owner user | `admin@sast.local` / `ChangeMe123!` — override via `OWNER_EMAIL` / `OWNER_PASSWORD` / `OWNER_NAME` (always) |
+| Organization workspace | Seeded only when `WORKSPACE_MODE=single`; name/slug via `ORG_NAME` / `ORG_SLUG`, owner assigned |
+
+Flags: `pnpm db:seed -- --only=<permissions|owner|workspace>` or `--all`.
+In production the seeder refuses to run with missing or default owner credentials.
 
 ---
 

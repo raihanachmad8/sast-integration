@@ -1,4 +1,7 @@
 import { expect, type Page } from '@playwright/test';
+import { WORKSPACE_MODE } from '@/server/modules/auth/constants';
+
+export { WORKSPACE_MODE };
 
 export const AUTH_PATHS = {
   signin: '/auth/signin',
@@ -8,6 +11,13 @@ export const AUTH_PATHS = {
   resetPassword: '/auth/reset-password',
   verifyEmail: '/auth/verify-email',
 } as const;
+
+export async function getPublicConfig(page: Page) {
+  const response = await page.request.get('/api/v1/config');
+  expect(response.ok()).toBe(true);
+  const json = await response.json();
+  return json.data as { workspaceMode: string };
+}
 
 export async function gotoAuthPage(page: Page, path: string, submitButtonName: string) {
   await page.goto(path);
