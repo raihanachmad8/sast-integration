@@ -10,6 +10,7 @@ export const ROUTES = {
   CHOOSER: '/workspaces',
   WORKSPACE: {
     DASHBOARD: (slug: string) => `/${slug}`,
+    MEMBERS: (slug: string) => `/${slug}/members`,
     PROJECTS: (slug: string) => `/${slug}/projects`,
     FINDINGS: (slug: string) => `/${slug}/findings`,
     REPORTS: (slug: string) => `/${slug}/reports`,

@@ -23,7 +23,7 @@ test.describe('Route Protection', () => {
 
     await page.goto(AUTH_PATHS.signup);
     await expect(page).toHaveURL(AUTH_PATHS.signup);
-    await expect(page.getByText(config.workspaceMode === WORKSPACE_MODE.SINGLE ? 'Invitation Only' : 'Create account')).toBeVisible();
+    await expect(page.getByRole('heading', { name: config.workspaceMode === WORKSPACE_MODE.SINGLE ? 'Invitation Only' : 'Create account' })).toBeVisible();
   });
 
   test('should allow access to /auth/invite without redirect', async ({ page }) => {

@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { WORKSPACE } from './constants';
+import { ROLE } from '@/commons/constants/permissions';
+
+/** Roles assignable via API (owner cannot be assigned) */
+const ASSIGNABLE_ROLES = [ROLE.MANAGER, ROLE.REVIEWER, ROLE.MEMBER] as const;
 
 export const createWorkspaceSchema = z.object({
   name: z.string().min(2).max(255),
@@ -20,3 +24,9 @@ export const switchWorkspaceSchema = z.object({
 
 export type CreateWorkspaceInput = z.infer<typeof createWorkspaceSchema>;
 export type UpdateWorkspaceInput = z.infer<typeof updateWorkspaceSchema>;
+
+export const updateRoleSchema = z.object({
+  role: z.enum(ASSIGNABLE_ROLES),
+});
+
+export type UpdateRoleInput = z.infer<typeof updateRoleSchema>;
