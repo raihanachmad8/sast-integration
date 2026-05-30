@@ -7,7 +7,7 @@ Base: `/api/v1/auth`
 
 ## POST /auth/signup
 
-Create a new user account. Disabled when `REGISTRATION_MODE=invite`.
+Create a new user account. Disabled when `WORKSPACE_MODE=single` (invitation-only).
 
 **Auth:** None
 
@@ -293,7 +293,7 @@ Get current authenticated user and active workspace.
 
 ## GET /config
 
-Public endpoint exposing application mode configuration.
+Public endpoint exposing application mode configuration. `single` is invitation-only (signup disabled); `multiple` allows open self-signup.
 
 **Auth:** None
 
@@ -302,8 +302,7 @@ Public endpoint exposing application mode configuration.
 {
   "success": true,
   "data": {
-    "workspaceMode": "single",
-    "registrationMode": "invite"
+    "workspaceMode": "single"
   }
 }
 ```

@@ -80,7 +80,7 @@ cp .env.example .env.local
 
 # Database
 pnpm db:push       # Create tables
-pnpm db:seed       # Seed admin + permissions
+pnpm db:seed       # Seed owner + permissions (+ org workspace in single mode)
 
 # Development
 pnpm dev           # http://localhost:3000
