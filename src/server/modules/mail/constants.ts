@@ -28,6 +28,7 @@ export const MAIL = {
   SUBJECTS: {
     RESET_PASSWORD: 'Reset your password',
     VERIFY_EMAIL: 'Verify your email',
+    WORKSPACE_INVITE: 'You have been invited to a workspace',
   },
   TEMPLATES: {
     RESET_CTA: 'Reset Password',

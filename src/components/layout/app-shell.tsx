@@ -91,8 +91,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           { key: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line', href: ROUTES.WORKSPACE.DASHBOARD(workspaceSlug) },
           { key: 'repositories', label: 'Repositories', icon: 'fa-code-branch', badge: 'Plan' },
           { key: 'scans', label: 'Scans', icon: 'fa-list-check', badge: 'Plan' },
-          { key: 'findings', label: 'Findings', icon: 'fa-bug', href: ROUTES.WORKSPACE.FINDINGS(workspaceSlug) },
-          { key: 'reports', label: 'Reports', icon: 'fa-file-lines', href: ROUTES.WORKSPACE.REPORTS(workspaceSlug) },
+          { key: 'findings', label: 'Findings', icon: 'fa-bug', badge: 'Plan' },
+          { key: 'reports', label: 'Reports', icon: 'fa-file-lines', badge: 'Plan' },
           { key: 'arena', label: 'Arena', icon: 'fa-flask', badge: 'Plan' },
         ],
       }],
@@ -110,9 +110,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {
           title: 'Workspace',
           items: [
-            { key: 'members', label: 'Members', icon: 'fa-users', badge: 'Plan' },
+            { key: 'members', label: 'Members', icon: 'fa-users', href: ROUTES.WORKSPACE.MEMBERS(workspaceSlug) },
             { key: 'teams', label: 'Teams', icon: 'fa-people-group', badge: 'Plan' },
-            { key: 'projects', label: 'Projects', icon: 'fa-diagram-project', href: ROUTES.WORKSPACE.PROJECTS(workspaceSlug), badge: 'Plan' },
+            { key: 'projects', label: 'Projects', icon: 'fa-diagram-project', badge: 'Plan' },
           ],
         },
         {

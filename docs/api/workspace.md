@@ -214,3 +214,137 @@ requireWorkspaceRole(request, auth, ROLE.MANAGER)
 | manager | ✅ | ✅ | ✅ |
 | reviewer | ❌ | ❌ | ✅ |
 | member | ❌ | ❌ | ✅ |
+
+---
+
+## GET /workspaces/:id/members
+
+List all members of a workspace.
+
+**Auth:** Bearer token
+**Permission:** Any workspace member
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Members retrieved",
+  "data": [
+    {
+      "userId": "uuid",
+      "email": "user@example.com",
+      "name": "User Name",
+      "avatarUrl": null,
+      "role": "owner",
+      "joinedAt": "2026-05-30T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## PATCH /workspaces/:id/members/:userId
+
+Change a member's role.
+
+**Auth:** Bearer token
+**Permission:** Owner only
+
+**Request:**
+```json
+{
+  "role": "manager" | "reviewer" | "member"
+}
+```
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Member role updated",
+  "data": { "userId": "uuid", "role": "manager" }
+}
+```
+
+**Errors:**
+| Status | Code | Message |
+|--------|------|---------|
+| 403 | WORKSPACE_ERROR | Cannot change your own role |
+| 403 | WORKSPACE_ERROR | Cannot assign owner role via API |
+| 403 | WORKSPACE_ERROR | Cannot change workspace owner role |
+| 404 | WORKSPACE_ERROR | Member not found in workspace |
+
+---
+
+## DELETE /workspaces/:id/members/:userId
+
+Remove a member from workspace.
+
+**Auth:** Bearer token
+**Permission:** Owner or Manager
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Member removed",
+  "data": null
+}
+```
+
+**Errors:**
+| Status | Code | Message |
+|--------|------|---------|
+| 403 | WORKSPACE_ERROR | Cannot remove yourself from workspace |
+| 403 | WORKSPACE_ERROR | Cannot remove workspace owner |
+| 404 | WORKSPACE_ERROR | Member not found in workspace |
+
+---
+
+## GET /workspaces/:id/invitations
+
+List pending (not accepted, not expired) invitations.
+
+**Auth:** Bearer token
+**Permission:** Owner or Manager
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Invitations retrieved",
+  "data": [
+    {
+      "id": "uuid",
+      "email": "invited@example.com",
+      "role": "reviewer",
+      "createdAt": "2026-05-30T00:00:00.000Z",
+      "expiresAt": "2026-06-06T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## DELETE /workspaces/:id/invitations/:invitationId
+
+Revoke a pending invitation.
+
+**Auth:** Bearer token
+**Permission:** Owner or Manager
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "message": "Invitation revoked",
+  "data": null
+}
+```
+
+**Errors:**
+| Status | Code | Message |
+|--------|------|---------|
+| 404 | WORKSPACE_ERROR | Invitation not found |

@@ -55,7 +55,7 @@ test.describe('Signin Page', () => {
     await page.getByPlaceholder('you@company.com').fill('wrong@example.com');
     await page.getByPlaceholder('Enter your password').fill('wrongpassword');
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.getByRole('alert')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('alert').filter({ hasText: 'Invalid credentials' })).toBeVisible({ timeout: 10000 });
   });
 
   test('should navigate to signup page when registration is open', async ({ page }) => {

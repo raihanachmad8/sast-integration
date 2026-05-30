@@ -59,3 +59,10 @@ export async function requireWorkspaceRole(
 
   return { success: true, context: { workspaceId, role } };
 }
+
+/** Create a request with X-Workspace-Id header injected from a URL param. */
+export function withWorkspaceId(request: NextRequest, workspaceId: string): NextRequest {
+  const headers = new Headers(request.headers);
+  headers.set(HTTP.HEADERS.WORKSPACE_ID, workspaceId);
+  return new NextRequest(request.url, { headers });
+}

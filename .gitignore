@@ -43,3 +43,5 @@ blob-report/
 
 # playwright mcp artifacts
 .playwright-mcp/
+
+opencode.json

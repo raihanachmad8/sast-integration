@@ -82,3 +82,22 @@ export function verifyEmailTemplate(name: string, verifyUrl: string): string {
     <p style="margin:0;font-size:13px;color:${THEME.TEXT_MUTED}">${TEMPLATES.VERIFY_EXPIRY}</p>
   `);
 }
+
+/**
+ * Workspace invitation email template.
+ *
+ * @param email - Recipient email
+ * @param role - Assigned role in workspace
+ * @param workspaceName - Name of the workspace
+ * @param acceptUrl - Invitation accept URL with token
+ * @returns Complete HTML email
+ */
+export function workspaceInviteTemplate(email: string, role: string, workspaceName: string, acceptUrl: string): string {
+  return baseLayout(`
+    <p style="margin:0 0 16px">Hi ${email},</p>
+    <p style="margin:0 0 8px">You have been invited to join <strong>${workspaceName}</strong> as a <strong>${role}</strong>.</p>
+    <p style="margin:0 0 16px">Click the button below to accept the invitation and set up your account:</p>
+    ${ctaButton('Accept Invitation', acceptUrl)}
+    <p style="margin:0;font-size:13px;color:${THEME.TEXT_MUTED}">This invitation expires in 7 days.</p>
+  `);
+}

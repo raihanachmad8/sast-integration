@@ -56,7 +56,7 @@ Built as a thesis project targeting defense in **June 2026**.
 |-----------|---------|--------|
 | M1: Project Setup | v0.1.0 | ✅ Done |
 | M2: Database & Schema | v0.2.0 | ✅ Done |
-| M3: Auth & Session | v0.3.0 | ⏳ |
+| M3: Auth & Session | v0.3.0 | ✅ Done |
 | M4: Workspace | v0.4.0 | ⏳ |
 | M5: Projects & Repos | v0.5.0 | ⏳ |
 | M6: Scanning Pipeline | v0.6.0 | ⏳ |

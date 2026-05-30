@@ -1,6 +1,7 @@
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, isNull, gt } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { workspaces, workspaceMembers } from '../../../../drizzle/schema/workspaces';
+import { workspaceInvitations } from '../../../../drizzle/schema/auth';
 import { users } from '../../../../drizzle/schema/users';
 import { ROLE } from '@/commons/constants/permissions';
 import { WORKSPACE } from './constants';
@@ -103,5 +104,67 @@ export const workspaceRepository = {
     await executor.update(users)
       .set({ currentWorkspaceId: workspaceId })
       .where(eq(users.id, userId));
+  },
+
+  /** List all members of a workspace with user details */
+  async listMembers(workspaceId: string) {
+    return db
+      .select({
+        userId: workspaceMembers.userId,
+        email: users.email,
+        name: users.name,
+        avatarUrl: users.avatarUrl,
+        role: workspaceMembers.role,
+        joinedAt: workspaceMembers.joinedAt,
+      })
+      .from(workspaceMembers)
+      .innerJoin(users, eq(users.id, workspaceMembers.userId))
+      .where(eq(workspaceMembers.workspaceId, workspaceId));
+  },
+
+  /** Update a member's role */
+  async updateMemberRole(workspaceId: string, userId: string, role: Role) {
+    const [updated] = await db
+      .update(workspaceMembers)
+      .set({ role })
+      .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
+      .returning();
+    return updated ?? null;
+  },
+
+  /** Remove a member from workspace */
+  async removeMember(workspaceId: string, userId: string) {
+    await db
+      .delete(workspaceMembers)
+      .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
+  },
+
+  /** List pending (not accepted, not expired) invitations for a workspace */
+  async listInvitations(workspaceId: string) {
+    return db
+      .select({
+        id: workspaceInvitations.id,
+        email: workspaceInvitations.email,
+        role: workspaceInvitations.role,
+        createdAt: workspaceInvitations.createdAt,
+        expiresAt: workspaceInvitations.expiresAt,
+      })
+      .from(workspaceInvitations)
+      .where(and(
+        eq(workspaceInvitations.workspaceId, workspaceId),
+        isNull(workspaceInvitations.acceptedAt),
+        gt(workspaceInvitations.expiresAt, new Date()),
+      ));
+  },
+
+  /** Delete an invitation by ID */
+  async revokeInvitation(invitationId: string) {
+    await db.delete(workspaceInvitations).where(eq(workspaceInvitations.id, invitationId));
+  },
+
+  /** Find invitation by ID (for ownership check) */
+  async findInvitation(invitationId: string) {
+    const [inv] = await db.select().from(workspaceInvitations).where(eq(workspaceInvitations.id, invitationId)).limit(1);
+    return inv ?? null;
   },
 };

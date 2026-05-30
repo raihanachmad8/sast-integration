@@ -10,6 +10,9 @@ import { db } from '@/server/db/client';
 import { users, workspaces, workspaceMembers } from '../../../../../drizzle/schema';
 import { AppError } from '@/server/http/errors';
 import { TOKEN_BYTES } from '@/server/http/constants';
+import { sendMail } from '@/server/modules/mail/mail.service';
+import { MAIL } from '@/server/modules/mail/constants';
+import { workspaceInviteTemplate } from '@/server/modules/mail/templates';
 import type { SignupInput, SigninInput, AcceptInviteInput, InviteInput } from '../schemas/auth.schema';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -218,6 +221,17 @@ export const authService = {
       invitedBy,
       token,
     });
+
+    const workspace = await authRepository.getUserWorkspace(invitedBy, workspaceId);
+    const workspaceName = workspace?.name ?? 'a workspace';
+    const acceptUrl = `${env.APP_URL}/auth/invite?token=${token}`;
+
+    await sendMail({
+      to: input.email,
+      subject: MAIL.SUBJECTS.WORKSPACE_INVITE,
+      html: workspaceInviteTemplate(input.email, input.role, workspaceName, acceptUrl),
+    });
+
     return { token, email: input.email };
   },
 
