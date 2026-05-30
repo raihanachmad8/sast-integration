@@ -83,17 +83,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     });
   };
 
+  // Navigation is intentionally limited during the current development phase.
+  // Items marked "Plan" are hidden from the main navigation to reduce cognitive load
+  // and maintain a professional, focused experience for users.
+  //
+  // See docs/UI_UX_GUIDELINES.md for navigation principles.
   const navSections: NavSection[] = [
     {
       title: 'Daily Work',
       groups: [{
         items: [
           { key: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line', href: ROUTES.WORKSPACE.DASHBOARD(workspaceSlug) },
-          { key: 'repositories', label: 'Repositories', icon: 'fa-code-branch', badge: 'Plan' },
-          { key: 'scans', label: 'Scans', icon: 'fa-list-check', badge: 'Plan' },
-          { key: 'findings', label: 'Findings', icon: 'fa-bug', badge: 'Plan' },
-          { key: 'reports', label: 'Reports', icon: 'fa-file-lines', badge: 'Plan' },
-          { key: 'arena', label: 'Arena', icon: 'fa-flask', badge: 'Plan' },
+          // Repositories, Scans, Findings, Reports, Arena → planned for future milestones
         ],
       }],
     },
@@ -101,44 +102,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       title: 'Settings',
       groups: [
         {
-          title: 'Account',
-          items: [
-            { key: 'profile', label: 'Profile', icon: 'fa-user', badge: 'Plan' },
-            { key: 'security', label: 'Security', icon: 'fa-shield-halved', badge: 'Plan' },
-          ],
-        },
-        {
           title: 'Workspace',
           items: [
             { key: 'members', label: 'Members', icon: 'fa-users', href: ROUTES.WORKSPACE.MEMBERS(workspaceSlug) },
-            { key: 'teams', label: 'Teams', icon: 'fa-people-group', badge: 'Plan' },
-            { key: 'projects', label: 'Projects', icon: 'fa-diagram-project', badge: 'Plan' },
+            // Teams, Projects → planned
           ],
         },
-        {
-          title: 'Integrations',
-          items: [
-            { key: 'source-control', label: 'Source Control', icon: 'fa-plug', badge: 'Plan' },
-            { key: 'webhooks', label: 'Webhooks', icon: 'fa-satellite-dish', badge: 'Plan' },
-          ],
-        },
-        {
-          title: 'Analysis Policy',
-          items: [
-            { key: 'scan-policies', label: 'Scan Policies', icon: 'fa-sliders', badge: 'Plan' },
-            { key: 'scanners', label: 'Scanner Engines', icon: 'fa-bolt', badge: 'Plan' },
-            { key: 'settings-ai', label: 'AI Models', icon: 'fa-brain', badge: 'Plan' },
-            { key: 'quality-gates', label: 'Quality Gates', icon: 'fa-shield', badge: 'Plan' },
-          ],
-        },
-        {
-          title: 'Intelligence',
-          items: [{ key: 'knowledge', label: 'Knowledge Base', icon: 'fa-database', badge: 'Plan' }],
-        },
-        {
-          title: 'Operations',
-          items: [{ key: 'schedules', label: 'Schedules', icon: 'fa-calendar-days', badge: 'Plan' }],
-        },
+        // Integrations, Analysis Policy, Intelligence, Operations, Account → planned
       ],
     },
   ];

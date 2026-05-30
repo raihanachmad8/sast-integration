@@ -2,7 +2,8 @@
 
 import { Suspense, useState } from 'react';
 import { PasswordStrength } from '@/components/shared/password-strength';
-import { Form, Input, Button, Typography, Alert, Result, Spin } from 'antd';
+import { LoadingState } from '@/components/shared/LoadingState';
+import { Form, Input, Button, Typography, Alert, Result } from 'antd';
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { API_BASE, ROUTES, AUTH_THEME } from '@/commons/constants';
@@ -90,7 +91,7 @@ function ResetForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<Spin />}>
+    <Suspense fallback={<LoadingState size="small" compact text="Loading reset form..." />}>
       <ResetForm />
     </Suspense>
   );

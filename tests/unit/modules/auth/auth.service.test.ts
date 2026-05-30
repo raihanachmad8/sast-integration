@@ -1,3 +1,14 @@
+/**
+ * Unit tests for authService (Authentication Service)
+ *
+ * This file contains tests for core authentication logic:
+ * - Sign in / Sign out
+ * - User registration (signup)
+ * - Session management
+ *
+ * Focus is on business rules, error handling, and integration between
+ * repository and flows service.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { authService } from '@/server/modules/auth/services/auth.service';
 import { AUTH } from '@/server/modules/auth/constants';
@@ -15,6 +26,7 @@ vi.mock('@/server/modules/auth/repositories/auth.repository', () => ({
     findInvitationByToken: vi.fn(),
     markInvitationAccepted: vi.fn(),
     getUserWorkspace: vi.fn(),
+    updateSessionRefreshToken: vi.fn(),
   },
 }));
 
@@ -63,12 +75,20 @@ import { authFlowsService } from '@/server/modules/auth/services/auth-flows.serv
 const mockRepo = vi.mocked(authRepository);
 const mockFlows = vi.mocked(authFlowsService);
 
+/**
+ * Unit tests for authService.signin
+ *
+ * Covers:
+ * - Successful authentication and token generation
+ * - Session creation with optional metadata (IP, User Agent)
+ * - Error handling for invalid credentials
+ */
 describe('authService.signin', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should return tokens and user on valid credentials', async () => {
+  it('should return access token, refresh token, and user data when credentials are valid', async () => {
     mockRepo.findUserByEmail.mockResolvedValue({
       id: 'user-1',
       email: 'test@example.com',
@@ -106,7 +126,7 @@ describe('authService.signin', () => {
     expect(result.user.emailVerified).toBe(true);
   });
 
-  it('should throw on non-existent email', async () => {
+  it('should throw INVALID_CREDENTIALS when the email does not exist', async () => {
     mockRepo.findUserByEmail.mockResolvedValue(null);
 
     await expect(
@@ -114,7 +134,7 @@ describe('authService.signin', () => {
     ).rejects.toThrow(AUTH.ERRORS.INVALID_CREDENTIALS);
   });
 
-  it('should throw on wrong password', async () => {
+  it('should throw INVALID_CREDENTIALS when the password is incorrect', async () => {
     mockRepo.findUserByEmail.mockResolvedValue({
       id: 'user-1',
       email: 'test@example.com',
@@ -137,7 +157,7 @@ describe('authService.signin', () => {
     ).rejects.toThrow(AUTH.ERRORS.INVALID_CREDENTIALS);
   });
 
-  it('should include session metadata (ip, userAgent)', async () => {
+  it('should pass IP address and User Agent to session creation when provided during signin', async () => {
     mockRepo.findUserByEmail.mockResolvedValue({
       id: 'user-1',
       email: 'test@example.com',
@@ -174,12 +194,21 @@ describe('authService.signin', () => {
   });
 });
 
+/**
+ * Unit tests for authService.signup
+ *
+ * Covers:
+ * - Blocking registration in SINGLE workspace mode
+ * - Preventing duplicate email registration
+ * - Automatic personal workspace creation in MULTIPLE mode
+ * - Triggering verification email after successful signup
+ */
 describe('authService.signup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should throw when workspace mode is single (registration disabled)', async () => {
+  it('should throw REGISTRATION_DISABLED when WORKSPACE_MODE is single', async () => {
     const { env } = await import('@/server/env');
     (env as { WORKSPACE_MODE: string }).WORKSPACE_MODE = 'single';
 
@@ -190,15 +219,32 @@ describe('authService.signup', () => {
     (env as { WORKSPACE_MODE: string }).WORKSPACE_MODE = 'multiple';
   });
 
-  it('should throw when email already exists', async () => {
-    mockRepo.findUserByEmail.mockResolvedValue({ id: 'existing' } as never);
+  /**
+   * Purpose: Verify the security-hardened behavior where duplicate email during signup
+   * does NOT throw an error (no 409 / EMAIL_EXISTS).
+   *
+   * This prevents user enumeration attacks — an attacker cannot distinguish between
+   * "email already registered" vs "new user created".
+   *
+   * The service returns a neutral success-like response with the existing user's basic info.
+   */
+  it('should return neutral response (no error) when email already exists to prevent user enumeration', async () => {
+    mockRepo.findUserByEmail.mockResolvedValue({ id: 'existing', email: 'existing@example.com', name: 'Existing User' } as never);
 
-    await expect(
-      authService.signup({ email: 'existing@example.com', password: 'password123', name: 'User' })
-    ).rejects.toThrow(AUTH.ERRORS.EMAIL_EXISTS);
+    // Should resolve successfully instead of rejecting
+    const result = await authService.signup({
+      email: 'existing@example.com',
+      password: 'password123',
+      name: 'User',
+    });
+
+    expect(result).toMatchObject({
+      id: 'existing',
+      email: 'existing@example.com',
+    });
   });
 
-  it('should send a verification email to a newly registered user', async () => {
+  it('should call sendVerificationEmail after successfully creating a new user in MULTIPLE mode', async () => {
     mockRepo.findUserByEmail.mockResolvedValue(null);
     mockRepo.createUser.mockResolvedValue({
       id: 'user-1',
@@ -225,12 +271,121 @@ describe('authService.signup', () => {
   });
 });
 
+/**
+ * Unit tests for authService.signout
+ *
+ * Currently only tests basic session deletion.
+ * More complex scenarios (invalid session, etc.) can be added later.
+ */
 describe('authService.signout', () => {
-  it('should delete session', async () => {
+  it('should call deleteSession with the correct session ID', async () => {
     mockRepo.deleteSession.mockResolvedValue(undefined);
 
     await authService.signout('session-123');
 
     expect(mockRepo.deleteSession).toHaveBeenCalledWith('session-123');
+  });
+});
+
+/**
+ * Unit tests for authService.refresh (with rotation + reuse detection)
+ */
+describe('authService.refresh', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should rotate refresh token and update currentRefreshTokenId on successful refresh', async () => {
+    const sessionId = 'session-123';
+    const oldRefreshTokenId = 'old-refresh-id';
+    const newRefreshTokenId = 'new-refresh-id-456';
+
+    mockRepo.findSession.mockResolvedValue({
+      id: sessionId,
+      userId: 'user-1',
+      currentRefreshTokenId: oldRefreshTokenId,
+      expiresAt: new Date(Date.now() + 100000),
+    } as any);
+
+    mockRepo.findUserById.mockResolvedValue({
+      id: 'user-1',
+      email: 'test@example.com',
+    } as any);
+
+    // Mock the repository to capture the new refresh token id
+    mockRepo.updateSessionRefreshToken.mockResolvedValue(undefined);
+
+    const result = await authService.refresh(sessionId, oldRefreshTokenId);
+
+    expect(result.accessToken).toBeDefined();
+    expect(result.refreshToken).toBeDefined();
+    expect(mockRepo.updateSessionRefreshToken).toHaveBeenCalledWith(
+      sessionId,
+      expect.any(String), // new refreshTokenId
+    );
+    // The new ID should be different from the old one
+    const calledWithId = mockRepo.updateSessionRefreshToken.mock.calls[0][1];
+    expect(calledWithId).not.toBe(oldRefreshTokenId);
+  });
+
+  it('should revoke the session and throw when refresh token reuse is detected', async () => {
+    const sessionId = 'session-123';
+    const currentRefreshTokenId = 'current-id-789';
+    const oldStolenRefreshTokenId = 'stolen-old-id';
+
+    mockRepo.findSession.mockResolvedValue({
+      id: sessionId,
+      userId: 'user-1',
+      currentRefreshTokenId: currentRefreshTokenId,
+      expiresAt: new Date(Date.now() + 100000),
+    } as any);
+
+    await expect(
+      authService.refresh(sessionId, oldStolenRefreshTokenId)
+    ).rejects.toThrow(AUTH.ERRORS.INVALID_SESSION);
+
+    expect(mockRepo.deleteSession).toHaveBeenCalledWith(sessionId);
+    expect(mockRepo.updateSessionRefreshToken).not.toHaveBeenCalled();
+  });
+
+  it('should still work (first rotation after migration) when currentRefreshTokenId is null', async () => {
+    const sessionId = 'session-123';
+
+    mockRepo.findSession.mockResolvedValue({
+      id: sessionId,
+      userId: 'user-1',
+      currentRefreshTokenId: null, // legacy session after adding the column
+      expiresAt: new Date(Date.now() + 100000),
+    } as any);
+
+    mockRepo.findUserById.mockResolvedValue({ id: 'user-1', email: 'test@example.com' } as any);
+    mockRepo.updateSessionRefreshToken.mockResolvedValue(undefined);
+
+    const result = await authService.refresh(sessionId, 'some-token-id');
+
+    expect(result.refreshToken).toBeDefined();
+    expect(mockRepo.updateSessionRefreshToken).toHaveBeenCalled();
+  });
+
+  it('should generate a new refreshTokenId different from the previous one on every refresh', async () => {
+    const sessionId = 'session-123';
+    const oldId = 'old-id';
+
+    mockRepo.findSession.mockResolvedValue({
+      id: sessionId,
+      userId: 'user-1',
+      currentRefreshTokenId: oldId,
+      expiresAt: new Date(Date.now() + 100000),
+    } as any);
+
+    mockRepo.findUserById.mockResolvedValue({ id: 'user-1', email: 'test@example.com' } as any);
+    mockRepo.updateSessionRefreshToken.mockResolvedValue(undefined);
+
+    await authService.refresh(sessionId, oldId);
+
+    const newId = mockRepo.updateSessionRefreshToken.mock.calls[0][1];
+    expect(newId).not.toBe(oldId);
+    expect(typeof newId).toBe('string');
+    expect(newId.length).toBeGreaterThan(10);
   });
 });

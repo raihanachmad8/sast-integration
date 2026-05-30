@@ -3,7 +3,7 @@ export const MAIL = {
   PROVIDER: {
     SMTP: 'smtp',
     CONSOLE: 'console',
-    // TODO: RESEND: 'resend' — add Resend API transport when needed
+    // Future: Add 'resend' provider when migrating away from SMTP
   },
   TOKEN_EXPIRY: {
     /** Password reset token validity: 1 hour */

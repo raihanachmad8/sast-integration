@@ -1,9 +1,10 @@
 'use client';
 
 import { PasswordStrength } from '@/components/shared/password-strength';
+import { LoadingState } from '@/components/shared/LoadingState';
 
 import { Suspense, useState } from 'react';
-import { Form, Input, Button, Typography, Alert, Spin } from 'antd';
+import { Form, Input, Button, Typography, Alert } from 'antd';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_BASE, ROUTES } from '@/commons/constants';
@@ -83,7 +84,7 @@ function AcceptInviteForm() {
 
 export default function AcceptInvitePage() {
   return (
-    <Suspense fallback={<Spin />}>
+    <Suspense fallback={<LoadingState size="small" compact text="Loading invitation form..." />}>
       <AcceptInviteForm />
     </Suspense>
   );

@@ -172,3 +172,45 @@ Planned approach:
 - **Integration**: API routes with test database
 - **E2E**: Critical user flows (Playwright)
 - **Coverage target**: 80% for server modules
+
+---
+
+## GitHub Collaboration Standards
+
+This project follows a **spec-driven, high-signal** approach to GitHub Issues and Pull Requests.
+
+### Philosophy
+
+- **Issues** = Technical specifications and planning artifacts (not simple todo lists).
+- **Pull Requests** = Implementation records with evidence.
+- We prioritize **clarity and reviewability** over speed.
+
+### Required Issue Structure (Features & Enhancements)
+
+All non-trivial issues should follow this structure (see examples: #22, #23):
+
+1. **Objective** — One clear sentence.
+2. **Scope** — Detailed deliverables (use tables for APIs).
+3. **Out of Scope** — Explicit boundaries.
+4. **Acceptance Criteria** — Checkboxes (`[ ]` / `[x]`).
+5. **Technical Notes** — Architecture, files, business rules.
+6. **Verification** — Build, lint, test counts, docs updates.
+7. **Git & PR** — Branch + linked PR.
+
+See full template and rules in [CONTRIBUTING.md](../CONTRIBUTING.md#issue-standards-highly-recommended).
+
+### Pull Request Expectations
+
+- Follow Conventional Commit title style.
+- Use the PR description template from `CONTRIBUTING.md`.
+- Always link the originating issue (`Closes #xx`).
+- Provide testing evidence with specific numbers and file names.
+- Keep changes focused and reviewable.
+
+### Labels & Milestones
+
+- Use labels consistently: `enhancement`, `bug`, `backend`, `frontend`, `breaking`, `docs`.
+- Major releases are tracked via Milestones (e.g., "M4: v0.4.0 - Workspace Management").
+- Close issues only when **all** acceptance criteria are verified.
+
+This standard ensures that future contributors (and AI assistants) can understand the intent, scope, and verification criteria of every piece of work.

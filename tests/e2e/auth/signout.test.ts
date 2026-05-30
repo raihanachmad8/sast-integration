@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { api, TEST_USER } from '../../helpers/setup';
 
+/**
+ * E2E API tests for the sign-out endpoint.
+ *
+ * Validates session invalidation and cookie clearing behavior.
+ */
 describe('POST /api/v1/auth/signout', () => {
   async function getAccessToken() {
     const res = await api('/auth/signin', {

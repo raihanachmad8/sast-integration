@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ApiResponse, buildMeta } from '@/server/http/response';
 import { authService } from '@/server/modules/auth/services/auth.service';
-import { verifyToken } from '@/server/modules/auth/services/jwt.service';
+import { verifyRefreshToken } from '@/server/modules/auth/services/jwt.service';
 import { AUTH } from '@/server/modules/auth/constants';
 import { setRefreshCookie, clearRefreshCookie } from '@/server/modules/auth/cookie';
 
+/**
+ * Returns a 401 response and clears the refresh cookie.
+ * Used for all authentication failures on the refresh endpoint.
+ */
 function unauthorizedRefresh(message: string = AUTH.ERRORS.INVALID_TOKEN) {
   const response = ApiResponse.error(message, AUTH.ERROR_CODE.AUTH, undefined, 401);
   clearRefreshCookie(response);
@@ -13,13 +17,23 @@ function unauthorizedRefresh(message: string = AUTH.ERRORS.INVALID_TOKEN) {
 
 export async function POST(request: NextRequest) {
   try {
+    // CSRF protection for the cookie-only refresh endpoint.
+    // The client must send the custom header defined in AUTH.REFRESH.
+    // Browsers will not send this header during a simple cross-site request.
+    const hasRefreshHeader =
+      request.headers.get(AUTH.REFRESH.CSRF_HEADER) === AUTH.REFRESH.CSRF_HEADER_VALUE;
+
+    if (!hasRefreshHeader) {
+      return unauthorizedRefresh('Invalid refresh request');
+    }
+
     const refreshToken = request.cookies.get(AUTH.COOKIE.REFRESH_TOKEN)?.value;
     if (!refreshToken) return unauthorizedRefresh(AUTH.ERRORS.NO_TOKEN);
 
-    const payload = await verifyToken(refreshToken);
-    if (!payload || !payload.sessionId) return unauthorizedRefresh();
+    const payload = await verifyRefreshToken(refreshToken);
+    if (!payload || !payload.sessionId || !payload.refreshTokenId) return unauthorizedRefresh();
 
-    const result = await authService.refresh(payload.sessionId);
+    const result = await authService.refresh(payload.sessionId, payload.refreshTokenId);
 
     const response = NextResponse.json({
       success: true,

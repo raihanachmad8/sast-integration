@@ -45,25 +45,37 @@ export const authRepository = {
    * @param data - Session data (id, userId, optional ipAddress, userAgent)
    * @returns Created session record
    */
-  async createSession(data: { id: string; userId: string; ipAddress?: string; userAgent?: string }) {
+  async createSession(data: { 
+    id: string; 
+    userId: string; 
+    ipAddress?: string; 
+    userAgent?: string;
+    currentRefreshTokenId?: string;
+  }) {
     const [session] = await db.insert(sessions).values({
       id: data.id,
       userId: data.userId,
       ipAddress: data.ipAddress,
       userAgent: data.userAgent,
       lastActivity: new Date(),
+      expiresAt: new Date(Date.now() + AUTH.SESSION_TTL_MS),
+      currentRefreshTokenId: data.currentRefreshTokenId,
     }).returning();
     return session;
   },
 
   /**
-   * Find an active session by ID.
+   * Find an active session by ID. Returns null if not found or expired.
    * @param id - Session UUID
-   * @returns Session record or null if not found (deleted/expired)
    */
   async findSession(id: string) {
     const [session] = await db.select().from(sessions).where(eq(sessions.id, id)).limit(1);
-    return session ?? null;
+    if (!session) return null;
+    if (session.expiresAt < new Date()) {
+      await db.delete(sessions).where(eq(sessions.id, id));
+      return null;
+    }
+    return session;
   },
 
   /**
@@ -73,6 +85,26 @@ export const authRepository = {
   async deleteSession(id: string) {
     await db.delete(sessions).where(eq(sessions.id, id));
   },
+
+  /**
+   * Atomically updates the active refresh token identifier for a session.
+   *
+   * This is called on every successful refresh token rotation so that
+   * subsequent refresh attempts can be validated against the latest ID.
+   *
+   * @param sessionId - The session to update
+   * @param newRefreshTokenId - The newly generated refresh token identifier
+   */
+  async updateSessionRefreshToken(sessionId: string, newRefreshTokenId: string) {
+    await db
+      .update(sessions)
+      .set({ 
+        currentRefreshTokenId: newRefreshTokenId,
+        lastActivity: new Date(),
+      })
+      .where(eq(sessions.id, sessionId));
+  },
+
 
   /**
    * Create a workspace invitation record.

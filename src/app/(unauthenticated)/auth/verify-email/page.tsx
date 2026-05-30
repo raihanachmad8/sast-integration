@@ -1,10 +1,11 @@
 'use client';
 
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { Alert, Button, Result, Spin } from 'antd';
+import { Alert, Button, Result } from 'antd';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { API_BASE, ROUTES } from '@/commons/constants';
+import { LoadingState } from '@/components/shared/LoadingState';
 
 type VerifyState =
   | { status: 'idle' | 'pending' | 'success' }
@@ -64,12 +65,12 @@ function VerifyEmailContent() {
     );
   }
 
-  return <Spin />;
+  return <LoadingState text="Verifying your email..." fullHeight />;
 }
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense fallback={<Spin />}>
+    <Suspense fallback={<LoadingState text="Loading verification page..." />}>
       <VerifyEmailContent />
     </Suspense>
   );

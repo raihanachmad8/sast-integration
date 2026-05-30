@@ -93,7 +93,17 @@ export const authService = {
     }
 
     const existing = await authRepository.findUserByEmail(input.email);
-    if (existing) throw new AppError(AUTH.ERRORS.EMAIL_EXISTS, 409, AUTH.ERROR_CODE.AUTH);
+    if (existing) {
+      // Neutral response to prevent user enumeration.
+      // We don't reveal whether the email is already registered.
+      // In a real production system we might still send a "verification email"
+      // to the existing user as a subtle hint, but for now we just return success.
+      return {
+        id: existing.id,
+        email: existing.email,
+        name: existing.name,
+      };
+    }
 
     const passwordHash = await hash(input.password, AUTH.SALT_ROUNDS);
 
@@ -116,13 +126,41 @@ export const authService = {
 
   /**
    * Authenticate user with email/password and create a session.
-   * Returns JWT tokens with enterprise metadata (tokenType, expiresAt, expiresIn).
+   *
+   * ## Email Verification Policy (Current Decision - M4+)
+   *
+   * **Current Behavior:**
+   * Login is **allowed** even if the user's email has not been verified
+   * (`emailVerifiedAt` is null). We only expose the flag `emailVerified`
+   * in the response so the frontend can decide what to do with it
+   * (e.g. show a banner, block certain features, etc.).
+   *
+   * **Reason (UX):**
+   * During the thesis development phase, we prioritize smooth onboarding.
+   * Forcing email verification before first login would create friction
+   * for new users who are just exploring the platform.
+   *
+   * **How to make it stricter in the future:**
+   * If we want to enforce verification before allowing login, add this
+   * check right after password validation:
+   *
+   * ```ts
+   * if (!user.emailVerifiedAt) {
+   *   throw new AppError(
+   *     'Please verify your email before signing in',
+   *     403,
+   *     AUTH.ERROR_CODE.AUTH
+   *   );
+   * }
+   * ```
+   *
+   * This decision should be revisited before production release.
    *
    * @param input - Validated signin data (email, password)
    * @param meta - Optional request metadata for session tracking
    * @param meta.ip - Client IP address (from x-forwarded-for)
    * @param meta.userAgent - Client user agent string
-   * @returns Token pair + user info
+   * @returns Token pair + user info (including emailVerified flag)
    * @throws {AppError} 401 - Invalid credentials
    */
   async signin(input: SigninInput, meta?: { ip?: string; userAgent?: string }) {
@@ -133,15 +171,18 @@ export const authService = {
     if (!valid) throw new AppError(AUTH.ERRORS.INVALID_CREDENTIALS, 401, AUTH.ERROR_CODE.AUTH);
 
     const sessionId = randomUUID();
+    const refreshTokenId = randomUUID();
+
     await authRepository.createSession({
       id: sessionId,
       userId: user.id,
       ipAddress: meta?.ip,
       userAgent: meta?.userAgent,
+      currentRefreshTokenId: refreshTokenId,
     });
 
     const accessToken = await signAccessToken({ sub: user.id, email: user.email, sessionId });
-    const refreshToken = await signRefreshToken(sessionId);
+    const refreshToken = await signRefreshToken({ sessionId, refreshTokenId });
     const expiresAt = new Date(Date.now() + parseExpiry(env.JWT_EXPIRES_IN));
     const workspace = user.currentWorkspaceId
       ? await authRepository.getUserWorkspace(user.id, user.currentWorkspaceId)
@@ -158,6 +199,8 @@ export const authService = {
         id: user.id,
         email: user.email,
         name: user.name,
+        // Explicit policy: we return the flag but do not block login at this time.
+        // See JSDoc of this method for current decision and future options.
         emailVerified: !!user.emailVerifiedAt,
         currentWorkspaceId: user.currentWorkspaceId,
       },
@@ -184,15 +227,47 @@ export const authService = {
    * @throws {AppError} 401 - Invalid session (deleted or expired)
    * @throws {AppError} 401 - User not found
    */
-  async refresh(sessionId: string) {
+  /**
+   * Rotates access + refresh tokens for an active session.
+   *
+   * This method implements refresh token rotation and reuse detection:
+   *
+   * - Every successful refresh generates a **new** `refreshTokenId`.
+   * - The new ID is persisted in the session record.
+   * - If the `refreshTokenId` presented in the incoming token does **not**
+   *   match the one currently stored in the session, this is treated as
+   *   token reuse (possible credential theft). In that case the session
+   *   is immediately deleted and an error is thrown.
+   *
+   * @param sessionId - The session identifier from the refresh token payload
+   * @param refreshTokenIdFromToken - The `refreshTokenId` embedded in the presented refresh token (if any)
+   * @returns New access + refresh token pair
+   * @throws {AppError} 401 - Invalid/expired session or refresh token reuse detected
+   */
+  async refresh(sessionId: string, refreshTokenIdFromToken?: string) {
     const session = await authRepository.findSession(sessionId);
     if (!session) throw new AppError(AUTH.ERRORS.INVALID_SESSION, 401, AUTH.ERROR_CODE.AUTH);
 
     const user = await authRepository.findUserById(session.userId);
     if (!user) throw new AppError(AUTH.ERRORS.USER_NOT_FOUND, 401, AUTH.ERROR_CODE.AUTH);
 
+    // Refresh token rotation + reuse detection
+    if (session.currentRefreshTokenId && refreshTokenIdFromToken) {
+      if (session.currentRefreshTokenId !== refreshTokenIdFromToken) {
+        // Reuse detected → invalidate the entire session
+        await authRepository.deleteSession(sessionId);
+        throw new AppError(AUTH.ERRORS.INVALID_SESSION, 401, AUTH.ERROR_CODE.AUTH);
+      }
+    }
+
+    // Generate new refresh token identity
+    const newRefreshTokenId = randomUUID();
+
+    // Update the session with the new refresh token ID
+    await authRepository.updateSessionRefreshToken(sessionId, newRefreshTokenId);
+
     const accessToken = await signAccessToken({ sub: user.id, email: user.email, sessionId });
-    const refreshToken = await signRefreshToken(sessionId);
+    const refreshToken = await signRefreshToken({ sessionId, refreshTokenId: newRefreshTokenId });
     const expiresAt = new Date(Date.now() + parseExpiry(env.JWT_EXPIRES_IN));
 
     return {

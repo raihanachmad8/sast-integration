@@ -35,7 +35,7 @@ class ConsoleTransport implements MailTransport {
   }
 }
 
-// TODO: Add ResendTransport when deploying without SMTP
+// Future transport: ResendTransport can be added here when moving away from direct SMTP.
 // class ResendTransport implements MailTransport {
 //   async send(options: MailOptions) { /* call Resend API with env.RESEND_API_KEY */ }
 // }

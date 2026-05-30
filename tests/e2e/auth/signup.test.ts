@@ -8,10 +8,25 @@ async function getWorkspaceMode() {
   return json.data.workspaceMode as string;
 }
 
+/**
+ * E2E API tests for the signup endpoint.
+ *
+ * These tests validate:
+ * - Happy path (user + automatic personal workspace in MULTIPLE mode)
+ * - Neutral response on duplicate email (security: prevents user enumeration)
+ * - Validation errors
+ *
+ * Uses unique emails to avoid state pollution between runs.
+ */
 describe('POST /api/v1/auth/signup', () => {
   const uniqueEmail = () => `test-${Date.now()}@example.com`;
 
-  // Positive
+  /**
+   * Purpose: Verify that in MULTIPLE mode, a new user can register and automatically
+   * receives exactly one personal workspace with owner role.
+   *
+   * In SINGLE mode this flow should be blocked (403).
+   */
   it('should create user with one personal owner workspace when registration is open', async () => {
     const email = uniqueEmail();
     const password = 'Password123!';
@@ -59,8 +74,16 @@ describe('POST /api/v1/auth/signup', () => {
     });
   }, 15_000);
 
-  // Negative
-  it('should return 409 on duplicate email when registration is open', async () => {
+  /**
+   * Purpose: Verify the security-hardened neutral response for duplicate email.
+   *
+   * Instead of returning 409 (which would allow user enumeration), the API now returns
+   * a successful-looking response (200) even when the email is already registered.
+   *
+   * This is intentional: we do not reveal whether an email exists in the system.
+   * The actual user experience remains smooth (existing users can still sign in normally).
+   */
+  it('should return neutral success (200) on duplicate email instead of 409 (user enumeration prevention)', async () => {
     const email = uniqueEmail();
     await api('/auth/signup', {
       method: 'POST',
@@ -79,10 +102,16 @@ describe('POST /api/v1/auth/signup', () => {
       return;
     }
 
-    expect(res.status).toBe(409);
-    expect(json.success).toBe(false);
+    // Neutral response: 200 + success, does not reveal that the email was already taken
+    expect(res.status).toBe(200);
+    expect(json.success).toBe(true);
+    expect(json.data.email).toBe(email);
   });
 
+  /**
+   * Purpose: Validate that the API rejects passwords that are too short with a clear 422 error.
+   * This enforces the minimum security requirement for passwords.
+   */
   it('should return 422 on short password', async () => {
     const res = await api('/auth/signup', {
       method: 'POST',
@@ -94,6 +123,9 @@ describe('POST /api/v1/auth/signup', () => {
     expect(json.error.details.fields[0].field).toBe('password');
   });
 
+  /**
+   * Purpose: Ensure the API requires a name during registration and returns a proper validation error.
+   */
   it('should return 422 on missing name', async () => {
     const res = await api('/auth/signup', {
       method: 'POST',
@@ -105,7 +137,10 @@ describe('POST /api/v1/auth/signup', () => {
     expect(json.error.details.fields[0].field).toBe('name');
   });
 
-  it('should return 422 on invalid email', async () => {
+  /**
+   * Purpose: Validate that the signup endpoint rejects invalid email formats with a clear validation error.
+   */
+  it('should return 422 when email format is invalid', async () => {
     const res = await api('/auth/signup', {
       method: 'POST',
       body: JSON.stringify({ email: 'bad', password: 'Password123!', name: 'User' }),

@@ -1,0 +1,87 @@
+name: Feature / Enhancement
+description: Propose a new feature or significant improvement following our spec-driven process.
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for contributing! 
+
+        We treat issues as **technical specifications**. Please fill this template thoroughly.
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: One clear sentence describing the goal.
+      placeholder: "Implement workspace member management and invitation flow — API + UI."
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Detailed breakdown of what will be delivered. Use tables for API endpoints when applicable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of Scope
+      description: Explicit boundaries — what we are deliberately NOT doing in this work.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: Checklist of what "done" looks like. Use - [ ] syntax.
+      value: |
+        - [ ] 
+        - [ ] 
+        - [ ] 
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-notes
+    attributes:
+      label: Technical Notes
+      description: |
+        - Key architectural decisions
+        - New or modified files and their responsibilities
+        - Business rules and important edge cases
+        - Reused patterns or existing components
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification Plan
+      description: How will we prove this is complete? (build, tests, docs, manual steps)
+      value: |
+        - [ ] Build passes
+        - [ ] Lint: 0 errors
+        - [ ] Unit tests: ___ passed (___ new)
+        - [ ] Playwright E2E: ___ new tests
+        - [ ] API docs updated (`docs/api/`)
+    validations:
+      required: true
+
+  - type: textarea
+    id: git-info
+    attributes:
+      label: Git & PR Information (fill when ready)
+      description: |
+        **Branch:** `feature/xxx`  
+        **Base:** `dev`  
+        **Related PR:** #xxx
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Screenshots, links, related issues, or anything else helpful.

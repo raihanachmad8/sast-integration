@@ -1,3 +1,13 @@
+/**
+ * Unit tests for memberService (Workspace Member & Invitation Management)
+ *
+ * This file tests the business logic layer for:
+ * - Changing member roles
+ * - Removing members
+ * - Revoking invitations
+ *
+ * Focus is on permission checks and ownership rules.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { WORKSPACE } from '@/server/modules/workspace/constants';
 import { ROLE } from '@/commons/constants/permissions';
@@ -18,10 +28,19 @@ vi.mock('@/server/modules/workspace/workspace.repository', () => ({
 
 const { memberService } = await import('@/server/modules/workspace/member.service');
 
+/**
+ * Unit tests for memberService (Workspace Member Management)
+ *
+ * Menguji business rules penting seperti:
+ * - Tidak boleh mengubah role sendiri
+ * - Tidak boleh assign role Owner
+ * - Tidak boleh mengubah role Owner
+ * - Validasi anggota workspace
+ */
 describe('memberService.changeRole', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  it('should change role successfully', async () => {
+  it('should successfully update a member role when the actor has permission', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.MEMBER);
     mockRepo.updateMemberRole.mockResolvedValue({ role: ROLE.REVIEWER });
 
@@ -30,19 +49,19 @@ describe('memberService.changeRole', () => {
     expect(mockRepo.updateMemberRole).toHaveBeenCalledWith('ws-1', 'target-user', ROLE.REVIEWER);
   });
 
-  it('should reject changing own role', async () => {
+  it('should throw CANNOT_CHANGE_OWN_ROLE when trying to change their own role', async () => {
     await expect(
       memberService.changeRole('ws-1', 'actor', ROLE.REVIEWER, 'actor')
     ).rejects.toThrow(WORKSPACE.ERRORS.CANNOT_CHANGE_OWN_ROLE);
   });
 
-  it('should reject assigning owner role', async () => {
+  it('should throw CANNOT_ASSIGN_OWNER when trying to assign the Owner role', async () => {
     await expect(
       memberService.changeRole('ws-1', 'target', ROLE.OWNER, 'actor')
     ).rejects.toThrow(WORKSPACE.ERRORS.CANNOT_ASSIGN_OWNER);
   });
 
-  it('should reject changing owner role', async () => {
+  it('should throw CANNOT_CHANGE_OWNER_ROLE when trying to change an existing Owner role', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.OWNER);
 
     await expect(
@@ -50,7 +69,7 @@ describe('memberService.changeRole', () => {
     ).rejects.toThrow(WORKSPACE.ERRORS.CANNOT_CHANGE_OWNER_ROLE);
   });
 
-  it('should reject if target not found', async () => {
+  it('should throw MEMBER_NOT_FOUND when the target user is not a member of the workspace', async () => {
     mockRepo.getMemberRole.mockResolvedValue(null);
 
     await expect(
@@ -59,10 +78,18 @@ describe('memberService.changeRole', () => {
   });
 });
 
+/**
+ * Unit tests for memberService.removeMember
+ *
+ * Fokus pada aturan bisnis penghapusan anggota:
+ * - Tidak boleh menghapus diri sendiri
+ * - Tidak boleh menghapus Owner
+ * - Hanya Owner/Manager yang boleh menghapus
+ */
 describe('memberService.removeMember', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  it('should remove member successfully', async () => {
+  it('should successfully remove a member when performed by an authorized actor', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.MEMBER);
 
     await memberService.removeMember('ws-1', 'target', 'actor');
@@ -70,13 +97,13 @@ describe('memberService.removeMember', () => {
     expect(mockRepo.removeMember).toHaveBeenCalledWith('ws-1', 'target');
   });
 
-  it('should reject removing self', async () => {
+  it('should throw CANNOT_REMOVE_SELF when trying to remove their own membership', async () => {
     await expect(
       memberService.removeMember('ws-1', 'actor', 'actor')
     ).rejects.toThrow(WORKSPACE.ERRORS.CANNOT_REMOVE_SELF);
   });
 
-  it('should reject removing owner', async () => {
+  it('should throw CANNOT_REMOVE_OWNER when trying to remove the workspace Owner', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.OWNER);
 
     await expect(
@@ -84,7 +111,7 @@ describe('memberService.removeMember', () => {
     ).rejects.toThrow(WORKSPACE.ERRORS.CANNOT_REMOVE_OWNER);
   });
 
-  it('should reject if target not found', async () => {
+  it('should throw MEMBER_NOT_FOUND when trying to remove a user who is not a member', async () => {
     mockRepo.getMemberRole.mockResolvedValue(null);
 
     await expect(
@@ -93,10 +120,17 @@ describe('memberService.removeMember', () => {
   });
 });
 
+/**
+ * Unit tests for memberService.revokeInvitation
+ *
+ * Tests the rules for revoking pending invitations:
+ * - Must belong to the correct workspace
+ * - Must exist
+ */
 describe('memberService.revokeInvitation', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  it('should revoke invitation successfully', async () => {
+  it('should successfully revoke an invitation that belongs to the workspace', async () => {
     mockRepo.findInvitation.mockResolvedValue({ id: 'inv-1', workspaceId: 'ws-1' });
 
     await memberService.revokeInvitation('ws-1', 'inv-1');
@@ -104,7 +138,7 @@ describe('memberService.revokeInvitation', () => {
     expect(mockRepo.revokeInvitation).toHaveBeenCalledWith('inv-1');
   });
 
-  it('should reject if invitation not found', async () => {
+  it('should throw INVITATION_NOT_FOUND when the invitation does not exist', async () => {
     mockRepo.findInvitation.mockResolvedValue(null);
 
     await expect(
@@ -112,7 +146,7 @@ describe('memberService.revokeInvitation', () => {
     ).rejects.toThrow(WORKSPACE.ERRORS.INVITATION_NOT_FOUND);
   });
 
-  it('should reject if invitation belongs to different workspace', async () => {
+  it('should throw INVITATION_NOT_FOUND when the invitation belongs to a different workspace', async () => {
     mockRepo.findInvitation.mockResolvedValue({ id: 'inv-1', workspaceId: 'ws-other' });
 
     await expect(

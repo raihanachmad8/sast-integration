@@ -10,8 +10,19 @@ async function getAccessToken() {
   return json.data.accessToken;
 }
 
+/**
+ * E2E tests covering various auth-related flows:
+ * - Invitation sending and acceptance
+ * - Password reset flow
+ * - Email verification
+ *
+ * Many of these tests focus on error paths and validation.
+ */
 describe('POST /api/v1/auth/invite', () => {
-  it('should return 401 without token', async () => {
+  /**
+   * Purpose: Verify that the invite endpoint requires authentication.
+   */
+  it('should return 401 when no auth token is provided', async () => {
     const res = await api('/auth/invite', {
       method: 'POST',
       body: JSON.stringify({ email: 'new@test.com', role: 'member' }),
@@ -19,7 +30,10 @@ describe('POST /api/v1/auth/invite', () => {
     expect(res.status).toBe(401);
   });
 
-  it('should return 400 without workspace header', async () => {
+  /**
+   * Purpose: Verify that creating an invitation requires the X-Workspace-Id header.
+   */
+  it('should return 400 when workspace header is missing', async () => {
     const token = await getAccessToken();
     const res = await api('/auth/invite', {
       method: 'POST',
@@ -29,7 +43,10 @@ describe('POST /api/v1/auth/invite', () => {
     expect(res.status).toBe(400);
   });
 
-  it('should return 422 on invalid email', async () => {
+  /**
+   * Purpose: Validate that the invite endpoint rejects invalid email addresses.
+   */
+  it('should return 422 when email format is invalid', async () => {
     const token = await getAccessToken();
     const res = await api('/auth/invite', {
       method: 'POST',
@@ -41,7 +58,10 @@ describe('POST /api/v1/auth/invite', () => {
 });
 
 describe('POST /api/v1/auth/invite/accept', () => {
-  it('should return 422 without token field', async () => {
+  /**
+   * Purpose: Validate that accepting an invitation requires the invitation token.
+   */
+  it('should return 422 when invitation token is missing', async () => {
     const res = await api('/auth/invite/accept', {
       method: 'POST',
       body: JSON.stringify({ password: 'password123', name: 'Test' }),
@@ -49,7 +69,10 @@ describe('POST /api/v1/auth/invite/accept', () => {
     expect(res.status).toBe(422);
   });
 
-  it('should return 410 on invalid token', async () => {
+  /**
+   * Purpose: Verify that an invalid or expired invitation token returns a 410 Gone error.
+   */
+  it('should return 410 when invitation token is invalid or expired', async () => {
     const res = await api('/auth/invite/accept', {
       method: 'POST',
       body: JSON.stringify({ token: 'invalid-token', password: 'password123', name: 'Test' }),
@@ -71,7 +94,10 @@ describe('POST /api/v1/auth/forgot-password', () => {
     expect(json.success).toBe(true);
   });
 
-  it('should return 422 on invalid email', async () => {
+  /**
+   * Purpose: Validate that the forgot-password endpoint requires a valid email format.
+   */
+  it('should return 422 when email format is invalid for forgot password', async () => {
     const res = await api('/auth/forgot-password', {
       method: 'POST',
       body: JSON.stringify({ email: 'not-email' }),
@@ -97,7 +123,10 @@ describe('POST /api/v1/auth/forgot-password', () => {
 });
 
 describe('POST /api/v1/auth/reset-password', () => {
-  it('should return 422 without token', async () => {
+  /**
+   * Purpose: Validate that resetting password requires the reset token.
+   */
+  it('should return 422 when reset token is missing', async () => {
     const res = await api('/auth/reset-password', {
       method: 'POST',
       body: JSON.stringify({ password: 'newpass123' }),
@@ -105,7 +134,10 @@ describe('POST /api/v1/auth/reset-password', () => {
     expect(res.status).toBe(422);
   });
 
-  it('should return 410 on invalid token', async () => {
+  /**
+   * Purpose: Verify that an invalid or expired reset token returns 410 Gone.
+   */
+  it('should return 410 when reset token is invalid or expired', async () => {
     const res = await api('/auth/reset-password', {
       method: 'POST',
       body: JSON.stringify({ token: 'invalid', password: 'newpass123' }),
@@ -113,7 +145,10 @@ describe('POST /api/v1/auth/reset-password', () => {
     expect(res.status).toBe(410);
   });
 
-  it('should return 422 on short password', async () => {
+  /**
+   * Purpose: Validate that the new password must meet minimum length requirements during reset.
+   */
+  it('should return 422 when new password is too short during reset', async () => {
     const res = await api('/auth/reset-password', {
       method: 'POST',
       body: JSON.stringify({ token: 'some-token', password: '123' }),
@@ -122,25 +157,43 @@ describe('POST /api/v1/auth/reset-password', () => {
   });
 });
 
+/**
+ * Tests for the email verification endpoint (GET /verify-email).
+ */
 describe('GET /api/v1/auth/verify-email', () => {
-  it('should return 400 without token param', async () => {
+  /**
+   * Purpose: Validate that email verification requires a token parameter.
+   */
+  it('should return 400 when verification token param is missing', async () => {
     const res = await api('/auth/verify-email');
     expect(res.status).toBe(400);
   });
 
-  it('should return 410 on invalid token', async () => {
+  /**
+   * Purpose: Verify that an invalid verification token returns 410 Gone.
+   */
+  it('should return 410 when verification token is invalid', async () => {
     const res = await api('/auth/verify-email?token=invalid');
     expect(res.status).toBe(410);
   });
 });
 
+/**
+ * Tests for the resend verification email endpoint.
+ */
 describe('POST /api/v1/auth/resend-verification', () => {
-  it('should return 401 without auth', async () => {
+  /**
+   * Purpose: Verify that resending verification requires the user to be authenticated.
+   */
+  it('should return 401 when user is not authenticated', async () => {
     const res = await api('/auth/resend-verification', { method: 'POST' });
     expect(res.status).toBe(401);
   });
 
-  it('should return 400 if already verified', async () => {
+  /**
+   * Purpose: Verify that users who have already completed email verification cannot trigger the resend verification flow again.
+   */
+  it('should return 400 when trying to resend verification for an already verified user', async () => {
     const token = await getAccessToken();
     const res = await api('/auth/resend-verification', {
       method: 'POST',
