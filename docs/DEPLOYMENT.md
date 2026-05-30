@@ -86,14 +86,22 @@ CMD ["node", "server.js"]
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | DATABASE_URL | Yes | — | PostgreSQL connection string |
-| JWT_SECRET | Yes | — | Secret for JWT signing (jose) |
-| APP_URL | Yes | http://localhost:3000 | Application base URL |
+| JWT_SECRET | Yes | — | Secret for JWT signing (jose). Must not be a default/example value in production |
+| APP_URL | Yes | http://localhost:3000 | Application base URL. Must not be localhost in production |
+| WORKSPACE_MODE | No | multiple | `single` = one org workspace, invitation-only; `multiple` = open self-signup + per-user workspaces |
+| MAIL_PROVIDER | No | console | `console` (dev) or `smtp`. `console` is rejected in production |
+| OWNER_EMAIL / OWNER_PASSWORD / OWNER_NAME | No* | admin@sast.local / ChangeMe123! / Owner | Bootstrap owner for `db:seed`. *Required (non-default) in production |
+| ORG_NAME / ORG_SLUG | No | SAST Organization / sast-org | Seeded org workspace (single mode) |
 | PORT | No | 3000 | Server port |
 | NODE_ENV | No | development | Environment mode |
 | STORAGE_PROVIDER | No | local | File storage provider |
 | STORAGE_LOCAL_PATH | No | ./storage | Local file storage path |
 | SCANNER_MODE | No | local | Scanner execution mode |
 | SCANNER_TIMEOUT | No | 300000 | Scanner timeout in ms |
+
+> **Production hardening**: env validation fails fast on boot if `JWT_SECRET` is a known example value, `APP_URL` points to localhost, or `MAIL_PROVIDER=console`.
+
+> **Note**: `REGISTRATION_MODE` was removed — registration is derived from `WORKSPACE_MODE` (single → invite-only, multiple → open).
 
 > **Note**: This project uses custom JWT via `jose` for authentication and `pg-boss` for job queues (uses the same DATABASE_URL). No Redis or NextAuth required.
 
