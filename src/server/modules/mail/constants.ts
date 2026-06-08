@@ -1,49 +1,38 @@
-/** Mail module constants — providers, token expiry, rate limits, messages, theme */
+/**
+ * Mail configuration constants — single source of truth.
+ * Used by: env validation, mail service, templates.
+ */
 export const MAIL = {
   PROVIDER: {
-    SMTP: 'smtp',
     CONSOLE: 'console',
-    // Future: Add 'resend' provider when migrating away from SMTP
+    SMTP: 'smtp',
+    RESEND: 'resend',
   },
-  TOKEN_EXPIRY: {
-    /** Password reset token validity: 1 hour */
-    PASSWORD_RESET: 60 * 60 * 1000,
-    /** Email verification token validity: 24 hours */
-    EMAIL_VERIFICATION: 24 * 60 * 60 * 1000,
-  },
-  RATE_LIMIT: {
-    /** Minimum interval between reset/verify emails per user: 5 minutes */
-    RESET_COOLDOWN_MS: 5 * 60 * 1000,
-  },
-  MESSAGES: {
-    RESET_SENT: 'Password reset email sent',
-    RESET_SUCCESS: 'Password reset successful',
-    VERIFY_SUCCESS: 'Email verified successfully',
-    VERIFY_SENT: 'Verification email sent',
-    TOKEN_EXPIRED: 'Token expired or invalid',
-    TOKEN_ALREADY_USED: 'Token already used',
-    RATE_LIMITED: 'Please wait before requesting another email',
-    EMAIL_ALREADY_VERIFIED: 'Email already verified',
-  },
+
   SUBJECTS: {
+    WORKSPACE_INVITE: 'You\'ve been invited to a workspace',
     RESET_PASSWORD: 'Reset your password',
-    VERIFY_EMAIL: 'Verify your email',
-    WORKSPACE_INVITE: 'You have been invited to a workspace',
+    VERIFY_EMAIL: 'Verify your email address',
+    SCAN_COMPLETE: 'Scan completed',
+    REPORT_READY: 'Your report is ready',
+    FINDING_ASSIGNED: 'A finding has been assigned to you',
   },
-  TEMPLATES: {
-    RESET_CTA: 'Reset Password',
-    VERIFY_CTA: 'Verify Email',
-    RESET_EXPIRY: 'This link expires in 1 hour. If you did not request this, ignore this email.',
-    VERIFY_EXPIRY: 'This link expires in 24 hours.',
+
+  MESSAGES: {
+    RATE_LIMITED: 'Too many requests. Please try again later.',
+    TOKEN_EXPIRED: 'Token has expired.',
+    TOKEN_ALREADY_USED: 'Token has already been used.',
+    EMAIL_ALREADY_VERIFIED: 'Email is already verified.',
+    VERIFY_SUCCESS: 'Email verified successfully.',
+    VERIFY_SENT: 'Verification email sent.',
+    RESET_SUCCESS: 'Password reset successfully.',
+    RESET_SENT: 'Password reset email sent.',
   },
-  /** Email template inline styles (email clients don't support CSS vars) */
-  THEME: {
-    BG: '#f8fafc',
-    CARD_BG: '#ffffff',
-    CARD_BORDER: '#e2e8f0',
-    TEXT: '#1e293b',
-    TEXT_MUTED: '#64748b',
-    TEXT_FOOTER: '#94a3b8',
+
+  TOKEN_EXPIRY: {
+    PASSWORD_RESET: 15 * 60 * 1000, // 15 minutes
+    EMAIL_VERIFICATION: 24 * 60 * 60 * 1000, // 24 hours
   },
-  ERROR_CODE: 'AUTH_ERROR',
+
+  ERROR_CODE: 'MAIL_ERROR',
 } as const;

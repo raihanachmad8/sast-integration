@@ -3,7 +3,9 @@ import { ApiResponse } from '@/server/http/response';
 import { authenticate } from '@/server/http/authenticate';
 import { validateBody } from '@/server/http/validate';
 import { workspaceService } from '@/server/modules/workspace/workspace.service';
-import { switchWorkspaceSchema } from '@/server/modules/workspace/schemas';
+import { z } from 'zod';
+
+const switchWorkspaceSchema = z.object({ currentWorkspaceId: z.string().min(1) });
 import { WORKSPACE } from '@/server/modules/workspace/constants';
 import { AppError } from '@/server/http/errors';
 

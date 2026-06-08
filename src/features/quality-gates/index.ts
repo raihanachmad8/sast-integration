@@ -1,0 +1,1 @@
+export { GateResultsTable } from './GateResultsTable';

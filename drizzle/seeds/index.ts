@@ -1,6 +1,5 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from '../schema';
-import { permissionsSeed } from './permissions';
 import { ownerSeed } from './owner';
 import { workspaceSeed } from './workspace';
 
@@ -25,4 +24,4 @@ export interface SeedModule {
 }
 
 /** Ordered registry — dependencies must come before dependents. */
-export const SEED_MODULES: SeedModule[] = [permissionsSeed, ownerSeed, workspaceSeed];
+export const SEED_MODULES: SeedModule[] = [ownerSeed, workspaceSeed];

@@ -1,0 +1,22 @@
+import { eq, and, isNull, count } from 'drizzle-orm';
+import { db } from '@/server/db/client';
+import { notifications } from '@drizzle/schema/auth';
+
+export const notificationsRepository = {
+  async list(userId: string) {
+    return db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(isNull(notifications.readAt), notifications.createdAt);
+  },
+
+  async getUnreadCount(userId: string) {
+    const [result] = await db
+      .select({ count: count() })
+      .from(notifications)
+      .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)));
+
+    return Number(result?.count ?? 0);
+  },
+};

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { AntdProvider } from '@/components/providers/antd-provider';
+import { AntdProvider } from '@/components/providers/AntdProvider';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import './globals.css';
 

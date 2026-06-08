@@ -1,22 +1,24 @@
 import { pgTable, uuid, varchar, jsonb, timestamp, integer } from 'drizzle-orm/pg-core';
+import { users } from './users';
+import { workspaces } from './workspaces';
 
 export const reports = pgTable('reports', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workspace_id: uuid('workspace_id'),
+  workspace_id: uuid('workspace_id').notNull().references(() => workspaces.id),
   type: varchar('type', { length: 50 }).notNull(),
   title: varchar('title', { length: 255 }).notNull(),
   filters: jsonb('filters'),
   file_path: varchar('file_path', { length: 500 }),
   file_size: integer('file_size'),
   format: varchar('format', { length: 20 }),
-  created_at: timestamp('created_at').defaultNow(),
-  created_by: uuid('created_by'),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+  created_by: uuid('created_by').references(() => users.id),
   expires_at: timestamp('expires_at'),
 });
 
 export const storageFiles = pgTable('storage_files', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workspace_id: uuid('workspace_id'),
+  workspace_id: uuid('workspace_id').notNull().references(() => workspaces.id),
   file_name: varchar('file_name', { length: 255 }).notNull(),
   file_path: varchar('file_path', { length: 500 }).notNull(),
   file_size: integer('file_size').notNull(),
@@ -24,8 +26,8 @@ export const storageFiles = pgTable('storage_files', {
   storage_provider: varchar('storage_provider', { length: 50 }).notNull().default('local'),
   storage_key: varchar('storage_key', { length: 500 }),
   metadata: jsonb('metadata'),
-  created_at: timestamp('created_at').defaultNow(),
-  created_by: uuid('created_by'),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+  created_by: uuid('created_by').references(() => users.id),
   expires_at: timestamp('expires_at'),
 });
 

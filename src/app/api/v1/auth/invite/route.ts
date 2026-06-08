@@ -6,8 +6,8 @@ import { authService } from '@/server/modules/auth/services/auth.service';
 import { inviteSchema } from '@/server/modules/auth/schemas/auth.schema';
 import { AppError } from '@/server/http/errors';
 import { AUTH } from '@/server/modules/auth/constants';
-import { requireWorkspaceRole } from '@/server/modules/workspace/workspace.middleware';
-import { ROLE } from '@/commons/constants/permissions';
+import { requirePermission } from '@/server/modules/workspace/workspace.middleware';
+import { PERMISSION } from '@/commons/constants/permissions';
 
 export async function POST(request: NextRequest) {
   const auth = await authenticate(request);
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   const validation = await validateBody(request, inviteSchema);
   if (!validation.success) return validation.response;
 
-  const workspace = await requireWorkspaceRole(request, auth.context, ROLE.MANAGER);
+  const workspace = await requirePermission(request, auth.context, PERMISSION.MEMBER_INVITE);
   if (!workspace.success) return workspace.response;
 
   try {

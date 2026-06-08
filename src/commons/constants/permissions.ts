@@ -81,6 +81,14 @@ export const ROLE = {
 
 export type Role = (typeof ROLE)[keyof typeof ROLE];
 
+/** Role hierarchy — higher number = more permissions. */
+export const ROLE_HIERARCHY: Record<Role, number> = {
+  [ROLE.OWNER]: 4,
+  [ROLE.MANAGER]: 3,
+  [ROLE.REVIEWER]: 2,
+  [ROLE.MEMBER]: 1,
+};
+
 /** All permissions with metadata for seeding */
 export const PERMISSION_DEFINITIONS: {
   name: PermissionKey;
