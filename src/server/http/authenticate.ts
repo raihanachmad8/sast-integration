@@ -11,6 +11,14 @@ export interface AuthContext {
   sessionId: string;
 }
 
+/**
+ * Extract userId from auth context.
+ * Convenience helper to avoid `auth.context.userId` boilerplate.
+ */
+export function getUserId(context: AuthContext): string {
+  return context.userId;
+}
+
 interface AuthSuccess {
   success: true;
   context: AuthContext;

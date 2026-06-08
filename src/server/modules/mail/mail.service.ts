@@ -1,67 +1,70 @@
 import nodemailer from 'nodemailer';
 import { env } from '@/server/env';
 import { MAIL } from './constants';
+import { logger } from '@/server/lib/logger';
 
-/** Mail options passed to any transport */
-export interface MailOptions {
+export interface SendMailOptions {
   to: string;
   subject: string;
   html: string;
+  text?: string;
 }
 
-/** Transport interface — implement this to add new providers (Resend, SES, etc.) */
-export interface MailTransport {
-  send(options: MailOptions): Promise<void>;
-}
+let _transporter: nodemailer.Transporter | null = null;
 
-/** SMTP transport — works with Mailpit (dev) and real SMTP (prod) */
-class SmtpTransport implements MailTransport {
-  private transporter = nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: false,
-    auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined,
-  });
+function getTransporter(): nodemailer.Transporter {
+  if (_transporter) return _transporter;
 
-  async send(options: MailOptions): Promise<void> {
-    await this.transporter.sendMail({ from: env.SMTP_FROM, ...options });
-  }
-}
-
-/** Console transport — logs email to stdout (dev/test/CI) */
-class ConsoleTransport implements MailTransport {
-  async send(options: MailOptions): Promise<void> {
-    console.log(`[mail] "${options.subject}" → ${options.to}`);
-  }
-}
-
-// Future transport: ResendTransport can be added here when moving away from direct SMTP.
-// class ResendTransport implements MailTransport {
-//   async send(options: MailOptions) { /* call Resend API with env.RESEND_API_KEY */ }
-// }
-
-let _transport: MailTransport | null = null;
-
-function getTransport(): MailTransport {
-  if (_transport) return _transport;
-
-  switch (env.MAIL_PROVIDER) {
-    case MAIL.PROVIDER.SMTP:
-      _transport = new SmtpTransport();
-      break;
-    default:
-      _transport = new ConsoleTransport();
+  if (env.MAIL_PROVIDER === MAIL.PROVIDER.SMTP) {
+    _transporter = nodemailer.createTransport({
+      host: env.SMTP_HOST,
+      port: env.SMTP_PORT,
+      secure: env.SMTP_PORT === 465,
+      auth: env.SMTP_USER
+        ? { user: env.SMTP_USER, pass: env.SMTP_PASS }
+        : undefined,
+    });
+  } else {
+    // Console provider — logs to stdout, no real transport
+    _transporter = nodemailer.createTransport({
+      jsonTransport: true,
+    });
   }
 
-  return _transport;
+  return _transporter;
 }
 
 /**
- * Send an email via the configured transport.
- * Transport resolved from `MAIL_PROVIDER` env var.
+ * Send an email using the configured provider.
  *
- * @param options - Recipient, subject, and HTML body
+ * - `console`: logs the message JSON to stdout (dev only)
+ * - `smtp`: sends via configured SMTP server
+ *
+ * @param options - Mail options (to, subject, html, optional text)
  */
-export async function sendMail(options: MailOptions): Promise<void> {
-  await getTransport().send(options);
+export async function sendMail(options: SendMailOptions): Promise<void> {
+  logger.mail.info('sendMail', { to: options.to, subject: options.subject });
+  const transporter = getTransporter();
+  const from = env.SMTP_FROM;
+
+  if (env.MAIL_PROVIDER === MAIL.PROVIDER.CONSOLE) {
+    await transporter.sendMail({
+      from,
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+      text: options.text,
+    });
+    logger.mail.info('sendMail completed (console)', { to: options.to });
+    return;
+  }
+
+  await transporter.sendMail({
+    from,
+    to: options.to,
+    subject: options.subject,
+    html: options.html,
+    text: options.text,
+  });
+  logger.mail.info('sendMail completed', { to: options.to });
 }

@@ -1,8 +1,7 @@
 import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '@/server/db/client';
-import { users, sessions, workspaceInvitations } from '../../../../../drizzle/schema';
-import { workspaces, workspaceMembers } from '../../../../../drizzle/schema/workspaces';
-import type { NewUser } from '../../../../../drizzle/schema/users';
+import { users, sessions, workspaceInvitations, workspaces, workspaceMembers } from '@drizzle/schema';
+import type { NewUser } from '@drizzle/schema/users';
 import { AUTH } from '../constants';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];

@@ -4,7 +4,7 @@ export const AUTH = {
     REFRESH_TOKEN: 'refresh_token',
     MAX_AGE: 7 * 24 * 60 * 60,
     PATH: '/',
-    SAME_SITE: 'lax',
+    SAME_SITE: 'strict',
   },
   /** Server-side session lifetime in milliseconds (matches cookie MAX_AGE). */
   SESSION_TTL_MS: 7 * 24 * 60 * 60 * 1000,
