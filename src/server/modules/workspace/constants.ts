@@ -4,6 +4,10 @@ export const WORKSPACE = {
     PERSONAL: 'personal',
     ORGANIZATION: 'organization',
   },
+  MODE: {
+    SINGLE: 'single',
+    MULTIPLE: 'multiple',
+  },
   ERRORS: {
     NOT_FOUND: 'Workspace not found',
     NOT_OWNER: 'Only workspace owner can perform this action',

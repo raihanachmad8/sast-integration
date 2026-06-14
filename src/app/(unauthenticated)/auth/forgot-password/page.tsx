@@ -1,11 +1,9 @@
 'use client';
 
-import { Form, Input, Button, Typography, Alert, Result } from 'antd';
+import { Input, Result } from 'antd';
 import { useMutation } from '@tanstack/react-query';
-import { API_BASE, ROUTES, AUTH_THEME } from '@/commons/constants';
-import Link from 'next/link';
-
-const { Title, Text } = Typography;
+import { API_BASE, ROUTES } from '@/commons/constants';
+import { AuthForm, AuthField } from '@/features/auth/AuthForm';
 
 export default function ForgotPasswordPage() {
   const mutation = useMutation({
@@ -26,33 +24,25 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <>
-      <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Forgot password</Title>
-      <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>Enter your email and we will send a reset link.</Text>
-
-      {mutation.error && <Alert title={mutation.error.message} type="error" showIcon style={{ marginTop: 16 }} />}
-
-      <Form layout="vertical" onFinish={(v) => mutation.mutate(v.email)} autoComplete="off" requiredMark={false} style={{ marginTop: 24 }}>
-        <Form.Item
-          name="email"
-          label={<span style={{ fontWeight: 600, fontSize: 13 }}>Email</span>}
-          rules={[{ required: true, message: 'Please enter your email' }, { type: 'email', message: 'Please enter a valid email' }]}
-        >
-          <Input placeholder="you@company.com" size="large" autoComplete="email" />
-        </Form.Item>
-
-        <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
-          <Button type="primary" htmlType="submit" loading={mutation.isPending} block size="large" style={{ width: '100%', height: 44, fontWeight: 600 }}>
-            Send reset link
-          </Button>
-        </Form.Item>
-      </Form>
-
-      <div style={{ marginTop: 20, textAlign: 'center', fontSize: 13 }}>
-        <Text type="secondary">
-          Remember your password? <Link href={ROUTES.AUTH.SIGNIN} style={{ fontWeight: 600, color: AUTH_THEME.PRIMARY }}>Sign in</Link>
-        </Text>
-      </div>
-    </>
+    <AuthForm
+      title="Forgot password"
+      subtitle="Enter your email and we will send a reset link."
+      submitLabel="Send reset link"
+      onFinish={(v) => mutation.mutate(v.email)}
+      loading={mutation.isPending}
+      error={mutation.error}
+      footerLink={{ text: 'Remember your password?', href: ROUTES.AUTH.SIGNIN, label: 'Sign in' }}
+    >
+      <AuthField
+        name="email"
+        label="Email"
+        rules={[
+          { required: true, message: 'Please enter your email' },
+          { type: 'email', message: 'Please enter a valid email' },
+        ]}
+      >
+        <Input placeholder="you@company.com" size="large" autoComplete="email" />
+      </AuthField>
+    </AuthForm>
   );
 }

@@ -19,7 +19,11 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@drizzle/*": ["./drizzle/*"],
+      "drizzle/*": ["./drizzle/*"],
+      "@tests/*": ["./tests/*"],
+      "@tests": ["./tests"]
     }
   },
   "include": [
@@ -30,5 +34,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "rules", "_trash", "tests"]
 }

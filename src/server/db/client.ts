@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import * as schema from '../../../drizzle/schema';
+import * as schema from '@drizzle/schema';
 import { env } from '@/server/env';
 
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
@@ -27,3 +27,6 @@ export const db = new Proxy({} as ReturnType<typeof drizzle<typeof schema>>, {
     return value;
   },
 });
+
+/** Shared transaction type for all repositories */
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];

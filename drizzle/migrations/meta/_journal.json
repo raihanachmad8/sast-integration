@@ -5,8 +5,29 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1780039388289,
+      "when": 1780571761914,
       "tag": "0000_initial_full_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780571800000,
+      "tag": "0001_fix_schema_gaps",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781164800000,
+      "tag": "0002_add_report_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781165100000,
+      "tag": "0003_create_source_control_tables",
       "breakpoints": true
     }
   ]

@@ -19,7 +19,10 @@ export const ownerSeed: SeedModule = {
     const [created] = await db
       .insert(schema.users)
       .values({ email: OWNER_EMAIL, passwordHash, name: OWNER_NAME, emailVerifiedAt: new Date() })
-      .onConflictDoNothing()
+      .onConflictDoUpdate({
+        target: schema.users.email,
+        set: { passwordHash, name: OWNER_NAME, emailVerifiedAt: new Date() },
+      })
       .returning();
 
     const owner = created ?? (await db.select().from(schema.users).where(eq(schema.users.email, OWNER_EMAIL)).limit(1))[0];

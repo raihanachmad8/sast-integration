@@ -22,11 +22,11 @@ const mockRepo = {
   revokeInvitation: vi.fn(),
 };
 
-vi.mock('@/server/modules/workspace/workspace.repository', () => ({
+vi.mock('@/server/modules/workspace/repositories/workspace.repository', () => ({
   workspaceRepository: mockRepo,
 }));
 
-const { memberService } = await import('@/server/modules/workspace/member.service');
+const { memberService } = await import('@/server/modules/workspace/services/member.service');
 
 /**
  * Unit tests for memberService (Workspace Member Management)

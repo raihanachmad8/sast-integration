@@ -1,90 +1,129 @@
-import { pgTable, uuid, varchar, jsonb, timestamp, boolean, text, integer } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, jsonb, timestamp, boolean, text, integer, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { users } from './users';
+import { workspaces } from './workspaces';
 
-export const aiModels = pgTable('ai_models', {
+export const models = pgTable('ai_models', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workspace_id: uuid('workspace_id'),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
   name: varchar('name', { length: 100 }).notNull(),
-  provider: varchar('provider', { length: 50 }).notNull(), // 'ollama' | 'openai_compatible' | 'groq'
-  base_url: varchar('base_url', { length: 500 }).notNull(),
-  api_key_encrypted: text('api_key_encrypted'),
+  provider: varchar('provider', { length: 50 }).notNull(),
+  baseUrl: varchar('base_url', { length: 500 }).notNull(),
+  apiKeyEncrypted: text('api_key_encrypted'),
   role: varchar('role', { length: 20 }).notNull().default('fallback'),
   priority: integer('priority').notNull().default(1),
-  prompt_preset: varchar('prompt_preset', { length: 20 }).notNull().default('strict'),
-  custom_system_prompt: text('custom_system_prompt'),
+  promptPreset: varchar('prompt_preset', { length: 20 }).notNull().default('strict'),
+  customSystemPrompt: text('custom_system_prompt'),
   status: varchar('status', { length: 20 }).default('unreachable'),
-  last_tested_at: timestamp('last_tested_at'),
-  created_at: timestamp('created_at').defaultNow(),
-  updated_at: timestamp('updated_at').defaultNow(),
+  lastTestedAt: timestamp('last_tested_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 export const webhooks = pgTable('webhooks', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workspace_id: uuid('workspace_id'),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
   name: varchar('name', { length: 255 }),
   url: varchar('url', { length: 500 }).notNull(),
   events: jsonb('events').notNull(),
   secret: varchar('secret', { length: 255 }).notNull(),
   active: boolean('active').default(true),
-  created_at: timestamp('created_at').defaultNow(),
-  created_by: uuid('created_by'),
-  updated_at: timestamp('updated_at').defaultNow(),
-  updated_by: uuid('updated_by'),
-  deleted_at: timestamp('deleted_at'),
-  deleted_by: uuid('deleted_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdBy: uuid('created_by').references(() => users.id),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  updatedBy: uuid('updated_by').references(() => users.id),
+  deletedAt: timestamp('deleted_at'),
+  deletedBy: uuid('deleted_by').references(() => users.id),
+});
+
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  webhookId: uuid('webhook_id').notNull().references(() => webhooks.id, { onDelete: 'cascade' }),
+  event: varchar('event', { length: 100 }).notNull(),
+  status: varchar('status', { length: 20 }).notNull(),
+  responseStatus: integer('response_status'),
+  requestBody: jsonb('request_body'),
+  responseBody: text('response_body'),
+  durationMs: integer('duration_ms'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workspace_id: uuid('workspace_id'),
-  user_id: uuid('user_id'),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
+  userId: uuid('user_id').references(() => users.id),
   action: varchar('action', { length: 100 }).notNull(),
-  resource_type: varchar('resource_type', { length: 50 }),
-  resource_id: uuid('resource_id'),
+  resourceType: varchar('resource_type', { length: 50 }),
+  resourceId: uuid('resource_id'),
   data: jsonb('data'),
-  ip_address: varchar('ip_address', { length: 45 }),
-  created_at: timestamp('created_at').defaultNow(),
+  ipAddress: varchar('ip_address', { length: 45 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 export const activityLogs = pgTable('activity_logs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workspace_id: uuid('workspace_id'),
-  user_id: uuid('user_id'),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
+  userId: uuid('user_id').references(() => users.id),
   type: varchar('type', { length: 50 }).notNull(),
   description: text('description'),
   metadata: jsonb('metadata'),
-  created_at: timestamp('created_at').defaultNow(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 export const knowledgeSources = pgTable('knowledge_sources', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workspace_id: uuid('workspace_id'),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id),
   name: varchar('name', { length: 100 }).notNull(),
   type: varchar('type', { length: 50 }).notNull(),
   url: varchar('url', { length: 500 }),
   status: varchar('status', { length: 20 }).default('disconnected'),
-  entry_count: integer('entry_count').default(0),
-  last_synced_at: timestamp('last_synced_at'),
-  created_at: timestamp('created_at').defaultNow(),
-});
+  entryCount: integer('entry_count').default(0),
+  lastSyncedAt: timestamp('last_synced_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('knowledge_sources_global_type_idx').on(t.type).where(sql`${t.workspaceId} IS NULL`),
+]);
 
 export const knowledgeEntries = pgTable('knowledge_entries', {
   id: uuid('id').primaryKey().defaultRandom(),
-  source_id: uuid('source_id').references(() => knowledgeSources.id),
-  cwe_id: varchar('cwe_id', { length: 20 }),
+  sourceId: uuid('source_id').notNull().references(() => knowledgeSources.id),
+  cweId: varchar('cwe_id', { length: 20 }),
   title: varchar('title', { length: 500 }).notNull(),
   content: text('content'),
   severity: varchar('severity', { length: 20 }),
   remediation: text('remediation'),
-  tags: jsonb('tags'), // ["injection", "database"]
+  tags: jsonb('tags'),
   muted: boolean('muted').default(false),
-  used_by_ai_count: integer('used_by_ai_count').default(0),
+  usedByAiCount: integer('used_by_ai_count').default(0),
   references: jsonb('references'),
-  created_at: timestamp('created_at').defaultNow(),
-  updated_at: timestamp('updated_at').defaultNow(),
-});
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  uniqueIndex('knowledge_entries_source_cwe_idx').on(t.sourceId, t.cweId),
+]);
 
-export type AiModel = typeof aiModels.$inferSelect;
-export type NewAiModel = typeof aiModels.$inferInsert;
+export const knowledgeBackfillJobs = pgTable('knowledge_backfill_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id'),
+  sourceId: uuid('source_id').references(() => knowledgeSources.id),
+  sourceType: varchar('source_type', { length: 50 }).notNull(),
+  status: varchar('status', { length: 20 }).notNull().default('queued'),
+  rangeStart: timestamp('range_start').notNull(),
+  rangeEnd: timestamp('range_end').notNull(),
+  cursorStart: timestamp('cursor_start').notNull(),
+  windowDays: integer('window_days').notNull().default(30),
+  importedCount: integer('imported_count').notNull().default(0),
+  lastError: text('last_error'),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  index('knowledge_backfill_source_status_idx').on(t.sourceId, t.status),
+]);
+
+export type AiModel = typeof models.$inferSelect;
+export type NewAiModel = typeof models.$inferInsert;
 export type Webhook = typeof webhooks.$inferSelect;
 export type NewWebhook = typeof webhooks.$inferInsert;
 export type AuditLog = typeof auditLogs.$inferSelect;
@@ -95,3 +134,5 @@ export type KnowledgeSource = typeof knowledgeSources.$inferSelect;
 export type NewKnowledgeSource = typeof knowledgeSources.$inferInsert;
 export type KnowledgeEntry = typeof knowledgeEntries.$inferSelect;
 export type NewKnowledgeEntry = typeof knowledgeEntries.$inferInsert;
+export type KnowledgeBackfillJob = typeof knowledgeBackfillJobs.$inferSelect;
+export type NewKnowledgeBackfillJob = typeof knowledgeBackfillJobs.$inferInsert;

@@ -1,16 +1,26 @@
 'use client';
 
 import { Suspense } from 'react';
-import { Form, Input, Button, Typography, Alert } from 'antd';
-import { useConfigQuery, useSigninMutation } from '@/modules/auth/queries';
-import { ROUTES, AUTH_THEME } from '@/commons/constants';
-import { WORKSPACE_MODE } from '@/server/modules/auth/constants';
-import { useSearchParams } from 'next/navigation';
+import { Input, Typography, theme } from 'antd';
 import Link from 'next/link';
+import { useSigninMutation } from '@/modules/auth/queries';
+import { clientEnv } from '@/config/client-env';
+import { ROUTES } from '@/commons/constants';
+import { useSearchParams } from 'next/navigation';
+import { AuthForm, AuthField } from '@/features/auth/AuthForm';
+import { createZodSync } from '@/lib/utils/zod-sync';
+import { signinSchema } from '@/commons/schemas';
 
-const { Title, Text } = Typography;
+const { } = Typography;
 
-function resolvePostSigninPath(redirect: string | null) {
+/** Zod-powered form rule — validates email + password from single schema. */
+const rule = createZodSync(signinSchema);
+
+function resolvePostSigninPath(redirect: string | null, inviteToken: string | null) {
+  if (inviteToken) {
+    return `${ROUTES.AUTH.INVITE}?token=${encodeURIComponent(inviteToken)}`;
+  }
+
   if (redirect?.startsWith('/') && !redirect.startsWith('//') && !redirect.startsWith(ROUTES.AUTH.SIGNIN)) {
     return redirect;
   }
@@ -21,63 +31,41 @@ function resolvePostSigninPath(redirect: string | null) {
 function SigninForm() {
   const searchParams = useSearchParams();
   const signin = useSigninMutation();
-  const config = useConfigQuery();
-  const showSignupLink = config.data?.workspaceMode === WORKSPACE_MODE.MULTIPLE;
+  const showSignupLink = clientEnv.workspaceMode === 'multiple';
+  const { token } = theme.useToken();
+  const inviteToken = searchParams.get('invite_token');
 
-  const onFinish = (values: { email: string; password: string }) => {
-    signin.mutate(values, {
+  const onFinish = (values: Record<string, string>) => {
+    signin.mutate(values as { email: string; password: string }, {
       onSuccess: () => {
-        window.location.assign(resolvePostSigninPath(searchParams.get('redirect')));
+        window.location.assign(resolvePostSigninPath(searchParams.get('redirect'), inviteToken));
       },
     });
   };
 
   return (
-    <>
-      <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Sign in</Title>
-      <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>Workspace selection appears after authentication.</Text>
+    <AuthForm
+      title="Sign in"
+      subtitle="Workspace selection appears after authentication."
+      onFinish={onFinish}
+      loading={signin.isPending}
+      error={signin.error}
+      footerLink={showSignupLink ? { text: 'New reviewer?', href: ROUTES.AUTH.SIGNUP, label: 'Create an account' } : undefined}
+    >
+      <AuthField name="email" label="Email" rules={[rule]}>
+        <Input placeholder="you@company.com" size="large" autoComplete="email" />
+      </AuthField>
 
-      {signin.error && <Alert title={signin.error.message} type="error" showIcon style={{ marginTop: 16 }} />}
+      <AuthField name="password" label="Password" rules={[rule]}>
+        <Input.Password placeholder="Enter your password" size="large" autoComplete="current-password" />
+      </AuthField>
 
-      <Form layout="vertical" onFinish={onFinish} autoComplete="off" requiredMark={false} style={{ marginTop: 24 }}>
-        <Form.Item
-          name="email"
-          label={<span style={{ fontWeight: 600, fontSize: 13 }}>Email</span>}
-          rules={[
-            { required: true, message: 'Please enter your email' },
-            { type: 'email', message: 'Please enter a valid email address' },
-          ]}
-        >
-          <Input placeholder="you@company.com" size="large" autoComplete="email" />
-        </Form.Item>
-
-        <Form.Item
-          name="password"
-          label={<span style={{ fontWeight: 600, fontSize: 13 }}>Password</span>}
-          rules={[{ required: true, message: 'Please enter your password' }]}
-        >
-          <Input.Password placeholder="Enter your password" size="large" autoComplete="current-password" />
-        </Form.Item>
-
-        <div style={{ marginTop: -8, marginBottom: 12, textAlign: 'right', fontSize: 13 }}>
-          <Link href={ROUTES.AUTH.FORGOT_PASSWORD} style={{ fontWeight: 600, color: AUTH_THEME.PRIMARY }}>Forgot password?</Link>
-        </div>
-
-        <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
-          <Button type="primary" htmlType="submit" loading={signin.isPending} block size="large" style={{ width: '100%', height: 44, fontWeight: 600 }}>
-            Sign in
-          </Button>
-        </Form.Item>
-      </Form>
-
-      {showSignupLink && (
-        <div style={{ marginTop: 20, textAlign: 'center', fontSize: 13 }}>
-          <Text type="secondary">
-            New reviewer? <Link href={ROUTES.AUTH.SIGNUP} style={{ fontWeight: 600, color: AUTH_THEME.PRIMARY }}>Create an account</Link>
-          </Text>
-        </div>
-      )}
-    </>
+      <div style={{ marginTop: -8, marginBottom: token.marginXS, textAlign: 'right' }}>
+        <Link href={ROUTES.AUTH.FORGOT_PASSWORD} style={{ fontSize: token.fontSizeSM, color: token.colorPrimary }}>
+          Forgot password?
+        </Link>
+      </div>
+    </AuthForm>
   );
 }
 
@@ -88,4 +76,3 @@ export default function SigninPage() {
     </Suspense>
   );
 }
-

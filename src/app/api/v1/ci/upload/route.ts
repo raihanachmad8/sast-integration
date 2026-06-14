@@ -1,0 +1,253 @@
+/**
+ * CI/CD Upload Endpoint
+ *
+ * POST /api/v1/ci/upload
+ *
+ * Accepts scan results from CI/CD pipelines (GitHub Actions, GitLab CI, Gitea Actions, etc.)
+ *
+ * ## Authentication
+ * Uses Project API Token via `Authorization: Bearer sast_p_xxxxx`
+ * Token automatically resolves workspaceId and projectId.
+ *
+ * ## Flow
+ * ### With scanId (new pattern — recommended):
+ * 1. Token → extract workspaceId + projectId
+ * 2. Look up existing scan by scanId
+ * 3. Parse SARIF and store findings
+ * 4. Store SARIF to storage for audit/re-parse
+ * 5. Auto-trigger AI verification
+ * 6. Append progress event
+ * 7. Return { scanId, findingsCount }
+ *
+ * ### Without scanId (legacy backward-compatible):
+ * 1. Token → extract workspaceId + projectId
+ * 2. Find or auto-create repository by name/URL (connectionType: external)
+ * 3. Find or create scan by commit SHA
+ * 4. Parse SARIF and store findings
+ * 5. Mark scan as completed
+ * 6. Return { scanId, findingsCount }
+ */
+
+import type { NextRequest } from 'next/server';
+import { ApiResponse } from '@/server/http/response';
+import { authenticateCiCd } from '@/server/modules/scan/ci-cd-auth';
+import { parseScanResult } from '@/server/modules/scan/parsers';
+import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
+import { findingService } from '@/server/modules/scan/services/finding.service';
+import { repositoriesRepository } from '@/server/modules/repositories/repositories.repository';
+import { getStorageDriver } from '@/server/modules/storage/storage.service';
+import { logger } from '@/server/lib/logger';
+import { AppError } from '@/server/http/errors';
+import { randomUUID } from 'node:crypto';
+
+export async function POST(request: NextRequest) {
+  // Authenticate using CI/CD token → extracts workspaceId + projectId
+  const auth = await authenticateCiCd(request);
+  if (!auth.success) return auth.response;
+
+  const { workspaceId, projectId } = auth.context!;
+
+  try {
+    const formData = await request.formData();
+
+    // Extract form fields
+    const scanIdField = formData.get('scanId') as string | null;
+    const tool = formData.get('tool') as string;
+    const repoName = formData.get('repoName') as string;
+    const repoUrl = (formData.get('repoUrl') as string) || '';
+    const branch = (formData.get('branch') as string) || 'main';
+    const commit = (formData.get('commit') as string) || '';
+    const duration = parseInt((formData.get('duration') as string) || '0', 10);
+
+    // Extract SARIF file
+    const sarifFile = formData.get('sarif') as File | null;
+
+    if (!tool) {
+      return ApiResponse.error('Missing required field: tool', 'VALIDATION_ERROR', undefined, 400);
+    }
+
+    if (!sarifFile) {
+      return ApiResponse.error('Missing required file: sarif', 'VALIDATION_ERROR', undefined, 400);
+    }
+
+    // scanId is required when using init pattern, repoName required for legacy
+    if (!scanIdField && !repoName) {
+      return ApiResponse.error('Missing required field: scanId or repoName', 'VALIDATION_ERROR', undefined, 400);
+    }
+
+    logger.scan.info('CI/CD upload received', {
+      scanId: scanIdField,
+      tool,
+      repoName,
+      branch,
+      commit,
+      workspaceId,
+      projectId,
+      duration,
+    });
+
+    // Read SARIF content
+    const sarifBuffer = Buffer.from(await sarifFile.arrayBuffer());
+    const sarifContent = sarifBuffer.toString('utf-8');
+
+    let scan;
+
+    if (scanIdField) {
+      // NEW PATTERN: scanId provided (from /ci/init) — look up existing scan
+      scan = await scanRepository.getById(scanIdField);
+
+      if (!scan) {
+        return ApiResponse.error('Scan not found', 'NOT_FOUND', undefined, 404);
+      }
+
+      // Update status to processing if still queued
+      if (scan.status === 'queued') {
+        await scanRepository.updateStatus(scan.id, 'processing');
+      }
+
+      logger.scan.info('CI/CD upload: using existing scan', { scanId: scan.id, status: scan.status });
+    } else {
+      // LEGACY PATTERN: no scanId — find or create scan by commit SHA
+      if (!repoName) {
+        return ApiResponse.error('Missing required field: repoName', 'VALIDATION_ERROR', undefined, 400);
+      }
+
+      // Find or auto-create repository
+      let repository = await repositoriesRepository.findByNameAndWorkspace(repoName, workspaceId);
+
+      if (!repository) {
+        repository = await repositoriesRepository.create({
+          workspaceId: workspaceId,
+          projectId: projectId,
+          name: repoName,
+          url: repoUrl || `external://${repoName}`,
+          defaultBranch: branch,
+          connectionType: 'external',
+        });
+
+        logger.scan.info('CI/CD: auto-created external repository', {
+          repositoryId: repository.id,
+          name: repoName,
+        });
+      }
+
+      // Find or create scan for this commit
+      scan = await scanRepository.findByCommitSha(repository.id, commit);
+
+      if (!scan) {
+        scan = await scanRepository.create({
+          repositoryId: repository.id,
+          branch,
+          origin: 'external_upload',
+          status: 'processing',
+          commitSha: commit,
+          triggerSource: 'ci',
+        });
+
+        logger.scan.info('CI/CD scan created (legacy)', { scanId: scan.id });
+      }
+    }
+
+    // Parse the SARIF content
+    const result = parseScanResult(tool, sarifContent, scan.id);
+
+    // Store findings with dedup (scoped to repositoryId + scanner)
+    let storedFindings: Array<{ id: string }> = [];
+    if (result.findings.length > 0) {
+      const findingResult = await findingService.replaceFindingsForScanJob(
+        projectId,
+        scan.id,
+        result.findings,
+        scan.repositoryId ?? null,
+      );
+      storedFindings = findingResult.findings ?? [];
+    }
+
+    // Store SARIF to storage for audit/re-parse
+    let fileKey = '';
+    try {
+      const storage = await getStorageDriver();
+      fileKey = `${scan.id}/${tool}-${Date.now()}.sarif`;
+      await storage.upload(sarifBuffer, fileKey, { contentType: 'application/sarif+json' });
+    } catch (err) {
+      logger.scan.error('CI/CD upload: failed to store SARIF', { scanId: scan.id, tool, error: (err as Error).message });
+    }
+
+    // Append progress event for this tool (with duration if provided)
+    await scanRepository.appendProgressEvent(scan.id, {
+      id: randomUUID(),
+      type: 'scanning',
+      description: `${tool} uploaded (${storedFindings.length} findings)`,
+      timestamp: new Date().toISOString(),
+      scanner: tool,
+      ...(duration > 0 ? { durationSeconds: duration } : {}),
+    });
+
+    // Record scan result with actual fileKey
+    await scanRepository.createScanResult({
+      scanId: scan.id,
+      scanner: tool,
+      format: 'sarif',
+      fileKey: fileKey || `ci/${tool}-${Date.now()}.sarif`,
+      fileSize: sarifBuffer.length,
+      parsedSummary: result.summary,
+    });
+
+    // Auto-trigger AI verification for findings from this tool
+    if (storedFindings.length > 0) {
+      try {
+        const { db } = await import('@/server/db/client');
+        const { models } = await import('@drizzle/schema/integrations');
+        const { eq, asc } = await import('drizzle-orm');
+
+        const [model] = await db.select().from(models)
+          .where(eq(models.workspaceId, workspaceId))
+          .orderBy(asc(models.priority))
+          .limit(1);
+
+        if (model) {
+          const { enqueue } = await import('@/server/modules/queue/queue.service');
+          for (const finding of storedFindings) {
+            if (!finding.id) continue;
+            await enqueue('ai-verify-finding', {
+              findingId: finding.id,
+              scanId: scan.id,
+              modelId: model.id,
+            }, { retryLimit: 5, retryDelay: 30 });
+          }
+          logger.scan.info('CI/CD upload: AI verification enqueued', { scanId: scan.id, count: storedFindings.length, modelId: model.id });
+        }
+      } catch (err) {
+        logger.scan.error('CI/CD upload: AI verification failed', { scanId: scan.id, error: (err as Error).message });
+      }
+    }
+
+    // LEGACY PATTERN: mark completed if no scanId was provided (backward compat)
+    if (!scanIdField) {
+      await scanRepository.updateStatus(scan.id, 'completed');
+      await scanRepository.appendProgressEvent(scan.id, {
+        id: randomUUID(),
+        type: 'completed',
+        description: 'Scan completed',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    logger.scan.info('CI/CD upload completed', {
+      scanId: scan.id,
+      tool,
+      findingsCount: storedFindings.length,
+    });
+
+    return ApiResponse.success('Scan results uploaded', {
+      scanId: scan.id,
+      findingsCount: storedFindings.length,
+    });
+  } catch (error) {
+    logger.scan.error('CI/CD upload failed', { error: (error as Error).message });
+    if (error instanceof AppError) {
+      return ApiResponse.error(error.message, error.code, undefined, error.statusCode);
+    }
+    return ApiResponse.error('Failed to upload scan results', 'INTERNAL_ERROR', undefined, 500);
+  }
+}

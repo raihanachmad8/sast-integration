@@ -143,15 +143,18 @@ Response:
 
 ## Queue Worker
 
-Background job processing for scan execution using pg-boss (PostgreSQL-based):
+Background job processing for scan execution uses pg-boss (PostgreSQL-based).
+Workers are registered automatically on server startup via `src/instrumentation.ts`.
 
-```bash
-# Start worker
-pnpm queue:worker
+**Registered workers:**
+- `parse-scan-result` — Parse raw scan output into findings
+- `run-managed-scan` — Execute managed scan on repository
+- `trigger-scheduled-managed-scan` — Trigger scheduled scans
+- `ai-verify-finding` — AI verification of findings
+- `cleanup-old-scan-files` — Cleanup old scan files from storage
+- `nvd-knowledge-backfill` — Backfill NVD knowledge base
 
-# Start worker (production)
-pnpm queue:worker --concurrency 4
-```
+> **Note:** Queue runs in-process with Next.js. No separate worker command needed.
 
 ---
 
@@ -162,7 +165,6 @@ pnpm queue:worker --concurrency 4
 - [ ] NODE_ENV=production
 - [ ] JWT_SECRET is a strong random value (32+ chars)
 - [ ] Health check returns 200
-- [ ] Queue worker running (pg-boss)
 - [ ] HTTPS configured (reverse proxy)
 - [ ] Rate limiting enabled
 - [ ] Error monitoring connected (Sentry)

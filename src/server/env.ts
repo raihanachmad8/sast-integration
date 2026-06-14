@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { NODE_ENV, WORKSPACE_MODE } from "@/server/modules/auth/constants";
 import { MAIL } from "@/server/modules/mail/constants";
+import { AppError } from "@/server/http/errors";
 
 const nodeEnvValues = Object.values(NODE_ENV) as [string, ...string[]];
 const workspaceModeValues = Object.values(WORKSPACE_MODE) as [
@@ -43,6 +44,28 @@ const envSchema = z
     SMTP_USER: z.string().optional(),
     SMTP_PASS: z.string().optional(),
     SMTP_FROM: z.string().email().default("noreply@sast.local"),
+
+    // Knowledge Base
+    NVD_API_KEY: z.string().optional(),
+
+    // Scanner Rules
+    SEMGREP_RULES_DIR: z.string().optional(),
+    GITLEAKS_CONFIG_PATH: z.string().optional(),
+    FLAWFINDER_RULES_DIR: z.string().optional(),
+    CPPCHECK_SUPPRESSIONS_PATH: z.string().optional(),
+
+    // Storage
+    STORAGE_PROVIDER: z.enum(['local', 's3', 'cloudinary']).default('local'),
+    STORAGE_LOCAL_PATH: z.string().optional(),
+    S3_BUCKET: z.string().optional(),
+    AWS_REGION: z.string().optional(),
+    AWS_ACCESS_KEY_ID: z.string().optional(),
+    AWS_SECRET_ACCESS_KEY: z.string().optional(),
+    S3_ENDPOINT: z.string().optional(),
+    CLOUDINARY_CLOUD_NAME: z.string().optional(),
+    CLOUDINARY_API_KEY: z.string().optional(),
+    CLOUDINARY_API_SECRET: z.string().optional(),
+    CLOUDINARY_FOLDER: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.MAIL_PROVIDER === MAIL.PROVIDER.SMTP && !data.SMTP_HOST) {
@@ -93,7 +116,7 @@ export const env: Env = new Proxy({} as Env, {
         const issues = result.error.issues
           .map((i) => `  ${i.path.join(".")}: ${i.message}`)
           .join("\n");
-        throw new Error(`Invalid environment variables:\n${issues}`);
+        throw new AppError(`Invalid environment variables:\n${issues}`, 500, 'ENV_VALIDATION');
       }
       _env = result.data;
     }

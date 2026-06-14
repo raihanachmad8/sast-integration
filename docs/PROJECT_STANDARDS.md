@@ -165,13 +165,12 @@ All errors are caught by a global error handler in API routes and returned using
 
 ## Testing Strategy
 
-> **Status**: Placeholder — to be defined in v0.2.0
-
-Planned approach:
 - **Unit**: Services & utilities (Vitest)
 - **Integration**: API routes with test database
 - **E2E**: Critical user flows (Playwright)
 - **Coverage target**: 80% for server modules
+
+See [TESTING.md](./TESTING.md) for detailed testing standards.
 
 ---
 

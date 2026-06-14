@@ -1,0 +1,143 @@
+'use client';
+
+import { App, Button, Card, Descriptions, Drawer, Statistic, Tag, Typography, theme } from 'antd';
+import { CloseOutlined, CodeOutlined } from '@ant-design/icons';
+import { FaIcon } from '@/components/shared/FaIcon';
+import type { Repository } from '@/commons/types';
+import { StatusTag } from '@/components/shared/StatusTag';
+import { EmptyState } from '@/components/shared/EmptyState';
+
+const { Text, Title } = Typography;
+
+interface RepositoryDetailDrawerProps {
+  open: boolean;
+  onClose: () => void;
+  repository: Repository | null;
+}
+
+const PROVIDER_CONFIG: Record<string, { icon: string; label: string }> = {
+  github: { icon: 'fa-brands fa-github', label: 'GitHub' },
+  gitlab: { icon: 'fa-brands fa-gitlab', label: 'GitLab' },
+  gitea: { icon: 'fa-code-branch', label: 'Gitea' },
+};
+
+export function RepositoryDetailDrawer({ open, onClose, repository }: RepositoryDetailDrawerProps) {
+  const { modal } = App.useApp();
+  const { token } = theme.useToken();
+
+  if (!repository) {
+    return (
+      <Drawer open={open} onClose={onClose} title="Repository Details">
+        <EmptyState title="No repository data available" />
+      </Drawer>
+    );
+  }
+
+  const provider = repository.provider ? PROVIDER_CONFIG[repository.provider] : null;
+
+  return (
+    <Drawer
+      title={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <CodeOutlined style={{ color: token.colorPrimary, fontSize: 18 }} />
+          <Text strong style={{ fontSize: token.fontSizeLG }}>{repository.name}</Text>
+        </div>
+      }
+      placement="right"
+      size="large"
+      onClose={onClose}
+      open={open}
+      closeIcon={<CloseOutlined />}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+        {/* Overview */}
+        <section>
+          <Title level={5} style={{ marginBottom: token.marginSM, marginTop: 0, fontWeight: token.fontWeightStrong }}>Overview</Title>
+          <Descriptions column={1} size="small" bordered>
+            <Descriptions.Item label="URL">
+              <Text copyable style={{ wordBreak: 'break-all', fontSize: token.fontSizeSM }}>{repository.url}</Text>
+            </Descriptions.Item>
+            <Descriptions.Item label="Branch">
+              <Text code>{repository.branch}</Text>
+            </Descriptions.Item>
+            <Descriptions.Item label="Project">
+              <Text>{repository.project ?? '—'}</Text>
+            </Descriptions.Item>
+            <Descriptions.Item label="Connection">
+              <Tag color={repository.connectionType === 'scm' ? 'cyan' : 'orange'}>
+                {repository.connectionType === 'scm' ? 'SCM (Managed)' : 'External (CI)'}
+              </Tag>
+            </Descriptions.Item>
+            {provider && (
+              <Descriptions.Item label="Provider">
+                <Text>
+                  <FaIcon icon={provider.icon} style={{ marginRight: token.marginXS }} />
+                  {provider.label}
+                </Text>
+              </Descriptions.Item>
+            )}
+            <Descriptions.Item label="Status">
+              <StatusTag type="scanner" value={repository.status} />
+            </Descriptions.Item>
+          </Descriptions>
+        </section>
+
+        {/* Scan Policy */}
+        <section>
+          <Title level={5} style={{ marginBottom: token.marginSM, marginTop: 0, fontWeight: token.fontWeightStrong }}>Scan Policy</Title>
+          {repository.policyName ? (
+            <Card size="small">
+              <Text strong>{repository.policyName}</Text>
+              <br />
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                Attached policy governs scanner selection and thresholds.
+              </Text>
+            </Card>
+          ) : (
+            <Card size="small" style={{ borderStyle: 'dashed' }}>
+              <Text type="secondary">No policy attached. Scans use workspace defaults.</Text>
+            </Card>
+          )}
+        </section>
+
+        {/* Scan Statistics */}
+        <section>
+          <Title level={5} style={{ marginBottom: token.marginSM, marginTop: 0, fontWeight: token.fontWeightStrong }}>Scan Statistics</Title>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: token.marginSM }}>
+            <Card size="small">
+              <Statistic title="Total Scans" value={repository.scans} />
+            </Card>
+            <Card size="small">
+              <Statistic title="Findings" value={repository.findings} />
+            </Card>
+          </div>
+          <Text type="secondary" style={{ display: 'block', marginTop: token.marginXS, fontSize: token.fontSizeSM }}>
+            Last scan: {repository.lastScan ? new Date(repository.lastScan).toLocaleDateString() : 'Never'}
+          </Text>
+        </section>
+
+        {/* Actions */}
+        <section style={{ display: 'flex', gap: token.marginSM }}>
+          <Button
+            type="primary"
+            block
+            disabled={repository.connectionType !== 'scm'}
+            icon={<FaIcon icon="fa-play" />}
+            onClick={() => modal.success({ title: 'Scan started', content: `Scan started for ${repository.name}.` })}
+          >
+            Run Scan
+          </Button>
+          <Button
+            block
+            icon={<FaIcon icon="fa-clock-rotate-left" />}
+            onClick={() => modal.info({ title: 'Scan history', content: `Scan history for ${repository.name} would open here.` })}
+          >
+            View History
+          </Button>
+        </section>
+
+      </div>
+    </Drawer>
+  );
+}

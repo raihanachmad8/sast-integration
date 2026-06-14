@@ -13,14 +13,28 @@ interface ValidationFailure {
   response: ReturnType<typeof ApiResponse.error>;
 }
 
+interface PaginationParams {
+  page: number;
+  perPage: number;
+}
+
+const MAX_PER_PAGE = 100;
+
+/**
+ * Parse and validate pagination query parameters.
+ * Returns safe defaults for missing/invalid values.
+ */
+export function parsePagination(searchParams: URLSearchParams, defaults: { page?: number; perPage?: number } = {}): PaginationParams {
+  const rawPage = parseInt(searchParams.get('page') ?? String(defaults.page ?? 1), 10);
+  const rawPerPage = parseInt(searchParams.get('per_page') ?? searchParams.get('limit') ?? String(defaults.perPage ?? 10), 10);
+  const page = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1;
+  const perPage = Number.isFinite(rawPerPage) && rawPerPage >= 1 ? Math.min(rawPerPage, MAX_PER_PAGE) : 10;
+  return { page, perPage };
+}
+
 /**
  * Validate request body against a Zod schema.
  * Returns field-level errors (422) on failure, parsed data on success.
- *
- * @example
- * const validation = await validateBody(request, signupSchema);
- * if (!validation.success) return validation.response;
- * // validation.data is typed
  */
 export async function validateBody<T>(
   request: NextRequest,

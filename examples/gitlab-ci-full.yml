@@ -1,0 +1,276 @@
+# =============================================================================
+# GitLab CI — Full SAST Scan (semgrep, gitleaks, flawfinder, cppcheck)
+# =============================================================================
+# Runs all 4 scanners in parallel stages, uploads combined results.
+# Auto-registers the repository on first upload.
+#
+# Required Variables (Settings > CI/CD > Variables):
+#   SAST_API_URL       — e.g. https://sast.example.com/api/v1
+#   SAST_WORKSPACE_ID  — workspace ID
+#   SAST_PROJECT_ID    — repository ID in SAST
+#   SAST_AUTH_TOKEN    — API token (masked + protected)
+# =============================================================================
+
+stages:
+  - scan
+  - upload
+
+default:
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+
+# ─── Stage 1: Scanners (run in parallel) ────────────────────────────────────
+
+semgrep-sast:
+  stage: scan
+  image: semgrep/semgrep:latest
+  script:
+    - semgrep scan
+        --config p/default
+        --config p/security-audit
+        --config p/owasp-top-ten
+        --sarif
+        --output semgrep.sarif
+        --quiet
+        .
+  artifacts:
+    paths:
+      - semgrep.sarif
+    reports:
+      sast: semgrep.sarif
+    expire_in: 7 days
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+gitleaks-secrets:
+  stage: scan
+  image: zricethezav/gitleaks:latest
+  variables:
+    GIT_DEPTH: 0   # full clone for secret detection
+  script:
+    - gitleaks detect
+        --source .
+        --report-format sarif
+        --report-path gitleaks.sarif
+        --log-opts="--since=2024-01-01"
+        --verbose || true
+  artifacts:
+    paths:
+      - gitleaks.sarif
+    expire_in: 7 days
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+flawfinder-sinks:
+  stage: scan
+  image: python:3.12-slim
+  before_script:
+    - pip install --quiet flawfinder
+  script:
+    - |
+      # flawfinder may not support --sarif natively, generate JSON and wrap
+      flawfinder \
+        --json \
+        --error-level 1 \
+        --columns \
+        --data-only \
+        . > flawfinder.json 2>/dev/null || echo '{"runs":[{"tool":{"driver":{"name":"flawfinder"}},"results":[]}]}' > flawfinder.json
+
+      # Convert to SARIF format
+      python3 -c "
+      import json
+
+      with open('flawfinder.json') as f:
+          data = json.load(f)
+
+      # Build SARIF from flawfinder JSON output
+      results = []
+      for item in data.get('runs', [{}])[0].get('results', []):
+          results.append({
+              'ruleId': item.get('check', 'unknown'),
+              'message': {'text': item.get('message', '')},
+              'locations': [{
+                  'physicalLocation': {
+                      'artifactLocation': {'uri': item.get('file', '')},
+                      'region': {'startLine': item.get('line', 0)}
+                  }
+              }],
+              'level': 'warning'
+          })
+
+      sarif = {
+          '\$schema': 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
+          'version': '2.1.0',
+          'runs': [{
+              'tool': {'driver': {'name': 'flawfinder', 'version': '2.0.8'}},
+              'results': results
+          }]
+      }
+
+      with open('flawfinder.sarif', 'w') as f:
+          json.dump(sarif, f, indent=2)
+      "
+  artifacts:
+    paths:
+      - flawfinder.sarif
+    expire_in: 7 days
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+cppcheck-static:
+  stage: scan
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq cppcheck python3 > /dev/null 2>&1
+  script:
+    - |
+      # Run Cppcheck with XML output
+      cppcheck \
+        --enable=all \
+        --inconclusive \
+        --xml \
+        --xml-version=2 \
+        --output-file=cppcheck.xml \
+        --suppress=missingIncludeSystem \
+        --inline-suppr \
+        . 2>/dev/null || true
+
+      # Convert XML to SARIF
+      python3 -c "
+      import xml.etree.ElementTree as ET
+      import json, sys
+
+      results = []
+      try:
+          tree = ET.parse('cppcheck.xml')
+          root = tree.getroot()
+          for error in root.findall('.//error'):
+              severity = error.get('severity', 'style')
+              msg = error.get('msg', '')
+              sid = error.get('id', '')
+              for loc in error.findall('location'):
+                  fn = loc.get('file', '')
+                  ln = int(loc.get('line', 0))
+                  if fn:
+                      results.append({
+                          'ruleId': sid,
+                          'message': {'text': msg},
+                          'locations': [{
+                              'physicalLocation': {
+                                  'artifactLocation': {'uri': fn},
+                                  'region': {'startLine': ln}
+                              }
+                          }],
+                          'level': 'error' if severity == 'error' else 'warning'
+                      })
+      except Exception as e:
+          print(f'Warning: {e}', file=sys.stderr)
+
+      sarif = {
+          '\$schema': 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
+          'version': '2.1.0',
+          'runs': [{
+              'tool': {'driver': {'name': 'cppcheck', 'version': '2.13'}},
+              'results': results
+          }]
+      }
+
+      with open('cppcheck.sarif', 'w') as f:
+          json.dump(sarif, f, indent=2)
+      "
+  artifacts:
+    paths:
+      - cppcheck.sarif
+    expire_in: 7 days
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+# ─── Stage 2: Upload to SAST API ───────────────────────────────────────────
+
+upload-to-sast:
+  stage: upload
+  image: curlimages/curl:latest
+  needs:
+    - job: semgrep-sast
+      artifacts: true
+      optional: true
+    - job: gitleaks-secrets
+      artifacts: true
+      optional: true
+    - job: flawfinder-sinks
+      artifacts: true
+      optional: true
+    - job: cppcheck-static
+      artifacts: true
+      optional: true
+  variables:
+    GIT_STRATEGY: none   # don't clone repo
+  script:
+    - |
+      echo "╔════════════════════════════════════════════════════════════════╗"
+      echo "║              Upload to SAST API                               ║"
+      echo "╚════════════════════════════════════════════════════════════════╝"
+
+      # Collect all SARIF files
+      FILES=""
+      for f in semgrep.sarif gitleaks.sarif flawfinder.sarif cppcheck.sarif; do
+        if [ -f "$f" ]; then
+          FILES="$FILES -F file=@$f;filename=$f"
+          echo "  ✓ Found: $f ($(wc -c < $f) bytes)"
+        fi
+      done
+
+      if [ -z "$FILES" ]; then
+        echo "  ⚠ No SARIF files found, skipping upload"
+        exit 0
+      fi
+
+      echo ""
+      echo "  Uploading to SAST API..."
+
+      RESPONSE=$(curl --fail-with-body \
+        -X POST \
+        "${SAST_API_URL}/workspaces/${SAST_WORKSPACE_ID}/scans/upload" \
+        -H "Authorization: Bearer ${SAST_AUTH_TOKEN}" \
+        -F "projectId=${SAST_PROJECT_ID}" \
+        -F "repositoryUrl=${CI_REPOSITORY_URL}" \
+        -F "repositoryName=${CI_PROJECT_NAME}" \
+        -F "branch=${CI_COMMIT_REF_NAME}" \
+        -F "commit=${CI_COMMIT_SHA}" \
+        -F "source=gitlab_ci" \
+        $FILES)
+
+      echo ""
+      echo "  Response: $RESPONSE"
+      echo ""
+
+      # Extract values
+      SCAN_ID=$(echo "$RESPONSE" | grep -o '"scanId":"[^"]*"' | cut -d'"' -f4)
+      FINDINGS=$(echo "$RESPONSE" | grep -o '"findingsCount":[0-9]*' | cut -d':' -f2)
+
+      echo "  ✓ Scan uploaded: $SCAN_ID"
+      echo "  ✓ Findings: $FINDINGS"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"

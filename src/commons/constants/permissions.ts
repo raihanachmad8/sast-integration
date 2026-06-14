@@ -64,6 +64,7 @@ export const PERMISSION = {
   SCANNER_MANAGE: `${RESOURCES.SCANNER}:${ACTIONS.MANAGE}`,
   AI_MODEL_MANAGE: `${RESOURCES.AI_MODEL}:${ACTIONS.MANAGE}`,
   // Intelligence
+  KNOWLEDGE_READ: `${RESOURCES.KNOWLEDGE}:${ACTIONS.READ}`,
   KNOWLEDGE_MANAGE: `${RESOURCES.KNOWLEDGE}:${ACTIONS.MANAGE}`,
   // System
   WORKSPACE_SETTINGS: `${RESOURCES.WORKSPACE}:${ACTIONS.SETTINGS}`,
@@ -80,6 +81,14 @@ export const ROLE = {
 } as const;
 
 export type Role = (typeof ROLE)[keyof typeof ROLE];
+
+/** Role hierarchy — higher number = more permissions. */
+export const ROLE_HIERARCHY: Record<Role, number> = {
+  [ROLE.OWNER]: 4,
+  [ROLE.MANAGER]: 3,
+  [ROLE.REVIEWER]: 2,
+  [ROLE.MEMBER]: 1,
+};
 
 /** All permissions with metadata for seeding */
 export const PERMISSION_DEFINITIONS: {
@@ -216,6 +225,12 @@ export const PERMISSION_DEFINITIONS: {
     description: "Configure AI model chain and prompt presets",
   },
   {
+    name: PERMISSION.KNOWLEDGE_READ,
+    resource: RESOURCES.KNOWLEDGE,
+    action: ACTIONS.READ,
+    description: "View knowledge base sources and entries",
+  },
+  {
     name: PERMISSION.KNOWLEDGE_MANAGE,
     resource: RESOURCES.KNOWLEDGE,
     action: ACTIONS.MANAGE,
@@ -254,6 +269,7 @@ export const ROLE_PERMISSIONS: Record<Role, PermissionKey[]> = {
     PERMISSION.TEAM_MANAGE,
     PERMISSION.PROJECT_MANAGE,
     PERMISSION.SCHEDULE_MANAGE,
+    PERMISSION.KNOWLEDGE_READ,
     PERMISSION.AUDIT_READ,
   ],
   [ROLE.REVIEWER]: [
@@ -266,6 +282,7 @@ export const ROLE_PERMISSIONS: Record<Role, PermissionKey[]> = {
     PERMISSION.FINDING_OVERRIDE_AI,
     PERMISSION.REPORT_VIEW,
     PERMISSION.REPORT_EXPORT,
+    PERMISSION.KNOWLEDGE_READ,
   ],
   [ROLE.MEMBER]: [
     PERMISSION.DASHBOARD_VIEW,
@@ -273,5 +290,6 @@ export const ROLE_PERMISSIONS: Record<Role, PermissionKey[]> = {
     PERMISSION.SCAN_VIEW,
     PERMISSION.FINDING_VIEW,
     PERMISSION.REPORT_VIEW,
+    PERMISSION.KNOWLEDGE_READ,
   ],
 };

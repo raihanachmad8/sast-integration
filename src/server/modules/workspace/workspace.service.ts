@@ -1,12 +1,13 @@
 import { randomUUID } from 'crypto';
 import { db } from '@/server/db/client';
 import { ROLE } from '@/commons/constants/permissions';
-import { workspaceRepository } from './workspace.repository';
+import { workspaceRepository } from './repositories/workspace.repository';
 import { WORKSPACE } from './constants';
 import { WORKSPACE_MODE, WORKSPACE_DEFAULTS } from '@/server/modules/auth/constants';
 import { env } from '@/server/env';
 import { AppError } from '@/server/http/errors';
-import type { CreateWorkspaceInput, UpdateWorkspaceInput } from './schemas';
+import { logger } from '@/server/lib/logger';
+import type { WorkspaceCreateInput as CreateWorkspaceInput, WorkspaceUpdateInput as UpdateWorkspaceInput } from '@/commons/schemas';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -30,7 +31,10 @@ export const workspaceService = {
    * @param userId - Authenticated user ID
    */
   async list(userId: string) {
-    return workspaceRepository.listByUser(userId);
+    logger.workspace.info('list', { userId });
+    const result = await workspaceRepository.listByUser(userId);
+    logger.workspace.info('list completed', { count: result.length });
+    return result;
   },
 
   /**
@@ -39,12 +43,14 @@ export const workspaceService = {
    * @param userId - Authenticated user ID
    */
   async getById(workspaceId: string, userId: string) {
+    logger.workspace.info('getById', { workspaceId, userId });
     const role = await workspaceRepository.getMemberRole(workspaceId, userId);
     if (!role) throw new AppError(WORKSPACE.ERRORS.NOT_MEMBER, 403, WORKSPACE.ERROR_CODE);
 
     const ws = await workspaceRepository.findById(workspaceId);
     if (!ws) throw new AppError(WORKSPACE.ERRORS.NOT_FOUND, 404, WORKSPACE.ERROR_CODE);
 
+    logger.workspace.info('getById completed', { workspaceId });
     return { ...ws, role };
   },
 
@@ -55,6 +61,7 @@ export const workspaceService = {
    * @param userId - Creator user ID
    */
   async create(input: CreateWorkspaceInput, userId: string) {
+    logger.workspace.info('create', { userId, type: input.type });
     if (env.WORKSPACE_MODE === WORKSPACE_MODE.SINGLE) {
       throw new AppError(WORKSPACE.ERRORS.SELF_SERVICE_DISABLED, 403, WORKSPACE.ERROR_CODE);
     }
@@ -68,7 +75,7 @@ export const workspaceService = {
       throw new AppError(WORKSPACE.ERRORS.PERSONAL_EXISTS, 409, WORKSPACE.ERROR_CODE);
     }
 
-    return db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       const slug = await nextPersonalSlug(userId, tx);
       const ws = await workspaceRepository.create({
         name: WORKSPACE_DEFAULTS.PERSONAL_NAME,
@@ -80,6 +87,8 @@ export const workspaceService = {
       await workspaceRepository.switchWorkspace(userId, ws.id, tx);
       return ws;
     });
+    logger.workspace.info('create completed', { workspaceId: result.id });
+    return result;
   },
 
   /**
@@ -89,6 +98,7 @@ export const workspaceService = {
    * @param userId - Authenticated user ID
    */
   async update(workspaceId: string, input: UpdateWorkspaceInput, userId: string) {
+    logger.workspace.info('update', { workspaceId });
     const role = await workspaceRepository.getMemberRole(workspaceId, userId);
     if (role !== ROLE.OWNER) throw new AppError(WORKSPACE.ERRORS.NOT_OWNER, 403, WORKSPACE.ERROR_CODE);
 
@@ -97,7 +107,9 @@ export const workspaceService = {
       if (existing && existing.id !== workspaceId) throw new AppError(WORKSPACE.ERRORS.SLUG_CONFLICT, 409, WORKSPACE.ERROR_CODE);
     }
 
-    return workspaceRepository.update(workspaceId, { ...input, updatedBy: userId });
+    const result = await workspaceRepository.update(workspaceId, { ...input, updatedBy: userId });
+    logger.workspace.info('update completed', { workspaceId });
+    return result;
   },
 
   /**
@@ -106,6 +118,7 @@ export const workspaceService = {
    * @param userId - Authenticated user ID
    */
   async delete(workspaceId: string, userId: string) {
+    logger.workspace.info('delete', { workspaceId, userId });
     const ws = await workspaceRepository.findById(workspaceId);
     if (!ws) throw new AppError(WORKSPACE.ERRORS.NOT_FOUND, 404, WORKSPACE.ERROR_CODE);
     if (ws.type === WORKSPACE.TYPE.PERSONAL) throw new AppError(WORKSPACE.ERRORS.CANNOT_DELETE_PERSONAL, 403, WORKSPACE.ERROR_CODE);
@@ -114,6 +127,7 @@ export const workspaceService = {
     if (role !== ROLE.OWNER) throw new AppError(WORKSPACE.ERRORS.NOT_OWNER, 403, WORKSPACE.ERROR_CODE);
 
     await workspaceRepository.delete(workspaceId, userId);
+    logger.workspace.info('delete completed', { workspaceId });
   },
 
   /**
@@ -122,9 +136,45 @@ export const workspaceService = {
    * @param userId - Authenticated user ID
    */
   async switchWorkspace(workspaceId: string, userId: string) {
+    logger.workspace.info('switchWorkspace', { workspaceId, userId });
     const role = await workspaceRepository.getMemberRole(workspaceId, userId);
     if (!role) throw new AppError(WORKSPACE.ERRORS.NOT_MEMBER, 403, WORKSPACE.ERROR_CODE);
 
     await workspaceRepository.switchWorkspace(userId, workspaceId);
+    logger.workspace.info('switchWorkspace completed', { workspaceId, userId });
+  },
+
+  /**
+   * List all pending invitations for a user by email.
+   * @param email - User's email address
+   */
+  async listPendingInvitations(email: string) {
+    logger.workspace.info('listPendingInvitations', { email });
+    const result = await workspaceRepository.listPendingInvitationsByEmail(email);
+    logger.workspace.info('listPendingInvitations completed', { count: result.length });
+    return result;
+  },
+
+  /**
+   * Accept a pending invitation. Adds user to workspace.
+   * @param invitationId - Invitation UUID
+   * @param userId - Authenticated user ID
+   */
+  async acceptInvitation(invitationId: string, userId: string) {
+    logger.workspace.info('acceptInvitation', { invitationId, userId });
+    const result = await workspaceRepository.acceptInvitation(invitationId, userId);
+    if (!result) throw new AppError(WORKSPACE.ERRORS.INVITATION_NOT_FOUND, 404, WORKSPACE.ERROR_CODE);
+    logger.workspace.info('acceptInvitation completed', { invitationId, workspaceId: result.workspaceId });
+    return result;
+  },
+
+  /**
+   * Decline (delete) a pending invitation.
+   * @param invitationId - Invitation UUID
+   */
+  async declineInvitation(invitationId: string) {
+    logger.workspace.info('declineInvitation', { invitationId });
+    await workspaceRepository.revokeInvitation(invitationId);
+    logger.workspace.info('declineInvitation completed', { invitationId });
   },
 };

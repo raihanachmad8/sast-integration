@@ -1,30 +1,29 @@
 import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '@/server/db/client';
-import { users, sessions, workspaceInvitations } from '../../../../../drizzle/schema';
-import { workspaces, workspaceMembers } from '../../../../../drizzle/schema/workspaces';
-import type { NewUser } from '../../../../../drizzle/schema/users';
+import { users, sessions, workspaceInvitations, workspaces, workspaceMembers } from '@drizzle/schema';
+import type { NewUser } from '@drizzle/schema/users';
 import { AUTH } from '../constants';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export const authRepository = {
   /**
-   * Find a user by email address.
+   * Find a user by email address. Excludes soft-deleted users.
    * @param email - User email to search
    * @returns User record or null if not found
    */
   async findUserByEmail(email: string) {
-    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    const [user] = await db.select().from(users).where(and(eq(users.email, email), isNull(users.deletedAt))).limit(1);
     return user ?? null;
   },
 
   /**
-   * Find a user by ID.
+   * Find a user by ID. Excludes soft-deleted users.
    * @param id - User UUID
    * @returns User record or null if not found
    */
   async findUserById(id: string) {
-    const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    const [user] = await db.select().from(users).where(and(eq(users.id, id), isNull(users.deletedAt))).limit(1);
     return user ?? null;
   },
 

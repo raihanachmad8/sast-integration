@@ -1,23 +1,14 @@
 import { NextRequest } from 'next/server';
 import { ApiResponse } from '@/server/http/response';
 import { HTTP } from '@/server/http/constants';
-import { ROLE } from '@/commons/constants/permissions';
-import { workspaceRepository } from './workspace.repository';
+import { ROLE_PERMISSIONS, type PermissionKey } from '@/commons/constants/permissions';
+import { workspaceRepository } from './repositories/workspace.repository';
 import { WORKSPACE } from './constants';
 import type { AuthContext } from '@/server/http/authenticate';
 
-type Role = typeof ROLE[keyof typeof ROLE];
-
-const ROLE_HIERARCHY: Record<Role, number> = {
-  [ROLE.OWNER]: 4,
-  [ROLE.MANAGER]: 3,
-  [ROLE.REVIEWER]: 2,
-  [ROLE.MEMBER]: 1,
-};
-
 interface WorkspaceContext {
   workspaceId: string;
-  role: Role;
+  role: string;
 }
 
 interface PermissionSuccess {
@@ -31,17 +22,17 @@ interface PermissionFailure {
 }
 
 /**
- * Verify user has required role in workspace (from X-Workspace-Id header).
- * Role hierarchy: owner > manager > reviewer > member.
+ * Verify user has a specific permission in workspace (from X-Workspace-Id header).
+ * Uses ROLE_PERMISSIONS constant — no DB permission tables needed.
  *
  * @param request - Next.js request (reads X-Workspace-Id header)
  * @param auth - Authenticated user context
- * @param minRole - Minimum role required (default: member)
+ * @param permission - Required permission (e.g. 'team:manage')
  */
-export async function requireWorkspaceRole(
+export async function requirePermission(
   request: NextRequest,
   auth: AuthContext,
-  minRole: Role = ROLE.MEMBER,
+  permission: string,
 ): Promise<PermissionSuccess | PermissionFailure> {
   const workspaceId = request.headers.get(HTTP.HEADERS.WORKSPACE_ID);
   if (!workspaceId) {
@@ -53,7 +44,8 @@ export async function requireWorkspaceRole(
     return { success: false, response: ApiResponse.error(WORKSPACE.ERRORS.NOT_MEMBER, WORKSPACE.ERROR_CODE, undefined, 403) };
   }
 
-  if (ROLE_HIERARCHY[role] < ROLE_HIERARCHY[minRole]) {
+  const rolePerms = ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS] ?? [];
+  if (!rolePerms.includes(permission as PermissionKey)) {
     return { success: false, response: ApiResponse.error(WORKSPACE.ERRORS.NOT_OWNER, WORKSPACE.ERROR_CODE, undefined, 403) };
   }
 

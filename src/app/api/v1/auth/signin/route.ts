@@ -8,8 +8,10 @@ import { AppError } from '@/server/http/errors';
 import { AUTH } from '@/server/modules/auth/constants';
 import { setRefreshCookie } from '@/server/modules/auth/cookie';
 import { HTTP } from '@/server/http/constants';
+import { logger } from '@/server/lib/logger';
 
 export async function POST(request: NextRequest) {
+  logger.auth.info('signin');
   const validation = await validateBody(request, signinSchema);
   if (!validation.success) return validation.response;
 
@@ -45,8 +47,10 @@ export async function POST(request: NextRequest) {
     });
 
     setRefreshCookie(response, result.refreshToken);
+    logger.auth.info('signin completed');
     return response;
   } catch (e) {
+    logger.auth.error('signin failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError && e.statusCode === 401) {
       rateLimiter.recordFailure(rateLimitKey);
     }

@@ -1,0 +1,58 @@
+﻿const { XMLParser } = require('fast-xml-parser');
+const xml = $(<?xml version="1.0" encoding="UTF-8"?>
+<results version="2">
+    <cppcheck version="2.20.0"/>
+    <errors>
+        <error id="missingIncludeSystem" severity="information" msg="Include file: &lt;stdio.h&gt; not found. Please note: Standard library headers do not need to be provided to get proper results." verbose="Include file: &lt;stdio.h&gt; not found. Please note: Standard library headers do not need to be provided to get proper results.">
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE120_buffer_overflow.c" line="1" column="2"/>
+        </error>
+        <error id="missingIncludeSystem" severity="information" msg="Include file: &lt;string.h&gt; not found. Please note: Standard library headers do not need to be provided to get proper results." verbose="Include file: &lt;string.h&gt; not found. Please note: Standard library headers do not need to be provided to get proper results.">
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE120_buffer_overflow.c" line="2" column="2"/>
+        </error>
+        <error id="constParameterPointer" severity="style" msg="Parameter &apos;input&apos; can be declared as pointer to const" verbose="Parameter &apos;input&apos; can be declared as pointer to const" cwe="398" file0="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE120_buffer_overflow.c">
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE120_buffer_overflow.c" line="4" column="23" info="Parameter &apos;input&apos; can be declared as pointer to const"/>
+            <symbol>input</symbol>
+        </error>
+        <error id="missingIncludeSystem" severity="information" msg="Include file: &lt;stdio.h&gt; not found. Please note: Standard library headers do not need to be provided to get proper results." verbose="Include file: &lt;stdio.h&gt; not found. Please note: Standard library headers do not need to be provided to get proper results.">
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE787_out_of_bound.c" line="1" column="2"/>
+        </error>
+        <error id="missingIncludeSystem" severity="information" msg="Include file: &lt;stdlib.h&gt; not found. Please note: Standard library headers do not need to be provided to get proper results." verbose="Include file: &lt;stdlib.h&gt; not found. Please note: Standard library headers do not need to be provided to get proper results.">
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE787_out_of_bound.c" line="2" column="2"/>
+        </error>
+        <error id="arrayIndexOutOfBounds" severity="error" msg="Array &apos;arr[5]&apos; accessed at index 5, which is out of bounds." verbose="Array &apos;arr[5]&apos; accessed at index 5, which is out of bounds." cwe="788" file0="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE787_out_of_bound.c">
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE787_out_of_bound.c" line="8" column="12" info="Array index out of bounds"/>
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE787_out_of_bound.c" line="7" column="23" info="Assuming that condition &apos;i&lt;=5&apos; is not redundant"/>
+        </error>
+        <error id="nullPointerOutOfMemory" severity="warning" msg="If memory allocation fails, then there is a possible null pointer dereference: arr" verbose="If memory allocation fails, then there is a possible null pointer dereference: arr" cwe="476" file0="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE787_out_of_bound.c">
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE787_out_of_bound.c" line="8" column="9" info="Null pointer dereference"/>
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE787_out_of_bound.c" line="5" column="22" info="Assignment &apos;arr=malloc(5*sizeof(int))&apos;, assigned value is 0"/>
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE787_out_of_bound.c" line="5" column="22" info="Assuming allocation function fails"/>
+            <symbol>arr</symbol>
+        </error>
+        <error id="missingIncludeSystem" severity="information" msg="Include file: &lt;cstdlib&gt; not found. Please note: Standard library headers do not need to be provided to get proper results." verbose="Include file: &lt;cstdlib&gt; not found. Please note: Standard library headers do not need to be provided to get proper results.">
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/cwe_120_safe.c" line="1" column="3"/>
+        </error>
+        <error id="missingIncludeSystem" severity="information" msg="Include file: &lt;string&gt; not found. Please note: Standard library headers do not need to be provided to get proper results." verbose="Include file: &lt;string&gt; not found. Please note: Standard library headers do not need to be provided to get proper results.">
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/cwe_120_safe.c" line="2" column="4"/>
+        </error>
+        <error id="syntaxError" severity="error" msg="Code &apos;std::string&apos; is invalid C code." verbose="Code &apos;std::string&apos; is invalid C code.: Use --std, -x or --language to enforce C++. Or --cpp-header-probe to identify C++ headers via the Emacs marker." file0="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/cwe_120_safe.c">
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/cwe_120_safe.c" line="13" column="7"/>
+        </error>
+        <error id="staticFunction" severity="style" msg="The function &apos;vulnerable&apos; should have static linkage since it is not used outside of its translation unit." verbose="The function &apos;vulnerable&apos; should have static linkage since it is not used outside of its translation unit.">
+            <location file="C:/Users/Rezork/AppData/Local/Temp/sast-managed-jFpQyA/repo/CWE120_buffer_overflow.c" line="4" column="6"/>
+            <symbol>vulnerable</symbol>
+        </error>
+        <error id="checkersReport" severity="information" msg="Active checkers: There was critical errors (use --checkers-report=&lt;filename&gt; to see details)" verbose="Active checkers: There was critical errors (use --checkers-report=&lt;filename&gt; to see details)"/>
+    </errors>
+</results>
+.Replace('', '\'));
+const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', parseAttributeValue: true, isArray: (name) => name === 'error' || name === 'location' });
+const parsed = parser.parse(xml);
+console.log('Top level keys:', Object.keys(parsed));
+console.log('results keys:', Object.keys(parsed.results || {}));
+const errors = parsed.results?.error;
+console.log('error type:', typeof errors);
+console.log('Is array:', Array.isArray(errors));
+if (errors) {
+    console.log('errors count:', Array.isArray(errors) ? errors.length : 1);
+}

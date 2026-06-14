@@ -75,7 +75,7 @@ import { SCAN_STATUS } from './constants';
 
 - **Infer from Drizzle schema** wherever possible:
   ```typescript
-  import { scans } from '@/lib/drizzle/schema';
+  import { scans } from '@drizzle/schema/scans';
   type Scan = typeof scans.$inferSelect;
   type NewScan = typeof scans.$inferInsert;
   ```

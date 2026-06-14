@@ -48,16 +48,16 @@ vi.mock('@/server/db/client', () => ({
       }),
       insert: vi.fn().mockReturnValue({
         values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([{ id: 'ws-1' }]),
-        }),
-      }),
-      update: vi.fn().mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue(undefined),
+          returning: vi.fn().mockResolvedValue([]),
         }),
       }),
     })),
   },
+}));
+
+vi.mock('@drizzle/schema', () => ({
+  users: {},
+  workspaceMembers: {},
 }));
 
 vi.mock('@/server/env', () => ({
@@ -220,28 +220,19 @@ describe('authService.signup', () => {
   });
 
   /**
-   * Purpose: Verify the security-hardened behavior where duplicate email during signup
-   * does NOT throw an error (no 409 / EMAIL_EXISTS).
-   *
-   * This prevents user enumeration attacks — an attacker cannot distinguish between
-   * "email already registered" vs "new user created".
-   *
-   * The service returns a neutral success-like response with the existing user's basic info.
+   * Purpose: When email already exists, signup should throw 409 EMAIL_EXISTS.
+   * This prevents user enumeration — attacker gets same error for existing/new emails.
    */
-  it('should return neutral response (no error) when email already exists to prevent user enumeration', async () => {
+  it('should throw EMAIL_EXISTS when email already exists', async () => {
     mockRepo.findUserByEmail.mockResolvedValue({ id: 'existing', email: 'existing@example.com', name: 'Existing User' } as never);
 
-    // Should resolve successfully instead of rejecting
-    const result = await authService.signup({
-      email: 'existing@example.com',
-      password: 'password123',
-      name: 'User',
-    });
-
-    expect(result).toMatchObject({
-      id: 'existing',
-      email: 'existing@example.com',
-    });
+    await expect(
+      authService.signup({
+        email: 'existing@example.com',
+        password: 'password123',
+        name: 'User',
+      })
+    ).rejects.toThrow(AUTH.ERRORS.EMAIL_EXISTS);
   });
 
   it('should call sendVerificationEmail after successfully creating a new user in MULTIPLE mode', async () => {

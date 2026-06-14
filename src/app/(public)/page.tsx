@@ -1,19 +1,23 @@
 'use client';
-import { Button, Typography } from 'antd';
-import { SecurityScanOutlined } from '@ant-design/icons';
-import Link from 'next/link';
-import { ROUTES } from '@/commons/constants';
 
-const { Title } = Typography;
+import { LandingHero } from '@/features/landing/LandingHero';
+import { LandingFeatures } from '@/features/landing/LandingFeatures';
+import { LandingHowItWorks } from '@/features/landing/LandingHowItWorks';
+import { LandingMetrics } from '@/features/landing/LandingMetrics';
+import { LandingTrust } from '@/features/landing/LandingTrust';
+import { LandingCTA } from '@/features/landing/LandingCTA';
+import { LandingFooter } from '@/features/landing/LandingFooter';
 
 export default function LandingPage() {
   return (
-    <div style={{ textAlign: 'center', padding: '100px 20px' }}>
-      <SecurityScanOutlined style={{ fontSize: 64 }} />
-      <Title>SAST Integration Platform</Title>
-      <Link href={ROUTES.AUTH.SIGNIN}>
-        <Button type="primary" size="large">Get Started</Button>
-      </Link>
+    <div>
+      <LandingHero />
+      <LandingFeatures />
+      <LandingHowItWorks />
+      <LandingMetrics />
+      <LandingTrust />
+      <LandingCTA />
+      <LandingFooter />
     </div>
   );
 }

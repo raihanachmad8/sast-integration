@@ -5,13 +5,14 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@drizzle': path.resolve(__dirname, './drizzle'),
     },
   },
   test: {
     globals: true,
     projects: [
       {
-        resolve: { alias: { '@': path.resolve(__dirname, './src') } },
+        resolve: { alias: { '@': path.resolve(__dirname, './src'), '@drizzle': path.resolve(__dirname, './drizzle') } },
         test: {
           name: 'unit',
           include: ['tests/unit/**/*.test.ts'],
@@ -19,7 +20,7 @@ export default defineConfig({
         },
       },
       {
-        resolve: { alias: { '@': path.resolve(__dirname, './src') } },
+        resolve: { alias: { '@': path.resolve(__dirname, './src'), '@drizzle': path.resolve(__dirname, './drizzle') } },
         test: {
           name: 'e2e',
           include: ['tests/e2e/**/*.test.ts'],

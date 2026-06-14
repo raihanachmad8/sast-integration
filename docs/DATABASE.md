@@ -1,181 +1,824 @@
-# Database Schema
+# DATABASE.md
 
-PostgreSQL + Drizzle ORM | 41 tables | Single migration
+> Single source of truth for the PostgreSQL schema used by SAST Integration.
+> Auto-generated from `drizzle/schema/*`. Keep in sync with actual schema files.
+
+## Overview
+
+- **Engine:** PostgreSQL 16
+- **ORM:** Drizzle ORM (`drizzle-orm/postgres-js`)
+- **Driver:** `postgres` (postgres.js)
+- **Naming:** `snake_case` columns, `camelCase` Drizzle exports
+- **Primary Keys:** `uuid` with `gen_random_uuid()` default
+- **Timestamps:** All tables use `created_at` / `updated_at` where applicable
+- **Soft Deletes:** Most domain entities use `deleted_at` / `deleted_by`
+- **Total Tables:** 41
 
 ---
 
-## Quick Reference
+## Entity Relationship Diagram
+
+```
+┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│    users     │────<│ workspace_members │>────│   workspaces     │
+│              │     └──────────────────┘     │                  │
+│              │────< user_settings           │                  │
+│              │                              └────────┬─────────┘
+│              │                                       │
+│              │     ┌──────────────────┐              │
+│              │────<│    teams         │──────────────┘
+│              │     │ team_members     │
+│              │     └──────────────────┘
+│              │
+│              │     ┌──────────────────┐
+│              │────<│    projects      │──────────────┘
+│              │     │ project_members  │
+│              │     │ project_teams    │
+│              │     │ environments     │
+│              │     │ project_api_tokens│
+│              │     └────────┬─────────┘
+│              │              │
+│              │     ┌────────┴─────────┐
+│              │     │   repositories   │
+│              │     │ source_controls  │
+│              │     └────────┬─────────┘
+│              │              │
+│              │     ┌────────┴─────────┐     ┌──────────────────┐
+│              │     │     scans        │────<│  scan_profiles   │
+│              │     │ scan_results     │     └──────────────────┘
+│              │     │ scan_uploads     │
+│              │     │ quality_gates    │
+│              │     │ quality_gate_results│
+│              │     │   schedules      │
+│              │     └────────┬─────────┘
+│              │              │
+│              │     ┌────────┴─────────┐
+│              │     │    findings      │
+│              │     │ finding_groups   │
+│              │     │ ai_verifications │────> ai_models
+│              │     │    comments      │
+│              │     │ finding_history  │
+│              │     └──────────────────┘
+│              │
+│              │     ┌──────────────────┐
+│              │────<│     reports      │
+│              │     │  storage_files   │
+│              │     └──────────────────┘
+│              │
+│              │     ┌──────────────────┐
+│              │────<│    webhooks      │
+│              │────<│   audit_logs     │
+│              │────<│ activity_logs    │
+│              │────<│ knowledge_sources│
+│              │     │ knowledge_entries│
+│              │     │ knowledge_backfill_jobs│
+│              │     └──────────────────┘
+│              │
+│              │     ┌──────────────────┐
+│              │────<│   ai_models      │
+│              │────<│ workspace_invitations│
+│              │────<│ password_reset_tokens│
+│              │────<│ email_verification_tokens│
+│              │────<│ personal_access_tokens│
+│              │────<│   notifications   │
+│              └────<│  role_permissions │
+│                    │ user_permissions  │
+│                    └──────────────────┘
+```
+
+---
+
+## Tables
+
+### 1. Authentication & Users
+
+#### `users`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| email | varchar(255) | NOT NULL, UNIQUE | | Login identifier |
+| password_hash | text | NOT NULL | | bcrypt hash |
+| name | varchar(255) | NOT NULL | | Display name |
+| avatar_url | text | nullable | | URL to avatar image |
+| username | varchar(50) | nullable | | Optional unique handle |
+| bio | text | nullable | | User biography |
+| timezone | varchar(50) | nullable | | e.g. "Asia/Jakarta" |
+| language | varchar(10) | nullable | | e.g. "en", "id" |
+| two_factor_secret | text | nullable | | TOTP secret |
+| two_factor_confirmed_at | timestamp | nullable | | When 2FA was confirmed |
+| email_verified_at | timestamp | nullable | | When email was verified |
+| current_workspace_id | uuid | nullable | | Active workspace context |
+| remember_token | varchar(100) | nullable | | Remember-me token |
+| created_at | timestamp | NOT NULL | now() | |
+| updated_at | timestamp | NOT NULL | now() | |
+| deleted_at | timestamp | nullable | | Soft delete marker |
+| deleted_by | uuid | nullable | | Who soft-deleted |
+
+#### `sessions`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | varchar(255) | PK | | Session ID (not UUID) |
+| user_id | uuid | NOT NULL | FK → users.id | |
+| ip_address | varchar(45) | nullable | | IPv4 or IPv6 |
+| user_agent | text | nullable | | Browser client string |
+| last_activity | timestamp | NOT NULL | | For idle timeout |
+| expires_at | timestamp | NOT NULL | | Session TTL |
+| current_refresh_token_id | varchar(64) | nullable | | For rotation + reuse detection |
+| created_at | timestamp | NOT NULL | now() | |
+
+#### `user_settings`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| user_id | uuid | NOT NULL | FK → users.id | |
+| key | varchar(255) | NOT NULL | | Setting name |
+| value | text | nullable | | Setting value (string) |
+| created_at | timestamp | NOT NULL | now() | |
+| updated_at | timestamp | NOT NULL | now() | |
+
+---
+
+### 2. Workspaces & Members
+
+#### `workspaces`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| name | varchar(255) | NOT NULL | | Workspace display name |
+| slug | varchar(255) | NOT NULL, UNIQUE | | URL-safe identifier |
+| type | varchar(20) | NOT NULL | | `'personal'` or `'organization'` |
+| avatar_url | text | nullable | | Workspace avatar |
+| description | text | nullable | | |
+| features | jsonb | nullable | '{}' | Feature flags per workspace |
+| created_at | timestamp | NOT NULL | now() | |
+| created_by | uuid | nullable | FK → users.id | |
+| updated_at | timestamp | NOT NULL | now() | |
+| updated_by | uuid | nullable | FK → users.id | |
+| deleted_at | timestamp | nullable | | Soft delete |
+| deleted_by | uuid | nullable | FK → users.id | |
+
+#### `workspace_members`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| user_id | uuid | NOT NULL | FK → users.id | |
+| role | varchar(20) | NOT NULL | | `'owner'` / `'manager'` / `'reviewer'` / `'member'` |
+| joined_at | timestamp | NOT NULL | now() | |
+
+**Constraints:** UNIQUE(workspace_id, user_id)
+
+#### `workspace_settings`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| key | varchar(255) | NOT NULL | | |
+| value | text | nullable | | |
+| created_at | timestamp | NOT NULL | now() | |
+| updated_at | timestamp | NOT NULL | now() | |
+
+#### `workspace_invitations`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| email | varchar(255) | NOT NULL | | Invitee email |
+| role | varchar(20) | NOT NULL | | Role to assign on accept |
+| token | varchar(255) | NOT NULL, UNIQUE | | Invitation token |
+| accepted_at | timestamp | nullable | | When accepted |
+| created_at | timestamp | NOT NULL | now() | |
+| created_by | uuid | nullable | FK → users.id | Inviter |
+| expires_at | timestamp | NOT NULL | | Invitation TTL |
+
+---
+
+### 3. Teams
+
+#### `teams`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| name | varchar(255) | NOT NULL | | |
+| slug | varchar(255) | NOT NULL | | URL-safe, unique per workspace |
+| description | text | nullable | | |
+| created_at | timestamp | NOT NULL | now() | |
+| created_by | uuid | nullable | FK → users.id | |
+| updated_at | timestamp | NOT NULL | now() | |
+| updated_by | uuid | nullable | FK → users.id | |
+| deleted_at | timestamp | nullable | | Soft delete |
+| deleted_by | uuid | nullable | FK → users.id | |
+
+#### `team_members`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| team_id | uuid | NOT NULL | FK → teams.id | |
+| user_id | uuid | NOT NULL | FK → users.id | |
+| role | varchar(20) | NOT NULL | | `'admin'` or `'contributor'` |
+| joined_at | timestamp | NOT NULL | now() | |
+
+---
+
+### 4. Projects
+
+#### `projects`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| name | varchar(255) | NOT NULL | | |
+| slug | varchar(255) | NOT NULL | | |
+| platform | varchar(50) | nullable | | e.g. "web", "mobile", "api" |
+| language | varchar(50) | nullable | | e.g. "typescript", "python" |
+| avatar_url | text | nullable | | |
+| description | text | nullable | | |
+| lead | varchar(255) | nullable | | Project lead name |
+| created_at | timestamp | | now() | |
+| created_by | uuid | | | Not FK — flexible reference |
+| updated_at | timestamp | | now() | |
+| updated_by | uuid | | | Not FK — flexible reference |
+| deleted_at | timestamp | nullable | | Soft delete |
+| deleted_by | uuid | nullable | FK → users.id | |
+
+**Constraints:** UNIQUE(workspace_id, slug)
+
+#### `project_members`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| project_id | uuid | NOT NULL | FK → projects.id | |
+| user_id | uuid | NOT NULL | FK → users.id | |
+| role | varchar(20) | NOT NULL | | |
+| joined_at | timestamp | NOT NULL | now() | |
+
+#### `project_teams`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| project_id | uuid | NOT NULL | FK → projects.id | |
+| team_id | uuid | NOT NULL | | No FK — flexible reference |
+| role | varchar(20) | NOT NULL | | |
+| added_at | timestamp | NOT NULL | now() | |
+
+#### `environments`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| project_id | uuid | NOT NULL | FK → projects.id | |
+| name | varchar(100) | NOT NULL | | e.g. "production", "staging" |
+| type | varchar(20) | NOT NULL | | e.g. "production", "development" |
+| is_default | boolean | | false | |
+| created_at | timestamp | NOT NULL | now() | |
+
+#### `project_api_tokens`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| project_id | uuid | NOT NULL | FK → projects.id (CASCADE) | |
+| created_by | uuid | NOT NULL | FK → users.id | |
+| name | varchar(255) | NOT NULL | | Human-readable label |
+| token_hash | text | NOT NULL, UNIQUE | | bcrypt hash — never store plaintext |
+| token_prefix | varchar(20) | nullable | | First 8-12 chars for identification (e.g. `sast_p_abc123..`) |
+| permissions | jsonb | NOT NULL | ['scans:upload'] | Array of permission strings |
+| last_used_at | timestamp | nullable | | |
+| created_at | timestamp | NOT NULL | now() | |
+| expires_at | timestamp | nullable | | null = never expires |
+| revoked_at | timestamp | nullable | | |
+| revoked_by | uuid | nullable | FK → users.id | |
+
+**Purpose:** CI/CD pipelines use these tokens to upload scan results without user sessions.
+
+---
+
+### 5. Source Control & Repositories
+
+#### `source_controls`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| provider | varchar(20) | NOT NULL | | `'github'` / `'gitlab'` / `'gitea'` |
+| name | varchar(255) | NOT NULL | | Display name |
+| credentials | jsonb | nullable | | Encrypted OAuth tokens / app credentials |
+| created_at | timestamp | NOT NULL | now() | |
+| created_by | uuid | nullable | FK → users.id | |
+
+#### `repositories`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| project_id | uuid | NOT NULL | FK → projects.id | |
+| source_control_id | uuid | nullable | FK → source_controls.id | null for external repos |
+| name | varchar(255) | NOT NULL | | |
+| url | varchar(500) | NOT NULL | | Repository URL |
+| default_branch | varchar(100) | | 'main' | |
+| connection_type | varchar(20) | NOT NULL | 'scm' | `'scm'` or `'external'` (CHECK constraint) |
+| auto_scan | boolean | | false | |
+| current_profile_id | uuid | nullable | | Active scan profile for this repo |
+| webhook_id | varchar(255) | nullable | | SCM webhook ID |
+| webhook_secret | varchar(255) | nullable | | For HMAC verification |
+| last_synced_at | timestamp | nullable | | |
+| created_at | timestamp | NOT NULL | now() | |
+| created_by | uuid | nullable | FK → users.id | |
+| updated_at | timestamp | NOT NULL | now() | |
+| updated_by | uuid | nullable | FK → users.id | |
+| deleted_at | timestamp | nullable | | Soft delete |
+| deleted_by | uuid | nullable | | |
+
+**Constraints:** CHECK (connection_type IN ('scm', 'external'))
+
+**Connection types:**
+- `scm` — Connected via GitHub App / GitLab / Gitea. Platform can checkout and run managed scans.
+- `external` — No SCM connection. Only supports direct upload of pre-generated results from CI.
+
+---
+
+### 6. Scans & Results
+
+#### `scan_profiles`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| name | varchar(255) | NOT NULL | | Profile display name |
+| profile | varchar(20) | NOT NULL | 'standard' | Profile type |
+| scanners | jsonb | NOT NULL | | Array of scanner names, e.g. `["semgrep", "gitleaks"]` |
+| ai_verification | varchar(20) | NOT NULL | 'enabled' | `'enabled'` or `'disabled'` |
+| severity_threshold | varchar(20) | NOT NULL | 'medium' | Minimum severity to report |
+| timeout_seconds | integer | | 300 | Per-scanner timeout |
+| max_findings | integer | | 2000 | Cap per scan |
+| created_at | timestamp | NOT NULL | now() | |
+| updated_at | timestamp | NOT NULL | now() | |
+
+#### `scans`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| repository_id | uuid | nullable | | null for external uploads before repo resolution |
+| profile_id | uuid | nullable | FK → scan_profiles.id | |
+| environment_id | uuid | nullable | | |
+| commit_sha | varchar(40) | nullable | | Git commit SHA |
+| branch | varchar(100) | nullable | | |
+| origin | varchar(30) | NOT NULL | 'managed' | `'managed'` or `'external_upload'` |
+| trigger_source | varchar(30) | nullable | | `'manual'` / `'schedule'` / `'webhook'` / `'ci'` |
+| status | varchar(20) | NOT NULL | 'pending' | `'pending'` / `'running'` / `'completed'` / `'failed'` |
+| started_at | timestamp | nullable | | |
+| completed_at | timestamp | nullable | | |
+| created_at | timestamp | NOT NULL | now() | |
+| created_by | uuid | nullable | FK → users.id | |
+
+**Scan origins:**
+- `managed` — Platform clones repo, runs scanners, uploads results.
+- `external_upload` — CI pipeline pushes pre-generated results via API.
+
+#### `scan_results`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| scan_id | uuid | NOT NULL | FK → scans.id | |
+| scanner | varchar(50) | NOT NULL | | e.g. `'semgrep'`, `'gitleaks'` |
+| format | varchar(20) | nullable | | Output format: `'json'`, `'xml'`, `'sarif'` |
+| file_key | text | nullable | | Object storage key for raw results |
+| file_size | integer | nullable | | Bytes |
+| parsed_summary | jsonb | nullable | | Parsed summary (counts by severity, etc.) |
+| created_at | timestamp | | now() | |
+
+#### `scan_uploads`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| repository_id | uuid | nullable | | |
+| project_id | uuid | nullable | | |
+| scan_id | uuid | nullable | FK → scans.id | |
+| branch | varchar(100) | nullable | | |
+| commit_sha | varchar(40) | nullable | | |
+| uploaded_by | uuid | nullable | | |
+| source | varchar(30) | nullable | | Upload source identifier |
+| metadata | jsonb | nullable | | Arbitrary upload metadata |
+| project_api_token_id | uuid | nullable | FK → project_api_tokens.id (SET NULL) | |
+| personal_access_token_id | uuid | nullable | FK → personal_access_tokens.id (SET NULL) | |
+| created_at | timestamp | | now() | |
+
+**Purpose:** Bridge between external CI uploads and internal Scan model. Tracks who uploaded, how, and which token was used.
+
+#### `quality_gates`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| threshold | varchar(20) | NOT NULL | 'high' | Severity threshold for blocking |
+| fail_on_critical | boolean | | true | Block on critical findings |
+| fail_on_high_tp | boolean | | true | Block on high-confidence true positives |
+| warn_on_pending | boolean | | true | Warn on pending AI verification |
+| require_human_ack | boolean | | false | Require manual acknowledgment |
+| pending_behavior | varchar(20) | | 'warn' | `'warn'` or `'block'` |
+| created_at | timestamp | NOT NULL | now() | |
+| updated_at | timestamp | NOT NULL | now() | |
+
+#### `quality_gate_results`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| scan_id | uuid | nullable | FK → scans.id | |
+| gate_id | uuid | nullable | FK → quality_gates.id | |
+| status | varchar(20) | NOT NULL | | `'pass'` / `'fail'` / `'warn'` |
+| blocking_findings | integer | | 0 | |
+| pending_findings | integer | | 0 | |
+| evaluated_at | timestamp | NOT NULL | now() | |
+
+#### `schedules`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| repository_id | uuid | nullable | | |
+| profile_id | uuid | nullable | FK → scan_profiles.id | |
+| branch | varchar(100) | nullable | | |
+| timezone | varchar(50) | | 'UTC' | |
+| cron_expression | varchar(100) | NOT NULL | | Standard cron syntax |
+| active | boolean | | true | |
+| last_run_at | timestamp | nullable | | |
+| next_run_at | timestamp | nullable | | |
+| created_at | timestamp | NOT NULL | now() | |
+| updated_at | timestamp | NOT NULL | now() | |
+| created_by | uuid | nullable | FK → users.id | |
+| deleted_at | timestamp | nullable | | Soft delete |
+
+---
+
+### 7. Findings & AI Verification
+
+#### `finding_groups`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| project_id | uuid | NOT NULL | FK → projects.id | |
+| fingerprint | varchar(64) | NOT NULL, UNIQUE | | SHA-256 hash of (rule + file + line + message) |
+| title | varchar(500) | nullable | | Human-readable title |
+| first_seen_at | timestamp | NOT NULL | now() | |
+| last_seen_at | timestamp | NOT NULL | now() | Updated on each access |
+
+**Purpose:** Deduplication. Same logical vulnerability across scans/branches shares one group.
+
+#### `findings`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| scan_id | uuid | NOT NULL | FK → scans.id | |
+| group_id | uuid | nullable | FK → finding_groups.id | |
+| environment_id | uuid | nullable | FK → environments.id | |
+| cwe_id | varchar(20) | nullable | | e.g. `"CWE-89"` |
+| severity | varchar(20) | NOT NULL | | `'critical'` / `'high'` / `'medium'` / `'low'` / `'info'` |
+| status | varchar(20) | NOT NULL | 'open' | `'open'` / `'fixed'` / `'false_positive'` / `'ignored'` |
+| file_path | varchar(500) | nullable | | Relative path from repo root |
+| line_number | integer | nullable | | |
+| code_snippet | text | nullable | | Source code context |
+| description | text | nullable | | |
+| rule | varchar(500) | nullable | | Scanner rule ID |
+| scanner | varchar(50) | nullable | | Which scanner found this |
+| message | text | nullable | | Scanner output message |
+| assigned_to | uuid | nullable | FK → users.id | |
+| created_at | timestamp | NOT NULL | now() | |
+| updated_at | timestamp | NOT NULL | now() | |
+
+#### `ai_verifications`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| finding_id | uuid | nullable | FK → findings.id | |
+| model_id | uuid | nullable | FK → ai_models.id | |
+| verdict | varchar(20) | NOT NULL | | `'true_positive'` / `'false_positive'` / `'error'` |
+| confidence | numeric(3,2) | nullable | | 0.00 – 1.00 |
+| explanation | text | nullable | | AI reasoning |
+| data_flow | text | nullable | | Taint flow description |
+| taint_source | text | nullable | | Source of taint |
+| match_detail | text | nullable | | Pattern match details |
+| likely_cwe | jsonb | nullable | | Array of suggested CWE IDs |
+| fix_suggestion | text | nullable | | Remediation advice |
+| latency_ms | integer | nullable | | Model inference time |
+| raw_response | text | nullable | | Full model output for debugging |
+| created_at | timestamp | NOT NULL | now() | |
+
+#### `comments`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| finding_id | uuid | NOT NULL | FK → findings.id | |
+| parent_id | uuid | nullable | | For threaded comments |
+| content | text | NOT NULL | | |
+| created_at | timestamp | NOT NULL | now() | |
+| created_by | uuid | nullable | FK → users.id | |
+| updated_at | timestamp | NOT NULL | now() | |
+| updated_by | uuid | nullable | FK → users.id | |
+| deleted_at | timestamp | nullable | | Soft delete |
+| deleted_by | uuid | nullable | FK → users.id | |
+
+#### `finding_history`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| finding_id | uuid | NOT NULL | FK → findings.id | |
+| field | varchar(50) | NOT NULL | | Which field changed |
+| old_value | text | nullable | | |
+| new_value | text | nullable | | |
+| created_at | timestamp | NOT NULL | now() | |
+| created_by | uuid | nullable | FK → users.id | |
+
+---
+
+### 8. Integrations
+
+#### `ai_models`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| name | varchar(100) | NOT NULL | | Model display name |
+| provider | varchar(50) | NOT NULL | | e.g. `"openai"`, `"anthropic"`, `"local"` |
+| base_url | varchar(500) | NOT NULL | | API endpoint URL |
+| api_key_encrypted | text | nullable | | Encrypted API key |
+| role | varchar(20) | NOT NULL | 'fallback' | `'primary'` or `'fallback'` |
+| priority | integer | NOT NULL | 1 | Lower = higher priority |
+| prompt_preset | varchar(20) | NOT NULL | 'strict' | Prompt template preset |
+| custom_system_prompt | text | nullable | | Override default system prompt |
+| status | varchar(20) | | 'unreachable' | `'reachable'` / `'unreachable'` |
+| last_tested_at | timestamp | nullable | | Last connectivity test |
+| created_at | timestamp | NOT NULL | now() | |
+| updated_at | timestamp | NOT NULL | now() | |
+
+#### `webhooks`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| name | varchar(255) | nullable | | |
+| url | varchar(500) | NOT NULL | | Webhook target URL |
+| events | jsonb | NOT NULL | | Array of event types |
+| secret | varchar(255) | NOT NULL | | HMAC signing secret |
+| active | boolean | | true | |
+| created_at | timestamp | NOT NULL | now() | |
+| created_by | uuid | nullable | FK → users.id | |
+| updated_at | timestamp | NOT NULL | now() | |
+| updated_by | uuid | nullable | FK → users.id | |
+| deleted_at | timestamp | nullable | | Soft delete |
+| deleted_by | uuid | nullable | FK → users.id | |
+
+#### `audit_logs`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| user_id | uuid | nullable | FK → users.id | |
+| action | varchar(100) | NOT NULL | | e.g. `"signin"`, `"project.create"` |
+| resource_type | varchar(50) | nullable | | e.g. `"project"`, `"scan"` |
+| resource_id | uuid | nullable | | ID of affected resource |
+| data | jsonb | nullable | | Additional context |
+| ip_address | varchar(45) | nullable | | |
+| created_at | timestamp | NOT NULL | now() | |
+
+#### `activity_logs`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| user_id | uuid | nullable | FK → users.id | |
+| type | varchar(50) | NOT NULL | | Activity type |
+| description | text | nullable | | Human-readable description |
+| metadata | jsonb | nullable | | Additional data |
+| created_at | timestamp | NOT NULL | now() | |
+
+#### `knowledge_sources`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| name | varchar(100) | NOT NULL | | |
+| type | varchar(50) | NOT NULL | | Source type (e.g. `"nvd"`, `"manual"`) |
+| url | varchar(500) | nullable | | Source URL |
+| status | varchar(20) | | 'disconnected' | `'connected'` / `'disconnected'` / `'syncing'` |
+| entry_count | integer | | 0 | Number of entries |
+| last_synced_at | timestamp | nullable | | |
+| created_at | timestamp | NOT NULL | now() | |
+
+#### `knowledge_entries`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| source_id | uuid | NOT NULL | FK → knowledge_sources.id | |
+| cwe_id | varchar(20) | nullable | | e.g. `"CWE-89"` |
+| title | varchar(500) | NOT NULL | | |
+| content | text | nullable | | |
+| severity | varchar(20) | nullable | | |
+| remediation | text | nullable | | |
+| tags | jsonb | nullable | | Array of tags |
+| muted | boolean | | false | Hide from AI context |
+| used_by_ai_count | integer | | 0 | How many times AI referenced this |
+| references | jsonb | nullable | | Array of reference URLs |
+| created_at | timestamp | | now() | |
+| updated_at | timestamp | | now() | |
+
+**Constraints:** UNIQUE(source_id, cwe_id) via uniqueIndex
+
+#### `knowledge_backfill_jobs`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | nullable | | |
+| source_id | uuid | nullable | FK → knowledge_sources.id | |
+| source_type | varchar(50) | NOT NULL | | |
+| status | varchar(20) | NOT NULL | 'queued' | `'queued'` / `'running'` / `'completed'` / `'failed'` |
+| range_start | timestamp | NOT NULL | | CVE date range start |
+| range_end | timestamp | NOT NULL | | CVE date range end |
+| cursor_start | timestamp | NOT NULL | | Pagination cursor |
+| window_days | integer | NOT NULL | 30 | Days per batch |
+| imported_count | integer | NOT NULL | 0 | Entries imported so far |
+| last_error | text | nullable | | |
+| started_at | timestamp | nullable | | |
+| completed_at | timestamp | nullable | | |
+| created_at | timestamp | | now() | |
+| updated_at | timestamp | | now() | |
+
+**Indexes:** INDEX(source_id, status)
+
+---
+
+### 9. Reports & Storage
+
+#### `reports`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| type | varchar(50) | NOT NULL | | Report type |
+| title | varchar(255) | NOT NULL | | |
+| filters | jsonb | nullable | | Applied filter criteria |
+| file_path | varchar(500) | nullable | | Generated file location |
+| file_size | integer | nullable | | Bytes |
+| format | varchar(20) | nullable | | `"pdf"`, `"csv"`, `"json"` |
+| created_at | timestamp | NOT NULL | now() | |
+| created_by | uuid | nullable | FK → users.id | |
+| expires_at | timestamp | nullable | | Auto-cleanup timestamp |
+
+#### `storage_files`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| file_name | varchar(255) | NOT NULL | | Original filename |
+| file_path | varchar(500) | NOT NULL | | Storage path |
+| file_size | integer | NOT NULL | | Bytes |
+| mime_type | varchar(100) | nullable | | |
+| storage_provider | varchar(50) | NOT NULL | 'local' | `'local'` / `'s3'` / `'cloudinary'` |
+| storage_key | varchar(500) | nullable | | Provider-specific key |
+| metadata | jsonb | nullable | | Additional file metadata |
+| created_at | timestamp | NOT NULL | now() | |
+| created_by | uuid | nullable | FK → users.id | |
+| expires_at | timestamp | nullable | | Auto-cleanup timestamp |
+
+---
+
+### 10. Auth Tokens & Notifications
+
+#### `password_reset_tokens`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| user_id | uuid | NOT NULL | FK → users.id | |
+| token | varchar(255) | NOT NULL, UNIQUE | | |
+| used_at | timestamp | nullable | | |
+| created_at | timestamp | NOT NULL | now() | |
+| expires_at | timestamp | NOT NULL | | |
+
+#### `email_verification_tokens`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| user_id | uuid | NOT NULL | FK → users.id | |
+| token | varchar(255) | NOT NULL, UNIQUE | | |
+| verified_at | timestamp | nullable | | |
+| created_at | timestamp | NOT NULL | now() | |
+| expires_at | timestamp | NOT NULL | | |
+
+#### `personal_access_tokens`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| user_id | uuid | NOT NULL | FK → users.id | |
+| name | varchar(255) | NOT NULL | | |
+| token | varchar(64) | NOT NULL, UNIQUE | | Hash stored, raw shown once |
+| abilities | jsonb | nullable | | Permission array |
+| last_used_at | timestamp | nullable | | |
+| created_at | timestamp | NOT NULL | now() | |
+| expires_at | timestamp | nullable | | |
+| revoked_at | timestamp | nullable | | |
+| revoked_by | uuid | nullable | FK → users.id | |
+
+#### `notifications`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| user_id | uuid | NOT NULL | FK → users.id | |
+| type | varchar(100) | NOT NULL | | Notification type |
+| title | varchar(255) | NOT NULL | | |
+| data | jsonb | nullable | | Type-specific payload |
+| read_at | timestamp | nullable | | null = unread |
+| created_at | timestamp | NOT NULL | now() | |
+
+---
+
+## Key Relationships
+
+```
+users ──< workspace_members >── workspaces
+workspaces ──< workspace_members
+workspaces ──< teams ──< team_members >── users
+workspaces ──< projects ──< project_members >── users
+projects ──< environments
+projects ──< repositories ──< scans ──< scan_results
+workspaces ──< schedules ──< repositories
+projects ──< finding_groups ──< findings
+scans ──< findings
+findings ──< ai_verifications >── ai_models
+findings ──< comments
+findings ──< finding_history
+workspaces ──< scan_profiles ──< scans
+workspaces ──< quality_gates ──< quality_gate_results >── scans
+workspaces ──< ai_models
+workspaces ──< webhooks
+workspaces ──< knowledge_sources ──< knowledge_entries
+workspaces ──< reports
+workspaces ──< storage_files
+```
+
+> **Note:** Permissions are now derived from the `ROLE_PERMISSIONS` constant
+> in `src/commons/constants/permissions.ts`, not from database tables.
+
+---
+
+## Naming Conventions
+
+| Aspect | Convention | Example |
+|--------|-----------|---------|
+| Table names | `snake_case`, plural | `scan_results`, `finding_groups` |
+| Column names | `snake_case` | `created_at`, `workspace_id` |
+| Primary keys | `id` (uuid) | Every table |
+| Foreign keys | `{table}_id` | `workspace_id`, `user_id` |
+| Timestamps | `created_at` / `updated_at` | Standard |
+| Soft deletes | `deleted_at` / `deleted_by` | Domain entities |
+| Drizzle exports | `camelCase` | `scanProfiles`, `workspaceMembers` |
+
+---
+
+## Migration Commands
 
 ```bash
-pnpm db:push       # Push schema to DB (dev)
-pnpm db:migrate    # Run migrations (production)
-pnpm db:seed       # Seed owner + permissions (+ org workspace in single mode)
-pnpm db:studio     # Open Drizzle Studio
-pnpm db:generate   # Generate migration from schema changes
+pnpm db:generate   # Generate migration SQL from schema changes
+pnpm db:migrate    # Apply pending migrations
+pnpm db:push       # Push schema directly (dev only, no migration file)
+pnpm db:seed       # Seed permissions, owner, org workspace
+pnpm db:reset      # Truncate all tables (preserves schema)
+pnpm db:studio     # Open Drizzle Studio GUI
 ```
-
----
-
-## Table Groups
-
-### Core (6 tables)
-
-| Table | Purpose | Key Fields |
-|-------|---------|------------|
-| `users` | User accounts | email, password_hash, name |
-| `sessions` | Active sessions | user_id, ip_address, user_agent |
-| `workspaces` | Multi-tenant workspaces | name, slug, type (personal/organization) |
-| `workspace_members` | User ↔ Workspace | user_id, workspace_id, role |
-| `workspace_settings` | Per-workspace config | workspace_id, key, value |
-| `user_settings` | Per-user preferences | user_id, key, value |
-
-### Auth & Tokens (5 tables)
-
-| Table | Purpose | Expiration |
-|-------|---------|------------|
-| `workspace_invitations` | Pending invites | 7 days |
-| `password_reset_tokens` | Password reset | 1 hour |
-| `email_verification_tokens` | Email verify | 24 hours |
-| `personal_access_tokens` | API tokens | Revocable |
-| `notifications` | In-app notifications | — |
-
-### Teams & RBAC (5 tables)
-
-| Table | Purpose |
-|-------|---------|
-| `teams` | Team grouping within workspace |
-| `team_members` | User ↔ Team (role: admin/contributor) |
-| `permissions` | Permission definitions (resource:action) |
-| `role_permissions` | Role → Permission mapping |
-| `user_permissions` | Per-user permission overrides |
-
-### Projects & Source Control (5 tables)
-
-| Table | Purpose |
-|-------|---------|
-| `projects` | Project containers |
-| `project_members` | User ↔ Project |
-| `project_teams` | Team ↔ Project |
-| `source_controls` | SCM provider connections (GitHub/GitLab/Gitea) |
-| `repositories` | Imported repositories |
-
-### Scanning (7 tables)
-
-| Table | Purpose |
-|-------|---------|
-| `scan_policies` | Reusable scan configs (profile, scanners, AI toggle) |
-| `scans` | Scan executions |
-| `scan_results` | Raw scanner output per scan |
-| `schedules` | Recurring scan schedules (cron) |
-| `quality_gates` | Pass/fail rules per workspace |
-| `quality_gate_results` | Per-scan gate evaluation |
-| `environments` | Deployment environments |
-
-### Findings & AI (5 tables)
-
-| Table | Purpose |
-|-------|---------|
-| `finding_groups` | Deduplicated finding fingerprints |
-| `findings` | Individual findings (file, line, severity, rule) |
-| `ai_verifications` | AI verdict per model per finding |
-| `comments` | Finding comments (threaded) |
-| `finding_history` | Finding field change audit |
-
-### AI & Intelligence (3 tables)
-
-| Table | Purpose |
-|-------|---------|
-| `ai_models` | Model chain config (provider, prompt_preset, priority) |
-| `knowledge_sources` | Knowledge source registry (CWE, NVD, Custom) |
-| `knowledge_entries` | Individual knowledge entries with tags |
-
-### Reports & Storage (2 tables)
-
-| Table | Purpose | Expiration |
-|-------|---------|------------|
-| `reports` | Generated reports (PDF/XLSX) | 90 days |
-| `storage_files` | File storage references | Configurable |
-
-### Integrations & Audit (3 tables)
-
-| Table | Purpose |
-|-------|---------|
-| `webhooks` | Outgoing webhook configs |
-| `audit_logs` | Security audit trail |
-| `activity_logs` | User activity feed |
-
----
-
-## Key Design Decisions
-
-### Multi-tenancy
-- All data scoped by `workspace_id`
-- Query path: workspace → project → repository → scan → finding
-
-### AI Verifications (Research-informed)
-- **One row per model per finding** (not single verdict)
-- Fields from research: `verdict`, `confidence`, `explanation`, `data_flow`, `taint_source`, `match_detail`, `likely_cwe`, `fix_suggestion`
-- `model_id` FK → `ai_models` table
-- Supports 2+ models verifying same finding independently
-
-### AI Models
-- `prompt_preset`: `strict` | `balanced` | `custom`
-- `role`: `primary` | `fallback` with `priority` ordering
-- Research basis: strict preset → 90-100% accuracy on Qwen; balanced → 88% on Llama
-
-### Permissions
-- Format: `resource:action` (colon separator)
-- 24 granular permissions, 1 per module
-- Constants in `src/commons/constants/permissions.ts`
-- Roles: owner (24), manager (16), reviewer (9), member (5)
-
-### Soft Delete
-Tables with `deleted_at` + `deleted_by`: users, workspaces, teams, projects, repositories, comments, webhooks
-
-### Fingerprint Deduplication
-`finding_groups.fingerprint` = SHA256(file + line + rule + scanner)
-
----
-
-## Schema Files
-
-```
-drizzle/schema/
-├── index.ts            # Re-exports all schemas
-├── users.ts            # users, sessions, user_settings
-├── workspaces.ts       # workspaces, workspace_members, workspace_settings
-├── auth.ts             # invitations, tokens, notifications
-├── teams.ts            # teams, team_members
-├── permissions.ts      # permissions, role_permissions, user_permissions
-├── projects.ts         # projects, project_members, project_teams, environments
-├── source-controls.ts  # source_controls, repositories
-├── scans.ts            # scan_policies, scans, scan_results, schedules, quality_gates, quality_gate_results
-├── findings.ts         # finding_groups, findings, ai_verifications, comments, finding_history
-├── integrations.ts     # ai_models, webhooks, audit_logs, activity_logs, knowledge_sources, knowledge_entries
-└── reports.ts          # reports, storage_files
-```
-
----
-
-## Seed Data
-
-`pnpm db:seed` runs env-aware modules (override defaults via env):
-
-| Module | Details |
-|------|---------|
-| Permissions | 24 resource:action pairs + role mappings (always) |
-| Owner user | `admin@sast.local` / `ChangeMe123!` — override via `OWNER_EMAIL` / `OWNER_PASSWORD` / `OWNER_NAME` (always) |
-| Organization workspace | Seeded only when `WORKSPACE_MODE=single`; name/slug via `ORG_NAME` / `ORG_SLUG`, owner assigned |
-
-Flags: `pnpm db:seed -- --only=<permissions|owner|workspace>` or `--all`.
-In production the seeder refuses to run with missing or default owner credentials.
-
----
-
-## Connection
-
-```env
-DATABASE_URL=postgresql://postgres:root@localhost:5432/sast_db
-```
-
-Or individual vars: `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`

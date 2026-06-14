@@ -1,0 +1,157 @@
+'use client';
+
+import { useState, useMemo, useCallback } from 'react';
+import { Button, App, Flex, Typography, theme } from 'antd';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { FaIcon } from '@/components/shared/FaIcon';
+import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
+import { EditScheduleModal, AddScheduleModal } from '@/features/schedules/ScheduleModals';
+import { useTableParams } from '@/lib/hooks/useTableParams';
+import { useSchedulesQuery, useCreateScheduleMutation, useUpdateScheduleMutation, useDeleteScheduleMutation, useToggleScheduleMutation } from '@/modules/schedules';
+import type { CreateScheduleInput, UpdateScheduleInput } from '@/commons/schemas/schedule.schema';
+import { PermissionGate } from '@/components/shared/PermissionGate';
+import { PERMISSION } from '@/commons/constants/permissions';
+import { LoadingState } from '@/components/shared/LoadingState';
+import { ErrorBanner } from '@/components/shared/ErrorBanner';
+import { errorMessage } from '@/lib/api/errors';
+import { useConfirm } from '@/components/shared/ConfirmDialog';
+import type { ScheduleRow } from '@/commons/types/schedules';
+import { StatusPill } from '@/components/shared/StatusPill';
+
+function buildColumns(token: ReturnType<typeof theme.useToken>['token']): DataTableColumn<ScheduleRow>[] {
+  const RUN_ICON: Record<string, { icon: string; color: string }> = {
+    pass: { icon: 'fa-circle-check', color: token.colorSuccess },
+    fail: { icon: 'fa-circle-xmark', color: token.colorError },
+  };
+
+  return [
+    {
+      key: 'repositoryName',
+      header: 'Repository',
+      sortable: true,
+      sortValue: (row) => row.repositoryName,
+      render: (row) => (
+        <div>
+          <div style={{ fontWeight: 600 }}>{row.repositoryName}</div>
+          <div style={{ fontSize: 12, color: token.colorTextSecondary }}>{row.branch}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'cronExpression',
+      header: 'Schedule',
+      sortable: true,
+      sortValue: (row) => row.cronExpression,
+      render: (row) => (
+        <div>
+          <div style={{ fontFamily: 'monospace', fontSize: 13 }}>{row.cronExpression}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'timezone',
+      header: 'Timezone',
+      render: (row) => <Typography.Text style={{ color: token.colorTextSecondary }}>{row.timezone}</Typography.Text>,
+    },
+    {
+      key: 'nextRunAt',
+      header: 'Next run',
+      render: (row) => <Typography.Text style={{ color: token.colorText, fontWeight: 500 }}>{row.nextRunAt ?? '-'}</Typography.Text>,
+    },
+    {
+      key: 'lastRunAt',
+      header: 'Last run',
+      render: (row) => {
+        if (!row.lastRunAt) return <Typography.Text type="secondary">-</Typography.Text>;
+        const cfg = RUN_ICON.pass;
+        return <FaIcon icon={cfg.icon} style={{ color: cfg.color }} />;
+      },
+    },
+    {
+      key: 'active',
+      header: 'Status',
+      render: (row) => <StatusPill variant={row.active ? 'teal' : 'slate'}>{row.active ? 'Active' : 'Paused'}</StatusPill>,
+    },
+  ];
+}
+
+export default function SchedulesPage() {
+  const { message } = App.useApp();
+  const { token } = theme.useToken();
+  const { confirm } = useConfirm();
+
+  const { params, setPage, setPageSize, setSearch } = useTableParams({
+    defaultPageSize: 10,
+  });
+
+  const schedulesQuery = useSchedulesQuery({
+    page: params.page,
+    perPage: params.perPage,
+    search: params.search || undefined,
+  });
+  const createMutation = useCreateScheduleMutation();
+  const updateMutation = useUpdateScheduleMutation();
+  const deleteMutation = useDeleteScheduleMutation();
+  const toggleMutation = useToggleScheduleMutation();
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] = useState<ScheduleRow | null>(null);
+
+  const handleEdit = useCallback((schedule: ScheduleRow) => { setSelectedSchedule(schedule); setEditOpen(true); }, []);
+
+  const handleSaveEdit = (values: Record<string, unknown>) => {
+    if (!selectedSchedule) return;
+    updateMutation.mutate({ id: selectedSchedule.id, data: values as UpdateScheduleInput }, { onSuccess: () => { setEditOpen(false); message.success('Schedule updated'); }, onError: (err: Error) => message.error(errorMessage(err)) });
+  };
+
+  const handleCreate = (values: Record<string, unknown>) => {
+    createMutation.mutate(values as CreateScheduleInput, { onSuccess: () => { setAddOpen(false); message.success('Schedule created'); }, onError: (err: Error) => message.error(errorMessage(err)) });
+  };
+
+  const handleToggleStatus = useCallback((schedule: ScheduleRow) => {
+    toggleMutation.mutate({ id: schedule.id, enabled: !schedule.active }, { onSuccess: () => message.success(`Schedule ${schedule.active ? 'paused' : 'resumed'}`), onError: (err: Error) => message.error(errorMessage(err)) });
+  }, [toggleMutation, message]);
+
+  const handleDelete = useCallback((schedule: ScheduleRow) => {
+    confirm({ title: 'Delete schedule?', content: `Delete schedule for "${schedule.repositoryName}"?`, okText: 'Delete', danger: true,
+      onOk: () => { deleteMutation.mutate(schedule.id, { onSuccess: () => message.success('Schedule deleted'), onError: (err: Error) => message.error(errorMessage(err)) }); },
+    });
+  }, [confirm, deleteMutation, message]);
+
+  const columns = useMemo(() => buildColumns(token), [token]);
+
+  const actions = useMemo<ActionConfig<ScheduleRow>[]>(() => [
+    { label: 'Edit', icon: <FaIcon icon="fa-pen" />, onClick: (schedule) => handleEdit(schedule) },
+    { label: 'Pause', icon: <FaIcon icon="fa-pause" />, onClick: (schedule) => handleToggleStatus(schedule), show: (schedule) => schedule.active },
+    { label: 'Resume', icon: <FaIcon icon="fa-play" />, onClick: (schedule) => handleToggleStatus(schedule), show: (schedule) => !schedule.active },
+    { label: 'Delete', icon: <FaIcon icon="fa-trash" />, onClick: (schedule) => handleDelete(schedule), variant: 'danger' },
+  ], [handleEdit, handleToggleStatus, handleDelete]);
+
+  if (schedulesQuery.isLoading) return <LoadingState text="Loading schedules..." />;
+  if (schedulesQuery.error) return <ErrorBanner message={errorMessage(schedulesQuery.error)} />;
+
+  return (
+    <Flex vertical gap={token.paddingXL}>
+      <PageHeader title="Schedules" description="Manage recurring scan schedules for repositories."
+        actions={<PermissionGate permission={PERMISSION.SCHEDULE_MANAGE}>
+          <Button type="primary" onClick={() => setAddOpen(true)} icon={<FaIcon icon="fa-plus" />}>Add schedule</Button>
+        </PermissionGate>} />
+      <DataTable
+        source={makeSource(schedulesQuery.data)}
+        columns={columns}
+        rowKey={(r) => r.id}
+        actions={actions}
+        emptyText="No schedules found. Create a schedule to automate recurring scans."
+        isLoading={schedulesQuery.isLoading}
+        searchable
+        searchPlaceholder="Search schedules"
+        searchValue={params.search}
+        onSearchChange={setSearch}
+        onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+      />
+      <EditScheduleModal open={editOpen} schedule={selectedSchedule ? { id: selectedSchedule.id, repo: selectedSchedule.repositoryName, branch: selectedSchedule.branch, frequency: selectedSchedule.cronExpression, cron: selectedSchedule.cronExpression, timezone: selectedSchedule.timezone, policy: '', nextRun: selectedSchedule.nextRunAt ?? '', lastRuns: [], status: selectedSchedule.active ? 'active' : 'paused' } : null} onClose={() => setEditOpen(false)} onSave={handleSaveEdit} />
+      <AddScheduleModal open={addOpen} onClose={() => setAddOpen(false)} onSave={handleCreate} />
+    </Flex>
+  );
+}

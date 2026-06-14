@@ -5,6 +5,178 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Landing Page Keyframes ─────────────────────────── */
+@keyframes lpFadeUp {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes lpFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes lpFloat {
+  0%, 100% { transform: translateY(0px);  }
+  50%       { transform: translateY(-16px); }
+}
+
+@keyframes lpPulse {
+  0%, 100% { opacity: 0.45; transform: scale(1);    }
+  50%       { opacity: 0.85; transform: scale(1.06); }
+}
+
+@keyframes lpScanBar {
+  0%   { width: 0%;   }
+  55%  { width: 79%;  }
+  75%  { width: 79%;  }
+  100% { width: 100%; }
+}
+
+@keyframes lpBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+@keyframes lpSlideRight {
+  from { opacity: 0; transform: translateX(48px); }
+  to   { opacity: 1; transform: translateX(0);    }
+}
+
+@keyframes lpRotateOrb {
+  from { transform: rotate(0deg);   }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes lpShimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+@keyframes lpResultLine {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ─── Animation Utility Classes ──────────────────────── */
+.lp-fade-up   { opacity: 0; animation: lpFadeUp 0.65s ease 0.05s forwards; }
+.lp-fade-up-1 { opacity: 0; animation: lpFadeUp 0.65s ease 0.18s forwards; }
+.lp-fade-up-2 { opacity: 0; animation: lpFadeUp 0.65s ease 0.32s forwards; }
+.lp-fade-up-3 { opacity: 0; animation: lpFadeUp 0.65s ease 0.46s forwards; }
+.lp-fade-up-4 { opacity: 0; animation: lpFadeUp 0.65s ease 0.60s forwards; }
+.lp-fade-up-5 { opacity: 0; animation: lpFadeUp 0.65s ease 0.74s forwards; }
+
+.lp-slide-right { opacity: 0; animation: lpSlideRight 0.75s cubic-bezier(0.16,1,0.3,1) 0.3s forwards; }
+.lp-float       { animation: lpFloat 7s ease-in-out infinite; }
+.lp-pulse       { animation: lpPulse 4s ease-in-out infinite; }
+.lp-scan-bar    { width: 0; animation: lpScanBar 3.2s ease-in-out 1s forwards; }
+.lp-cursor      { animation: lpBlink 1.1s step-end infinite; }
+
+.lp-result-1 { opacity: 0; animation: lpResultLine 0.4s ease 3.8s forwards; }
+.lp-result-2 { opacity: 0; animation: lpResultLine 0.4s ease 4.0s forwards; }
+.lp-result-3 { opacity: 0; animation: lpResultLine 0.4s ease 4.5s forwards; }
+.lp-result-4 { opacity: 0; animation: lpResultLine 0.4s ease 4.7s forwards; }
+.lp-result-5 { opacity: 0; animation: lpResultLine 0.4s ease 5.3s forwards; }
+
+/* ─── Hover Utilities ────────────────────────────────── */
+.lp-card-hover {
+  transition:
+    transform     0.24s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow    0.24s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color  0.24s ease;
+}
+.lp-card-hover:hover { transform: translateY(-6px); }
+
+.lp-link {
+  text-decoration: none;
+  transition: color 0.18s ease, opacity 0.18s ease;
+}
+.lp-link:hover { opacity: 0.7; }
+
+.lp-nav-link {
+  text-decoration: none;
+  border-radius: 6px;
+  transition: color 0.18s ease, background 0.18s ease;
+}
+.lp-nav-link:hover {
+  color: #ffffff !important;
+  background: rgba(255,255,255,0.10) !important;
+}
+
+.lp-feature-icon {
+  transition: transform 0.24s ease;
+}
+.lp-card-hover:hover .lp-feature-icon {
+  transform: scale(1.18) rotate(-4deg);
+}
+
+.lp-step-card {
+  transition: transform 0.24s ease, box-shadow 0.24s ease;
+}
+.lp-step-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(15, 118, 110, 0.15) !important;
+}
+
+.lp-shimmer-text {
+  background: linear-gradient(90deg, #5eead4 0%, #a78bfa 25%, #5eead4 50%, #a78bfa 75%, #5eead4 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: lpShimmer 4s linear infinite;
+}
+
+/* ─── Scrollbar (subtle) ─────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+/* ─── Landing Page Responsive ────────────────────────── */
+
+/* Hero: add breathing room for floating dashboard badges on mobile */
+@media (max-width: 767px) {
+  .lp-dashboard-col {
+    padding-top: 28px !important;
+    padding-bottom: 28px !important;
+    padding-left: 20px !important;
+  }
+}
+
+/* Step connector line — hide on mobile (vertical layout) */
+@media (max-width: 767px) {
+  .lp-step-connector { display: none !important; }
+}
+
+/* Tech badge grid: ensure items fill column width properly */
+@media (max-width: 575px) {
+  .lp-tech-badge { width: 100%; }
+}
+
+/* Comparison table: show horizontal scroll indicator on mobile */
+@media (max-width: 639px) {
+  .lp-table-scroll {
+    position: relative;
+  }
+  .lp-table-scroll::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 24px;
+    background: linear-gradient(to right, transparent, rgba(5,15,13,0.6));
+    pointer-events: none;
+    border-radius: 0 16px 16px 0;
+  }
 }

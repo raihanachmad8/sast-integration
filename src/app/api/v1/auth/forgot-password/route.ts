@@ -5,17 +5,21 @@ import { validateBody } from '@/server/http/validate';
 import { authFlowsService } from '@/server/modules/auth/services/auth-flows.service';
 import { AppError } from '@/server/http/errors';
 import { MAIL } from '@/server/modules/mail/constants';
+import { logger } from '@/server/lib/logger';
 
 const schema = z.object({ email: z.string().email() });
 
 export async function POST(request: NextRequest) {
+  logger.auth.info('forgotPassword');
   const validation = await validateBody(request, schema);
   if (!validation.success) return validation.response;
 
   try {
     await authFlowsService.forgotPassword(validation.data.email);
+    logger.auth.info('forgotPassword completed');
     return ApiResponse.success(MAIL.MESSAGES.RESET_SENT, null);
   } catch (e) {
+    logger.auth.error('forgotPassword failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
     return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
   }

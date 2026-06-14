@@ -1,19 +1,21 @@
 import { hash, compare } from 'bcryptjs';
 import { randomUUID, randomBytes } from 'crypto';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { authRepository } from '../repositories/auth.repository';
 import { authFlowsService } from './auth-flows.service';
 import { signAccessToken, signRefreshToken } from './jwt.service';
-import { AUTH, WORKSPACE_DEFAULTS, WORKSPACE_MODE } from '../constants';
+import { AUTH, WORKSPACE_MODE } from '../constants';
+import { ROLE_PERMISSIONS } from '@/commons/constants/permissions';
 import { env } from '@/server/env';
 import { db } from '@/server/db/client';
-import { users, workspaces, workspaceMembers } from '../../../../../drizzle/schema';
+import { users, workspaceMembers } from '@drizzle/schema';
 import { AppError } from '@/server/http/errors';
 import { TOKEN_BYTES } from '@/server/http/constants';
 import { sendMail } from '@/server/modules/mail/mail.service';
 import { MAIL } from '@/server/modules/mail/constants';
 import { workspaceInviteTemplate } from '@/server/modules/mail/templates';
-import type { SignupInput, SigninInput, AcceptInviteInput, InviteInput } from '../schemas/auth.schema';
+import { logger } from '@/server/lib/logger';
+import type { SignupInput, SigninInput, AcceptInviteInput, InviteInput } from '@/server/modules/auth/schemas/auth.schema';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -28,36 +30,6 @@ function parseExpiry(value: string): number {
   const num = parseInt(match[1]);
   const multipliers: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
   return num * (multipliers[match[2]] ?? 60_000);
-}
-
-async function ensurePersonalWorkspace(tx: Tx, user: { id: string }) {
-  const [existingWorkspace] = await tx
-    .select({ id: workspaces.id })
-    .from(workspaces)
-    .where(and(eq(workspaces.createdBy, user.id), eq(workspaces.type, 'personal'), isNull(workspaces.deletedAt)))
-    .limit(1);
-
-  if (existingWorkspace) {
-    return existingWorkspace.id;
-  }
-
-  const baseSlug = `${WORKSPACE_DEFAULTS.PERSONAL_SLUG_PREFIX}${user.id.slice(0, 8)}`;
-  let slug = baseSlug;
-  const [existingSlug] = await tx.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.slug, slug)).limit(1);
-  if (existingSlug) {
-    slug = `${baseSlug}-${randomUUID().slice(0, 6)}`;
-  }
-
-  const [workspace] = await tx.insert(workspaces).values({
-    name: WORKSPACE_DEFAULTS.PERSONAL_NAME,
-    slug,
-    type: 'personal',
-    createdBy: user.id,
-    updatedBy: user.id,
-  }).returning();
-
-  await ensureWorkspaceMembership(tx, workspace.id, user.id, 'owner');
-  return workspace.id;
 }
 
 async function ensureWorkspaceMembership(
@@ -88,39 +60,26 @@ export const authService = {
    * @throws {AppError} 409 - Email already registered
    */
   async signup(input: SignupInput) {
+    logger.auth.info('signup', { email: input.email });
     if (env.WORKSPACE_MODE === WORKSPACE_MODE.SINGLE) {
       throw new AppError(AUTH.ERRORS.REGISTRATION_DISABLED, 403, AUTH.ERROR_CODE.AUTH);
     }
 
     const existing = await authRepository.findUserByEmail(input.email);
     if (existing) {
-      // Neutral response to prevent user enumeration.
-      // We don't reveal whether the email is already registered.
-      // In a real production system we might still send a "verification email"
-      // to the existing user as a subtle hint, but for now we just return success.
-      return {
-        id: existing.id,
-        email: existing.email,
-        name: existing.name,
-      };
+      // Don't leak user data — just throw a generic error
+      throw new AppError(AUTH.ERRORS.EMAIL_EXISTS, 409, AUTH.ERROR_CODE.AUTH);
     }
 
     const passwordHash = await hash(input.password, AUTH.SALT_ROUNDS);
 
     const result = await db.transaction(async (tx) => {
       const user = await authRepository.createUser({ email: input.email, passwordHash, name: input.name }, tx);
-      const personalWorkspaceId = await ensurePersonalWorkspace(tx, user);
-
-      await tx
-        .update(users)
-        .set({ currentWorkspaceId: personalWorkspaceId, updatedAt: new Date() })
-        .where(eq(users.id, user.id));
-
       return { id: user.id, email: user.email, name: user.name };
     });
 
     await authFlowsService.sendVerificationEmail(result.id);
-
+    logger.auth.info('signup completed', { userId: result.id });
     return result;
   },
 
@@ -164,6 +123,7 @@ export const authService = {
    * @throws {AppError} 401 - Invalid credentials
    */
   async signin(input: SigninInput, meta?: { ip?: string; userAgent?: string }) {
+    logger.auth.info('signin', { email: input.email });
     const user = await authRepository.findUserByEmail(input.email);
     if (!user) throw new AppError(AUTH.ERRORS.INVALID_CREDENTIALS, 401, AUTH.ERROR_CODE.AUTH);
 
@@ -184,10 +144,16 @@ export const authService = {
     const accessToken = await signAccessToken({ sub: user.id, email: user.email, sessionId });
     const refreshToken = await signRefreshToken({ sessionId, refreshTokenId });
     const expiresAt = new Date(Date.now() + parseExpiry(env.JWT_EXPIRES_IN));
-    const workspace = user.currentWorkspaceId
-      ? await authRepository.getUserWorkspace(user.id, user.currentWorkspaceId)
-      : null;
+    let workspace = null;
+    if (user.currentWorkspaceId) {
+      const ws = await authRepository.getUserWorkspace(user.id, user.currentWorkspaceId);
+      if (ws) {
+        const permissions = ROLE_PERMISSIONS[ws.role as keyof typeof ROLE_PERMISSIONS] ?? [];
+        workspace = { ...ws, permissions };
+      }
+    }
 
+    logger.auth.info('signin completed', { userId: user.id, sessionId });
     return {
       tokenType: 'Bearer' as const,
       accessToken,
@@ -199,8 +165,6 @@ export const authService = {
         id: user.id,
         email: user.email,
         name: user.name,
-        // Explicit policy: we return the flag but do not block login at this time.
-        // See JSDoc of this method for current decision and future options.
         emailVerified: !!user.emailVerifiedAt,
         currentWorkspaceId: user.currentWorkspaceId,
       },
@@ -215,7 +179,9 @@ export const authService = {
    * @param sessionId - Session UUID to invalidate
    */
   async signout(sessionId: string) {
+    logger.auth.info('signout', { sessionId });
     await authRepository.deleteSession(sessionId);
+    logger.auth.info('signout completed', { sessionId });
   },
 
   /**
@@ -245,31 +211,29 @@ export const authService = {
    * @throws {AppError} 401 - Invalid/expired session or refresh token reuse detected
    */
   async refresh(sessionId: string, refreshTokenIdFromToken?: string) {
+    logger.auth.info('refresh', { sessionId });
     const session = await authRepository.findSession(sessionId);
     if (!session) throw new AppError(AUTH.ERRORS.INVALID_SESSION, 401, AUTH.ERROR_CODE.AUTH);
 
     const user = await authRepository.findUserById(session.userId);
     if (!user) throw new AppError(AUTH.ERRORS.USER_NOT_FOUND, 401, AUTH.ERROR_CODE.AUTH);
 
-    // Refresh token rotation + reuse detection
     if (session.currentRefreshTokenId && refreshTokenIdFromToken) {
       if (session.currentRefreshTokenId !== refreshTokenIdFromToken) {
-        // Reuse detected → invalidate the entire session
         await authRepository.deleteSession(sessionId);
+        logger.auth.warn('refresh token reuse detected', { sessionId });
         throw new AppError(AUTH.ERRORS.INVALID_SESSION, 401, AUTH.ERROR_CODE.AUTH);
       }
     }
 
-    // Generate new refresh token identity
     const newRefreshTokenId = randomUUID();
-
-    // Update the session with the new refresh token ID
     await authRepository.updateSessionRefreshToken(sessionId, newRefreshTokenId);
 
     const accessToken = await signAccessToken({ sub: user.id, email: user.email, sessionId });
     const refreshToken = await signRefreshToken({ sessionId, refreshTokenId: newRefreshTokenId });
     const expiresAt = new Date(Date.now() + parseExpiry(env.JWT_EXPIRES_IN));
 
+    logger.auth.info('refresh completed', { sessionId });
     return {
       tokenType: 'Bearer' as const,
       accessToken,
@@ -288,6 +252,7 @@ export const authService = {
    * @returns Generated invitation token and recipient email
    */
   async invite(input: InviteInput, workspaceId: string, invitedBy: string) {
+    logger.auth.info('invite', { workspaceId, email: input.email, invitedBy });
     const token = randomBytes(TOKEN_BYTES).toString('hex');
     await authRepository.createInvitation({
       email: input.email,
@@ -307,6 +272,7 @@ export const authService = {
       html: workspaceInviteTemplate(input.email, input.role, workspaceName, acceptUrl),
     });
 
+    logger.auth.info('invite completed', { email: input.email });
     return { token, email: input.email };
   },
 
@@ -320,6 +286,7 @@ export const authService = {
    * @throws {AppError} 410 - Invitation already accepted
    */
   async acceptInvite(input: AcceptInviteInput) {
+    logger.auth.info('acceptInvite', { token: input.token.slice(0, 8) + '...' });
     const invitation = await authRepository.findInvitationByToken(input.token);
     if (!invitation || invitation.expiresAt < new Date()) {
       throw new AppError(AUTH.ERRORS.INVITE_EXPIRED, 410, AUTH.ERROR_CODE.AUTH);
@@ -341,7 +308,6 @@ export const authService = {
         }, tx);
       }
 
-      await ensurePersonalWorkspace(tx, user);
       await ensureWorkspaceMembership(
         tx,
         invitation.workspaceId,
@@ -359,6 +325,49 @@ export const authService = {
       return { id: user.id, email: user.email, name: user.name };
     });
 
+    logger.auth.info('acceptInvite completed', { userId: result.id });
+    return result;
+  },
+
+  /**
+   * Accept a workspace invitation for an already authenticated user.
+   * No password or name needed — user already has an account.
+   *
+   * @param token - Invitation token from email link
+   * @param userId - Authenticated user ID
+   * @returns Workspace ID and role the user was invited with
+   * @throws {AppError} 410 - Invitation expired or invalid
+   * @throws {AppError} 410 - Invitation already accepted
+   */
+  async acceptInviteForLoggedInUser(token: string, userId: string) {
+    logger.auth.info('acceptInviteForLoggedInUser', { token: token.slice(0, 8) + '...' });
+    const invitation = await authRepository.findInvitationByToken(token);
+    if (!invitation || invitation.expiresAt < new Date()) {
+      throw new AppError(AUTH.ERRORS.INVITE_EXPIRED, 410, AUTH.ERROR_CODE.AUTH);
+    }
+    if (invitation.acceptedAt) {
+      throw new AppError(AUTH.ERRORS.INVITE_ALREADY_ACCEPTED, 410, AUTH.ERROR_CODE.AUTH);
+    }
+
+    const result = await db.transaction(async (tx) => {
+      await ensureWorkspaceMembership(
+        tx,
+        invitation.workspaceId,
+        userId,
+        invitation.role as 'owner' | 'manager' | 'reviewer' | 'member',
+      );
+
+      await tx
+        .update(users)
+        .set({ currentWorkspaceId: invitation.workspaceId, updatedAt: new Date() })
+        .where(eq(users.id, userId));
+
+      await authRepository.markInvitationAccepted(invitation.id, tx);
+
+      return { workspaceId: invitation.workspaceId, role: invitation.role };
+    });
+
+    logger.auth.info('acceptInviteForLoggedInUser completed', { userId, workspaceId: result.workspaceId });
     return result;
   },
 };

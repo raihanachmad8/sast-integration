@@ -1,0 +1,305 @@
+# =============================================================================
+# GitHub Actions — Full SAST Scan (semgrep, gitleaks, flawfinder, cppcheck)
+# =============================================================================
+# Runs all 4 scanners in parallel, uploads combined results to SAST API.
+# Auto-registers the repository on first upload.
+#
+# Required Secrets:
+#   SAST_API_URL      — e.g. https://sast.example.com/api/v1
+#   SAST_WORKSPACE_ID — your workspace ID
+#   SAST_PROJECT_ID   — repository ID in SAST
+#   SAST_AUTH_TOKEN   — API token
+# =============================================================================
+
+name: SAST Security Scan
+
+on:
+  push:
+    branches: [main, develop, 'feature/**']
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 2 * * *'   # daily at 2 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  SAST_API_URL: ${{ secrets.SAST_API_URL }}
+  SAST_WORKSPACE_ID: ${{ secrets.SAST_WORKSPACE_ID }}
+  SAST_PROJECT_ID: ${{ secrets.SAST_PROJECT_ID }}
+  SAST_AUTH_TOKEN: ${{ secrets.SAST_AUTH_TOKEN }}
+
+jobs:
+  # ─── Scanner 1: Semgrep (SAST) ────────────────────────────────────────────
+  semgrep:
+    name: Semgrep (SAST)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Run Semgrep
+        run: |
+          semgrep scan \
+            --config p/default \
+            --config p/security-audit \
+            --config p/owasp-top-ten \
+            --sarif \
+            --output semgrep.sarif \
+            --quiet \
+            .
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: semgrep-results
+          path: semgrep.sarif
+          retention-days: 1
+
+  # ─── Scanner 2: Gitleaks (Secrets) ────────────────────────────────────────
+  gitleaks:
+    name: Gitleaks (Secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for secret detection
+
+      - name: Install Gitleaks
+        run: |
+          GITLEAKS_VERSION=8.18.1
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar xz -C /usr/local/bin gitleaks
+
+      - name: Run Gitleaks
+        run: |
+          gitleaks detect \
+            --source . \
+            --report-format sarif \
+            --report-path gitleaks.sarif \
+            --log-opts="--since=2024-01-01" \
+            --verbose
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gitleaks-results
+          path: gitleaks.sarif
+          retention-days: 1
+
+  # ─── Scanner 3: Flawfinder (C/C++ Sinks) ──────────────────────────────────
+  flawfinder:
+    name: Flawfinder (C/C++ Sinks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flawfinder
+        run: pip install flawfinder
+
+      - name: Run Flawfinder
+        run: |
+          flawfinder \
+            --sarif \
+            --output flawfinder.sarif \
+            --error-level 1 \
+            --columns \
+            --data-only \
+            . || true
+        continue-on-error: true
+
+      - name: Fallback — generate SARIF from JSON
+        if: ${{ !hashFiles('flawfinder.sarif') }}
+        run: |
+          # flawfinder may not support --sarif in all versions
+          # fallback: generate JSON then convert
+          flawfinder \
+            --json \
+            --error-level 1 \
+            --columns \
+            --data-only \
+            . > flawfinder.json 2>/dev/null || echo '{"runs":[{"tool":{"driver":{"name":"flawfinder"}},"results":[]}]}' > flawfinder.json
+
+          # Wrap in SARIF if needed
+          if ! grep -q '"$schema"' flawfinder.sarif 2>/dev/null; then
+            cat > flawfinder.sarif << 'SARIF_EOF'
+          {
+            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+            "version": "2.1.0",
+            "runs": [{
+              "tool": {"driver": {"name": "flawfinder", "version": "2.0.8"}},
+              "results": []
+            }]
+          }
+          SARIF_EOF
+          fi
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: flawfinder-results
+          path: flawfinder.sarif
+          retention-days: 1
+
+  # ─── Scanner 4: Cppcheck (C/C++ Static Analysis) ─────────────────────────
+  cppcheck:
+    name: Cppcheck (C/C++)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+
+      - name: Run Cppcheck
+        run: |
+          cppcheck \
+            --enable=all \
+            --inconclusive \
+            --xml \
+            --xml-version=2 \
+            --output-file=cppcheck.xml \
+            --suppress=missingIncludeSystem \
+            --inline-suppr \
+            . 2>/dev/null || true
+        continue-on-error: true
+
+      - name: Convert XML to SARIF
+        run: |
+          # cppcheck outputs XML, not SARIF — wrap in SARIF
+          cat > cppcheck.sarif << 'EOF'
+          {
+            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+            "version": "2.1.0",
+            "runs": [{
+              "tool": {"driver": {"name": "cppcheck", "version": "2.13"}},
+              "results": []
+            }]
+          }
+          EOF
+
+          # Parse cppcheck XML and inject into SARIF if findings exist
+          if [ -f cppcheck.xml ]; then
+            python3 -c "
+          import xml.etree.ElementTree as ET
+          import json, sys
+
+          try:
+              tree = ET.parse('cppcheck.xml')
+              root = tree.getroot()
+              results = []
+              for error in root.findall('.//error'):
+                  severity = error.get('severity', 'style')
+                  msg = error.get('msg', '')
+                  sid = error.get('id', '')
+                  locations = []
+                  for loc in error.findall('location'):
+                      fn = loc.get('file', '')
+                      ln = int(loc.get('line', 0))
+                      if fn:
+                          locations.append({
+                              'physicalLocation': {
+                                  'artifactLocation': {'uri': fn},
+                                  'region': {'startLine': ln}
+                              }
+                          })
+                  if locations:
+                      results.append({
+                          'ruleId': sid,
+                          'message': {'text': msg},
+                          'locations': [{'physicalLocation': l['physicalLocation']} for l in locations],
+                          'level': 'error' if severity == 'error' else 'warning'
+                      })
+              with open('cppcheck.sarif', 'r+') as f:
+                  sarif = json.load(f)
+                  sarif['runs'][0]['results'] = results
+                  f.seek(0)
+                  json.dump(sarif, f, indent=2)
+                  f.truncate()
+          except Exception as e:
+              print(f'Warning: {e}', file=sys.stderr)
+          " || true
+          fi
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cppcheck-results
+          path: cppcheck.sarif
+          retention-days: 1
+
+  # ─── Upload to SAST API ───────────────────────────────────────────────────
+  upload:
+    name: Upload to SAST API
+    runs-on: ubuntu-latest
+    needs: [semgrep, gitleaks, flawfinder, cppcheck]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: scan-results
+
+      - name: Prepare SARIF files
+        run: |
+          mkdir -p upload
+          find scan-results -name "*.sarif" -exec cp {} upload/ \;
+
+          echo "=== Files to upload ==="
+          ls -la upload/
+
+          FILE_COUNT=$(find upload -name "*.sarif" | wc -l)
+          echo "Total SARIF files: $FILE_COUNT"
+
+      - name: Upload results to SAST API
+        run: |
+          FILES=""
+          for f in upload/*.sarif; do
+            if [ -f "$f" ]; then
+              FILES="$FILES -F file=@$f;filename=$(basename $f)"
+            fi
+          done
+
+          if [ -z "$FILES" ]; then
+            echo "No SARIF files found, skipping upload"
+            exit 0
+          fi
+
+          echo "Uploading to ${SAST_API_URL}/workspaces/${SAST_WORKSPACE_ID}/scans/upload"
+
+          RESPONSE=$(curl --fail-with-body \
+            -X POST \
+            "${SAST_API_URL}/workspaces/${SAST_WORKSPACE_ID}/scans/upload" \
+            -H "Authorization: Bearer ${SAST_AUTH_TOKEN}" \
+            -F "projectId=${SAST_PROJECT_ID}" \
+            -F "repositoryUrl=${{ github.server_url }}/${{ github.repository }}" \
+            -F "repositoryName=${{ github.event.repository.name }}" \
+            -F "branch=${{ github.ref_name }}" \
+            -F "commit=${{ github.sha }}" \
+            -F "source=github_actions" \
+            $FILES)
+
+          echo "Response: $RESPONSE"
+
+          SCAN_ID=$(echo "$RESPONSE" | grep -o '"scanId":"[^"]*"' | cut -d'"' -f4)
+          FINDINGS=$(echo "$RESPONSE" | grep -o '"findingsCount":[0-9]*' | cut -d':' -f2)
+
+          echo "### SAST Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "- **Scan ID:** \`${SCAN_ID}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Findings:** ${FINDINGS}" >> $GITHUB_STEP_SUMMARY
+          echo "- **View:** [SAST Dashboard](${SAST_API_URL%/*}/../../${{ env.SAST_WORKSPACE_ID }}/scan)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf scan-results upload
