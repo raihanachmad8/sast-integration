@@ -48,4 +48,92 @@ test.describe('Findings Page', () => {
     const statusFilter = page.locator('text=/status/i').or(page.locator('[data-testid*="status"]')).or(page.locator('select:has-text("Status")'));
     await expect(statusFilter.first()).toBeVisible({ timeout: 10000 });
   });
+
+  /**
+   * Purpose: Verify that a finding can be accepted (verdict accepted) via the bulk action bar.
+   * Selects a finding row, clicks Accept, and confirms the success message appears.
+   */
+  test('should verify a finding', async ({ page }) => {
+    const slug = await signInAndOpenWorkspace(page);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(500);
+    await page.goto(`/${slug}/findings`);
+    await page.waitForLoadState('networkidle');
+
+    await page.route('**/api/v1/workspaces/*/findings/*', (route) => {
+      if (route.request().method() === 'PATCH') {
+        route.fulfill({
+          status: 200,
+          body: JSON.stringify({ success: true, data: { id: 'finding-1', status: 'accepted' } }),
+        });
+      } else {
+        route.continue();
+      }
+    });
+
+    const firstRow = page.locator('table tbody tr').first();
+    if (await firstRow.isVisible({ timeout: 5000 }).catch(() => false)) {
+      const checkbox = firstRow.locator('input[type="checkbox"], .ant-checkbox-input').first();
+      await checkbox.click({ timeout: 5000 });
+
+      const acceptButton = page.locator('button:has-text("Accept")');
+      await expect(acceptButton).toBeVisible({ timeout: 5000 });
+      await acceptButton.click();
+
+      await expect.poll(async () => {
+        const msg = page.locator('.ant-message-success');
+        return await msg.count();
+      }, { timeout: 10000 }).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * Purpose: Verify that a finding can be dismissed by overriding its verdict to FP.
+   * Opens the finding detail drawer, clicks Override verdict, selects FP, and confirms the success message.
+   */
+  test('should dismiss a finding', async ({ page }) => {
+    const slug = await signInAndOpenWorkspace(page);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(500);
+    await page.goto(`/${slug}/findings`);
+    await page.waitForLoadState('networkidle');
+
+    await page.route('**/api/v1/workspaces/*/findings/*', (route) => {
+      if (route.request().method() === 'PATCH') {
+        route.fulfill({
+          status: 200,
+          body: JSON.stringify({ success: true, data: { id: 'finding-1', status: 'false_positive', verdict: 'FP' } }),
+        });
+      } else {
+        route.continue();
+      }
+    });
+
+    const firstRow = page.locator('table tbody tr').first();
+    if (await firstRow.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await firstRow.getByRole('button', { name: 'Review' }).click();
+
+      const drawer = page.locator('.ant-drawer');
+      await expect(drawer).toBeVisible({ timeout: 5000 });
+
+      const overrideButton = drawer.getByRole('button', { name: /Override verdict/i });
+      await expect(overrideButton).toBeVisible({ timeout: 5000 });
+      await overrideButton.click();
+
+      const modal = page.getByRole('dialog', { name: /Override Verdict/i });
+      await expect(modal).toBeVisible({ timeout: 5000 });
+
+      const fpSelect = modal.locator('.ant-select');
+      await fpSelect.click();
+      await page.getByText('False Positive (FP)').click();
+
+      await modal.getByRole('button', { name: 'Override' }).click();
+      await expect(modal).not.toBeVisible({ timeout: 10000 });
+
+      await expect.poll(async () => {
+        const msg = page.locator('.ant-message-success');
+        return await msg.count();
+      }, { timeout: 10000 }).toBeGreaterThan(0);
+    }
+  });
 });
