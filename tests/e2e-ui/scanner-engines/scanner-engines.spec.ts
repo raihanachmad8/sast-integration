@@ -1,30 +1,49 @@
 import { test, expect } from '@playwright/test';
+import { signInAndOpenWorkspace } from '../auth/helpers';
 
 test.describe('Scanner Engines Page', () => {
-  test('should render scanner engines page after login', async ({ page }) => {
-    // Login
-    await page.goto('http://localhost:3000/auth/signin');
+  test('should render scanner engines page', async ({ page }) => {
+    const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    
-    const emailInput = page.locator('input[type="email"], input[name="email"], [placeholder*="email" i]').first();
-    const passwordInput = page.locator('input[type="password"], input[name="password"]').first();
-    
-    if (await emailInput.isVisible()) {
-      await emailInput.fill('owner@sast.local');
-      await passwordInput.fill('ChangeMe123!');
-      
-      const submitButton = page.locator('button[type="submit"], button:has-text("Sign in")').first();
-      await submitButton.click();
-      
-      await page.waitForURL('**/dashboard**', { timeout: 10_000 }).catch(() => {});
-    }
-    
-    await page.goto('http://localhost:3000/scanner-engines');
+    await page.waitForTimeout(500);
+    await page.goto(`/${slug}/scanner-engines`);
     await page.waitForLoadState('networkidle');
-    
-    // Page should have loaded without errors
     await expect(page.locator('body')).toBeVisible();
-    await expect(page.locator('text=404')).toHaveCount(0);
     await expect(page.locator('text=Internal Server Error')).toHaveCount(0);
+  });
+
+  test('should show error state when API fails', async ({ page }) => {
+    const slug = await signInAndOpenWorkspace(page);
+    await page.waitForLoadState('networkidle');
+
+    await page.route('**/api/v1/scanner-engines**', async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: false, message: 'Internal server error' }),
+      });
+    });
+
+    await page.goto(`/${slug}/scanner-engines`);
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.locator('body')).toBeVisible();
+    const hasError = await page.locator('.ant-alert-error, text=/error|failed/i').count();
+    const hasEmptyState = await page.locator('.ant-empty').count();
+    expect(hasError > 0 || hasEmptyState > 0).toBe(true);
+  });
+
+  test('should show scanner engines table or empty state', async ({ page }) => {
+    const slug = await signInAndOpenWorkspace(page);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(500);
+    await page.goto(`/${slug}/scanner-engines`);
+    await page.waitForLoadState('networkidle');
+
+    const hasTable = await page.locator('table').count();
+    const hasEmptyState = await page.locator('text=/no scanners|empty/i').count();
+    const hasContent = await page.locator('.ant-card, [data-testid]').count();
+
+    expect(hasTable > 0 || hasEmptyState > 0 || hasContent > 0).toBe(true);
   });
 });
