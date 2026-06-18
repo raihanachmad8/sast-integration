@@ -89,11 +89,8 @@ export default function ScannerEnginesPage() {
   const scanners = useMemo(() => (query.data?.data ?? []).map(mapEngine), [query.data?.data]);
 
   const handleProbeAll = () => {
-    message.info('Scanner probing is not yet implemented.');
-  };
-
-  const handleApplyChanges = () => {
-    message.info('Scanner configuration changes are not yet implemented.');
+    query.refetch();
+    message.success('Refreshed');
   };
 
   const handleBrowseRules = useCallback((scanner: ScannerDisplay) => {
@@ -124,9 +121,7 @@ export default function ScannerEnginesPage() {
             <PermissionGate permission={PERMISSION.SCANNER_MANAGE}>
               <Button onClick={handleProbeAll} icon={<FaIcon icon="fa-satellite-dish" />}>Probe all</Button>
             </PermissionGate>
-            <PermissionGate permission={PERMISSION.SCANNER_MANAGE}>
-              <Button type="primary" onClick={handleApplyChanges} icon={<FaIcon icon="fa-check" />}>Apply changes</Button>
-            </PermissionGate>
+
           </Flex>
         }
       />

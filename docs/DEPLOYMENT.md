@@ -90,14 +90,21 @@ CMD ["node", "server.js"]
 | APP_URL | Yes | http://localhost:3000 | Application base URL. Must not be localhost in production |
 | WORKSPACE_MODE | No | multiple | `single` = one org workspace, invitation-only; `multiple` = open self-signup + per-user workspaces |
 | MAIL_PROVIDER | No | console | `console` (dev) or `smtp`. `console` is rejected in production |
-| OWNER_EMAIL / OWNER_PASSWORD / OWNER_NAME | No* | admin@sast.local / ChangeMe123! / Owner | Bootstrap owner for `db:seed`. *Required (non-default) in production |
+| OWNER_EMAIL / OWNER_PASSWORD / OWNER_NAME | No* | owner@sast.local / ChangeMe123! / Owner | Bootstrap owner for `db:seed`. *Required (non-default) in production |
 | ORG_NAME / ORG_SLUG | No | SAST Organization / sast-org | Seeded org workspace (single mode) |
 | PORT | No | 3000 | Server port |
 | NODE_ENV | No | development | Environment mode |
-| STORAGE_PROVIDER | No | local | File storage provider |
-| STORAGE_LOCAL_PATH | No | ./storage | Local file storage path |
+| LOG_LEVEL | No | info | Log level: debug, info, warn, error |
+| RATE_LIMIT_ENABLED | No | true | Set to `false` to disable rate limiting (for testing/development) |
+| NVD_API_KEY | No | — | NVD API key (optional but recommended — higher rate limits) |
+| SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / SMTP_FROM | No* | localhost / 1025 / — / — / noreply@sast.local | SMTP config. *Required when `MAIL_PROVIDER=smtp` |
 | SCANNER_MODE | No | local | Scanner execution mode |
 | SCANNER_TIMEOUT | No | 300000 | Scanner timeout in ms |
+| SEMGREP_RULES_DIR | No | ./rules/semgrep | Custom Semgrep rules directory |
+| STORAGE_PROVIDER | No | local | File storage provider (`local`, `s3`, or `cloudinary`) |
+| STORAGE_LOCAL_PATH | No | ./storage | Local file storage path |
+| S3_BUCKET / AWS_REGION / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / S3_ENDPOINT | No* | sast-uploads / us-east-1 / — / — / — | S3/MinIO config. *Required when `STORAGE_PROVIDER=s3` |
+| CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET / CLOUDINARY_FOLDER | No* | — / — / — / sast | Cloudinary config. *Required when `STORAGE_PROVIDER=cloudinary` |
 
 > **Production hardening**: env validation fails fast on boot if `JWT_SECRET` is a known example value, `APP_URL` points to localhost, or `MAIL_PROVIDER=console`.
 
@@ -153,8 +160,10 @@ Workers are registered automatically on server startup via `src/instrumentation.
 - `ai-verify-finding` — AI verification of findings
 - `cleanup-old-scan-files` — Cleanup old scan files from storage
 - `nvd-knowledge-backfill` — Backfill NVD knowledge base
+- `sync-source-control` — Sync repositories from source control (scheduled every 30 minutes)
+- `scan-timeout-watchdog` — Detect and clean up timed-out scans (scheduled every 5 minutes)
 
-> **Note:** Queue runs in-process with Next.js. No separate worker command needed.
+> **Note:** Queue runs in-process with Next.js. No separate worker command needed. `sync-source-control` runs every 30 minutes and `scan-timeout-watchdog` runs every 5 minutes automatically.
 
 ---
 

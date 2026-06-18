@@ -16,7 +16,7 @@ export default defineConfig({
     command: 'pnpm start',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 180_000,
     // Production build runs as NODE_ENV=production, so satisfy the production env guards.
     // 127.0.0.1 passes the non-localhost check; smtp passes the non-console check (mail is mocked in tests).
     env: {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { ROUTES } from '@/commons/constants';
 import { useSessionQuery } from '@/modules/auth/queries';
 import { AppShell } from './AppShell';
@@ -41,6 +41,7 @@ import { LoadingState } from '@/components/shared/LoadingState';
  */
 export function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const session = useSessionQuery();
   const routeWorkspaceSlug = pathname.split('/')[1] ?? '';
   const hasRedirected = useRef(false);
@@ -52,16 +53,16 @@ export function AuthenticatedShell({ children }: { children: React.ReactNode }) 
 
     if (session.isError) {
       hasRedirected.current = true;
-      window.location.href = `${ROUTES.AUTH.SIGNIN}?redirect=${encodeURIComponent(pathname)}`;
+      router.replace(`${ROUTES.AUTH.SIGNIN}?redirect=${encodeURIComponent(pathname)}`);
       return;
     }
 
     const currentWorkspace = session.data?.workspace;
     if (!currentWorkspace || currentWorkspace.slug !== routeWorkspaceSlug) {
       hasRedirected.current = true;
-      window.location.href = ROUTES.CHOOSER;
+      router.replace(ROUTES.CHOOSER);
     }
-  }, [pathname, routeWorkspaceSlug, session.data?.workspace, session.isError, session.isFetching, session.isLoading]);
+  }, [pathname, routeWorkspaceSlug, session.data?.workspace, session.isError, session.isFetching, session.isLoading, router]);
 
   if (pathname === ROUTES.CHOOSER) {
     return <>{children}</>;

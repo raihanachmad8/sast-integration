@@ -9,7 +9,7 @@
  * import type { FindingListParams, FindingListResponse } from '@/modules/findings';
  * ```
  */
-export { findingKeys } from './keys';
+export { findingKeys, commentKeys } from './keys';
 export {
   useFindingsQuery,
   useFindingGroupsQuery,
@@ -18,5 +18,7 @@ export {
   useBulkUpdateFindingsMutation,
   useRunAiVerificationMutation,
   useVerifyFindingMutation,
+  useCommentsQuery,
+  useAddCommentMutation,
 } from './queries';
 export type { FindingListParams, FindingListResponse, AssignFindingPayload, UpdateFindingStatusPayload, ReverifyFindingPayload } from './types';

@@ -12,6 +12,7 @@ import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useApiTokensQuery, useCreateApiTokenMutation, useRevokeApiTokenMutation } from '@/modules/projects/api-token-queries';
 import { createApiTokenSchema, type CreateApiTokenInput } from '@/commons/schemas';
 import type { ApiToken } from '@/modules/projects/api-tokens';
+import { errorMessage } from '@/lib/api/errors';
 import { formatDate } from '@/lib/utils/formatDate';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
 import { StatusPill } from '@/components/shared/StatusPill';
@@ -40,9 +41,9 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
     defaultValues: { name: '' },
   });
 
-  const tokens = (tokensQuery.data?.tokens ?? []).filter((t) => !t.revokedAt);
+  const tokens = tokensQuery.data?.data ?? [];
 
-  const { params, setPage, setPageSize, setSearch, paginated: pagedTokens, filtered: filteredTokens } = useTableParams({
+  const { params, setPage, setPageSize, setSearch, filtered, paginated } = useTableParams({
     data: tokens,
     searchField: 'name',
     defaultPageSize: 10,
@@ -57,7 +58,7 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
           reset();
           setCreateModalOpen(false);
         },
-        onError: () => {},
+        onError: (err) => message.error(errorMessage(err)),
       },
     );
   };
@@ -71,7 +72,7 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
       cancelText: 'Cancel',
       onOk: () => revokeMutation.mutate(t.id, {
         onSuccess: () => message.success(`Token "${t.name}" revoked`),
-        onError: () => {},
+        onError: (err) => message.error(errorMessage(err)),
       }),
     });
   };
@@ -145,7 +146,7 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
         </div>
       ) : (
         <DataTable
-          source={{ data: pagedTokens ?? [], meta: { page: params.page, pageSize: params.perPage, total: filteredTokens?.length ?? 0 } }}
+          source={{ data: paginated ?? [], meta: { page: params.page, pageSize: params.perPage, total: filtered?.length ?? 0 } }}
           columns={columns}
           rowKey={(t) => t.id}
           actions={actions}

@@ -264,6 +264,39 @@ export const findingService = {
   },
 
   /**
+   * Update finding verdict (accept or override AI verdict).
+   * Maps verdict to appropriate status.
+   *
+   * @param findingId - Finding UUID
+   * @param verdict - New verdict: 'true_positive' or 'false_positive'
+   * @param userId - User UUID who performed the change
+   * @returns Updated finding record
+   */
+  async updateVerdict(findingId: string, verdict: string, userId: string | null = null) {
+    logger.scan.info('updateVerdict', { findingId, verdict });
+
+    try {
+      const validVerdicts = ['true_positive', 'false_positive'];
+      if (!validVerdicts.includes(verdict)) {
+        throw new AppError(`Invalid verdict: ${verdict}. Must be one of: ${validVerdicts.join(', ')}`, 400, SCAN.ERRORS.VALIDATION_ERROR);
+      }
+
+      // Map verdict to status
+      const status = verdict === 'true_positive' ? 'open' : 'false_positive';
+      const result = await findingRepository.updateStatus(findingId, status, userId);
+      if (!result) {
+        throw new AppError(SCAN.ERRORS.NOT_FOUND, 404, SCAN.ERRORS.NOT_FOUND_CODE);
+      }
+
+      logger.scan.info('updateVerdict completed', { findingId, verdict, status });
+      return result;
+    } catch (error) {
+      logger.scan.error('updateVerdict failed', { error, findingId, verdict });
+      throw error;
+    }
+  },
+
+  /**
    * Assign or unassign a finding to a user.
    *
    * @param findingId - Finding UUID
@@ -281,5 +314,68 @@ export const findingService = {
       logger.scan.error('assign failed', { error, findingId });
       throw error;
     }
+  },
+};
+
+// ── Comments Service ─────────────────────────────────────────
+
+import { commentRepository } from '../repositories/finding.repository';
+
+export const commentService = {
+  /**
+   * List comments for a finding, ordered by creation date.
+   *
+   * @param findingId - Finding UUID to list comments for
+   * @returns Array of comment records
+   */
+  async listByFinding(findingId: string) {
+    logger.scan.debug('listComments', { findingId });
+    const comments = await commentRepository.listByFinding(findingId);
+    logger.scan.debug('listComments completed', { findingId, count: comments.length });
+    return comments;
+  },
+
+  /**
+   * Add a comment to a finding.
+   *
+   * @param findingId - Finding UUID to comment on
+   * @param content - Comment text content (must not be empty)
+   * @param userId - User UUID of the comment author
+   * @returns Created comment record
+   * @throws {AppError} If content is empty or whitespace-only
+   */
+  async addComment(findingId: string, content: string, userId: string) {
+    logger.scan.info('addComment', { findingId, userId });
+
+    if (!content.trim()) {
+      throw new AppError('Comment content is required', 400, 'VALIDATION_ERROR');
+    }
+
+    const comment = await commentRepository.create({
+      findingId,
+      content: content.trim(),
+      createdBy: userId,
+    });
+
+    logger.scan.info('addComment completed', { commentId: comment.id });
+    return comment;
+  },
+
+  /**
+   * Soft-delete a comment by ID.
+   *
+   * @param commentId - Comment UUID to delete
+   * @param userId - User UUID requesting the deletion
+   * @returns Soft-deleted comment record
+   * @throws {AppError} If comment is not found (404)
+   */
+  async deleteComment(commentId: string, userId: string) {
+    logger.scan.info('deleteComment', { commentId, userId });
+    const result = await commentRepository.softDelete(commentId, userId);
+    if (!result) {
+      throw new AppError('Comment not found', 404, 'NOT_FOUND');
+    }
+    logger.scan.info('deleteComment completed', { commentId });
+    return result;
   },
 };

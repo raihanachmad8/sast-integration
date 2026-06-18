@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       tools:
-        description: 'Tools: semgrep,cppcheck,flawfinder,gitleaks,clang-tidy,gcc-analyzer'
+        description: 'Tools: semgrep,cppcheck,flawfinder,gitleaks,clang-tidy,gcc-fanalyzer'
         required: false
-        default: 'semgrep,cppcheck,flawfinder,gitleaks,clang-tidy,gcc-analyzer'
+        default: 'semgrep,cppcheck,flawfinder,gitleaks,clang-tidy,gcc-fanalyzer'
 
 env:
   SAST_API_URL: "${{ secrets.SAST_API_URL || 'http://host.docker.internal:3000' }}"
@@ -147,7 +147,7 @@ jobs:
                   'properties': {'cwe': f'CWE-{cwe}' if cwe else '', 'severity': sev}
               })
 
-          sarif = {'version': '2.1.0', 'runs': [{'tool': {'driver': {'name': 'Cppcheck', 'version': '2.x'}}, 'results': results}]}
+          sarif = {'version': '2.1.0', 'runs': [{'tool': {'driver': {'name': 'cppcheck', 'version': '2.x'}}, 'results': results}]}
           with open('results/cppcheck.sarif', 'w') as f:
               json.dump(sarif, f, indent=2)
           print(f'Cppcheck findings: {len(results)}')
@@ -180,7 +180,7 @@ jobs:
         run: |
           mkdir -p results
           flawfinder --sarif --minlevel 1 --columns . > results/flawfinder.sarif 2>/dev/null || true
-          if [ ! -s results/flawfinder.sarif ]; then echo '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"Flawfinder"}},"results":[]}]}' > results/flawfinder.sarif; fi
+          if [ ! -s results/flawfinder.sarif ]; then echo '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"flawfinder"}},"results":[]}]}' > results/flawfinder.sarif; fi
 
       - name: Upload to SAST
         if: always()
@@ -238,7 +238,7 @@ jobs:
                   }],
                   'properties': {'entropy': f.get('Entropy', 0)}
               })
-          sarif = {'version': '2.1.0', 'runs': [{'tool': {'driver': {'name': 'Gitleaks'}}, 'results': results}]}
+          sarif = {'version': '2.1.0', 'runs': [{'tool': {'driver': {'name': 'gitleaks'}}, 'results': results}]}
           with open('results/gitleaks.sarif', 'w') as fh:
               json.dump(sarif, fh, indent=2)
           print(f'Gitleaks findings: {len(results)}')
@@ -338,7 +338,7 @@ jobs:
             -F "findingsCount=${FINDINGS}" \
             "${SAST_API_URL}/api/v1/ci/upload" || echo "Upload failed"
 
-  gcc-analyzer:
+  gcc-fanalyzer:
     needs: [init]
     name: GCC Analyzer
     runs-on: ubuntu-latest
@@ -423,7 +423,7 @@ jobs:
 
   # ─── Step 3: Finalize scan ──────────────────────────────────────
   finalize:
-    needs: [init, semgrep, cppcheck, flawfinder, gitleaks, clang-tidy, gcc-analyzer]
+    needs: [init, semgrep, cppcheck, flawfinder, gitleaks, clang-tidy, gcc-fanalyzer]
     if: always()
     name: Complete Scan
     runs-on: ubuntu-latest
@@ -436,7 +436,7 @@ jobs:
              [ "${{ needs.flawfinder.result }}" = "failure" ] && \
              [ "${{ needs.gitleaks.result }}" = "failure" ] && \
              [ "${{ needs.clang-tidy.result }}" = "failure" ] && \
-             [ "${{ needs.gcc-analyzer.result }}" = "failure" ]; then
+             [ "${{ needs.gcc-fanalyzer.result }}" = "failure" ]; then
             echo "status=failed" >> ${GITHUB_OUTPUT}
           else
             echo "status=completed" >> ${GITHUB_OUTPUT}
@@ -449,29 +449,9 @@ jobs:
           RESP=$(curl -s -X POST "${SAST_API_URL}/api/v1/ci/complete" \
             -H "Authorization: Bearer ${SAST_API_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"scanId\":\"${{ needs.init.outputs.scan_id }}\",\"status\":\"${{ steps.status.outputs.status }}\",\"tools\":[\"semgrep\",\"cppcheck\",\"flawfinder\",\"gitleaks\",\"clang-tidy\",\"gcc-analyzer\"],\"platform\":\"gitea\",\"trigger\":\"ci\"}" \
+            -d "{\"scanId\":\"${{ needs.init.outputs.scan_id }}\",\"status\":\"${{ steps.status.outputs.status }}\",\"tools\":[\"semgrep\",\"cppcheck\",\"flawfinder\",\"gitleaks\",\"clang-tidy\",\"gcc-fanalyzer\"],\"platform\":\"gitea\",\"trigger\":\"ci\"}" \
             || echo '{"data":{"qualityGate":null}}')
           echo "Complete response: ${RESP}"
           GATE_STATUS=$(echo "${RESP}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('qualityGate',{}).get('status','unknown') if d.get('data',{}).get('qualityGate') else 'unknown')" 2>/dev/null || echo "unknown")
           echo "gate_status=${GATE_STATUS}" >> ${GITHUB_OUTPUT}
           echo "Quality Gate: ${GATE_STATUS}"
-
-      - name: Post PR comment
-        if: github.event_name == 'pull_request'
-        run: |
-          apt-get update -qq && apt-get install -y -qq curl > /dev/null 2>&1
-          curl -s -X POST "${SAST_API_URL}/api/v1/ci/pr-comment" \
-            -H "Authorization: Bearer ${SAST_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d "{\"scanId\":\"${{ needs.init.outputs.scan_id }}\",\"repoName\":\"${GITHUB_REPOSITORY}\",\"prNumber\":${{ github.event.pull_request.number }}}" \
-            || echo "PR comment failed (non-critical)"
-
-      - name: Set commit status
-        run: |
-          apt-get update -qq && apt-get install -y -qq curl > /dev/null 2>&1
-          curl -s -X POST "${SAST_API_URL}/api/v1/ci/commit-status" \
-            -H "Authorization: Bearer ${SAST_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d "{\"scanId\":\"${{ needs.init.outputs.scan_id }}\",\"repoName\":\"${GITHUB_REPOSITORY}\",\"commitSha\":\"${{ github.sha }}\"}" \
-            || echo "Commit status failed (non-critical)"
-          echo "Scan ${{ needs.init.outputs.scan_id }} marked as ${{ steps.status.outputs.status }}"

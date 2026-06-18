@@ -35,12 +35,13 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
 const updateFindingSchema = z.object({
   status: z.string().optional(),
+  verdict: z.string().optional(),
   assignedTo: z.string().optional(),
 });
 
 /**
  * PATCH /api/v1/workspaces/:workspaceId/findings/:findingId
- * Update finding status or assignment.
+ * Update finding status, verdict, or assignment.
  */
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const auth = await authenticate(request);
@@ -53,15 +54,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const validation = await validateBody(request, updateFindingSchema);
     if (!validation.success) return validation.response;
-    const { status, assignedTo } = validation.data;
+    const { status, verdict, assignedTo } = validation.data;
 
     let result;
-    if (status) {
+    if (verdict) {
+      result = await findingService.updateVerdict(findingId, verdict, userId);
+    } else if (status) {
       result = await findingService.updateStatus(findingId, status, userId);
     } else if (assignedTo !== undefined) {
       result = await findingService.assign(findingId, assignedTo);
     } else {
-      return ApiResponse.error('Either status or assignedTo is required', 'VALIDATION_ERROR', undefined, 400);
+      return ApiResponse.error('One of status, verdict, or assignedTo is required', 'VALIDATION_ERROR', undefined, 400);
     }
 
     return ApiResponse.success('Finding updated', result);

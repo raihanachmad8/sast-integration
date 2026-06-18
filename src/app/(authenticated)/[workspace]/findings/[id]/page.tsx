@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useState } from 'react';
-import { useRouter } from 'next/navigation';
+
 import { App, Button, Card, Modal, Select, Typography, Row, Col, Avatar, Input, Flex, Badge, theme } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
 
@@ -14,17 +14,16 @@ import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { useSessionData } from '@/modules/auth/queries';
-import { useFindingQuery, useVerifyFindingMutation, useUpdateFindingMutation } from '@/modules/findings';
+import { useFindingQuery, useVerifyFindingMutation, useUpdateFindingMutation, useCommentsQuery, useAddCommentMutation } from '@/modules/findings';
 import { useMembersQuery } from '@/modules/members';
 import { errorMessage } from '@/lib/api/errors';
-import type { Finding } from '@/commons/types';
+import type { Finding, Comment } from '@/commons/types';
 import type { Member } from '@/commons/types';
 
 const { Title, Text } = Typography;
 
 export default function FindingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const _router = useRouter();
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const session = useSessionData();
@@ -34,6 +33,8 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
   const membersQuery = useMembersQuery(session.data?.workspace?.id ?? '');
   const verifyMutation = useVerifyFindingMutation();
   const updateFindingMutation = useUpdateFindingMutation();
+  const commentsQuery = useCommentsQuery(id);
+  const addCommentMutation = useAddCommentMutation(id);
 
   const finding = (findingQuery.data ?? null) as unknown as {
     id: string; rule: string; scanner: string; severity: string; status: string;
@@ -41,16 +42,17 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
     cwe: string; repo: string; assignee: string | null;
     verdict: string; model: string; confidence: number | null;
     explanation: string | null; dataFlow: string | null; taintSource: string | null;
+    matchDetail: string | null; likelyCwe: string[] | null;
     fixSuggestion: string | null; message: string | null; description: string | null;
     file: string; cweId: string | null; lineNumberOrig: number;
   } | null;
   const members = (membersQuery.data ?? []) as Member[];
+  const comments = (commentsQuery.data ?? []) as Comment[];
 
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [overrideVerdict, setOverrideVerdict] = useState<'TP' | 'FP'>('TP');
   const [assignee, setAssignee] = useState<string | null>(finding?.assignee ?? null);
   const [commentText, setCommentText] = useState('');
-  const [comments, setComments] = useState<Array<{ id: string; author: string; avatar: string; time: string; text: string }>>([]);
 
   if (findingQuery.isLoading) return <LoadingState text="Loading finding..." />;
   if (findingQuery.isError) return <ErrorState title="Error" description={errorMessage(findingQuery.error)} />;
@@ -67,8 +69,14 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
   const handleSendComment = () => {
     const trimmed = commentText.trim();
     if (!trimmed) return;
-    setComments((prev) => [...prev, { id: String(Date.now()), author: 'You', avatar: 'RO', time: 'just now', text: trimmed }]);
-    setCommentText('');
+    addCommentMutation.mutate(trimmed, {
+      onSuccess: () => {
+        setCommentText('');
+      },
+      onError: () => {
+        message.error('Failed to add comment');
+      },
+    });
   };
 
   return (
@@ -136,6 +144,10 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
                   verdict={finding.verdict}
                   reasoning={finding.explanation ?? 'Analysis pending.'}
                   cwe={finding.cwe}
+                  matchDetail={finding.matchDetail}
+                  likelyCwe={finding.likelyCwe}
+                  dataFlow={finding.dataFlow}
+                  taintSource={finding.taintSource}
                   remediation={finding.fixSuggestion ?? 'Remediation pending.'}
                   knowledgeUses={0}
                 />
@@ -152,13 +164,15 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
                 <Flex vertical gap={token.marginSM}>
                   {comments.map((c) => (
                     <Flex key={c.id} gap={token.marginSM} align="flex-start">
-                      <Avatar size={32} style={{ background: token.colorTextSecondary, fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong }}>{c.avatar}</Avatar>
+                      <Avatar size={32} style={{ background: token.colorTextSecondary, fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong }}>
+                        {c.createdByName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+                      </Avatar>
                       <Flex vertical flex={1} gap={0} style={{ minWidth: 0 }}>
                         <Flex align="baseline" gap={token.marginXS}>
-                          <Text strong>{c.author}</Text>
-                          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{c.time}</Text>
+                          <Text strong>{c.createdByName}</Text>
+                          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{new Date(c.createdAt).toLocaleString()}</Text>
                         </Flex>
-                        <Text style={{ lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{c.text}</Text>
+                        <Text style={{ lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{c.content}</Text>
                       </Flex>
                     </Flex>
                   ))}
@@ -167,7 +181,7 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
                   <Avatar size={32} style={{ background: token.colorTextSecondary, fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong }}>RO</Avatar>
                   <Flex flex={1} gap={token.marginXS} align="flex-end">
                     <Input.TextArea value={commentText} onChange={(e) => setCommentText(e.target.value)} placeholder="Add a comment or review note…" autoSize={{ minRows: 1, maxRows: 4 }} style={{ flex: 1 }} />
-                    <Button type="primary" icon={<SendOutlined />} disabled={!commentText.trim()} onClick={handleSendComment} style={{ width: 36, height: 36, minWidth: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: token.borderRadius }} />
+                    <Button type="primary" icon={<SendOutlined />} disabled={!commentText.trim() || addCommentMutation.isPending} onClick={handleSendComment} loading={addCommentMutation.isPending} style={{ width: 36, height: 36, minWidth: 36, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: token.borderRadius }} />
                   </Flex>
                 </Flex>
               </Flex>
@@ -184,8 +198,11 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
                 <Flex vertical gap={token.marginSM}>
                   <Text style={sectionTitleStyle}>Human decision</Text>
                   <Button type="primary" block onClick={() => {
+                    // Map frontend verdict format to backend format
+                    const verdictMap: Record<string, string> = { 'TP': 'true_positive', 'FP': 'false_positive' };
+                    const backendVerdict = verdictMap[finding.verdict] ?? finding.verdict;
                     updateFindingMutation.mutate(
-                      { id: finding.id, payload: { verdict: finding.verdict, status: 'verified' } },
+                      { id: finding.id, payload: { verdict: backendVerdict } },
                       {
                         onSuccess: () => { message.success('AI verdict accepted'); findingQuery.refetch(); },
                         onError: () => message.error('Failed to accept verdict'),
@@ -217,7 +234,20 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
               <Card styles={{ body: { padding: token.paddingXL } }} style={{ height: '100%' }}>
                 <Flex vertical gap={token.marginSM}>
                   <Text style={sectionTitleStyle}>Assignee</Text>
-                  <MemberSelect members={members.map((m: Member) => ({ name: m.name, initials: m.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase(), color: token.colorPrimary }))} value={assignee} onChange={(name) => { setAssignee(name); if (name) message.success(`Assigned to ${name}`); }} placeholder="Assign to reviewer" />
+                  <MemberSelect members={members.map((m: Member) => ({ name: m.name, initials: m.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase(), color: token.colorPrimary }))} value={assignee} onChange={(name) => { 
+                    setAssignee(name);
+                    // Find member ID by name, then persist via API
+                    const member = members.find((m: Member) => m.name === name);
+                    if (member) {
+                      updateFindingMutation.mutate(
+                        { id: finding.id, payload: { assignedTo: member.id } },
+                        {
+                          onSuccess: () => message.success(`Assigned to ${name}`),
+                          onError: () => message.error('Failed to assign'),
+                        }
+                      );
+                    }
+                  }} placeholder="Assign to reviewer" />
                 </Flex>
               </Card>
             </Col>

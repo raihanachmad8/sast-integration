@@ -1,5 +1,6 @@
 import { type NewFinding } from '@drizzle/schema/findings';
 import { logger } from '@/server/lib/logger';
+import type { ParseResult } from './index';
 
 /**
  * Flawfinder parser — converts Flawfinder output into normalized findings.
@@ -60,7 +61,7 @@ export function parseFlawfinder(
   textContent: string | Buffer,
   scanId: string,
   scanner: string = 'flawfinder'
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const text = typeof textContent === 'string' ? textContent : textContent.toString('utf8');
 
   logger.scan.debug('parseFlawfinder input', { length: text.length, first100: text.substring(0, 100) });
@@ -92,7 +93,7 @@ function parseFlawfinderText(
   text: string,
   scanId: string,
   scanner: string
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const findings: NewFinding[] = [];
   const severityCount: Record<string, number> = {
     critical: 0, high: 0, medium: 0, low: 0, info: 0,
@@ -141,7 +142,7 @@ function parseFlawfinderSarif(
   sarif: Record<string, unknown>,
   scanId: string,
   scanner: string
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const findings: NewFinding[] = [];
   const severityCount: Record<string, number> = {
     critical: 0, high: 0, medium: 0, low: 0, info: 0,

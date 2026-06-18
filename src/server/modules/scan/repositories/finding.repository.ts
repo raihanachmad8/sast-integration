@@ -1,6 +1,7 @@
 import { eq, and, desc, count, sql, inArray, isNull, type InferInsertModel } from 'drizzle-orm';
 import { db } from '@/server/db/client';
-import { findings, findingGroups, aiVerifications, findingHistory } from '@drizzle/schema/findings';
+import { findings, findingGroups, aiVerifications, findingHistory, comments } from '@drizzle/schema/findings';
+import { users } from '@drizzle/schema/users';
 import { projects } from '@drizzle/schema/projects';
 import { scans } from '@drizzle/schema/scans';
 import { repositories } from '@drizzle/schema/source-controls';
@@ -608,6 +609,7 @@ export const findingRepository = {
       ));
 
     // Main query: findings on head branch whose fingerprint is NOT on base branch
+    // Left join ai_verifications to get verdict/confidence
     const data = await executor
       .select({
         id: findings.id,
@@ -625,10 +627,13 @@ export const findingRepository = {
         scanner: findings.scanner,
         message: findings.message,
         createdAt: findings.createdAt,
+        aiVerdict: aiVerifications.verdict,
+        confidence: aiVerifications.confidence,
       })
       .from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
       .innerJoin(scans, eq(findings.scanId, scans.id))
+      .leftJoin(aiVerifications, eq(findings.id, aiVerifications.findingId))
       .where(and(
         eq(scans.branch, headBranch),
         eq(scans.status, 'completed'),
@@ -739,5 +744,64 @@ export const findingRepository = {
       ));
 
     return { data, total };
+  },
+};
+
+// ── Comments ──────────────────────────────────────────────────
+
+export const commentRepository = {
+  /**
+   * List comments for a finding, ordered by creation date.
+   * Joins with users to get author name and avatar.
+   */
+  async listByFinding(findingId: string, tx?: Tx) {
+    const executor = tx ?? db;
+    return executor
+      .select({
+        id: comments.id,
+        findingId: comments.findingId,
+        content: comments.content,
+        createdAt: comments.createdAt,
+        updatedAt: comments.updatedAt,
+        authorName: users.name,
+        authorEmail: users.email,
+      })
+      .from(comments)
+      .innerJoin(users, eq(comments.createdBy, users.id))
+      .where(and(eq(comments.findingId, findingId), isNull(comments.deletedAt)))
+      .orderBy(comments.createdAt);
+  },
+
+  /**
+   * Create a comment on a finding.
+   */
+  async create(data: {
+    findingId: string;
+    content: string;
+    createdBy: string;
+  }, tx?: Tx) {
+    const executor = tx ?? db;
+    const [comment] = await executor
+      .insert(comments)
+      .values({
+        findingId: data.findingId,
+        content: data.content,
+        createdBy: data.createdBy,
+      })
+      .returning();
+    return comment;
+  },
+
+  /**
+   * Soft-delete a comment (set deletedAt + deletedBy).
+   */
+  async softDelete(commentId: string, deletedBy: string, tx?: Tx) {
+    const executor = tx ?? db;
+    const [updated] = await executor
+      .update(comments)
+      .set({ deletedAt: new Date(), deletedBy })
+      .where(eq(comments.id, commentId))
+      .returning();
+    return updated ?? null;
   },
 };

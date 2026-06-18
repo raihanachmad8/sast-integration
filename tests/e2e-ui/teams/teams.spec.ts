@@ -1,23 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { gotoAuthPage } from '../auth/helpers';
-import { OWNER_DEFAULTS, ORG_DEFAULTS } from '../../../drizzle/seeds/constants';
+import { signInAndOpenWorkspace } from '../auth/helpers';
 
 test.describe.configure({ mode: 'serial' });
 
 async function signInAndGoToTeams(page: import('@playwright/test').Page) {
-  await gotoAuthPage(page, '/auth/signin', 'Sign in');
-  await page.getByPlaceholder('you@company.com').fill(OWNER_DEFAULTS.EMAIL);
-  await page.getByPlaceholder('Enter your password').fill(OWNER_DEFAULTS.PASSWORD);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-
-  await expect.poll(() => new URL(page.url()).pathname, { timeout: 15_000 }).toBe('/workspaces');
-
-  await page.locator('article').getByRole('button', { name: 'Open workspace' }).first().click();
-  await expect(page).toHaveURL(new RegExp(`/${ORG_DEFAULTS.SLUG}`), { timeout: 10_000 });
-
-  await page.getByText('SAST Workspace').waitFor({ state: 'visible', timeout: 10_000 });
-  await page.goto(`/${ORG_DEFAULTS.SLUG}/teams`);
-
+  const slug = await signInAndOpenWorkspace(page);
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(500);
+  await page.goto(`/${slug}/teams`);
   await expect(page.getByRole('heading', { name: 'Teams' })).toBeVisible({ timeout: 15_000 });
 }
 

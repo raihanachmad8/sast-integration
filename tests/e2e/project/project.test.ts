@@ -289,6 +289,7 @@ describe('Project API Token Management', () => {
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(Array.isArray(json.data)).toBe(true);
+    expect(json.meta.pagination).toBeDefined();
   });
 
   it('should revoke an API token', async () => {

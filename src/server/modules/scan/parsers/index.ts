@@ -58,7 +58,7 @@ function parseSarif(content: string | Buffer, scanId: string, scanner: string): 
         const rule = ruleMap.get(r.ruleId ?? '') as Record<string, unknown> | undefined;
         const defaultConfig = rule?.defaultConfiguration as { level?: string } | undefined;
         const level = r.level ?? defaultConfig?.level ?? 'warning';
-        const severity = (level === 'error' ? 'high' : level === 'warning' ? 'medium' : level === 'note' ? 'low' : 'low') as keyof typeof summary;
+        const severity = mapSarifLevelToSeverity(level);
         if (severity in summary) summary[severity]++;
 
         // Extract file path and line
@@ -149,6 +149,18 @@ export function parseScanResult(
   }
 
   return { findings: [], summary: {} };
+}
+
+// ─── Helpers ───────────────────────────────────────────────────
+
+/**
+ * Map SARIF level to severity.
+ */
+function mapSarifLevelToSeverity(level: string | undefined): 'critical' | 'high' | 'medium' | 'low' | 'info' {
+  if (level === 'error') return 'high';
+  if (level === 'warning') return 'medium';
+  if (level === 'note') return 'low';
+  return 'low';
 }
 
 export { parseSemgrep, parseCppcheck, parseGitleaks, parseFlawfinder, parseClangTidy, parseGCCFanalyzer };

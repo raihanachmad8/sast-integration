@@ -32,6 +32,7 @@ export const teamRepository = {
         .select({
           teamId: projectTeams.teamId,
           projectName: projects.name,
+          projectId: projectTeams.projectId,
         })
         .from(projectTeams)
         .innerJoin(projects, eq(projectTeams.projectId, projects.id))
@@ -40,17 +41,23 @@ export const teamRepository = {
 
     const memberCountByTeam = new Map(memberCounts.map((row) => [row.teamId, row.memberCount]));
     const projectsByTeam = new Map<string, string[]>();
+    const projectIdsByTeam = new Map<string, string[]>();
     for (const row of projectRows) {
       if (!row.teamId || !row.projectName) continue;
       const current = projectsByTeam.get(row.teamId) ?? [];
       current.push(row.projectName);
       projectsByTeam.set(row.teamId, current);
+      
+      const currentIds = projectIdsByTeam.get(row.teamId) ?? [];
+      currentIds.push(row.projectId);
+      projectIdsByTeam.set(row.teamId, currentIds);
     }
 
     return rows.map((team) => ({
       ...team,
       memberCount: memberCountByTeam.get(team.id) ?? 0,
       projects: projectsByTeam.get(team.id) ?? [],
+      projectIds: projectIdsByTeam.get(team.id) ?? [],
     }));
   },
 

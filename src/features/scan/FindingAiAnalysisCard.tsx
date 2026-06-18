@@ -63,6 +63,17 @@ export function FindingAiAnalysisCard({ modelName, analysis }: FindingAiAnalysis
             </div>
           )}
 
+          {analysis.matchDetail && (
+            <div>
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Match Detail
+              </Text>
+              <Paragraph style={{ margin: `${token.marginXXS}px 0 0`, fontSize: token.fontSize, lineHeight: '1.6' }}>
+                {analysis.matchDetail}
+              </Paragraph>
+            </div>
+          )}
+
           {analysis.likelyCwe && analysis.likelyCwe.length > 0 && (
             <div>
               <Text type="secondary" style={{ fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>

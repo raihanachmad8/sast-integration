@@ -70,11 +70,11 @@ describe('PUT /api/v1/workspaces/[workspaceId]', () => {
   });
 });
 
-describe('PATCH /api/v1/users/me (switch workspace)', () => {
+describe('POST /api/v1/workspaces/switch', () => {
   it('should return 401 without token', async () => {
-    const res = await api('/users/me', {
-      method: 'PATCH',
-      body: JSON.stringify({ currentWorkspaceId: 'x' }),
+    const res = await api('/workspaces/switch', {
+      method: 'POST',
+      body: JSON.stringify({ currentWorkspaceId: '00000000-0000-0000-0000-000000000000' }),
     });
     expect(res.status).toBe(401);
   });
@@ -84,8 +84,8 @@ describe('PATCH /api/v1/users/me (switch workspace)', () => {
     const wsId = await getFirstWorkspaceId(token);
     if (!wsId) return;
 
-    const res = await api('/users/me', {
-      method: 'PATCH',
+    const res = await api('/workspaces/switch', {
+      method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ currentWorkspaceId: wsId }),
     });

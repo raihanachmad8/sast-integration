@@ -100,7 +100,6 @@ export default function FindingsPage() {
         onReverify={handleReverify}
         onOpenFullPage={handleOpenFullPage}
         onAssign={handleAssign}
-        onAddComment={() => {}}
       />
 
       <BulkAssignModal

@@ -3,4 +3,7 @@ export {
   useKnowledgeSourcesQuery,
   useKnowledgeEntriesQuery,
   useKnowledgeBaseQuery,
+  useUpdateKnowledgeEntryMutation,
+  useMuteKnowledgeEntryMutation,
+  useDeleteKnowledgeEntryMutation,
 } from './queries';

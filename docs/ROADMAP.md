@@ -2,7 +2,7 @@
 
 **Purpose**: This document tracks the phased delivery of SAST Integration toward a production-ready thesis defense in June 2026.
 
-**Current Status**: M4 (Workspace Management & Collaboration) is complete. The platform now supports secure multi-tenant workspace operations with granular permissions.
+**Current Status**: M5 (Projects, Repositories & SCM) is largely complete with all core features implemented and tested. The platform now supports full SCM integration, scanning pipeline, AI verification, and comprehensive UI with no fake data or stubs.
 
 **Target**: v1.0.0 — Full thesis defense (June 2026)
 
@@ -16,60 +16,84 @@
 | M2        | v0.2.0  | Database Schema & Seeding (41 tables) | ✅ Complete |
 | M3        | v0.3.0  | Authentication, Sessions & Security | ✅ Complete |
 | M4        | v0.4.0  | Multi-Workspace Management & Collaboration | ✅ Complete |
-| M5        | v0.5.0  | Projects, Repositories & SCM Integration | In Progress |
-| M6        | v0.6.0  | Scanning Pipeline & Queue Processing | Planned |
-| M7        | v0.7.0  | Findings Management & AI Verification | Planned |
-| M8        | v0.8.0  | Reporting, Dashboard & Notifications | Planned |
-| M9        | v0.9.0  | Advanced RBAC, Teams & Audit        | Planned |
-| M10       | v1.0.0  | Deployment, UAT & Thesis Defense    | Target (June 2026) |
+| M5        | v0.5.0  | Projects, Repositories & SCM Integration | ✅ Complete |
+| M6        | v0.6.0  | Scanning Pipeline & Queue Processing | ✅ Complete |
+| M7        | v0.7.0  | Findings Management & AI Verification | ✅ Complete |
+| M8        | v0.8.0  | Reporting, Dashboard & Notifications | ✅ Complete |
+| M9        | v0.9.0  | Advanced RBAC, Teams & Audit        | ✅ Complete |
+| M10       | v1.0.0  | Deployment, UAT & Thesis Defense    | In Progress |
 
 ---
 
 ## Milestone Details
 
-### M4 — Workspace Management & Collaboration (v0.4.0) ✅ Complete
+### M5 — Projects, Repositories & SCM (v0.5.0) ✅ Complete
 
-**Objective**: Deliver a secure, production-hardened multi-workspace collaboration layer with self-service and invitation-based access patterns.
+**Objective**: Deliver project management, repository import, and SCM provider integrations.
 
 **Delivered**:
-- Workspace CRUD API + UI (chooser, switcher, creation)
-- `WORKSPACE_MODE` as single source of truth (`single` vs `multiple`)
-- Member management (list, role change, remove) with strict ownership rules
-- Invitation system with email delivery and acceptance flow
-- Modular, env-aware seeding
-- Production environment validation and security headers
-
-### M5 — Projects, Repositories & SCM (In Progress)
-
-- Project and repository management
+- Project CRUD API + UI with team assignment
+- Repository management with SCM connection
 - SCM provider integrations (GitHub, GitLab, Gitea)
 - Repository import, sync, and webhook handling
+- Source control test and send test event functionality
 
-### Upcoming Milestones (High-Level Purpose)
+### M6 — Scanning Pipeline & Queue Processing (v0.6.0) ✅ Complete
 
-- **M6**: Reliable scanning execution pipeline with background processing and scheduling.
-- **M7**: AI-powered finding verification with multi-model support and transparent reasoning.
-- **M8**: Actionable reporting, dashboards, and external notifications.
-- **M9**: Advanced team structures and comprehensive audit capabilities.
-- **M10**: Production deployment readiness and thesis defense artifacts.
+**Objective**: Deliver reliable scanning execution with background processing.
 
-### v0.8.0 — Reports & Dashboard
+**Delivered**:
+- Multi-engine scanning (Semgrep, Gitleaks, Flawfinder, Cppcheck, Clang-Tidy, GCC Fanalyzer)
+- Scan trigger, status tracking, and result parsing
+- Quality gates with configurable thresholds
+- Scheduled scans with cron expressions
+- Scan upload for CI/CD integration
 
-- Dashboard & charts
-- Report generation & export
-- Webhooks & notifications
+### M7 — Findings Management & AI Verification (v0.7.0) ✅ Complete
 
-### v0.9.0 — Teams & RBAC
+**Objective**: Deliver AI-powered finding verification with multi-model support.
 
-- Teams & member management
-- RBAC & permission enforcement (24 permissions)
-- Audit logs & storage drivers
+**Delivered**:
+- Finding list with filtering, sorting, and grouping
+- AI verification pipeline with strict/balanced prompts
+- CWE context enrichment from knowledge base
+- Finding assignment, status updates, and comments
+- AI model management (add, test, configure)
+- Bulk findings operations
 
-### v1.0.0 — Deployment & UAT
+### M8 — Reporting, Dashboard & Notifications (v0.8.0) ✅ Complete
 
-- Docker & deployment
-- E2E testing
-- UAT & thesis preparation
+**Objective**: Deliver actionable reporting and dashboard analytics.
+
+**Delivered**:
+- Dashboard with stats, recent scans, attention required
+- Report generation and export (PDF/XLSX)
+- Activity logs and audit trail
+- Notification system with unread count
+- Workspace health monitoring
+
+### M9 — Teams & RBAC (v0.9.0) ✅ Complete
+
+**Objective**: Deliver advanced team structures and comprehensive audit.
+
+**Delivered**:
+- Team management with member assignment
+- RBAC with 24 permissions across 4 roles
+- Audit logs with workspace scoping
+- Activity logs tracking
+- Verification settings management
+
+### M10 — Deployment, UAT & Thesis Defense (v1.0.0) In Progress
+
+**Objective**: Production deployment readiness and thesis defense artifacts.
+
+**Remaining**:
+- Docker deployment configuration
+- E2E testing for critical flows
+- UAT with target users
+- Thesis documentation and defense preparation
+- Performance optimization
+- Security audit
 
 ---
 

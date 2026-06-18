@@ -31,7 +31,7 @@ export function TableFooter({
   pageSize,
   total,
   onChange,
-  pageSizeOptions = ['10', '25', '50', '100', '250'],
+  pageSizeOptions = ['10', '25', '50', '100'],
 }: TableFooterProps) {
   const { token } = theme.useToken();
   const from = Math.min((current - 1) * pageSize + 1, total);

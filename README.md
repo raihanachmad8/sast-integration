@@ -20,7 +20,7 @@ This project was developed as a thesis and is targeted for defense in **June 202
 
 ## Core Capabilities
 
-- **Multi-Engine SAST Scanning** — Integration with Semgrep, Gitleaks, and Flawfinder.
+- **Multi-Engine SAST Scanning** — Integration with Semgrep, Gitleaks, Flawfinder, Cppcheck, Clang-Tidy, and GCC Fanalyzer.
 - **AI-Assisted Verification** — QLoRA fine-tuned models to classify findings as True Positive / False Positive with per-model reasoning.
 - **Multi-Workspace Architecture** — Isolated workspaces with granular RBAC (24 permissions across 4 roles: Owner, Manager, Reviewer, Member).
 - **Self-Service & Invitation Workflows** — Personal workspace creation in multiple mode; email-based invitations with role assignment.
@@ -62,7 +62,7 @@ The platform supports two distinct operating models, controlled by the `WORKSPAC
 
 ## Current Status
 
-The platform has completed the foundational architecture and the complete multi-workspace collaboration layer (M4).
+The platform has completed milestones M1 through M9, covering project setup, database schema, authentication, workspace management, SCM integration, scanning pipeline, AI verification, reporting, and advanced RBAC. M10 (Deployment, UAT & Thesis Defense) is in progress.
 
 | Milestone | Version | Status |
 |-----------|---------|--------|
@@ -70,8 +70,12 @@ The platform has completed the foundational architecture and the complete multi-
 | M2: Database & Schema (41 tables) | v0.2.0 | ✅ Complete |
 | M3: Authentication & Sessions | v0.3.0 | ✅ Complete |
 | M4: Workspace Management & Collaboration | v0.4.0 | ✅ Complete |
-| M5: Projects, Repositories & SCM | v0.5.0 | In Progress |
-| M6–M10 | — | Planned |
+| M5: Projects, Repositories & SCM | v0.5.0 | ✅ Complete |
+| M6: Scanning Pipeline & Queue Processing | v0.6.0 | ✅ Complete |
+| M7: Findings Management & AI Verification | v0.7.0 | ✅ Complete |
+| M8: Reporting, Dashboard & Notifications | v0.8.0 | ✅ Complete |
+| M9: Advanced RBAC, Teams & Audit | v0.9.0 | ✅ Complete |
+| M10: Deployment, UAT & Thesis Defense | v1.0.0 | In Progress |
 
 For the detailed milestone breakdown and remaining scope, see [docs/ROADMAP.md](docs/ROADMAP.md).
 
@@ -124,6 +128,11 @@ pnpm build         # Production build
 | [CONVENTIONS.md](docs/CONVENTIONS.md) | Coding standards |
 | [PROJECT_STANDARDS.md](docs/PROJECT_STANDARDS.md) | Architecture & patterns |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker deployment |
+| [SCANNER.md](docs/SCANNER.md) | Scanner engine configuration |
+| [TESTING.md](docs/TESTING.md) | Testing standards & patterns |
+| [UI_UX_GUIDELINES.md](docs/UI_UX_GUIDELINES.md) | UI/UX component guidelines |
+| [CLAUDE.md](CLAUDE.md) | AI agent project rules |
+| [API Reference](docs/api/) | Endpoint documentation (auth, scans, findings, etc.) |
 
 ---
 

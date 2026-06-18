@@ -4,9 +4,9 @@ export const API_URL = `${BASE_URL}/api/v1`;
 
 /** Test user fixtures */
 export const TEST_USER = {
-  email: 'admin@sast.local',
+  email: 'owner@sast.local',
   password: 'ChangeMe123!',
-  name: 'Admin',
+  name: 'Owner',
 } as const;
 
 export const INVALID_USER = {

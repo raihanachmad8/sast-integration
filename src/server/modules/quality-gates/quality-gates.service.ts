@@ -5,6 +5,12 @@ import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
 
 export const qualityGatesService = {
+  /**
+   * Retrieve the quality gate configuration for a workspace.
+   *
+   * @param workspaceId - Workspace UUID to fetch the config for
+   * @returns Quality gate config record, or null if not configured
+   */
   async getConfig(workspaceId: string) {
     logger.scan.info('get quality gate config', { workspaceId });
     const config = await qualityGatesRepository.getConfig(workspaceId);
@@ -12,6 +18,18 @@ export const qualityGatesService = {
     return config;
   },
 
+  /**
+   * Create or update the quality gate configuration for a workspace.
+   *
+   * Validates the user is a workspace member, parses and validates the config
+   * data against the quality gate schema, then upserts the configuration.
+   *
+   * @param data - Raw configuration data (validated against qualityGateConfigSchema)
+   * @param workspaceId - Workspace UUID to update the config for
+   * @param userId - User UUID requesting the update
+   * @returns Upserted quality gate configuration record
+   * @throws {AppError} If the user is not a workspace member (403)
+   */
   async updateConfig(data: unknown, workspaceId: string, userId: string) {
     logger.scan.info('update quality gate config', { workspaceId });
     const role = await workspaceRepository.getMemberRole(workspaceId, userId);

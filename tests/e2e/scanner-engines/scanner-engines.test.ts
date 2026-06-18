@@ -17,11 +17,21 @@ async function getAccessToken(): Promise<string> {
   return json.data.accessToken;
 }
 
+async function getFirstWorkspaceId(token: string): Promise<string | null> {
+  const res = await fetch(`${API_BASE}/api/v1/workspaces`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const json = await res.json();
+  return json.data?.[0]?.id ?? null;
+}
+
 describe('GET /api/v1/scanner-engines', () => {
   let token: string;
+  let WORKSPACE_ID: string;
 
   beforeAll(async () => {
     token = await getAccessToken();
+    WORKSPACE_ID = (await getFirstWorkspaceId(token)) ?? '';
   });
 
   it('should return 401 without token', async () => {

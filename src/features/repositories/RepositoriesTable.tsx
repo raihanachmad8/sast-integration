@@ -7,6 +7,7 @@ import { DataTable, type DataTableColumn, type ActionConfig } from '@/components
 import { StatusPill } from '@/components/shared/StatusPill';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useRepositoriesQuery } from '@/modules/repositories';
+import { useProjectsQuery } from '@/modules/projects/queries';
 import type { Repository } from '@/commons/types';
 
 interface RepositoriesTableProps {
@@ -55,6 +56,12 @@ export function RepositoriesTable({ onRowClick, onAssignProject }: RepositoriesT
     project: params.filters.project || undefined,
     imported: true,
   });
+
+  const projectsQuery = useProjectsQuery({ page: 1, perPage: 200 });
+  const projectOptions = useMemo(() =>
+    (projectsQuery.data?.data ?? []).map((p: { id: string; name: string }) => ({ value: p.id, label: p.name })),
+    [projectsQuery.data?.data]
+  );
 
   const rows = useMemo(() => (query.data?.data ?? []).map((r: Record<string, unknown>) => ({
     id: r.id as string,
@@ -186,7 +193,7 @@ export function RepositoriesTable({ onRowClick, onAssignProject }: RepositoriesT
       filters={[
         { key: 'status', label: 'Status', placeholder: 'All statuses', options: STATUS_OPTIONS },
         { key: 'provider', label: 'Provider', placeholder: 'All providers', options: PROVIDER_OPTIONS },
-        { key: 'project', label: 'Project', placeholder: 'All projects', options: [], searchable: true },
+        { key: 'project', label: 'Project', placeholder: 'All projects', options: projectOptions, searchable: true },
       ]}
       filterValues={params.filters}
       onFilterChange={setFilter}

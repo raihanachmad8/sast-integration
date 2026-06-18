@@ -40,9 +40,9 @@ export function ProjectsTable({ onView }: ProjectsTableProps) {
   const teamsQuery = useTeamsQuery({ page: 1, perPage: 200 });
   const membersQuery = useMembersQuery(workspaceId ?? '', { page: 1, perPage: 200 });
 
-  const repoOptions = (reposQuery.data?.data ?? []).map((r) => ({ value: r.name, label: r.name }));
-  const teamOptions = (teamsQuery.data?.data ?? []).map((t) => ({ value: t.name, label: t.name }));
-  const memberOptions = (membersQuery.data?.data ?? []).map((m) => ({ value: m.email, label: `${m.name} (${m.email})` }));
+  const repoOptions = (reposQuery.data?.data ?? []).map((r) => ({ value: r.id, label: r.name }));
+  const teamOptions = (teamsQuery.data?.data ?? []).map((t) => ({ value: t.id, label: t.name }));
+  const memberOptions = (membersQuery.data?.data ?? []).map((m) => ({ value: m.userId, label: `${m.name} (${m.email})` }));
 
   const activeFilters = useMemo(() => {
     const filters = [];
