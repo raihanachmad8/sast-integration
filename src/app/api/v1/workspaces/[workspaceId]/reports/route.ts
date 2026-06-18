@@ -49,22 +49,31 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 }
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
-  logger.report.info('generateReport');
+  const start = Date.now();
+  logger.report.info('generateReport:start');
   const auth = await authenticate(request);
-  if (!auth.success) return auth.response;
+  if (!auth.success) {
+    logger.report.warn('generateReport:authFailed');
+    return auth.response;
+  }
 
   const { workspaceId } = await params;
   const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.REPORT_EXPORT);
-  if (!workspace.success) return workspace.response;
+  if (!workspace.success) {
+    logger.report.warn('generateReport:permissionDenied', { workspaceId });
+    return workspace.response;
+  }
 
   try {
     const body = await request.json();
     const parsed = createReportSchema.safeParse(body);
     if (!parsed.success) {
+      logger.report.warn('generateReport:validationFailed', { issues: parsed.error.issues });
       return ApiResponse.error('Validation failed', 'VALIDATION_ERROR', { fields: parsed.error.issues }, 422);
     }
 
     const { type, title, format, range } = parsed.data;
+    logger.report.info('generateReport:processing', { type, title, format, range, workspaceId });
 
     const report = await reportsService.generate(
       { type, title: title ?? `${type} report`, format, range },
@@ -72,10 +81,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       auth.context.userId,
     );
 
-    logger.report.info('generateReport completed', { reportId: report.id });
+    logger.report.info('generateReport:completed', { reportId: report.id, status: report.status, ms: Date.now() - start });
     return ApiResponse.created('Report generated', report);
   } catch (error) {
-    logger.report.error('generateReport failed', { error: error instanceof Error ? error.message : error });
+    logger.report.error('generateReport:failed', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      ms: Date.now() - start,
+    });
     if (error instanceof AppError) return ApiResponse.error(error.message, error.code, undefined, error.statusCode);
     return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
   }

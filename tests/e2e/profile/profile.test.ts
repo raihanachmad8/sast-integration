@@ -28,10 +28,10 @@ describe('GET /api/v1/users/profile', () => {
   });
 });
 
-describe('PATCH /api/v1/users/me', () => {
+describe('PUT /api/v1/users/profile', () => {
   it('should return 401 without token', async () => {
-    const res = await api('/users/me', {
-      method: 'PATCH',
+    const res = await api('/users/profile', {
+      method: 'PUT',
       body: JSON.stringify({ name: 'Updated' }),
     });
     expect(res.status).toBe(401);
@@ -39,16 +39,18 @@ describe('PATCH /api/v1/users/me', () => {
 
   it('should update user profile', async () => {
     const token = await getAccessToken();
-    const res = await api('/users/me', {
-      method: 'PATCH',
+    const res = await api('/users/profile', {
+      method: 'PUT',
       headers: { Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name: TEST_USER.email }),
+      body: JSON.stringify({ name: 'Updated Name' }),
     });
+    const json = await res.json();
     expect(res.status).toBe(200);
+    expect(json.success).toBe(true);
   });
 });
 
-describe('GET /api/v1/users/me (sessions)', () => {
+describe('GET /api/v1/auth/sessions', () => {
   it('should return 401 without token', async () => {
     const res = await api('/auth/sessions');
     expect(res.status).toBe(401);

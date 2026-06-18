@@ -127,6 +127,7 @@ export interface Team {
   description: string;
   memberCount: number;
   projects: string[];
+  projectIds?: string[];
   createdAt: string;
 }
 
@@ -179,6 +180,9 @@ export interface Project {
   repositories: string[];
   teams: string[];
   members: string[];
+  repositoryIds?: string[];
+  teamIds?: string[];
+  memberIds?: string[];
   memberNames?: string[];
   teamNames?: string[];
   automation: string[];

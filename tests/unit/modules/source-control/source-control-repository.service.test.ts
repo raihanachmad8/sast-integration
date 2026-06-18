@@ -199,15 +199,17 @@ describe('sourceControlRepositoryService', () => {
       });
 
       (db.execute as any).mockResolvedValue(undefined); // backfill
-      (db.delete as any).mockReturnValue({
-        where: vi.fn().mockResolvedValue(undefined),
+      (db.update as any).mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue(undefined),
+        }),
       });
 
       // No incoming repos (all are stale)
       await sourceControlRepositoryService.upsertMany('conn-123', 'ws-456', []);
 
-      // Should hard-delete because no import references it
-      expect(db.delete).toHaveBeenCalled();
+      // Should soft-delete (set deletedAt) because no import references it
+      expect(db.update).toHaveBeenCalled();
     });
   });
 });

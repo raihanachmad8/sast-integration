@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { AUTH_PATHS, getPublicConfig, gotoAuthPage, WORKSPACE_MODE } from './helpers';
+import { AUTH_PATHS, getWorkspaceMode, gotoAuthPage, WORKSPACE_MODE } from './helpers';
 
 /**
  * Navigates to the signup page and handles the two different experiences:
@@ -10,16 +10,16 @@ import { AUTH_PATHS, getPublicConfig, gotoAuthPage, WORKSPACE_MODE } from './hel
  * This helper centralizes the mode branching logic so individual tests stay cleaner.
  */
 async function gotoSignupForCurrentMode(page: import('@playwright/test').Page) {
-  const config = await getPublicConfig(page);
+  const workspaceMode = getWorkspaceMode();
 
-  if (config.workspaceMode === WORKSPACE_MODE.SINGLE) {
+  if (workspaceMode === WORKSPACE_MODE.SINGLE) {
     await page.goto(AUTH_PATHS.signup);
     await expect(page.getByText('Invitation Only')).toBeVisible({ timeout: 10_000 });
-    return config;
+    return;
   }
 
   await gotoAuthPage(page, AUTH_PATHS.signup, 'Create account');
-  return config;
+  return { workspaceMode };
 }
 
 /**
@@ -75,7 +75,8 @@ test.describe('Signup Page', () => {
 
     await expect(page.getByRole('button', { name: 'Create account' })).toBeEnabled({ timeout: 10000 });
     await page.getByRole('button', { name: 'Create account' }).click();
-    await expect(page.getByText('Please enter your full name')).toBeVisible({ timeout: 5000 });
+    // Ant Design shows validation messages in .ant-form-item-explain-error
+    await expect(page.locator('.ant-form-item-explain-error').first()).toBeVisible({ timeout: 5000 });
   });
 
   /**

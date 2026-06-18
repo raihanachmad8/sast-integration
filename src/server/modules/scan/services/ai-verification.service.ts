@@ -1,50 +1,121 @@
 import { logger } from '@/server/lib/logger';
 import { aiVerificationRepository } from '../repositories/ai-verification.repository';
 import { findingRepository } from '../repositories/finding.repository';
+import { knowledgeBaseRepository } from '@/server/modules/knowledge-base/knowledge-base.repository';
 import { AppError } from '@/server/http/errors';
 import { SCAN } from '../constants';
+import type { AiModelResponse } from '@/commons/types/findings';
+
+/**
+ * System prompt for AI verification — strict rules from thesis research.
+ * Ensures model defaults to TP unless clear proof of safety exists.
+ */
+const SYSTEM_PROMPT = `You are a strict security auditor. Your job is to verify scanner findings.
+
+IMPORTANT RULES:
+- Default assumption: the scanner is CORRECT (true_positive) unless you see CLEAR mitigation
+- Only classify as "false_positive" if ALL of these are true:
+  1. There is EXPLICIT bounds checking, input validation, or sanitization in the visible code
+  2. The mitigation FULLY prevents exploitation (partial mitigation = still true_positive)
+  3. The dangerous function is called AFTER the validation succeeds
+- If the code uses dangerous functions (strcpy, gets, system, sprintf) WITHOUT visible bounds checking → true_positive
+- If you are unsure → true_positive
+- "The code might be safe" is NOT enough for false_positive. You need PROOF of safety.
+
+Return ONLY valid JSON. No markdown, no explanation outside the JSON.`;
 
 /**
  * Prompt templates for AI verification.
  * Based on the thesis research with Qwen2.5-Coder-SVA model.
  */
 const PROMPT_TEMPLATES = {
-  strict: `You are a security code reviewer. Analyze the following code finding and determine if it is a TRUE POSITIVE or FALSE POSITIVE.
-
-Code Snippet:
-{code}
-
-Scanner Rule: {rule}
-File: {file_path}
-Line: {line_number}
+  strict: `Scanner: {rule}
+CWE: {cwe_id}
+File: {file_path}:{line_number}
 Message: {message}
 
-CWE Context: {cwe_context}
+{cwe_context}
+
+Source code:
+\`\`\`
+{code}
+\`\`\`
+
+Is this a true positive (real vulnerability) or false positive (safe code)?
 
 Respond with JSON:
 {
   "verdict": "true_positive" or "false_positive",
   "confidence": 0.0-1.0,
-  "reasoning": "Brief explanation",
-  "fix_suggestion": "Suggested fix if true positive"
+  "explanation": "detailed explanation",
+  "data_flow": "how tainted data reaches the sink (source → transform → sink)",
+  "taint_source": "untrusted input origin",
+  "match_detail": "what the scanner found and why it flagged this",
+  "likely_cwe": ["CWE-XXX"],
+  "fix_suggestion": "specific code fix"
 }`,
 
-  balanced: `You are a security code reviewer. Analyze this finding:
-{rule} at {file_path}:{line_number}
+  balanced: `Scanner: {rule}
+CWE: {cwe_id}
+File: {file_path}:{line_number}
 Message: {message}
 
-Code:
+{cwe_context}
+
+Source code:
+\`\`\`
 {code}
+\`\`\`
 
 Is this a true positive or false positive? Respond with JSON:
 {
   "verdict": "true_positive" or "false_positive",
   "confidence": 0.0-1.0,
-  "reasoning": "Brief explanation"
+  "explanation": "brief explanation",
+  "data_flow": "how tainted data reaches the sink",
+  "taint_source": "untrusted input origin",
+  "match_detail": "what the scanner found",
+  "likely_cwe": ["CWE-XXX"],
+  "fix_suggestion": "suggested fix"
 }`,
 };
 
 export const aiVerificationService = {
+  /**
+   * Build rich CWE context string from knowledge base entries (global).
+   * Queries knowledge_entries matching the finding's CWE ID.
+   * Falls back to plain CWE ID if no knowledge base entries found.
+   *
+   * @param cweId - CWE identifier (e.g. "CWE-787")
+   * @returns Formatted CWE context string for prompt injection
+   */
+  async buildCweContext(cweId: string | null): Promise<string> {
+    if (!cweId) return 'No CWE information available.';
+
+    try {
+      const entries = await knowledgeBaseRepository.findByCweId(cweId);
+      if (entries.length === 0) return `CWE: ${cweId}`;
+
+      const entry = entries[0];
+      const parts: string[] = [`CWE Knowledge (${cweId} - ${entry.title}):`];
+
+      if (entry.content) {
+        parts.push(`Description: ${entry.content}`);
+      }
+      if (entry.severity) {
+        parts.push(`Severity: ${entry.severity}`);
+      }
+      if (entry.remediation) {
+        parts.push(`Remediation: ${entry.remediation}`);
+      }
+
+      return parts.join('\n');
+    } catch (error) {
+      logger.scan.warn('Failed to fetch CWE context from knowledge base', { cweId, error });
+      return `CWE: ${cweId}`;
+    }
+  },
+
   /**
    * Verify a single finding using an AI model.
    *
@@ -70,13 +141,19 @@ export const aiVerificationService = {
         throw new AppError('No AI model configured', 400, SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED);
       }
 
-      const prompt = PROMPT_TEMPLATES.strict
+      // Build enriched CWE context from global knowledge base
+      const cweContext = await this.buildCweContext(finding.cweId);
+
+      // Select prompt template based on model's prompt preset
+      const templateKey = (model.promptPreset === 'balanced') ? 'balanced' : 'strict';
+      const prompt = PROMPT_TEMPLATES[templateKey]
         .replace('{code}', finding.codeSnippet || 'No code available')
         .replace('{rule}', finding.rule || 'Unknown rule')
+        .replace('{cwe_id}', finding.cweId || 'N/A')
         .replace('{file_path}', finding.filePath || 'Unknown file')
         .replace('{line_number}', String(finding.lineNumber || 0))
         .replace('{message}', finding.message || 'No message')
-        .replace('{cwe_context}', finding.cweId || 'No CWE info');
+        .replace('{cwe_context}', cweContext);
 
       const startTime = Date.now();
       const aiResponse = await this.callAiModel(model, prompt);
@@ -87,9 +164,14 @@ export const aiVerificationService = {
         modelId: model.id,
         verdict: aiResponse.verdict,
         confidence: String(aiResponse.confidence),
-        explanation: aiResponse.reasoning,
+        explanation: aiResponse.explanation,
+        dataFlow: aiResponse.dataFlow,
+        taintSource: aiResponse.taintSource,
+        matchDetail: aiResponse.matchDetail,
+        likelyCwe: aiResponse.likelyCwe,
         fixSuggestion: aiResponse.fixSuggestion,
         latencyMs: latencyMs,
+        rawResponse: aiResponse.rawResponse,
       });
 
       // Keep original status, don't overwrite with 'verified'
@@ -187,19 +269,17 @@ export const aiVerificationService = {
    *
    * @param model - AI model configuration
    * @param prompt - The prompt to send to the model
-   * @returns AI response with verdict and confidence
+   * @returns AI response with verdict, confidence, and detailed analysis
    */
   async callAiModel(
     model: { provider: string; baseUrl: string; apiKeyEncrypted: string | null; name: string },
     prompt: string,
-  ): Promise<{ verdict: string; confidence: number; reasoning: string; fixSuggestion?: string }> {
-    const systemPrompt = 'You are a security code reviewer. Respond ONLY with valid JSON. No markdown, no explanation outside the JSON.';
-
+  ): Promise<AiModelResponse> {
     if (model.provider === 'ollama') {
-      return this.callOllama(model.baseUrl, model.name, systemPrompt, prompt);
+      return this.callOllama(model.baseUrl, model.name, SYSTEM_PROMPT, prompt);
     }
 
-    return this.callOpenAiCompatible(model.baseUrl, model.apiKeyEncrypted, model.name, systemPrompt, prompt);
+    return this.callOpenAiCompatible(model.baseUrl, model.apiKeyEncrypted, model.name, SYSTEM_PROMPT, prompt);
   },
 
   /**
@@ -209,14 +289,14 @@ export const aiVerificationService = {
    * @param model - Model name
    * @param systemPrompt - System prompt
    * @param userPrompt - User prompt
-   * @returns Parsed AI response
+   * @returns Parsed AI response with detailed analysis
    */
   async callOllama(
     baseUrl: string,
     model: string,
     systemPrompt: string,
     userPrompt: string,
-  ): Promise<{ verdict: string; confidence: number; reasoning: string; fixSuggestion?: string }> {
+  ): Promise<AiModelResponse> {
     const res = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -237,7 +317,8 @@ export const aiVerificationService = {
 
     const data = await res.json();
     const content = data.message?.content ?? '';
-    return this.parseAiResponse(content);
+    const parsed = this.parseAiResponse(content);
+    return { ...parsed, rawResponse: content };
   },
 
   /**
@@ -249,7 +330,7 @@ export const aiVerificationService = {
    * @param model - Model name
    * @param systemPrompt - System prompt
    * @param userPrompt - User prompt
-   * @returns Parsed AI response
+   * @returns Parsed AI response with detailed analysis
    */
   async callOpenAiCompatible(
     baseUrl: string,
@@ -257,7 +338,7 @@ export const aiVerificationService = {
     model: string,
     systemPrompt: string,
     userPrompt: string,
-  ): Promise<{ verdict: string; confidence: number; reasoning: string; fixSuggestion?: string }> {
+  ): Promise<AiModelResponse> {
     const url = `${baseUrl.replace(/\/$/, '')}/v1/chat/completions`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -293,11 +374,12 @@ export const aiVerificationService = {
   /**
    * Parse AI response content into structured verdict.
    * Handles both raw JSON and markdown-wrapped JSON.
+   * Supports both old format (reasoning) and new format (explanation).
    *
    * @param content - Raw AI response text
-   * @returns Parsed verdict with confidence and reasoning
+   * @returns Parsed verdict with confidence, explanation, and detailed analysis
    */
-  parseAiResponse(content: string): { verdict: string; confidence: number; reasoning: string; fixSuggestion?: string } {
+  parseAiResponse(content: string): AiModelResponse {
     let cleaned = content.trim();
     if (cleaned.startsWith('```')) {
       cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
@@ -305,18 +387,32 @@ export const aiVerificationService = {
 
     try {
       const parsed = JSON.parse(cleaned);
+      const verdict = parsed.verdict === 'true_positive' ? 'true_positive' : 'false_positive';
+      const confidence = typeof parsed.confidence === 'number'
+        ? (parsed.confidence > 1 ? parsed.confidence / 100 : Math.min(1, Math.max(0, parsed.confidence)))
+        : 0.5;
+      const explanation = typeof parsed.explanation === 'string'
+        ? parsed.explanation
+        : typeof parsed.reasoning === 'string'
+          ? parsed.reasoning
+          : 'No explanation provided';
+
       return {
-        verdict: parsed.verdict === 'true_positive' ? 'true_positive' : 'false_positive',
-        confidence: typeof parsed.confidence === 'number' ? Math.min(1, Math.max(0, parsed.confidence)) : 0.5,
-        reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : 'No reasoning provided',
+        verdict,
+        confidence,
+        explanation,
+        dataFlow: typeof parsed.data_flow === 'string' ? parsed.data_flow : undefined,
+        taintSource: typeof parsed.taint_source === 'string' ? parsed.taint_source : undefined,
+        matchDetail: typeof parsed.match_detail === 'string' ? parsed.match_detail : undefined,
+        likelyCwe: Array.isArray(parsed.likely_cwe) ? parsed.likely_cwe : undefined,
         fixSuggestion: typeof parsed.fix_suggestion === 'string' ? parsed.fix_suggestion : undefined,
       };
     } catch {
       const lower = content.toLowerCase();
       if (lower.includes('true_positive') || lower.includes('true positive')) {
-        return { verdict: 'true_positive', confidence: 0.6, reasoning: content.slice(0, 200) };
+        return { verdict: 'true_positive', confidence: 0.6, explanation: content.slice(0, 200) };
       }
-      return { verdict: 'false_positive', confidence: 0.4, reasoning: content.slice(0, 200) };
+      return { verdict: 'false_positive', confidence: 0.4, explanation: content.slice(0, 200) };
     }
   },
 };

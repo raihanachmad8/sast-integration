@@ -3,7 +3,7 @@
  *
  * Detects and fails orphaned scans stuck in non-terminal states (queued, processing, parsing).
  * These can occur when:
- * - CI/CD pipeline crashes without calling /ci/status
+ * - CI/CD pipeline crashes without calling /ci/complete
  * - Managed scan job crashes after creating the scan record
  * - Queue worker dies mid-processing
  *

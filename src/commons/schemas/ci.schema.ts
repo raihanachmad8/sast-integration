@@ -24,14 +24,5 @@ export const ciCompleteSchema = z.object({
   trigger: z.string().optional(),
 });
 
-export const ciStatusSchema = z.object({
-  scanId: z.string().uuid('scanId must be a valid UUID'),
-  status: z.enum(['queued', 'running', 'processing', 'parsing', 'completed', 'failed']),
-  message: z.string().optional(),
-  tool: z.string().optional(),
-  findingsCount: z.number().int().nonnegative().optional(),
-});
-
 export type CiInitInput = z.infer<typeof ciInitSchema>;
 export type CiCompleteInput = z.infer<typeof ciCompleteSchema>;
-export type CiStatusInput = z.infer<typeof ciStatusSchema>;

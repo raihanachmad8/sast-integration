@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Modal, Input, Select, Form, App, theme, Flex, Typography, Tooltip } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
 import { MODAL_WIDTH } from '@/commons/constants/layout';
@@ -68,14 +68,6 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
     }
   };
 
-  // Auto-fetch when modal opens with openai-compatible provider
-  useEffect(() => {
-    if (open && selectedProvider === 'openai-compatible') {
-      const url = form.getFieldValue('baseUrl');
-      if (url) handleFetchModels(url);
-    }
-  }, [open]);
-
   const handleSave = () => {
     form.validateFields().then((values) => {
       onSave(values);
@@ -94,6 +86,7 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
       onCancel={onClose}
       okText="Add"
       width={MODAL_WIDTH.MD}
+      afterOpenChange={(visible) => { if (visible && selectedProvider === 'openai-compatible') { const url = form.getFieldValue('baseUrl'); if (url) handleFetchModels(url); } }}
     >
       <Form form={form} layout="vertical" initialValues={{ name: '', provider: 'openai-compatible', baseUrl: '', role: 'fallback' }}>
         <Flex vertical gap={token.paddingMD} style={{ padding: `${token.paddingSM} 0` }}>

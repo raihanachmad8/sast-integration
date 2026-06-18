@@ -57,7 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const result = await memberService.inviteMember(workspaceId, { email: validation.data.email, role: validation.data.role as 'owner' | 'manager' | 'reviewer' | 'member' }, auth.context.userId);
     logger.member.info('inviteMember completed');
-    return ApiResponse.success(WORKSPACE.MESSAGES.INVITATIONS_LIST, result);
+    return ApiResponse.created('Invitation created', result);
   } catch (e) {
     logger.member.error('inviteMember failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

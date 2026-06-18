@@ -1,6 +1,8 @@
 import { type NewFinding } from '@drizzle/schema/findings';
 import { logger } from '@/server/lib/logger';
 import { AppError } from '@/server/http/errors';
+import type { Severity } from '@/commons/types/domain';
+import type { ParseResult } from './index';
 
 export interface SemgrepResult {
   check_id: string;
@@ -90,7 +92,7 @@ export function parseSemgrep(
   jsonContent: string | Buffer,
   scanId: string,
   scanner: string = 'semgrep'
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   logger.scan.debug('parseSemgrep', { scanId });
 
   let parsed: Record<string, unknown>;
@@ -122,7 +124,7 @@ function parseSemgrepNativeJson(
   report: SemgrepReport,
   scanId: string,
   scanner: string
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const findings: NewFinding[] = [];
   const severityCount: Record<string, number> = {
     critical: 0, high: 0, medium: 0, low: 0, info: 0,
@@ -163,7 +165,7 @@ function parseSemgrepSarif(
   sarif: Record<string, unknown>,
   scanId: string,
   scanner: string
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const findings: NewFinding[] = [];
   const severityCount: Record<string, number> = {
     critical: 0, high: 0, medium: 0, low: 0, info: 0,
@@ -225,7 +227,7 @@ function parseSemgrepSarif(
   return { findings, summary: severityCount };
 }
 
-function mapSemgrepSeverity(sev: string | undefined): string {
+function mapSemgrepSeverity(sev: string | undefined): Severity {
   if (!sev) return 'medium';
   const s = sev.toUpperCase();
   if (s === 'CRITICAL') return 'critical';

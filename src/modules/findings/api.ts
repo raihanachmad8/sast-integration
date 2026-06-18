@@ -1,4 +1,5 @@
 import type { FindingExtended, FindingGroup } from '@/commons/types/findings';
+import type { Comment } from '@/commons/types/dashboard';
 import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
 import { Api } from '@/lib/api/client';
@@ -63,7 +64,7 @@ export const findingsApi = {
   },
 
   async update(workspaceId: string, id: string, payload: Record<string, unknown>) {
-    const { data } = await _api.Put<ApiResponse<FindingExtended>>(ENDPOINTS.FINDINGS.DETAIL(workspaceId, id), payload);
+    const { data } = await _api.Patch<ApiResponse<FindingExtended>>(ENDPOINTS.FINDINGS.DETAIL(workspaceId, id), payload);
     return data;
   },
 
@@ -74,6 +75,16 @@ export const findingsApi = {
 
   async aiVerify(workspaceId: string, findingIds: string[]) {
     const { data } = await _api.Post<ApiResponse<{ queued: number }>>(ENDPOINTS.FINDINGS.AI_VERIFY(workspaceId), { findingIds });
+    return data;
+  },
+
+  async listComments(workspaceId: string, findingId: string) {
+    const { data } = await _api.Get<ApiResponse<Comment[]>>(ENDPOINTS.FINDINGS.COMMENTS(workspaceId, findingId));
+    return data;
+  },
+
+  async addComment(workspaceId: string, findingId: string, content: string) {
+    const { data } = await _api.Post<ApiResponse<Comment>>(ENDPOINTS.FINDINGS.COMMENTS(workspaceId, findingId), { content });
     return data;
   },
 };

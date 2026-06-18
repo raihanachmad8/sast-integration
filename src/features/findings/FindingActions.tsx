@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { Modal, Select, Button, Typography, Row, Col, Flex, theme } from 'antd';
 import type { Finding } from '@/commons/types';
+import type { AiModelRow } from '@/commons/types/ai-models';
 import { useAiModelsQuery } from '@/modules/ai-models';
 
 const { Text } = Typography;
@@ -26,18 +27,11 @@ export function FindingActions({ finding, onAcceptVerdict, onOverrideVerdict, on
   const { data: modelsData } = useAiModelsQuery({ page: 1, perPage: 100 });
   const modelOptions = useMemo(() => {
     const models = modelsData?.data ?? [];
-    return models.map((m: any) => ({
+    return models.map((m: AiModelRow) => ({
       value: m.id,
-      label: m.name || m.model || m.id,
+      label: m.name || m.id,
     }));
   }, [modelsData]);
-
-  // Set default model when options load
-  useMemo(() => {
-    if (modelOptions.length > 0 && !reverifyModel) {
-      setReverifyModel(modelOptions[0].value);
-    }
-  }, [modelOptions, reverifyModel]);
 
   const sectionTitleStyle = {
     fontSize: token.fontSizeSM,
@@ -79,7 +73,7 @@ export function FindingActions({ finding, onAcceptVerdict, onOverrideVerdict, on
         </Row>
       </Flex>
 
-      <Modal title="Override Verdict" open={overrideOpen} onOk={handleOverride} onCancel={() => setOverrideOpen(false)} okText="Override" okButtonProps={{ danger: overrideVerdict === 'FP' }}>
+      <Modal title="Override Verdict" open={overrideOpen} destroyOnHidden onOk={handleOverride} onCancel={() => setOverrideOpen(false)} okText="Override" okButtonProps={{ danger: overrideVerdict === 'FP' }}>
         <Flex vertical gap={token.marginSM} style={{ marginTop: token.marginMD }}>
           <Text>Override the AI verdict for <strong>{finding.rule}</strong>?</Text>
           <Select value={overrideVerdict} onChange={setOverrideVerdict} style={{ width: '100%' }} options={[
@@ -89,11 +83,11 @@ export function FindingActions({ finding, onAcceptVerdict, onOverrideVerdict, on
         </Flex>
       </Modal>
 
-      <Modal title="Re-verify" open={reverifyOpen} onOk={handleReverify} onCancel={() => setReverifyOpen(false)} okText="Start">
+      <Modal title="Re-verify" open={reverifyOpen} destroyOnHidden onOk={handleReverify} onCancel={() => setReverifyOpen(false)} okText="Start">
         <Flex vertical gap={token.marginSM} style={{ marginTop: token.marginMD }}>
           <Text>Select a model to re-verify <strong>{finding.rule}</strong>.</Text>
           <Select
-            value={reverifyModel}
+            value={reverifyModel || modelOptions[0]?.value || undefined}
             onChange={setReverifyModel}
             style={{ width: '100%' }}
             options={modelOptions}

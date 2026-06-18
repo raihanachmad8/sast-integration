@@ -5,6 +5,11 @@ import { scanRepository } from '@/server/modules/scan/repositories/scan.reposito
 import { findingService } from '@/server/modules/scan/services/finding.service';
 import { parseScanResult } from '@/server/modules/scan/parsers';
 import { getStorageDriver } from '@/server/modules/storage/storage.service';
+import { db } from '@/server/db/client';
+import { models } from '@drizzle/schema/integrations';
+import { repositories } from '@drizzle/schema/source-controls';
+import { eq, asc, and, isNull, sql } from 'drizzle-orm';
+import { enqueue } from '@/server/modules/queue/queue.service';
 import type { NewFinding } from '@drizzle/schema/findings';
 
 interface ParseScanResultJobData {
@@ -110,32 +115,31 @@ export async function processParseScanResultJob(job: Job<ParseScanResultJobData>
 
   // Auto-trigger AI verification for findings from this scanner
   try {
-    const { db } = await import('@/server/db/client');
-    const { models } = await import('@drizzle/schema/integrations');
-    const { eq: drizzleEq, asc, and: drizzleAnd, isNull: drizzleIsNull } = await import('drizzle-orm');
-    const { repositories } = await import('@drizzle/schema/source-controls');
-
     // Get workspace from scan -> repository
-    const scan = await scanRepository.getById(scanId);
-    const repo = scan?.repositoryId ? await db.select({ workspaceId: repositories.workspaceId }).from(repositories).where(drizzleAnd(drizzleEq(repositories.id, scan.repositoryId), drizzleIsNull(repositories.deletedAt))).limit(1) : null;
+    const scanData = await scanRepository.getById(scanId);
+    const repo = scanData?.repositoryId
+      ? await db.select({ workspaceId: repositories.workspaceId })
+          .from(repositories)
+          .where(and(eq(repositories.id, scanData.repositoryId), isNull(repositories.deletedAt)))
+          .limit(1)
+      : null;
     const workspaceId = repo?.[0]?.workspaceId;
 
-    if (workspaceId) {
+    if (workspaceId && createdFindings.length > 0) {
       // Get first available model
       const [model] = await db.select().from(models)
-        .where(drizzleEq(models.workspaceId, workspaceId))
+        .where(eq(models.workspaceId, workspaceId))
         .orderBy(asc(models.priority))
         .limit(1);
 
-      if (model && createdFindings.length > 0) {
-        logger.queue.info('parse-scan-result: about to enqueue AI verify', { scanId, count: createdFindings.length, modelId: model.id });
+      if (model) {
+        logger.queue.info('parse-scan-result: enqueuing AI verify', { scanId, count: createdFindings.length, modelId: model.id });
         for (const finding of createdFindings) {
           if (!finding.id) {
             logger.queue.warn('parse-scan-result: finding has no id', { finding });
             continue;
           }
           try {
-            const { enqueue } = await import('@/server/modules/queue/queue.service');
             const jobId = await enqueue('ai-verify-finding', { findingId: finding.id, scanId, modelId: model.id }, {
               retryLimit: 5,
               retryDelay: 30,
@@ -145,9 +149,6 @@ export async function processParseScanResultJob(job: Job<ParseScanResultJobData>
             logger.queue.error('parse-scan-result: AI verify enqueue failed', { findingId: finding.id, error: err instanceof Error ? err.message : String(err) });
           }
         }
-        logger.queue.info('parse-scan-result: AI verification enqueued', { scanId, count: createdFindings.length, modelId: model.id });
-      } else {
-        logger.queue.info('parse-scan-result: skipping AI verify', { scanId, modelFound: !!model, findingsCount: createdFindings.length });
       }
     }
   } catch (err) {
@@ -172,8 +173,6 @@ export async function processParseScanResultJob(job: Job<ParseScanResultJobData>
 
   // Check if all parse jobs for this scan are done — if so, mark scan completed
   try {
-    const { db } = await import('@/server/db/client');
-    const { sql } = await import('drizzle-orm');
     const pendingJobs = await db.execute(
       sql`SELECT count(*)::int as count FROM pgboss.job 
           WHERE name = 'parse-scan-result' 
@@ -195,15 +194,12 @@ export async function processParseScanResultJob(job: Job<ParseScanResultJobData>
       // Evaluate quality gate if projectId exists
       if (projectId) {
         try {
-          const scan = await scanRepository.getById(scanId);
-          if (scan?.repositoryId) {
+          const scanData = await scanRepository.getById(scanId);
+          if (scanData?.repositoryId) {
             // Look up workspaceId from repository
-            const { db: dbClient } = await import('@/server/db/client');
-            const { repositories } = await import('@drizzle/schema/source-controls');
-            const { eq: drizzleEq, and: drizzleAnd, isNull: drizzleIsNull } = await import('drizzle-orm');
-            const [repo] = await dbClient.select({ workspaceId: repositories.workspaceId })
+            const [repo] = await db.select({ workspaceId: repositories.workspaceId })
               .from(repositories)
-              .where(drizzleAnd(drizzleEq(repositories.id, scan.repositoryId), drizzleIsNull(repositories.deletedAt)))
+              .where(and(eq(repositories.id, scanData.repositoryId), isNull(repositories.deletedAt)))
               .limit(1);
 
             if (repo?.workspaceId) {
@@ -211,7 +207,7 @@ export async function processParseScanResultJob(job: Job<ParseScanResultJobData>
               await qualityGateService.evaluateScan(scanId, repo.workspaceId, projectId);
               logger.queue.info('parse-scan-result: quality gate evaluated', { scanId });
             } else {
-              logger.queue.warn('parse-scan-result: workspace not found for repository', { scanId, repositoryId: scan.repositoryId });
+              logger.queue.warn('parse-scan-result: workspace not found for repository', { scanId, repositoryId: scanData.repositoryId });
             }
           }
         } catch (err) {

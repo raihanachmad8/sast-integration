@@ -99,7 +99,7 @@ export function useScannerAvailabilityQuery() {
     queryKey: scanKeys.availability(),
     queryFn: () => scanApi.getAvailability(workspaceId!),
     enabled: !!workspaceId,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: STALE.DEFAULT,
   });
 }
 

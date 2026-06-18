@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { Modal, Input, Form, theme } from 'antd';
 import { MODAL_WIDTH } from '@/commons/constants/layout';
 import { createZodSync } from '@/lib/utils/zod-sync';
@@ -22,22 +21,10 @@ export function ProjectFormModal({ open, project, onCancel, onConfirm, isLoading
   const { token } = theme.useToken();
   const [form] = Form.useForm();
 
-  useEffect(() => {
-    if (open) {
-      if (project) {
-        form.setFieldsValue({
-          name: project.name,
-          description: project.description,
-        });
-      } else {
-        form.resetFields();
-      }
-    }
-  }, [project, open, form]);
-
   return (
     <Modal
       open={open}
+      destroyOnHidden
       onCancel={onCancel}
       title={project ? 'Edit project' : 'New project'}
       width={MODAL_WIDTH.SM}
@@ -47,7 +34,7 @@ export function ProjectFormModal({ open, project, onCancel, onConfirm, isLoading
       onOk={() => form.validateFields().then((values) => onConfirm(values))}
     >
       <div style={{ display: 'grid', gap: token.paddingXL, padding: `${token.paddingLG} 0` }}>
-        <Form form={form} layout="vertical" initialValues={{ name: '', description: '' }}>
+        <Form form={form} layout="vertical" initialValues={{ name: project?.name ?? '', description: project?.description ?? '' }}>
           <Form.Item label="Project name" name="name" rules={[rule]}>
             <Input placeholder="e.g. Backend API" />
           </Form.Item>

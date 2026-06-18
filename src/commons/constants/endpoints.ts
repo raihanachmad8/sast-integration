@@ -62,6 +62,7 @@ export const ENDPOINTS = {
     STATUS: (workspaceId: string, findingId: string) => `/api/v1/workspaces/${workspaceId}/findings/${findingId}/status`,
     ASSIGN: (workspaceId: string, findingId: string) => `/api/v1/workspaces/${workspaceId}/findings/${findingId}/assign`,
     VERIFY: (workspaceId: string, findingId: string) => `/api/v1/workspaces/${workspaceId}/findings/${findingId}/verify`,
+    COMMENTS: (workspaceId: string, findingId: string) => `/api/v1/workspaces/${workspaceId}/findings/${findingId}/comments`,
     BULK: (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/findings/bulk`,
     AI_VERIFY: (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/findings/ai-verify`,
     MEMBERS: (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/members`,
@@ -134,6 +135,11 @@ export const ENDPOINTS = {
     TOGGLE: (workspaceId: string, scheduleId: string) => `/api/v1/workspaces/${workspaceId}/schedules/${scheduleId}/toggle`,
   },
 
+  // ── Workspace Settings ────────────────────────────────
+  WORKSPACE_SETTINGS: {
+    VERIFICATION: (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/settings/verification`,
+  },
+
   // ── Source Controls ───────────────────────────────────
   SOURCE_CONTROLS: {
     LIST: (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/source-controls`,
@@ -174,6 +180,7 @@ export const ENDPOINTS = {
     LIST: (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/reports`,
     DETAIL: (workspaceId: string, reportId: string) => `/api/v1/workspaces/${workspaceId}/reports/${reportId}`,
     DOWNLOAD: (workspaceId: string, reportId: string) => `/api/v1/workspaces/${workspaceId}/reports/${reportId}/download`,
+    PREVIEW: (workspaceId: string, reportId: string) => `/api/v1/workspaces/${workspaceId}/reports/${reportId}/preview`,
   },
 
   // ── Dashboard ─────────────────────────────────────────

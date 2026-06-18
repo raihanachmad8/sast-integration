@@ -1,5 +1,7 @@
 import { type NewFinding } from '@drizzle/schema/findings';
 import { logger } from '@/server/lib/logger';
+import type { Severity } from '@/commons/types/domain';
+import type { ParseResult } from './index';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -71,7 +73,7 @@ export function parseClangTidy(
   content: string | Buffer,
   scanId: string,
   scanner: string = 'clang-tidy',
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const text = typeof content === 'string' ? content : content.toString('utf8');
 
   logger.scan.debug('parseClangTidy', { length: text.length });
@@ -146,7 +148,7 @@ function createFinding(diag: ClangTidyDiagnostic, scanId: string, scanner: strin
   };
 }
 
-function mapSeverity(level: string, checkName: string): string {
+function mapSeverity(level: string, checkName: string): Severity {
   if (level === 'error') return 'high';
 
   // Cert and security checks are more severe

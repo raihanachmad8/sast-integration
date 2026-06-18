@@ -1,5 +1,6 @@
 import { type NewFinding } from '@drizzle/schema/findings';
 import { GITLEAKS_MATCH_PREVIEW_MAX_LENGTH } from '../constants';
+import type { ParseResult } from './index';
 
 export interface GitleaksFinding {
   Description: string;
@@ -64,7 +65,7 @@ export function parseGitleaks(
   jsonContent: string | Buffer,
   scanId: string,
   scanner: string = 'gitleaks'
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   let report: GitleaksFinding[] | GitleaksReport;
 
   try {

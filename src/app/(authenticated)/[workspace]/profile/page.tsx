@@ -14,7 +14,7 @@ import { ErrorState } from '@/components/shared/ErrorState';
 import { ProfileTab } from './ProfileTab';
 import { SecurityTab } from './SecurityTab';
 
-const { Text } = Typography;
+
 
 export default function ProfilePage() {
   const { message } = App.useApp();
@@ -133,8 +133,6 @@ export default function ProfilePage() {
               />
             ),
           },
-          { key: 'notifications', label: <span><FaIcon icon="fa-bell" style={{ marginRight: 8 }} /> Notifications</span>, children: <div><Text type="secondary">Coming soon. Configure email and in-app notification settings.</Text></div> },
-          { key: 'tokens', label: <span><FaIcon icon="fa-key" style={{ marginRight: 8 }} /> Personal tokens</span>, children: <div><Text type="secondary">Coming soon. Generate tokens for CLI and CI integration.</Text></div> },
         ]}
       />
     </Flex>

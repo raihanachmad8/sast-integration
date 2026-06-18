@@ -9,12 +9,12 @@ import {
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { ROUTES } from '@/commons/constants';
-import { LANDING_COLORS } from '@/commons/constants/landing';
+import { LANDING_COLORS, GITHUB_REPO_URL } from '@/commons/constants/landing';
 
 const { Title, Text, Paragraph } = Typography;
 
 /** Severity badge used inside the dashboard mock. */
-function SeverityBadge({ level, count }: { level: string; count: number; color: string; bg: string }) {
+function SeverityBadge({ level, count }: { level: string; count: number }) {
   const colors: Record<string, { color: string; bg: string }> = {
     CRITICAL: { color: '#f85149', bg: 'rgba(248,81,73,0.12)' },
     HIGH:     { color: '#e3b341', bg: 'rgba(227,179,65,0.12)' },
@@ -194,10 +194,10 @@ function DashboardMock() {
               Findings by Severity
             </span>
             <div style={{ marginTop: 8 }}>
-              <SeverityBadge level="CRITICAL" count={2}  color="" bg="" />
-              <SeverityBadge level="HIGH"     count={7}  color="" bg="" />
-              <SeverityBadge level="MEDIUM"   count={14} color="" bg="" />
-              <SeverityBadge level="LOW"      count={31} color="" bg="" />
+              <SeverityBadge level="CRITICAL" count={2} />
+              <SeverityBadge level="HIGH"     count={7} />
+              <SeverityBadge level="MEDIUM"   count={14} />
+              <SeverityBadge level="LOW"      count={31} />
             </div>
           </div>
 
@@ -513,7 +513,7 @@ export function LandingHero() {
                     </Button>
                   </Link>
                   <a
-                    href="https://github.com"
+                    href={GITHUB_REPO_URL}
                     target="_blank"
                     rel="noopener noreferrer"
                   >

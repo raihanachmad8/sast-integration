@@ -5,6 +5,7 @@ import { Button, Typography, theme } from 'antd';
 import Link from 'next/link';
 import { GithubOutlined } from '@ant-design/icons';
 import { ROUTES } from '@/commons/constants';
+import { GITHUB_REPO_URL } from '@/commons/constants/landing';
 
 const { Text } = Typography;
 
@@ -184,7 +185,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           {!isMobile && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <a
-                href="https://github.com"
+                href={GITHUB_REPO_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="lp-nav-link"
@@ -300,7 +301,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
 
               {/* GitHub link */}
               <a
-                href="https://github.com"
+                href={GITHUB_REPO_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={closeMenu}

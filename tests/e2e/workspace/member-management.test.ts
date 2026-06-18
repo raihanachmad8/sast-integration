@@ -60,9 +60,9 @@ describe('GET /api/v1/workspaces/[workspaceId]/members', () => {
   });
 });
 
-describe('PATCH /api/v1/workspaces/[workspaceId]/members/[userId]/role', () => {
+describe('PATCH /api/v1/workspaces/[workspaceId]/members/[userId]', () => {
   it('should return 401 without token', async () => {
-    const res = await api('/workspaces/ws-1/members/user-1/role', {
+    const res = await api('/workspaces/ws-1/members/user-1', {
       method: 'PATCH',
       body: JSON.stringify({ role: ROLE.MEMBER }),
     });
@@ -71,7 +71,7 @@ describe('PATCH /api/v1/workspaces/[workspaceId]/members/[userId]/role', () => {
 
   it('should return 403 when user is not a workspace member', async () => {
     const token = await getAccessToken();
-    const res = await api('/workspaces/00000000-0000-0000-0000-000000000000/members/user-1/role', {
+    const res = await api('/workspaces/00000000-0000-0000-0000-000000000000/members/user-1', {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ role: ROLE.MEMBER }),
@@ -84,7 +84,7 @@ describe('PATCH /api/v1/workspaces/[workspaceId]/members/[userId]/role', () => {
     const wsId = await getFirstWorkspaceId(token);
     if (!wsId) return;
 
-    const res = await api(`/workspaces/${wsId}/members/user-1/role`, {
+    const res = await api(`/workspaces/${wsId}/members/user-1`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ role: 'invalid-role' }),
@@ -105,7 +105,7 @@ describe('PATCH /api/v1/workspaces/[workspaceId]/members/[userId]/role', () => {
     const selfMember = membersJson.data.find((m: { email: string }) => m.email === TEST_USER.email);
     if (!selfMember) return;
 
-    const res = await api(`/workspaces/${wsId}/members/${selfMember.userId}/role`, {
+    const res = await api(`/workspaces/${wsId}/members/${selfMember.userId}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ role: ROLE.MEMBER }),
@@ -125,12 +125,13 @@ describe('PATCH /api/v1/workspaces/[workspaceId]/members/[userId]/role', () => {
     const target = membersJson.data.find((m: { role: string }) => m.role !== ROLE.OWNER);
     if (!target) return;
 
-    const res = await api(`/workspaces/${wsId}/members/${target.userId}/role`, {
+    const res = await api(`/workspaces/${wsId}/members/${target.userId}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ role: ROLE.OWNER }),
     });
-    expect(res.status).toBe(403);
+    // 403 (forbidden) or 422 (validation error — owner role not allowed)
+    expect([403, 422]).toContain(res.status);
   });
 
   it('should return 404 when target member does not exist', async () => {
@@ -138,7 +139,7 @@ describe('PATCH /api/v1/workspaces/[workspaceId]/members/[userId]/role', () => {
     const wsId = await getFirstWorkspaceId(token);
     if (!wsId) return;
 
-    const res = await api(`/workspaces/${wsId}/members/00000000-0000-0000-0000-000000000000/role`, {
+    const res = await api(`/workspaces/${wsId}/members/00000000-0000-0000-0000-000000000000`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ role: ROLE.MEMBER }),

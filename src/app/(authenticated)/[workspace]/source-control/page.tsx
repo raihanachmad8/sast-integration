@@ -15,7 +15,7 @@ import { ConfigureProviderModal, ImportRepoModal, SendTestEventModal, SyncResult
 import { ProviderCard } from '@/features/source-control/ProviderCard';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
-import { useSourceControlProvidersQuery, useSourceControlReposQuery, useDeleteSourceControlMutation, useAddSourceControlProviderMutation, useUpdateSourceControlMutation, useSyncProviderMutation, useImportRepositoryMutation, useUninstallRepositoryMutation } from '@/modules/source-control';
+import { useSourceControlProvidersQuery, useSourceControlReposQuery, useDeleteSourceControlMutation, useAddSourceControlProviderMutation, useUpdateSourceControlMutation, useSyncProviderMutation, useImportRepositoryMutation, useUninstallRepositoryMutation, useTestSourceControlMutation, useSendSourceControlTestEventMutation } from '@/modules/source-control';
 import { usePrReviewSettingsQuery, useUpdatePrReviewSettingsMutation } from '@/modules/workspace-settings';
 import { errorMessage } from '@/lib/api/errors';
 import { useConfirm } from '@/components/shared/ConfirmDialog';
@@ -97,6 +97,8 @@ export default function SourceControlPage() {
   const syncProviderMutation = useSyncProviderMutation();
   const importRepositoryMutation = useImportRepositoryMutation();
   const uninstallRepositoryMutation = useUninstallRepositoryMutation();
+  const testProviderMutation = useTestSourceControlMutation();
+  const sendTestEventMutation = useSendSourceControlTestEventMutation();
   const prReviewSettingsQuery = usePrReviewSettingsQuery();
   const updatePrReviewSettingsMutation = useUpdatePrReviewSettingsMutation();
 
@@ -149,8 +151,11 @@ export default function SourceControlPage() {
     setConfigureOpen(true);
   };
 
-  const handleTest = (providerName: string) => {
-    message.loading(`Testing ${providerName}...`, 1.5).then(() => message.success(`${providerName} connection is working`));
+  const handleTest = (providerId: string) => {
+    testProviderMutation.mutate(providerId, {
+      onSuccess: () => message.success('Connection test passed'),
+      onError: (err) => message.error(errorMessage(err)),
+    });
   };
 
   const handleSync = (providerId: string) => {
@@ -420,7 +425,7 @@ export default function SourceControlPage() {
         } catch (err) { message.error(errorMessage(err)); }
       }} />
       <ImportRepoModal open={importOpen} repoFullName={selectedRepo} onClose={() => setImportOpen(false)} onSave={() => { importRepositoryMutation.mutate({ providerId: firstProviderId, sourceRepositoryId: selectedRepoSourceControlId }, { onSuccess: () => { message.success(`${selectedRepo} imported`); setImportOpen(false); }, onError: () => message.error('Failed to import repository') }); }} />
-      <SendTestEventModal open={testEventOpen} onClose={() => setTestEventOpen(false)} onSend={(type) => { message.success(`Test ${type} event sent`); }} />
+      <SendTestEventModal open={testEventOpen} onClose={() => setTestEventOpen(false)} onSend={(type) => { sendTestEventMutation.mutate(firstProviderId, { onSuccess: () => message.success(`Test ${type} event sent`), onError: (err) => message.error(errorMessage(err)) }); }} />
       <SyncResultsModal open={syncResultsOpen} results={syncResults} onClose={() => setSyncResultsOpen(false)} />
     </Flex>
   );

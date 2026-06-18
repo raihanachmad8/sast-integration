@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Card, Col, Flex, Row, Space, Tag, Typography, theme } from 'antd';
+import { App, Card, Col, Flex, Row, Space, Tag, Typography, theme } from 'antd';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FaIcon } from '@/components/shared/FaIcon';
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable';
@@ -13,9 +13,11 @@ import { useSessionData } from '@/modules/auth/queries';
 import {
   useKnowledgeBaseQuery,
   useKnowledgeSourcesQuery,
+  useMuteKnowledgeEntryMutation,
+  useUpdateKnowledgeEntryMutation,
 } from '@/modules/knowledge';
 import { errorMessage } from '@/lib/api/errors';
-import { EntryDetailDrawer } from '@/features/knowledge-base/EntryModals';
+import { EntryDetailDrawer, EditEntryModal } from '@/features/knowledge-base/EntryModals';
 import type { KnowledgeEntryRow } from '@/commons/types/knowledge';
 
 interface ModalEntry {
@@ -129,6 +131,7 @@ function SourceCard({
 
 export default function KnowledgeBasePage() {
   const { token } = theme.useToken();
+  const { message } = App.useApp();
   const session = useSessionData();
   const workspaceId = session.data?.workspace?.id ?? '';
 
@@ -148,17 +151,35 @@ export default function KnowledgeBasePage() {
     source: selectedSource,
   });
   const sourcesQuery = useKnowledgeSourcesQuery(workspaceId, { page: 1, perPage: 100 });
+  const muteMutation = useMuteKnowledgeEntryMutation(workspaceId);
+  const updateMutation = useUpdateKnowledgeEntryMutation(workspaceId);
 
   const sources = sourcesQuery.data?.data ?? [];
   const cweSource = sources.find((source) => source.type === 'cwe');
   const nvdSource = sources.find((source) => source.type === 'nvd');
 
   const [detailOpen, setDetailOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<ModalEntry | null>(null);
 
   const entries = useMemo(() => (entriesQuery.data?.data ?? []).map(toModalEntry), [entriesQuery.data]);
 
   const handleView = (entry: ModalEntry) => { setSelectedEntry(entry); setDetailOpen(true); };
+
+  const handleEdit = (entry: ModalEntry) => {
+    setDetailOpen(false);
+    setEditOpen(true);
+  };
+
+  const handleDisable = (entry: ModalEntry) => {
+    muteMutation.mutate(entry.id, {
+      onSuccess: () => {
+        message.success('Entry disabled');
+        setDetailOpen(false);
+      },
+      onError: (err) => message.error(errorMessage(err)),
+    });
+  };
 
   if (session.isLoading || entriesQuery.isLoading || sourcesQuery.isLoading) return <LoadingState text="Loading knowledge base..." />;
   if (!workspaceId) return <ErrorState title="Workspace unavailable" description="Select a workspace before opening the knowledge base." onRetry={() => session.refetch()} />;
@@ -214,8 +235,27 @@ export default function KnowledgeBasePage() {
         open={detailOpen}
         entry={selectedEntry}
         onClose={() => setDetailOpen(false)}
-        onEdit={() => {}}
-        onDisable={() => {}}
+        onEdit={handleEdit}
+        onDisable={handleDisable}
+      />
+
+      <EditEntryModal
+        open={editOpen}
+        entry={selectedEntry}
+        onClose={() => setEditOpen(false)}
+        onSave={(values) => {
+          if (!selectedEntry) return;
+          updateMutation.mutate(
+            { id: selectedEntry.id, data: values },
+            {
+              onSuccess: () => {
+                message.success('Entry updated');
+                setEditOpen(false);
+              },
+              onError: (err) => message.error(errorMessage(err)),
+            },
+          );
+        }}
       />
     </Flex>
   );

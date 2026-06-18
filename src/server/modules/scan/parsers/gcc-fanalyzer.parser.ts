@@ -1,5 +1,7 @@
 import { type NewFinding } from '@drizzle/schema/findings';
 import { logger } from '@/server/lib/logger';
+import type { Severity } from '@/commons/types/domain';
+import type { ParseResult } from './index';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -89,7 +91,7 @@ export function parseGCCFanalyzer(
   content: string | Buffer,
   scanId: string,
   scanner: string = 'gcc-fanalyzer',
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const text = typeof content === 'string' ? content : content.toString('utf8');
 
   logger.scan.debug('parseGCCFanalyzer', { length: text.length });
@@ -177,7 +179,7 @@ function createFinding(diag: GCCFanalyzerDiagnostic, scanId: string, scanner: st
   };
 }
 
-function mapSeverity(ruleId: string, cwe?: string): string {
+function mapSeverity(ruleId: string, cwe?: string): Severity {
   // CWE-based severity
   if (cwe) {
     if (['CWE-416', 'CWE-476', 'CWE-78', 'CWE-120', 'CWE-125'].includes(cwe)) return 'high';

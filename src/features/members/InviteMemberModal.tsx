@@ -56,6 +56,7 @@ export function InviteMemberModal({ open, onConfirm, onCancel, isLoading, error 
     <Modal
       title="Invite member"
       open={open}
+      destroyOnHidden
       onCancel={handleCancel}
       onOk={() => form.validateFields().then((values) => onConfirm(values))}
       confirmLoading={isLoading}

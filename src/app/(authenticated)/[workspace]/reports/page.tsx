@@ -7,7 +7,7 @@ import { reportsApi } from '@/modules/reports/api';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { FaIcon } from '@/components/shared/FaIcon';
 import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
-import { ReportPreviewDrawer } from '@/features/reports/ReportPreviewDrawer';
+import ReportPreviewModal from '@/features/reports/ReportPreviewModal';
 import { StatusPill } from '@/components/shared/StatusPill';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { LoadingState } from '@/components/shared/LoadingState';
@@ -79,10 +79,8 @@ export default function ReportsPage() {
   const { workspaceId } = useWorkspace();
 
   const REPORT_TYPES = [
-    { id: 'verdict', name: 'AI Verdict Summary', icon: 'fa-robot', description: 'AI verification results with confidence scores' },
-    { id: 'findings', name: 'Detailed Findings', icon: 'fa-bug', description: 'Full findings list with severity and remediation' },
-    { id: 'executive', name: 'Executive Summary', icon: 'fa-chart-pie', description: 'High-level metrics for leadership review' },
-    { id: 'compliance', name: 'Compliance Export', icon: 'fa-file-shield', description: 'OWASP/CWE mapping for compliance audits' },
+    { id: 'findings', name: 'Detailed Findings', icon: 'fa-bug', description: 'Full findings register with severity, CWE, and remediation guidance' },
+    { id: 'executive', name: 'Executive Summary', icon: 'fa-chart-pie', description: 'Security score, KPIs, and severity distribution for leadership' },
   ];
 
   const { params, setPage, setPageSize, setSearch } = useTableParams({
@@ -228,7 +226,7 @@ export default function ReportsPage() {
         </Flex>
       </Modal>
 
-      <ReportPreviewDrawer
+      <ReportPreviewModal
         open={previewOpen}
         report={selectedReport}
         onClose={() => setPreviewOpen(false)}

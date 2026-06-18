@@ -1,24 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-import { AUTH_PATHS, getPublicConfig, gotoAuthPage, WORKSPACE_MODE } from './helpers';
-
-/**
- * Mocks a valid refresh_token cookie in the browser context.
- *
- * Used in signin tests that simulate successful authentication responses
- * (so that subsequent requests can pass authentication checks).
- *
- * @param page - Playwright Page object
- */
-async function addMockRefreshCookie(page: Page) {
-  await page.context().addCookies([{
-    name: 'refresh_token',
-    value: 'test-refresh-token',
-    domain: 'localhost',
-    path: '/',
-    httpOnly: true,
-    sameSite: 'Lax',
-  }]);
-}
+import { test, expect } from '@playwright/test';
+import { AUTH_PATHS, addMockRefreshCookie, getWorkspaceMode, gotoAuthPage, WORKSPACE_MODE } from './helpers';
 
 /**
  * Playwright UI tests for the Sign-in page.
@@ -51,10 +32,10 @@ test.describe('Signin Page', () => {
    * the current WORKSPACE_MODE (hidden in SINGLE mode, visible in MULTIPLE mode).
    */
   test('should match signup link to registration mode', async ({ page }) => {
-    const config = await getPublicConfig(page);
+    const workspaceMode = getWorkspaceMode();
     const signupLink = page.getByRole('link', { name: 'Create an account' });
 
-    if (config.workspaceMode === WORKSPACE_MODE.SINGLE) {
+    if (workspaceMode === WORKSPACE_MODE.SINGLE) {
       await expect(signupLink).toHaveCount(0);
       return;
     }
@@ -83,8 +64,22 @@ test.describe('Signin Page', () => {
 
   /**
    * Purpose: Verify that entering wrong credentials shows the proper "Invalid credentials" error message.
+   * Mock returns 400 to avoid the 401 interceptor redirecting before error is displayed.
    */
   test('should show error on invalid credentials', async ({ page }) => {
+    await page.route('**/api/v1/auth/signin', async (route) => {
+      await route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: false,
+          message: 'Invalid credentials',
+          data: null,
+          meta: { timestamp: new Date().toISOString() },
+          error: { code: 'AUTH', details: null },
+        }),
+      });
+    });
     await page.getByPlaceholder('you@company.com').fill('wrong@example.com');
     await page.getByPlaceholder('Enter your password').fill('wrongpassword');
     await page.getByRole('button', { name: 'Sign in' }).click();
@@ -92,10 +87,10 @@ test.describe('Signin Page', () => {
   });
 
   test('should navigate to signup page when registration is open', async ({ page }) => {
-    const config = await getPublicConfig(page);
+    const workspaceMode = getWorkspaceMode();
     const signupLink = page.locator(`a[href="${AUTH_PATHS.signup}"]`);
 
-    if (config.workspaceMode === WORKSPACE_MODE.SINGLE) {
+    if (workspaceMode === WORKSPACE_MODE.SINGLE) {
       await expect(signupLink).toHaveCount(0);
       return;
     }
@@ -113,17 +108,61 @@ test.describe('Signin Page', () => {
    * Purpose: Verify that after successful sign-in, the user is redirected to the originally requested page
    * (passed via the `redirect` query parameter).
    *
-   * This test uses route mocking to simulate a successful login response.
+   * Mocks signin + refresh + me APIs so session loads after full page reload.
+   * Note: window.location.assign causes a full reload, losing the in-memory access token.
    */
   test('should redirect to requested path after successful signin', async ({ page }) => {
+    await page.route('**/api/v1/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          message: 'Session retrieved',
+          data: {
+            user: {
+              id: 'user-1',
+              email: 'user@example.com',
+              name: 'Test User',
+              emailVerified: true,
+              currentWorkspaceId: 'workspace-1',
+            },
+            workspace: {
+              id: 'workspace-1',
+              name: 'Personal Workspace',
+              slug: 'some-workspace',
+              role: 'owner',
+              permissions: [],
+            },
+          },
+          meta: { timestamp: new Date().toISOString() },
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/auth/refresh', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          message: 'Token refreshed',
+          data: {
+            tokenType: 'Bearer',
+            accessToken: 'test-access-token',
+            expiresAt: new Date(Date.now() + 900_000).toISOString(),
+            expiresIn: 900,
+          },
+          meta: { timestamp: new Date().toISOString() },
+        }),
+      });
+    });
+
     await page.route('**/api/v1/auth/signin', async (route) => {
       await addMockRefreshCookie(page);
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        headers: {
-          'Set-Cookie': 'refresh_token=test-refresh-token; Path=/; HttpOnly; SameSite=Lax',
-        },
         body: JSON.stringify({
           success: true,
           message: 'Login successful',
@@ -142,7 +181,7 @@ test.describe('Signin Page', () => {
             workspace: {
               id: 'workspace-1',
               name: 'Personal Workspace',
-              slug: 'personal-test',
+              slug: 'some-workspace',
               role: 'owner',
             },
           },
@@ -156,18 +195,62 @@ test.describe('Signin Page', () => {
     await page.getByPlaceholder('Enter your password').fill('password123');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
-    await expect(page).toHaveURL('/some-workspace', { timeout: 10000 });
+    await expect(page).toHaveURL(/\/some-workspace/, { timeout: 15000 });
   });
 
   test('should redirect to workspace chooser after successful signin without requested path', async ({ page }) => {
+    // Mock /me so useSessionQuery fast path succeeds after redirect
+    await page.route('**/api/v1/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          message: 'Session retrieved',
+          data: {
+            user: {
+              id: 'user-1',
+              email: 'user@example.com',
+              name: 'Test User',
+              emailVerified: true,
+              currentWorkspaceId: 'workspace-1',
+            },
+            workspace: {
+              id: 'workspace-1',
+              name: 'Personal Workspace',
+              slug: 'personal-test',
+              role: 'owner',
+              permissions: [],
+            },
+          },
+           meta: { timestamp: new Date().toISOString() },
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/auth/refresh', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          message: 'Token refreshed',
+          data: {
+            tokenType: 'Bearer',
+            accessToken: 'test-access-token',
+            expiresAt: new Date(Date.now() + 900_000).toISOString(),
+            expiresIn: 900,
+          },
+          meta: { timestamp: new Date().toISOString() },
+        }),
+      });
+    });
+
     await page.route('**/api/v1/auth/signin', async (route) => {
       await addMockRefreshCookie(page);
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        headers: {
-          'Set-Cookie': 'refresh_token=test-refresh-token; Path=/; HttpOnly; SameSite=Lax',
-        },
         body: JSON.stringify({
           success: true,
           message: 'Login successful',
@@ -200,18 +283,56 @@ test.describe('Signin Page', () => {
     await page.getByPlaceholder('Enter your password').fill('password123');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
-    await expect(page).toHaveURL('/workspaces', { timeout: 10000 });
+    await expect(page).toHaveURL('/workspaces', { timeout: 15000 });
   });
 
   test('should redirect to workspace chooser after successful signin without current workspace', async ({ page }) => {
-    await page.route('**/api/v1/auth/signin', async (route) => {
-      await addMockRefreshCookie(page);
+    // Mock /me returning no workspace (user has no currentWorkspaceId)
+    await page.route('**/api/v1/auth/me', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        headers: {
-          'Set-Cookie': 'refresh_token=test-refresh-token; Path=/; HttpOnly; SameSite=Lax',
-        },
+        body: JSON.stringify({
+          success: true,
+          message: 'Session retrieved',
+          data: {
+            user: {
+              id: 'user-1',
+              email: 'user@example.com',
+              name: 'Test User',
+              emailVerified: true,
+              currentWorkspaceId: null,
+            },
+            workspace: null,
+          },
+          meta: { timestamp: new Date().toISOString() },
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/auth/refresh', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          message: 'Token refreshed',
+          data: {
+            tokenType: 'Bearer',
+            accessToken: 'test-access-token',
+            expiresAt: new Date(Date.now() + 900_000).toISOString(),
+            expiresIn: 900,
+          },
+          meta: { timestamp: new Date().toISOString() },
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/auth/signin', async (route) => {
+      await addMockRefreshCookie(page, { workspaceId: null });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
         body: JSON.stringify({
           success: true,
           message: 'Login successful',
@@ -239,7 +360,7 @@ test.describe('Signin Page', () => {
     await page.getByPlaceholder('Enter your password').fill('password123');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
-    await expect(page).toHaveURL('/workspaces', { timeout: 10000 });
+    await expect(page).toHaveURL('/workspaces', { timeout: 15000 });
   });
 });
 

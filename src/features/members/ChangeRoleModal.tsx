@@ -59,6 +59,7 @@ export function ChangeRoleModal({ open, email, newRole, onConfirm, onCancel, isL
     <Modal
       title="Change role"
       open={open}
+      destroyOnHidden
       onCancel={onCancel}
       onOk={handleOk}
       confirmLoading={isLoading}

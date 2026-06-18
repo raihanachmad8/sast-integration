@@ -91,6 +91,119 @@ Rules:
 
 ---
 
+## AI Verification Pattern
+
+The AI verification pipeline follows this flow:
+
+```
+Finding → Build CWE Context → Construct Prompt → Call LLM → Parse Response → Store Verification
+```
+
+### CWE Context Enrichment
+
+Knowledge base entries (global, not workspace-scoped) provide context to the LLM:
+
+```typescript
+// ai-verification.service.ts
+const cweContext = await this.buildCweContext(finding.cweId);
+// Returns: "CWE Knowledge (CWE-787 - Out-of-bounds Write): Description: ... Severity: ... Remediation: ..."
+```
+
+### Prompt Templates
+
+Two prompt variants exist (same JSON response format):
+- **strict** — Detailed explanation, data flow analysis
+- **balanced** — Brief explanation only
+
+Both use the same system prompt with strict rules:
+- Default assumption: scanner is CORRECT (true_positive)
+- Only classify as false_positive with PROOF of safety
+- If unsure → true_positive
+
+### Response Format
+
+```typescript
+interface AiModelResponse {
+  verdict: 'true_positive' | 'false_positive';
+  confidence: number;        // 0-1
+  explanation: string;
+  dataFlow?: string;         // source → sink path
+  taintSource?: string;      // untrusted input origin
+  matchDetail?: string;      // what scanner found
+  likelyCwe?: string[];      // CWE predictions
+  fixSuggestion?: string;
+  rawResponse?: string;      // for debugging
+}
+```
+
+---
+
+## Comment System Pattern
+
+Comments are backed by the `comments` table and exposed via:
+
+```
+GET  /api/v1/workspaces/:wid/findings/:fid/comments
+POST /api/v1/workspaces/:wid/findings/:fid/comments
+```
+
+Frontend uses:
+- `useCommentsQuery(findingId)` — fetches comments
+- `useAddCommentMutation(findingId)` — adds a comment
+
+Both are in `modules/findings/queries.ts` and exported via `modules/findings/index.ts`.
+
+---
+
+## Modal Pattern
+
+All modals must use:
+- `destroyOnHidden` prop to reset form state
+- `initialValues` on `<Form>` for data population
+- No `useEffect` for `form.setFieldsValue`
+
+```tsx
+<Modal destroyOnHidden title="Edit" open={open} onOk={handleSave}>
+  <Form initialValues={{ name: item.name }}>
+    <Form.Item name="name"><Input /></Form.Item>
+  </Form>
+</Modal>
+```
+
+---
+
+## React Query Pattern
+
+All queries follow this structure:
+
+```typescript
+// hooks file
+export function useXxxQuery(params) {
+  return useQuery({
+    queryKey: moduleKeys.xxx(params),
+    queryFn: () => moduleApi.xxx(params),
+    staleTime: STALE.DEFAULT,
+    enabled: !!requiredParam,
+  });
+}
+
+export function useXxxMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars) => moduleApi.xxx(vars),
+    onSuccess: () => qc.invalidateQueries({ queryKey: moduleKeys.all }),
+  });
+}
+```
+
+Rules:
+- Query keys centralized in `keys.ts`
+- Use `STALE.*` constants, never raw numbers
+- Use `keepPreviousData` for paginated lists
+- All hooks must have JSDoc with @param and @example
+
+---
+
 ## API Response Standard
 
 All API responses follow this envelope:

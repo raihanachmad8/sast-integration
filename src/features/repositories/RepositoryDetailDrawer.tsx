@@ -13,6 +13,8 @@ interface RepositoryDetailDrawerProps {
   open: boolean;
   onClose: () => void;
   repository: Repository | null;
+  onRunScan?: (repositoryId: string) => void;
+  onViewHistory?: (repositoryId: string) => void;
 }
 
 const PROVIDER_CONFIG: Record<string, { icon: string; label: string }> = {
@@ -21,7 +23,7 @@ const PROVIDER_CONFIG: Record<string, { icon: string; label: string }> = {
   gitea: { icon: 'fa-code-branch', label: 'Gitea' },
 };
 
-export function RepositoryDetailDrawer({ open, onClose, repository }: RepositoryDetailDrawerProps) {
+export function RepositoryDetailDrawer({ open, onClose, repository, onRunScan, onViewHistory }: RepositoryDetailDrawerProps) {
   const { modal } = App.useApp();
   const { token } = theme.useToken();
 
@@ -124,14 +126,14 @@ export function RepositoryDetailDrawer({ open, onClose, repository }: Repository
             block
             disabled={repository.connectionType !== 'scm'}
             icon={<FaIcon icon="fa-play" />}
-            onClick={() => modal.success({ title: 'Scan started', content: `Scan started for ${repository.name}.` })}
+            onClick={() => onRunScan?.(repository.id)}
           >
             Run Scan
           </Button>
           <Button
             block
             icon={<FaIcon icon="fa-clock-rotate-left" />}
-            onClick={() => modal.info({ title: 'Scan history', content: `Scan history for ${repository.name} would open here.` })}
+            onClick={() => onViewHistory?.(repository.id)}
           >
             View History
           </Button>

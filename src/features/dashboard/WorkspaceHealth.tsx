@@ -22,7 +22,7 @@ export function WorkspaceHealth({ items }: WorkspaceHealthProps) {
   return (
     <Card
       title="Workspace health"
-      extra={<Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>Last updated 2 min ago</Typography.Text>}
+
     >
       <Flex wrap="wrap" gap={token.marginMD}>
         {items.map((item, i) => (

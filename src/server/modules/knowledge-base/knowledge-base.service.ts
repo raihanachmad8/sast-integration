@@ -13,34 +13,40 @@ export interface ListEntriesParams {
 
 export const knowledgeBaseService = {
   /**
-   * Lists knowledge entries belonging to a workspace with server-side search and filter.
+   * Lists all knowledge entries (global — not workspace-scoped).
    *
-   * @param workspaceId - The workspace ID.
    * @param params - Optional search, source filter, and pagination params.
    */
-  async listByWorkspace(workspaceId: string, params: ListEntriesParams = {}) {
-    logger.knowledge.info('listByWorkspace', { workspaceId, search: params.search, source: params.source });
+  async list(params: ListEntriesParams = {}) {
+    logger.knowledge.info('list', { search: params.search, source: params.source });
     const page = params.page ?? 1;
     const perPage = params.perPage ?? 25;
     const offset = (page - 1) * perPage;
 
     const [total, data] = await Promise.all([
-      knowledgeBaseRepository.countEntriesByWorkspace(workspaceId, { search: params.search, source: params.source }),
-      knowledgeBaseRepository.listEntriesByWorkspace(workspaceId, { search: params.search, source: params.source, limit: perPage, offset }),
+      knowledgeBaseRepository.countEntries({ search: params.search, source: params.source }),
+      knowledgeBaseRepository.listEntries({ search: params.search, source: params.source, limit: perPage, offset }),
     ]);
 
-    logger.knowledge.info('listByWorkspace completed', { count: data.length, total });
+    logger.knowledge.info('list completed', { count: data.length, total });
     return { data, total, page, perPage };
   },
 
   /**
-   * Returns a single entry after verifying its source belongs to the workspace.
-   *
-   * @throws {AppError} When the entry is not found in the workspace.
+   * Lists knowledge entries (backward compatibility alias).
    */
-  async getById(workspaceId: string, entryId: string) {
-    logger.knowledge.info('getById', { workspaceId, entryId });
-    const entry = await knowledgeBaseRepository.findEntryByIdWithWorkspaceScope(entryId, workspaceId);
+  async listByWorkspace(_workspaceId: string, params: ListEntriesParams = {}) {
+    return this.list(params);
+  },
+
+  /**
+   * Returns a single entry by ID (global — not workspace-scoped).
+   *
+   * @throws {AppError} When the entry is not found.
+   */
+  async getById(_workspaceId: string, entryId: string) {
+    logger.knowledge.info('getById', { entryId });
+    const entry = await knowledgeBaseRepository.findEntryById(entryId);
     if (!entry) throw new AppError('Knowledge entry not found', 404, 'NOT_FOUND');
     logger.knowledge.info('getById completed', { entryId });
     return entry;
@@ -48,8 +54,9 @@ export const knowledgeBaseService = {
 
   /**
    * Creates a custom or source-owned knowledge entry.
+   * Requires workspace membership for write access.
    *
-   * @throws {AppError} When the source does not belong to the workspace.
+   * @throws {AppError} When the source does not exist.
    */
   async createEntry(workspaceId: string, input: unknown, userId: string) {
     logger.knowledge.info('createEntry', { workspaceId });
@@ -58,9 +65,9 @@ export const knowledgeBaseService = {
       throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
     }
     const data = createKnowledgeEntrySchema.parse(input);
-    const source = await knowledgeBaseRepository.findSourceByIdForWorkspace(data.sourceId, workspaceId);
+    const source = await knowledgeBaseRepository.findSourceById(data.sourceId);
 
-    if (!source) throw new AppError('Knowledge source not found in this workspace', 404, 'NOT_FOUND');
+    if (!source) throw new AppError('Knowledge source not found', 404, 'NOT_FOUND');
 
     const entry = await knowledgeBaseRepository.insertEntry({
       sourceId: data.sourceId,
@@ -81,9 +88,10 @@ export const knowledgeBaseService = {
   },
 
   /**
-   * Updates a knowledge entry. Verifies the entry's source belongs to the workspace.
+   * Updates a knowledge entry (global — not workspace-scoped).
+   * Requires workspace membership for write access.
    *
-   * @throws {AppError} When the entry does not exist or belongs to a different workspace.
+   * @throws {AppError} When the entry does not exist.
    */
   async updateEntry(entryId: string, input: unknown, workspaceId: string, userId: string) {
     logger.knowledge.info('updateEntry', { entryId });
@@ -92,8 +100,7 @@ export const knowledgeBaseService = {
       throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
     }
 
-    // IDOR fix: verify entry's source belongs to this workspace
-    const existing = await knowledgeBaseRepository.findEntryForWorkspace(entryId, workspaceId);
+    const existing = await knowledgeBaseRepository.findEntryById(entryId);
     if (!existing) throw new AppError('Knowledge entry not found', 404, 'NOT_FOUND');
 
     const data = updateKnowledgeEntrySchema.parse(input);
@@ -114,9 +121,9 @@ export const knowledgeBaseService = {
 
   /**
    * Deletes a knowledge entry and refreshes its source count.
-   * Verifies the entry's source belongs to the workspace.
+   * Requires workspace membership for write access.
    *
-   * @throws {AppError} When the entry does not exist or belongs to a different workspace.
+   * @throws {AppError} When the entry does not exist.
    */
   async deleteEntry(entryId: string, workspaceId: string, userId: string) {
     logger.knowledge.info('deleteEntry', { entryId });
@@ -125,8 +132,7 @@ export const knowledgeBaseService = {
       throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
     }
 
-    // IDOR fix: verify entry's source belongs to this workspace
-    const existing = await knowledgeBaseRepository.findEntryForWorkspace(entryId, workspaceId);
+    const existing = await knowledgeBaseRepository.findEntryById(entryId);
     if (!existing) throw new AppError('Knowledge entry not found', 404, 'NOT_FOUND');
 
     const deleted = await knowledgeBaseRepository.deleteEntry(entryId);
@@ -141,6 +147,7 @@ export const knowledgeBaseService = {
 
   /**
    * Mutes (soft-disables) a knowledge entry.
+   * Requires workspace membership for write access.
    */
   async muteEntry(entryId: string, workspaceId: string, userId: string) {
     logger.knowledge.info('muteEntry', { entryId });
@@ -149,7 +156,7 @@ export const knowledgeBaseService = {
       throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
     }
 
-    const existing = await knowledgeBaseRepository.findEntryForWorkspace(entryId, workspaceId);
+    const existing = await knowledgeBaseRepository.findEntryById(entryId);
     if (!existing) throw new AppError('Knowledge entry not found', 404, 'NOT_FOUND');
 
     const updated = await knowledgeBaseRepository.muteEntry(entryId);

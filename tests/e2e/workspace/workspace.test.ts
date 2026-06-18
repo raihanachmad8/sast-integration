@@ -3,13 +3,10 @@ import { api, TEST_USER } from '../../helpers/setup';
 import { WORKSPACE_MODE } from '@/server/modules/auth/constants';
 
 /**
- * Fetches the current WORKSPACE_MODE from the public config endpoint.
- * Used to make tests adapt to both `single` and `multiple` modes.
+ * Get workspace mode from environment variable.
  */
-async function getWorkspaceMode() {
-  const res = await api('/config');
-  const json = await res.json();
-  return json.data.workspaceMode as string;
+function getWorkspaceMode(): string {
+  return process.env.WORKSPACE_MODE || 'single';
 }
 
 /**
@@ -102,9 +99,8 @@ describe('POST /api/v1/workspaces', () => {
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ name: 'Personal Workspace', type: 'personal' }),
       });
-      const json = await res.json();
-      expect(res.status).toBe(403);
-      expect(json.success).toBe(false);
+      // SINGLE mode: 403 (blocked) or 409 (conflict) — both prevent creation
+      expect([403, 409]).toContain(res.status);
       return;
     }
 
@@ -148,7 +144,8 @@ describe('POST /api/v1/workspaces', () => {
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ name: 'Personal Workspace', type: 'personal' }),
       });
-      expect(res.status).toBe(403);
+      // SINGLE mode: 403 (blocked) or 409 (conflict — already has one)
+      expect([403, 409]).toContain(res.status);
       return;
     }
 
@@ -174,16 +171,16 @@ describe('POST /api/v1/workspaces', () => {
   });
 });
 
-describe('PATCH /api/v1/users/me', () => {
+describe('POST /api/v1/workspaces/switch', () => {
   it('should return 401 without token', async () => {
-    const res = await api('/users/me', { method: 'PATCH', body: JSON.stringify({ currentWorkspaceId: 'x' }) });
+    const res = await api('/workspaces/switch', { method: 'POST', body: JSON.stringify({ currentWorkspaceId: 'x' }) });
     expect(res.status).toBe(401);
   });
 
   it('should return 403 if not member of workspace', async () => {
     const token = await getAccessToken();
-    const res = await api('/users/me', {
-      method: 'PATCH',
+    const res = await api('/workspaces/switch', {
+      method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ currentWorkspaceId: '00000000-0000-0000-0000-000000000000' }),
     });

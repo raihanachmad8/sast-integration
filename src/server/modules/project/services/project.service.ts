@@ -43,6 +43,7 @@ export const projectService = {
       memberNames: memberNamesMap.get(p.id) ?? [],
       teamNames: teamNamesMap.get(p.id) ?? [],
       repositories: repoNamesMap.get(p.id) ?? [],
+      repositoryIds: repoIdsMap.get(p.id) ?? [],
       automation: [] as string[],
     }));
 
@@ -75,8 +76,11 @@ export const projectService = {
       projectRepository.listRepositoryNames(projectId),
     ]);
 
+    // Get repository IDs for filtering
+    const repositoryIds = await projectRepository.listRepositoryIds(projectId);
+
     logger.project.info('getById completed', { projectId });
-    return { ...project, members, teams, memberNames, teamNames, repositories: repositoryNames, automation: [] as string[] };
+    return { ...project, members, teams, memberNames, teamNames, repositories: repositoryNames, repositoryIds, automation: [] as string[] };
   },
 
   /**

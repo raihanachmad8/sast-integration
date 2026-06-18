@@ -12,8 +12,16 @@ interface AiAnalysisCardProps {
   verdict: string;
   /** Verdict reasoning text */
   reasoning: string;
-  /** CWE identifier */
+  /** CWE identifier from scanner */
   cwe: string;
+  /** What the scanner found and why it flagged this */
+  matchDetail?: string | null;
+  /** Likely CWE identifiers predicted by AI */
+  likelyCwe?: string[] | null;
+  /** Data flow path from source to sink */
+  dataFlow?: string | null;
+  /** Taint source description */
+  taintSource?: string | null;
   /** Remediation text */
   remediation: string;
   /** Knowledge base usage count */
@@ -23,19 +31,21 @@ interface AiAnalysisCardProps {
 /**
  * AI analysis result card showing verdict, reasoning, CWE mapping, and remediation.
  * Used in: Finding detail drawer, scan results.
- *
- * @example
- * <AiAnalysisCard
- *   model="sast-qlora-8b"
- *   verdict="TP"
- *   reasoning="The input flows directly to the SQL query without sanitization."
- *   cwe="CWE-89"
- *   remediation="Use parameterized queries instead of string concatenation."
- *   knowledgeUses={3}
- * />
  */
-export function AiAnalysisCard({ model, verdict, reasoning, cwe, remediation, knowledgeUses = 0 }: AiAnalysisCardProps) {
+export function AiAnalysisCard({
+  model,
+  verdict,
+  reasoning,
+  cwe,
+  matchDetail,
+  likelyCwe,
+  dataFlow,
+  taintSource,
+  remediation,
+  knowledgeUses = 0,
+}: AiAnalysisCardProps) {
   const { token } = theme.useToken();
+  const displayCwes = likelyCwe && likelyCwe.length > 0 ? likelyCwe : [cwe];
 
   return (
     <Flex vertical>
@@ -51,14 +61,42 @@ export function AiAnalysisCard({ model, verdict, reasoning, cwe, remediation, kn
             <Typography.Text strong style={{ color: token.colorPurple }}>Verdict reasoning</Typography.Text>
             <Typography.Text type="secondary" style={{ lineHeight: 1.6 }}>{reasoning}</Typography.Text>
           </Flex>
+
+          {matchDetail && (
+            <Flex vertical gap={token.marginXS}>
+              <Typography.Text strong style={{ color: token.colorPurple }}>Match detail</Typography.Text>
+              <Typography.Text type="secondary" style={{ lineHeight: 1.6 }}>{matchDetail}</Typography.Text>
+            </Flex>
+          )}
+
           <Flex vertical gap={token.marginXS}>
             <Typography.Text strong style={{ color: token.colorPurple }}>CWE mapping</Typography.Text>
-            <Typography.Text type="secondary" style={{ lineHeight: 1.6 }}>{cwe}</Typography.Text>
+            <Flex gap={token.marginXXS} wrap="wrap">
+              {displayCwes.map((cw) => (
+                <StatusTag key={cw} type="knowledgeSource" value={cw} />
+              ))}
+            </Flex>
           </Flex>
+
+          {dataFlow && (
+            <Flex vertical gap={token.marginXS}>
+              <Typography.Text strong style={{ color: token.colorPurple }}>Data flow</Typography.Text>
+              <Typography.Text type="secondary" style={{ lineHeight: 1.6, fontFamily: token.fontFamilyCode }}>{dataFlow}</Typography.Text>
+            </Flex>
+          )}
+
+          {taintSource && (
+            <Flex vertical gap={token.marginXS}>
+              <Typography.Text strong style={{ color: token.colorPurple }}>Taint source</Typography.Text>
+              <Typography.Text type="secondary" style={{ lineHeight: 1.6 }}>{taintSource}</Typography.Text>
+            </Flex>
+          )}
+
           <Flex vertical gap={token.marginXS}>
             <Typography.Text strong style={{ color: token.colorPurple }}>Remediation</Typography.Text>
             <Typography.Text type="secondary" style={{ lineHeight: 1.6 }}>{remediation}</Typography.Text>
           </Flex>
+
           <Flex align="center" gap={token.marginXS} style={{ padding: `${token.paddingXS}px ${token.paddingMD}px`, background: token.colorFillQuaternary, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: token.borderRadius, fontSize: token.fontSizeSM }}>
             <FaIcon icon="fa-book" style={{ color: token.colorPurple }} /> <Typography.Text type="secondary">Knowledge ref: {cwe} ({knowledgeUses} prior uses)</Typography.Text>
           </Flex>

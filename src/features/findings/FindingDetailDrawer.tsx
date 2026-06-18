@@ -24,7 +24,6 @@ interface FindingDetailDrawerProps {
   onReverify?: (id: string, model: string) => void;
   onOpenFullPage?: (id: string) => void;
   onAssign?: (findingId: string, assignee: string | null) => void;
-  onAddComment?: (findingId: string, text: string) => void;
 }
 
 export function FindingDetailDrawer({
@@ -37,7 +36,6 @@ export function FindingDetailDrawer({
   onReverify,
   onOpenFullPage,
   onAssign,
-  onAddComment,
 }: FindingDetailDrawerProps) {
   const { token } = theme.useToken();
 
@@ -139,7 +137,7 @@ export function FindingDetailDrawer({
           onOpenFullPage={onOpenFullPage}
         />
 
-        <FindingComments findingId={finding.id} onAddComment={onAddComment} />
+        <FindingComments findingId={finding.id} />
       </Flex>
     </Drawer>
   );

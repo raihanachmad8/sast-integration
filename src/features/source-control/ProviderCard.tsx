@@ -19,7 +19,7 @@ interface ScmProvider {
 interface ProviderCardProps {
   provider: ScmProvider;
   onConfigure: (provider: string) => void;
-  onTest: (provider: string) => void;
+  onTest: (providerId: string) => void;
   onSync: (provider: string) => void;
   onDisconnect: (provider: string) => void;
 }
@@ -56,7 +56,7 @@ export function ProviderCard({ provider, onConfigure, onTest, onSync, onDisconne
 
         <Flex wrap gap={token.marginXS}>
           <Button size="small" onClick={() => onConfigure(provider.name)} icon={<FaIcon icon="fa-gear" />}>{provider.status === 'Connected' || provider.status === 'Pending' ? 'Configure' : 'Connect'}</Button>
-          <Button size="small" disabled={provider.status === 'Disconnected'} onClick={() => onTest(provider.name)} icon={<FaIcon icon="fa-flask-vial" />}>Test</Button>
+          <Button size="small" disabled={provider.status === 'Disconnected'} onClick={() => onTest(provider.id)} icon={<FaIcon icon="fa-flask-vial" />}>Test</Button>
           <Button size="small" disabled={provider.status !== 'Connected'} onClick={() => onSync(provider.id)} icon={<FaIcon icon="fa-arrows-rotate" />}>Sync</Button>
           {provider.status === 'Connected' && <Button size="small" danger onClick={() => onDisconnect(provider.id)} icon={<FaIcon icon="fa-link-slash" />}>Disconnect</Button>}
         </Flex>

@@ -22,3 +22,8 @@ export const findingKeys = {
   /** Key for finding groups under a project. */
   groups: (projectId: string) => [...findingKeys.all, 'groups', projectId] as const,
 };
+
+export const commentKeys = {
+  all: ['comments'] as const,
+  byFinding: (findingId: string) => [...commentKeys.all, findingId] as const,
+};

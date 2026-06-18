@@ -36,6 +36,10 @@ import { scanRepository } from '@/server/modules/scan/repositories/scan.reposito
 import { findingService } from '@/server/modules/scan/services/finding.service';
 import { repositoriesRepository } from '@/server/modules/repositories/repositories.repository';
 import { getStorageDriver } from '@/server/modules/storage/storage.service';
+import { db } from '@/server/db/client';
+import { models } from '@drizzle/schema/integrations';
+import { eq, asc } from 'drizzle-orm';
+import { enqueue } from '@/server/modules/queue/queue.service';
 import { logger } from '@/server/lib/logger';
 import { AppError } from '@/server/http/errors';
 import { randomUUID } from 'node:crypto';
@@ -196,17 +200,12 @@ export async function POST(request: NextRequest) {
     // Auto-trigger AI verification for findings from this tool
     if (storedFindings.length > 0) {
       try {
-        const { db } = await import('@/server/db/client');
-        const { models } = await import('@drizzle/schema/integrations');
-        const { eq, asc } = await import('drizzle-orm');
-
         const [model] = await db.select().from(models)
           .where(eq(models.workspaceId, workspaceId))
           .orderBy(asc(models.priority))
           .limit(1);
 
         if (model) {
-          const { enqueue } = await import('@/server/modules/queue/queue.service');
           for (const finding of storedFindings) {
             if (!finding.id) continue;
             await enqueue('ai-verify-finding', {

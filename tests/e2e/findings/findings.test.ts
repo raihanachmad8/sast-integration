@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 
 const API_BASE = 'http://localhost:3000';
-const WORKSPACE_ID = '506416af-1f67-4ae9-906a-e84b20948a72';
 
 const TEST_USER = {
   email: 'owner@sast.local',
@@ -18,11 +17,21 @@ async function getAccessToken(): Promise<string> {
   return json.data.accessToken;
 }
 
+async function getFirstWorkspaceId(token: string): Promise<string | null> {
+  const res = await fetch(`${API_BASE}/api/v1/workspaces`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const json = await res.json();
+  return json.data?.[0]?.id ?? null;
+}
+
 describe('GET /api/v1/workspaces/:wid/findings', () => {
   let token: string;
+  let WORKSPACE_ID: string;
 
   beforeAll(async () => {
     token = await getAccessToken();
+    WORKSPACE_ID = (await getFirstWorkspaceId(token)) ?? '';
   });
 
   it('should return 401 without token', async () => {
@@ -94,9 +103,11 @@ describe('GET /api/v1/workspaces/:wid/findings', () => {
 
 describe('GET /api/v1/workspaces/:wid/findings/:findingId', () => {
   let token: string;
+  let WORKSPACE_ID: string;
 
   beforeAll(async () => {
     token = await getAccessToken();
+    WORKSPACE_ID = (await getFirstWorkspaceId(token)) ?? '';
   });
 
   it('should return 401 without token', async () => {

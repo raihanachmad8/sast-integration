@@ -5,13 +5,9 @@
  * @example
  * import { clientEnv } from '@/config/client-env';
  *
- * if (clientEnv.mockData) { ... }
  * if (clientEnv.features.teams) { ... }
  */
 export const clientEnv = {
-  /** Use mock data instead of real API */
-  mockData: process.env.NEXT_PUBLIC_MOCK_DATA === 'true',
-
   /** App base URL for canonical links and redirects */
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
 
