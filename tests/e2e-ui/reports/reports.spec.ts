@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 import { signInAndOpenWorkspace } from '../auth/helpers';
 
 test.describe('Reports Page', () => {
+  /**
+   * Purpose: Verify that the reports page loads without crashing and does not show a server error.
+   */
   test('should render reports page', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
@@ -12,6 +15,9 @@ test.describe('Reports Page', () => {
     await expect(page.locator('text=Internal Server Error')).toHaveCount(0);
   });
 
+  /**
+   * Purpose: Verify that the reports page shows either a reports table, an empty state, or a generate button.
+   */
   test('should show reports table or empty state', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
@@ -26,6 +32,9 @@ test.describe('Reports Page', () => {
     expect(hasTable > 0 || hasEmptyState > 0 || hasGenerateButton > 0).toBe(true);
   });
 
+  /**
+   * Purpose: Verify that report type or format filter options are visible on the reports page.
+   */
   test('should have report type filter options', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');

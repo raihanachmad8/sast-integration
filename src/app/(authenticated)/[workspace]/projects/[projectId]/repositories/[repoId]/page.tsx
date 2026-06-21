@@ -10,6 +10,7 @@ import {
   Table,
   Typography,
   App,
+  Flex,
   theme,
 } from 'antd';
 import {
@@ -19,11 +20,14 @@ import {
 } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSessionData } from '@/modules/auth/queries';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorBanner } from '@/components/shared/ErrorBanner';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorBanner } from '@/commons/components/ErrorBanner';
 import { errorMessage } from '@/lib/api/errors';
-import { StatusPill } from '@/components/shared/StatusPill';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { FeatureGate } from '@/commons/components/FeatureGate';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 
 const { Text } = Typography;
 
@@ -32,7 +36,7 @@ interface Repository {
   name: string;
   url: string;
   defaultBranch: string | null;
-  connectionType: string;
+  connectionType: string[];
   currentPolicyId: string | null;
 }
 
@@ -53,6 +57,29 @@ interface ScansResponse {
 }
 
 export default function RepositoryDetailScanPage() {
+  const { token } = theme.useToken();
+
+  return (
+    <FeatureGate
+      flag={FEATURE_FLAG.PROJECTS}
+      fallback={
+        <Flex vertical gap={token.paddingXL}>
+          <PageHeader title="Repository" description="View repository scan history and details." />
+          <ComingSoonCard
+            icon="fa-code-branch"
+            title="Projects"
+            description="Projects allow you to group repositories and manage scan configurations."
+            envHint="FEATURE_FLAG_PROJECTS"
+          />
+        </Flex>
+      }
+    >
+      <RepositoryDetailScanPageContent />
+    </FeatureGate>
+  );
+}
+
+function RepositoryDetailScanPageContent() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const params = useParams<{ workspace: string; projectId: string; repoId: string }>();
@@ -109,8 +136,8 @@ export default function RepositoryDetailScanPage() {
     router.push(`/${workspaceSlug}/scan`);
   };
 
-  const isExternal = repo?.connectionType === 'external';
-  const canRunManaged = repo?.connectionType === 'scm' && !!repo.currentPolicyId;
+  const isExternal = !repo?.connectionType?.includes('scm');
+  const canRunManaged = repo?.connectionType?.includes('scm') && !!repo.currentPolicyId;
 
   if (!workspaceId) {
     return <LoadingState text="Loading workspace..." />;

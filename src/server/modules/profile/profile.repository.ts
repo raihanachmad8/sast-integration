@@ -15,11 +15,22 @@ export interface UpdateProfileInput {
 }
 
 export const profileRepository = {
+  /**
+   * Get a user profile by user ID.
+   * @param userId - User UUID
+   * @returns User record or null if not found
+   */
   async get(userId: string) {
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
     return user ?? null;
   },
 
+  /**
+   * Update a user's profile fields.
+   * @param userId - User UUID
+   * @param data - Profile fields to update (name, username, bio, timezone, language)
+   * @returns Updated user record or null if not found
+   */
   async update(userId: string, data: UpdateProfileInput) {
     const [updated] = await db
       .update(users)
@@ -36,6 +47,13 @@ export const profileRepository = {
     return updated ?? null;
   },
 
+  /**
+   * Upload and set a user's avatar image.
+   * @param userId - User UUID
+   * @param file - Image file to upload (max 5MB, PNG/JPEG/GIF/WebP)
+   * @returns The avatar URL or null on failure
+   * @throws {AppError} 400 - File size exceeds 5MB limit or invalid file type
+   */
   async uploadAvatar(userId: string, file: File) {
     // Validate file size (max 5MB)
     const MAX_SIZE = 5 * 1024 * 1024;
@@ -65,6 +83,11 @@ export const profileRepository = {
     return updated?.avatarUrl ?? null;
   },
 
+  /**
+   * Remove a user's avatar by setting avatarUrl to null.
+   * @param userId - User UUID
+   * @returns Updated user record or null if not found
+   */
   async removeAvatar(userId: string) {
     const [updated] = await db
       .update(users)
@@ -75,6 +98,11 @@ export const profileRepository = {
     return updated ?? null;
   },
 
+  /**
+   * List all sessions for a user.
+   * @param userId - User UUID
+   * @returns Array of session records with id, ipAddress, userAgent, lastActivity, and createdAt
+   */
   async listSessions(userId: string) {
     return db
       .select({
@@ -89,6 +117,12 @@ export const profileRepository = {
       .where(eq(sessions.userId, userId));
   },
 
+  /**
+   * Delete a specific session for a user.
+   * @param userId - User UUID (for scoping)
+   * @param sessionId - Session UUID to delete
+   * @returns Deleted session record or null if not found
+   */
   async deleteSession(userId: string, sessionId: string) {
     const [deleted] = await db
       .delete(sessions)
@@ -97,6 +131,13 @@ export const profileRepository = {
     return deleted ?? null;
   },
 
+  /**
+   * Change a user's password after verifying the current password.
+   * @param userId - User UUID
+   * @param currentPassword - Current plaintext password for verification
+   * @param newPassword - New plaintext password to hash and store
+   * @returns true if password was changed, false if current password is invalid or user not found
+   */
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
     if (!user) return false;

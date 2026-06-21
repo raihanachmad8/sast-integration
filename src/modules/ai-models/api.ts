@@ -11,28 +11,26 @@ const _api = Api({ baseUrl: clientEnv.apiUrl });
 function fromServer(raw: Record<string, unknown>): AiModelRow {
   return {
     id: raw.id as string,
-    workspaceId: raw.workspace_id as string,
+    workspaceId: raw.workspaceId as string,
     name: raw.name as string,
     provider: raw.provider as string,
-    baseUrl: raw.base_url as string,
+    baseUrl: raw.baseUrl as string,
     role: raw.role as 'primary' | 'fallback',
     priority: raw.priority as number,
-    promptPreset: raw.prompt_preset as string,
+    promptPreset: raw.promptPreset as string,
     status: (raw.status as 'reachable' | 'unreachable') ?? 'unreachable',
-    lastTestedAt: (raw.last_tested_at as string) ?? null,
-    createdAt: raw.created_at as string,
+    lastTestedAt: (raw.lastTestedAt as string) ?? null,
+    createdAt: raw.createdAt as string,
   };
 }
 
 export const aiModelsApi = {
   async list(workspaceId: string, params: ListParams): Promise<PaginatedResponse<AiModelRow>> {
-    const response = await _api.Get<ApiResponse<Record<string, unknown>[]>>(ENDPOINTS.AI_MODELS.LIST(workspaceId), params);
-    const items = Array.isArray(response.data) ? response.data.map(fromServer) : [];
+    const response = await _api.Get<ApiResponse<PaginatedResponse<Record<string, unknown>>>>(ENDPOINTS.AI_MODELS.LIST(workspaceId), params);
+    const result = extractPaginated(response);
     return {
-      data: items,
-      meta: response.meta?.pagination
-        ? { page: response.meta.pagination.page, perPage: response.meta.pagination.perPage, total: response.meta.pagination.total, lastPage: response.meta.pagination.totalPages }
-        : { page: 1, perPage: 10, total: items.length, lastPage: 1 },
+      data: result.data.map(fromServer),
+      meta: result.meta,
     };
   },
 

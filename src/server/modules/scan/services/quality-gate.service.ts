@@ -94,7 +94,7 @@ export const qualityGateService = {
       });
 
       const blockingFindings = countBlockingFindings(findings.data, gate);
-      const pendingFindings = countPendingFindings(findings.data);
+      const pendingFindings = countPendingFindings(findings.data.map((f) => ({ status: f.groupStatus ?? 'open' })));
 
       let status: 'passed' | 'failed' | 'warning' = 'passed';
 
@@ -186,7 +186,7 @@ export const qualityGateService = {
       );
 
       const blockingFindings = countBlockingFindings(newFindings.data, gate);
-      const pendingFindings = countPendingFindings(newFindings.data);
+      const pendingFindings = countPendingFindings(newFindings.data.map((f) => ({ status: f.groupStatus ?? 'open' })));
 
       let status: 'passed' | 'failed' | 'warning' = 'passed';
 
@@ -233,6 +233,7 @@ export const qualityGateService = {
           headBranch,
           baseBranch,
         },
+        newFindingsData: newFindings.data,
         result,
       };
 

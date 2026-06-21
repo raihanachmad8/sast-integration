@@ -15,10 +15,12 @@ const mailProviderValues = Object.values(MAIL.PROVIDER) as [
 
 /** Known dev/example values that must never reach production. */
 const INSECURE_SECRETS = [
-  "your-secret-key-minimum-32-characters-long!!",
+  "your-secret-key-minimum-32-characters-long",
   "changeme",
   "secret",
   "dev-secret",
+  "password",
+  "12345678",
 ];
 
 const envSchema = z
@@ -78,7 +80,8 @@ const envSchema = z
 
     // Production hardening: reject dev/placeholder values that must never ship.
     if (data.NODE_ENV === NODE_ENV.PRODUCTION) {
-      if (INSECURE_SECRETS.includes(data.JWT_SECRET.toLowerCase())) {
+      const secretLower = data.JWT_SECRET.toLowerCase();
+      if (INSECURE_SECRETS.some((insecure) => secretLower.startsWith(insecure) || secretLower.includes(insecure))) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "must not use a default/example value in production",

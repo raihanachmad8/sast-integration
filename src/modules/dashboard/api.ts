@@ -7,23 +7,23 @@ import type { DashboardStats, DashboardScan, DashboardFinding, DashboardHealth }
 const _api = Api({ baseUrl: clientEnv.apiUrl });
 
 export const dashboardApi = {
-  async getStats(_workspaceId: string): Promise<DashboardStats> {
-    const { data } = await _api.Get<ApiResponse<DashboardStats>>(ENDPOINTS.DASHBOARD.STATS);
+  async getStats(workspaceId: string): Promise<DashboardStats> {
+    const { data } = await _api.Get<ApiResponse<DashboardStats>>(`${ENDPOINTS.DASHBOARD.STATS}?workspaceId=${workspaceId}`);
     return data;
   },
 
-  async getScans(_workspaceId: string): Promise<DashboardScan[]> {
-    const { data } = await _api.Get<ApiResponse<DashboardScan[]>>(ENDPOINTS.DASHBOARD.SCANS);
+  async getScans(workspaceId: string): Promise<DashboardScan[]> {
+    const { data } = await _api.Get<ApiResponse<DashboardScan[]>>(`${ENDPOINTS.DASHBOARD.SCANS}?workspaceId=${workspaceId}`);
     return data;
   },
 
-  async getFindings(_workspaceId: string): Promise<DashboardFinding[]> {
-    const { data } = await _api.Get<ApiResponse<DashboardFinding[]>>(ENDPOINTS.DASHBOARD.FINDINGS);
+  async getFindings(workspaceId: string): Promise<DashboardFinding[]> {
+    const { data } = await _api.Get<ApiResponse<DashboardFinding[]>>(`${ENDPOINTS.DASHBOARD.FINDINGS}?workspaceId=${workspaceId}`);
     return data;
   },
 
-  async getHealth(_workspaceId: string): Promise<DashboardHealth> {
-    const { data } = await _api.Get<ApiResponse<DashboardHealth>>(ENDPOINTS.DASHBOARD.HEALTH);
+  async getHealth(workspaceId: string): Promise<DashboardHealth> {
+    const { data } = await _api.Get<ApiResponse<DashboardHealth>>(`${ENDPOINTS.DASHBOARD.HEALTH}?workspaceId=${workspaceId}`);
     return data;
   },
 };

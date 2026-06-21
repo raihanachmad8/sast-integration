@@ -30,7 +30,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     if (!validation.success) return validation.response;
     const { modelId } = validation.data;
 
-    const result = await aiVerificationService.verifyFinding(findingId, modelId ?? '');
+    const result = await aiVerificationService.verifyFinding(findingId, modelId ?? '', workspaceId);
     return ApiResponse.success('Verification completed', result);
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

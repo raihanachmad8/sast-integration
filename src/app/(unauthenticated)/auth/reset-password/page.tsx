@@ -1,8 +1,8 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import { PasswordStrength } from '@/components/shared/PasswordStrength';
-import { LoadingState } from '@/components/shared/LoadingState';
+import { PasswordStrength } from '@/commons/components/PasswordStrength';
+import { LoadingState } from '@/commons/components/LoadingState';
 import { Form, Input, Button, Typography, Alert, Result, theme } from 'antd';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';

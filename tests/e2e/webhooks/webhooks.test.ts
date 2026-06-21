@@ -1,35 +1,43 @@
-import { describe, it, expect } from 'vitest';
-import { api, TEST_USER } from '../../helpers/setup';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { api, getFirstWorkspaceId, signin } from '../../helpers/setup';
 
-async function getAccessToken() {
-  const res = await api('/auth/signin', {
-    method: 'POST',
-    body: JSON.stringify({ email: TEST_USER.email, password: TEST_USER.password }),
-  });
-  const json = await res.json();
-  return json.data.accessToken;
-}
+let token: string;
+let WORKSPACE_ID: string;
+const createdWebhookIds: string[] = [];
 
-async function getFirstWorkspaceId(token: string) {
-  const res = await api('/workspaces', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const json = await res.json();
-  return json.data[0]?.id;
-}
+beforeAll(async () => {
+  const session = await signin();
+  token = session.accessToken;
+  WORKSPACE_ID = (await getFirstWorkspaceId(token)) ?? '';
+});
+
+afterAll(async () => {
+  try {
+    for (const webhookId of createdWebhookIds) {
+      await api(`/workspaces/${WORKSPACE_ID}/webhooks/${webhookId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+  } catch {
+    // Cleanup is best-effort, don't fail tests
+  }
+});
 
 describe('GET /api/v1/workspaces/[workspaceId]/webhooks', () => {
+  /**
+   * Purpose: Ensure the webhooks list endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/ws-1/webhooks');
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that authenticated workspace members can list webhooks.
+   */
   it('should return webhooks list', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
-    const res = await api(`/workspaces/${wsId}/webhooks`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/webhooks`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json();
@@ -39,6 +47,9 @@ describe('GET /api/v1/workspaces/[workspaceId]/webhooks', () => {
 });
 
 describe('POST /api/v1/workspaces/[workspaceId]/webhooks', () => {
+  /**
+   * Purpose: Ensure the webhook creation endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/ws-1/webhooks', {
       method: 'POST',
@@ -47,12 +58,11 @@ describe('POST /api/v1/workspaces/[workspaceId]/webhooks', () => {
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that a webhook can be created with valid input and returns 201.
+   */
   it('should create a webhook', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
-    const res = await api(`/workspaces/${wsId}/webhooks`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/webhooks`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({
@@ -64,5 +74,6 @@ describe('POST /api/v1/workspaces/[workspaceId]/webhooks', () => {
     const json = await res.json();
     expect(res.status).toBe(201);
     expect(json.success).toBe(true);
+    createdWebhookIds.push(json.data.id);
   });
 });

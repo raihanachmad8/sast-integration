@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 import { signInAndOpenWorkspace } from '../auth/helpers';
 
 test.describe('Dashboard Page', () => {
+  /**
+   * Purpose: Verify that the dashboard loads after opening a workspace and does not show a server error.
+   */
   test('should render dashboard after opening workspace', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
@@ -9,6 +12,9 @@ test.describe('Dashboard Page', () => {
     await expect(page.locator('text=Internal Server Error')).toHaveCount(0);
   });
 
+  /**
+   * Purpose: Verify that the workspace shell sidebar navigation is visible with key nav items (Dashboard, Scans, Findings).
+   */
   test('should display workspace shell with sidebar navigation', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
@@ -19,6 +25,9 @@ test.describe('Dashboard Page', () => {
     await expect(page.getByRole('button', { name: 'Findings' })).toBeVisible();
   });
 
+  /**
+   * Purpose: Verify that the dashboard displays summary cards or stat-related content elements.
+   */
   test('should display summary cards or empty state', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');

@@ -143,7 +143,7 @@ Before making non-trivial changes, you must be familiar with:
 
 This is a living document. When new conventions are established or existing rules are frequently broken, you are required to propose updates to this file.
 
-**Last Updated:** 2026-05-30
+**Last Updated:** 2026-06-19
 
 ---
 

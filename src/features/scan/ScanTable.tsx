@@ -2,10 +2,10 @@
 
 import { useMemo, useCallback } from 'react';
 import { Typography, Flex, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { DataTable, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { StatusTag } from '@/components/shared/StatusTag';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { DataTable, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { StatusTag } from '@/commons/components/StatusTag';
 import type { ScanRow } from './types';
 
 interface ScanTableProps {

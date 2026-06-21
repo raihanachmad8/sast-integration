@@ -7,6 +7,8 @@ import { App } from 'antd';
 import { useSessionData } from '@/modules/auth/queries';
 import { useFindingsQuery, useUpdateFindingMutation, useRunAiVerificationMutation } from '@/modules/findings';
 import { useMembersQuery } from '@/modules/members';
+import { useProjectsQuery } from '@/modules/projects';
+import { useRepositoriesQuery } from '@/modules/repositories';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import type { Finding } from '@/commons/types';
 import type { FindingListParams } from '@/modules/findings/types';
@@ -18,8 +20,8 @@ export function useFindingsPageState() {
   const session = useSessionData();
   const workspaceSlug = session.data?.workspace?.slug ?? '';
 
-  const { params, setPage, setPageSize, setSearch, setFilter } = useTableParams({
-    filterKeys: ['severity', 'verdict', 'status'],
+  const { params, setPagination, setSearch, setFilter } = useTableParams({
+    filterKeys: ['severity', 'verdict', 'status', 'project', 'repository'],
     defaultPageSize: 10,
   });
 
@@ -30,10 +32,14 @@ export function useFindingsPageState() {
     severity: (params.filters.severity || undefined) as FindingListParams['severity'],
     verdict: (params.filters.verdict || undefined) as FindingListParams['verdict'],
     status: (params.filters.status || undefined) as FindingListParams['status'],
+    projectId: params.filters.project || undefined,
+    repositoryId: params.filters.repository || undefined,
   };
 
   const findingsQuery = useFindingsQuery(tableParams);
   const membersQuery = useMembersQuery(session.data?.workspace?.id ?? '');
+  const projectsQuery = useProjectsQuery({ page: 1, perPage: 200 });
+  const repositoriesQuery = useRepositoriesQuery({ page: 1, perPage: 200 });
   const updateStatusMutation = useUpdateFindingMutation();
   const verifyMutation = useRunAiVerificationMutation();
 
@@ -45,15 +51,18 @@ export function useFindingsPageState() {
 
   const findings = useMemo(() => {
     const raw = (findingsQuery.data?.data ?? []) as unknown as Array<{
-      id: string; scanId: string; groupId: string; cweId: string | null;
+      id: string; scanId: string; groupId: string; projectId: string; cweId: string | null;
       severity: string; status: string; filePath: string | null; lineNumber: number | null;
       description: string | null; rule: string; scanner: string; message: string | null;
       assignedTo: string | null; createdAt: string;
       repositoryName: string | null; verdict: string | null; model: string | null; confidence: number | null;
       explanation: string | null; fixSuggestion: string | null; codeSnippet: string | null;
+      matchDetail: string | null; likelyCwe: string[] | null;
+      dataFlow: string | null; taintSource: string | null;
     }>;
     return raw.map((f) => ({
       id: f.id,
+      projectId: f.projectId ?? undefined,
       rule: f.rule ?? '',
       repo: f.repositoryName ?? '',
       file: f.filePath ?? '',
@@ -71,11 +80,17 @@ export function useFindingsPageState() {
       codeSnippet: f.codeSnippet ?? undefined,
       explanation: f.explanation ?? undefined,
       fixSuggestion: f.fixSuggestion ?? undefined,
+      matchDetail: f.matchDetail ?? undefined,
+      likelyCwe: f.likelyCwe ?? undefined,
+      dataFlow: f.dataFlow ?? undefined,
+      taintSource: f.taintSource ?? undefined,
     }));
   }, [findingsQuery.data]);
   const totalCount = findingsQuery.data?.meta?.total ?? 0;
   const members = useMemo(() => (membersQuery.data?.data ?? []) as unknown as Array<{ userId: string; name: string; email: string }>, [membersQuery.data]);
   const MEMBER_OPTIONS = useMemo(() => members.map((m) => ({ value: m.userId, label: `${m.name} (${m.email})` })), [members]);
+  const PROJECT_OPTIONS = useMemo(() => (projectsQuery.data?.data ?? []).map((p) => ({ value: p.id, label: p.name })), [projectsQuery.data]);
+  const REPOSITORY_OPTIONS = useMemo(() => (repositoriesQuery.data?.data ?? []).map((r) => ({ value: r.id, label: r.name })), [repositoriesQuery.data]);
 
   const handleRunAiVerification = useCallback(() => {
     const pending = findings.filter((f) => f.verdict === 'Pending');
@@ -83,17 +98,11 @@ export function useFindingsPageState() {
       message.info('No pending findings on this page');
       return;
     }
-    let completed = 0;
-    pending.forEach((f) => {
-      verifyMutation.mutate([f.id], {
-        onSuccess: () => {
-          completed++;
-          if (completed === pending.length) {
-            message.success(`AI verification completed for ${pending.length} finding(s)`);
-            findingsQuery.refetch();
-          }
-        },
-      });
+    verifyMutation.mutate(pending.map((f) => f.id), {
+      onSuccess: () => {
+        message.success(`AI verification queued for ${pending.length} finding(s)`);
+        findingsQuery.refetch();
+      },
     });
   }, [findings, verifyMutation, message, findingsQuery]);
 
@@ -218,9 +227,8 @@ export function useFindingsPageState() {
   }, [bulkAssignIds, bulkAssignee, assignMutation, members, message, findingsQuery]);
 
   const handleTableChange = useCallback((page: number, perPage: number) => {
-    setPage(page);
-    setPageSize(perPage);
-  }, [setPage, setPageSize]);
+    setPagination(page, perPage);
+  }, [setPagination]);
 
   const handleTableSearch = useCallback((search: string) => {
     setSearch(search);
@@ -236,6 +244,8 @@ export function useFindingsPageState() {
     totalCount,
     members,
     MEMBER_OPTIONS,
+    PROJECT_OPTIONS,
+    REPOSITORY_OPTIONS,
     tableParams,
     drawerOpen,
     setDrawerOpen,

@@ -68,39 +68,58 @@ describe('findingRepository', () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Purpose: Validates that the findingRepository exports all required methods
+   */
   it('should export findingRepository', async () => {
     const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
     expect(findingRepository).toBeDefined();
     expect(typeof findingRepository.createMany).toBe('function');
     expect(typeof findingRepository.create).toBe('function');
     expect(typeof findingRepository.findById).toBe('function');
+    expect(typeof findingRepository.findGroupById).toBe('function');
     expect(typeof findingRepository.listByProject).toBe('function');
     expect(typeof findingRepository.listByScan).toBe('function');
-    expect(typeof findingRepository.updateStatus).toBe('function');
+    expect(typeof findingRepository.updateGroupStatus).toBe('function');
     expect(typeof findingRepository.updateAssignment).toBe('function');
     expect(typeof findingRepository.getVerifications).toBe('function');
   });
 
+  /**
+   * Purpose: Validates that the createMany method is available on the repository
+   */
   it('should have createMany method', async () => {
     const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
     expect(findingRepository.createMany).toBeInstanceOf(Function);
   });
 
+  /**
+   * Purpose: Validates that the listByProject method is available on the repository
+   */
   it('should have listByProject method', async () => {
     const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
     expect(findingRepository.listByProject).toBeInstanceOf(Function);
   });
 
+  /**
+   * Purpose: Validates that the listByScan method is available on the repository
+   */
   it('should have listByScan method', async () => {
     const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
     expect(findingRepository.listByScan).toBeInstanceOf(Function);
   });
 
-  it('should have updateStatus method', async () => {
+  /**
+   * Purpose: Validates that the updateGroupStatus method is available on the repository
+   */
+  it('should have updateGroupStatus method', async () => {
     const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
-    expect(findingRepository.updateStatus).toBeInstanceOf(Function);
+    expect(findingRepository.updateGroupStatus).toBeInstanceOf(Function);
   });
 
+  /**
+   * Purpose: Validates that the updateAssignment method is available on the repository
+   */
   it('should have updateAssignment method', async () => {
     const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
     expect(findingRepository.updateAssignment).toBeInstanceOf(Function);

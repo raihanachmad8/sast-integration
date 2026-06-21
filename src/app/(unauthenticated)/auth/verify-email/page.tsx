@@ -5,7 +5,7 @@ import { Alert, Button, Result } from 'antd';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ROUTES } from '@/commons/constants';
-import { LoadingState } from '@/components/shared/LoadingState';
+import { LoadingState } from '@/commons/components/LoadingState';
 import { useVerifyEmailQuery } from '@/modules/auth/queries';
 
 function VerifyEmailContent() {

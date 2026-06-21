@@ -1,25 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Typography, Tooltip, Button, Flex, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { TRANSITION } from '@/commons/constants/layout';
 import { STATUS_TOKENS } from '@/commons/constants/tokens';
 import { AiVerificationBadge } from './AiVerificationBadge';
 import { FindingAiAnalysisCard } from './FindingAiAnalysisCard';
-import type { Finding } from './types';
-import { StatusTag } from '@/components/shared/StatusTag';
+import type { ScanFinding } from './types';
+import { StatusTag } from '@/commons/components/StatusTag';
 
 const { Text, Paragraph } = Typography;
 
 interface FindingItemProps {
-  finding: Finding;
+  finding: ScanFinding;
   showCode?: boolean;
   showAi?: boolean;
-  onStatusChange?: (findingId: string, status: Finding['status']) => void;
+  onStatusChange?: (findingId: string, status: ScanFinding['status']) => void;
 }
 
-export function FindingItem({ finding, showCode = false, showAi = false, onStatusChange }: FindingItemProps) {
+export const FindingItem = React.memo(function FindingItem({ finding, showCode = false, showAi = false, onStatusChange }: FindingItemProps) {
   const { token } = theme.useToken();
   const [codeExpanded, setCodeExpanded] = useState(showCode);
   const [aiExpanded, setAiExpanded] = useState(showAi);
@@ -40,6 +40,30 @@ export function FindingItem({ finding, showCode = false, showAi = false, onStatu
         <Flex align="center" gap={token.paddingSM} wrap="wrap">
           <StatusTag type="severity" value={finding.severity} />
           <StatusTag type="scanner" value={finding.scanner} />
+          {finding.isNew === true && (
+            <span style={{
+              padding: '0 6px',
+              fontSize: 11,
+              fontWeight: token.fontWeightStrong,
+              color: token.colorWarning,
+              background: token.colorWarningBg,
+              border: `1px solid ${token.colorWarningBorder}`,
+              borderRadius: token.borderRadiusSM,
+              lineHeight: '20px',
+            }}>New</span>
+          )}
+          {finding.isNew === false && (
+            <span style={{
+              padding: '0 6px',
+              fontSize: 11,
+              fontWeight: token.fontWeightStrong,
+              color: token.colorTextSecondary,
+              background: token.colorFillSecondary,
+              border: `1px solid ${token.colorBorderSecondary}`,
+              borderRadius: token.borderRadiusSM,
+              lineHeight: '20px',
+            }}>Pre-existing</span>
+          )}
           {finding.groundTruth && (
             <StatusTag type="verdict" value={finding.groundTruth === 'true_positive' ? 'TP' : 'FP'} />
           )}
@@ -149,4 +173,4 @@ export function FindingItem({ finding, showCode = false, showAi = false, onStatu
       )}
     </div>
   );
-}
+});

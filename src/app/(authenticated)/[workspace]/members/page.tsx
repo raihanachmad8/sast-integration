@@ -2,16 +2,16 @@
 
 import { useState } from 'react';
 import { App, Card, Flex, Tabs, Button, theme } from 'antd';
-import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { PageHeader } from '@/commons/components/PageHeader';
 import { MemberSummaryCards, MembersTable, InvitationsTable, InviteMemberModal, ChangeRoleModal } from '@/features/members';
 import { useSessionData } from '@/modules/auth/queries';
 import { useMembersQuery, useInvitationsQuery, useRemoveMemberMutation, useRevokeInvitationMutation, useInviteMemberMutation, useUpdateMemberRoleMutation } from '@/modules/members';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorBanner } from '@/components/shared/ErrorBanner';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorBanner } from '@/commons/components/ErrorBanner';
 import { errorMessage } from '@/lib/api/errors';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import type { Member } from '@/features/members';
 
 /**

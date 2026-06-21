@@ -61,10 +61,6 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    if (!isMobile) setDrawerOpen(false);
-  }, [isMobile]);
-
-  useEffect(() => {
     document.body.style.overflow = drawerOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [drawerOpen]);
@@ -183,8 +179,12 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
           }}
           breakpoint="lg"
           collapsedWidth={0}
-          onBreakpoint={(broken) => setIsMobile(broken)}
+          onBreakpoint={(broken) => {
+            setIsMobile(broken);
+            if (!broken) setDrawerOpen(false);
+          }}
         >
+          {/* eslint-disable-next-line react-hooks/static-components -- shared nav needs parent scope */}
           <SidebarNav />
         </Sider>
 
@@ -311,6 +311,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
               </button>
             </div>
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              {/* eslint-disable-next-line react-hooks/static-components -- shared nav needs parent scope */}
               <SidebarNav />
             </div>
           </div>

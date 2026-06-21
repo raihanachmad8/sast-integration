@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
     const availability = await checkAllScannerAvailability();
     return ApiResponse.success('Scanners retrieved', availability);
-  } catch (error) {
+  } catch (_error) {
     return ApiResponse.error('Failed to check scanner availability', 'INTERNAL_ERROR', undefined, 500);
   }
 }

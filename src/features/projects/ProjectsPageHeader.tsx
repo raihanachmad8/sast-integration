@@ -1,9 +1,9 @@
 'use client';
 
 import { Button, theme } from 'antd';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { PermissionGate } from '@/components/shared/PermissionGate';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { PERMISSION } from '@/commons/constants/permissions';
 
 interface ProjectsPageHeaderProps {

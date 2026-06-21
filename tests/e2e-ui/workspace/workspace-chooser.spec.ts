@@ -1,45 +1,57 @@
 import { test, expect } from '@playwright/test';
-import { getPublicConfig, gotoAuthPage, WORKSPACE_MODE } from '../auth/helpers';
+import { getWorkspaceMode, gotoAuthPage, WORKSPACE_MODE } from '../auth/helpers';
 
 test.describe.configure({ mode: 'serial' });
 
 /**
  * Signs the user in and navigates them to the Workspace Chooser page (`/workspaces`).
- *
- * Purpose:
- * - In MULTIPLE mode: Creates a fresh user via signup so the test starts with a clean personal workspace (better isolation).
- * - In SINGLE mode: Uses the seeded admin user (self-service creation is disabled in this mode).
- *
- * This helper is deliberately mode-aware because the platform's behavior and available features
- * change significantly depending on `WORKSPACE_MODE`.
- *
- * @param page - Playwright Page object
- * @returns The public config containing the current `workspaceMode`
  */
 async function signInToWorkspaceChooser(page: import('@playwright/test').Page) {
-  const config = await getPublicConfig(page);
+  const workspaceMode = getWorkspaceMode();
 
   const credentials =
-    config.workspaceMode === WORKSPACE_MODE.MULTIPLE
+    workspaceMode === WORKSPACE_MODE.MULTIPLE
       ? {
           email: `workspace-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`,
           password: 'Password123!',
+          confirmPassword: 'Password123!',
           name: 'Playwright User',
         }
       : {
-          email: 'admin@sast.local',
+          email: 'owner@sast.local',
           password: 'ChangeMe123!',
-          name: 'Admin',
+          name: 'Owner',
         };
 
   await page.context().clearCookies();
 
   // In multiple mode we create a fresh user so the test has a clean personal workspace.
-  if (config.workspaceMode === WORKSPACE_MODE.MULTIPLE) {
-    const signup = await page.request.post('/api/v1/auth/signup', {
-      data: credentials,
+  if (workspaceMode === WORKSPACE_MODE.MULTIPLE) {
+    const API = 'http://localhost:3000/api/v1';
+
+    // Use raw fetch (not page.request) to avoid sharing cookies with the browser
+    const signupRes = await fetch(`${API}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials),
     });
-    expect(signup.ok()).toBe(true);
+    expect(signupRes.ok).toBe(true);
+
+    const signinRes = await fetch(`${API}/auth/signin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: credentials.email, password: credentials.password }),
+    });
+    expect(signinRes.ok).toBe(true);
+    const signinBody = await signinRes.json();
+    const accessToken = signinBody.data?.accessToken;
+
+    const createWsRes = await fetch(`${API}/workspaces`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ name: 'Personal Workspace', type: 'personal' }),
+    });
+    expect(createWsRes.ok).toBe(true);
   }
 
   await gotoAuthPage(page, '/auth/signin?redirect=/workspaces', 'Sign in');
@@ -50,7 +62,7 @@ async function signInToWorkspaceChooser(page: import('@playwright/test').Page) {
   await expect.poll(() => new URL(page.url()).pathname, { timeout: 15_000 }).toBe('/workspaces');
   await expect(page.getByRole('heading', { name: /Choose workspace|Workspace access required/ })).toBeVisible({ timeout: 10_000 });
 
-  return config;
+  return { workspaceMode };
 }
 
 /**
@@ -116,15 +128,15 @@ test.describe('Workspace Chooser Page', () => {
       // In single mode the seeded admin only has access to the organization workspace.
       // Self-service personal workspace creation is intentionally disabled.
       await expect(page.getByRole('button', { name: 'Create personal workspace' })).toHaveCount(0);
-      await expect(page.locator('article')).toHaveCount(1);
+      await expect(page.locator('.ant-card')).toHaveCount(1);
       await expect(page.getByRole('button', { name: 'Open workspace' })).toBeVisible();
       return;
     }
 
     // In multiple mode, a freshly signed-up user should have exactly one personal workspace
     // and should not be able to create additional ones via the UI.
-    await expect(page.locator('article')).toHaveCount(1);
-    await expect(page.getByRole('heading', { name: 'Personal Workspace' })).toBeVisible();
+    await expect(page.locator('.ant-card')).toHaveCount(1);
+    await expect(page.getByText('Personal Workspace').first()).toBeVisible();
     await expect(
       page.getByText('Each account owns one personal workspace. Additional workspace access is added by invitation.')
     ).toBeVisible();
@@ -139,20 +151,21 @@ test.describe('Workspace Chooser Page', () => {
     const config = await signInToWorkspaceChooser(page);
 
     if (config.workspaceMode === WORKSPACE_MODE.SINGLE) {
-      await page.locator('article').getByRole('button', { name: 'Open workspace' }).click();
+      await page.locator('.ant-card').getByRole('button', { name: 'Open workspace' }).click();
       await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible({ timeout: 15_000 });
       return;
     }
 
     // In multiple mode we open the user's personal workspace
     await page
-      .locator('article')
+      .locator('.ant-card')
       .filter({ hasText: 'Personal Workspace' })
       .getByRole('button', { name: 'Open workspace' })
       .click();
 
-    await expect(page).toHaveURL(/\/personal-/, { timeout: 15_000 });
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible({ timeout: 10_000 });
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 15_000 }).not.toBe('/workspaces');
+    // Dashboard loads — verify the workspace shell (sidebar) is visible
+    await expect(page.getByRole('button', { name: 'Dashboard' })).toBeVisible({ timeout: 10_000 });
   });
 });
 
@@ -163,6 +176,9 @@ test.describe('Workspace Chooser Page', () => {
  * authentication pages (signin/signup) and are redirected back to the workspace area.
  */
 test.describe('Authenticated Route Guards', () => {
+  /**
+   * Purpose: Verify that an already authenticated user is redirected away from the sign-in page to /workspaces.
+   */
   test('should redirect already authenticated user away from sign-in page', async ({ page }) => {
     await signInToWorkspaceChooser(page);
 
@@ -170,6 +186,9 @@ test.describe('Authenticated Route Guards', () => {
     await expect(page).toHaveURL(/\/workspaces/, { timeout: 10000 });
   });
 
+  /**
+   * Purpose: Verify that an already authenticated user is redirected away from the sign-up page to /workspaces.
+   */
   test('should redirect already authenticated user away from sign-up page', async ({ page }) => {
     await signInToWorkspaceChooser(page);
 

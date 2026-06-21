@@ -22,6 +22,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   try {
     const webhook = await webhookService.getWebhookById(webhookId);
+    
+    // IDOR check: verify the webhook belongs to the workspace
+    if (webhook.workspaceId !== workspaceId) {
+      return ApiResponse.error('Webhook not found', 'NOT_FOUND', undefined, 404);
+    }
+    
     logger.webhook.info('getWebhook completed');
     return ApiResponse.success('Webhook retrieved', webhook);
   } catch (e) {
@@ -44,6 +50,12 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   if (!validation.success) return validation.response;
 
   try {
+    // IDOR check: verify the webhook belongs to the workspace before update
+    const existingWebhook = await webhookService.getWebhookById(webhookId);
+    if (existingWebhook.workspaceId !== workspaceId) {
+      return ApiResponse.error('Webhook not found', 'NOT_FOUND', undefined, 404);
+    }
+
     const webhook = await webhookService.updateWebhook(webhookId, validation.data, auth.context.userId, workspaceId);
     logger.webhook.info('updateWebhook completed');
     return ApiResponse.success('Webhook updated', webhook);
@@ -64,6 +76,12 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
+    // IDOR check: verify the webhook belongs to the workspace before delete
+    const existingWebhook = await webhookService.getWebhookById(webhookId);
+    if (existingWebhook.workspaceId !== workspaceId) {
+      return ApiResponse.error('Webhook not found', 'NOT_FOUND', undefined, 404);
+    }
+
     await webhookService.deleteWebhook(webhookId, auth.context.userId, workspaceId);
     logger.webhook.info('deleteWebhook completed');
     return ApiResponse.noContent();

@@ -2,9 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { Button, Card, Space, Table, Tag, Typography, Flex, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorBanner } from '@/components/shared/ErrorBanner';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorBanner } from '@/commons/components/ErrorBanner';
 
 const { Text } = Typography;
 

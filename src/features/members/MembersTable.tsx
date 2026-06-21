@@ -3,10 +3,10 @@
 import { useMemo } from 'react';
 import { Typography, theme } from 'antd';
 import { ROLE } from '@/commons/constants/permissions';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { IdentityCell } from '@/components/shared/IdentityCell';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { IdentityCell } from '@/commons/components/IdentityCell';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { getInitials } from '@/lib/utils/getInitials';
 import { formatDate } from '@/lib/utils/formatDate';
 import { roleLabel } from '@/lib/utils/roleLabel';
@@ -43,7 +43,7 @@ export function MembersTable({
   const canChangeRole = isAtLeast(ROLE.OWNER);
   const { token } = theme.useToken();
 
-  const { params, setPage, setPageSize, setSearch, setFilter } = useTableParams({
+  const { params, setPagination, setSearch, setFilter } = useTableParams({
     filterKeys: ['role'],
     defaultPageSize: 10,
   });
@@ -157,7 +157,7 @@ export function MembersTable({
         onFilterRemove={(key) => setFilter(key, '')}
         actions={actions.length > 0 ? actions : undefined}
         emptyText="No members found. Try a different search term or role filter."
-        onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+        onChange={(p, ps) => setPagination(p, ps)}
       />
     </div>
   );

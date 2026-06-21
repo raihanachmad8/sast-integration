@@ -5,19 +5,22 @@ import { Button, App, Drawer, Flex, Table, Tag, Typography, theme } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useSessionData } from '@/modules/auth/queries';
 import { useWebhooksQuery, useCreateWebhookMutation, useUpdateWebhookMutation, useDeleteWebhookMutation, useTestWebhookMutation } from '@/modules/webhooks';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { DataTable, makeSource } from '@/components/shared/DataTable';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorBanner } from '@/components/shared/ErrorBanner';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { DataTable, makeSource } from '@/commons/components/DataTable';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorBanner } from '@/commons/components/ErrorBanner';
 import { useTableParams } from '@/lib/hooks/useTableParams';
-import { PermissionGate } from '@/components/shared/PermissionGate';
+import { PermissionGate } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { errorMessage } from '@/lib/api/errors';
-import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
 import { WebhookFormModal } from '@/features/webhooks/WebhookFormModal';
 import type { WebhookRow } from '@/commons/types/webhooks';
+import { FeatureGate } from '@/commons/components/FeatureGate';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 
 /**
  * Webhooks page — configure outgoing product webhooks.
@@ -25,13 +28,36 @@ import type { WebhookRow } from '@/commons/types/webhooks';
  * Routes: `/{workspaceSlug}/webhooks`
  */
 export default function WebhooksPage() {
+  const { token } = theme.useToken();
+
+  return (
+    <FeatureGate
+      flag={FEATURE_FLAG.WEBHOOKS}
+      fallback={
+        <Flex vertical gap={token.paddingXL}>
+          <PageHeader title="Webhooks" description="Outgoing product webhooks for scan, finding, report, and gate events." />
+          <ComingSoonCard
+            icon="fa-satellite-dish"
+            title="Webhooks"
+            description="Outgoing webhooks allow you to send events to external systems."
+            envHint="FEATURE_FLAG_WEBHOOKS"
+          />
+        </Flex>
+      }
+    >
+      <WebhooksPageContent />
+    </FeatureGate>
+  );
+}
+
+function WebhooksPageContent() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const { confirm } = useConfirm();
   const session = useSessionData();
   const workspaceId = session.data?.workspace?.id;
 
-  const { params, setPage, setPageSize, setSearch, setFilter } = useTableParams({
+  const { params, setPagination, setSearch, setFilter } = useTableParams({
     filterKeys: ['active'],
     defaultPageSize: 10,
   });
@@ -83,7 +109,7 @@ export default function WebhooksPage() {
       <DataTable
         source={makeSource(webhooksQuery.data)}
         columns={[
-          { key: 'webhook', header: 'Webhook', render: (row) => <div><Typography.Text strong>{row.name}</Typography.Text></div> },
+          { key: 'webhook', header: 'Webhook', sortable: true, sortValue: (row) => row.name, render: (row) => <div><Typography.Text strong>{row.name}</Typography.Text></div> },
           { key: 'endpoint', header: 'Endpoint', render: (row) => <Typography.Text code style={{ fontSize: token.fontSize, color: token.colorTextSecondary, maxWidth: 200, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.url}>{row.url}</Typography.Text> },
           { key: 'events', header: 'Events', render: (row) => (
             <Flex gap={token.marginXS} wrap="wrap">
@@ -115,7 +141,7 @@ export default function WebhooksPage() {
           { label: 'Enable', icon: <FaIcon icon="fa-toggle-on" />, onClick: (row) => { updateMutation.mutate({ id: row.id, data: { active: !row.active } }, { onSuccess: () => message.success(`${row.name} enabled`), onError: (err) => message.error(errorMessage(err)) }); }, show: (row) => !row.active },
           { label: 'Delete', icon: <FaIcon icon="fa-trash" />, variant: 'danger', onClick: (row) => { confirm({ title: `Delete "${row.name}"?`, content: 'This webhook will stop receiving events.', okText: 'Delete', danger: true, onOk: () => deleteMutation.mutate(row.id, { onSuccess: () => message.success(`${row.name} deleted`), onError: (err) => message.error(errorMessage(err)) }) }); } },
         ]}
-        onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+        onChange={(p, ps) => setPagination(p, ps)}
       />
 
       {/* Delivery history drawer */}
@@ -175,7 +201,7 @@ function WebhookDeliveryHistory({ webhookId }: { webhookId: string }) {
         headers: { Authorization: `Bearer ${window.__accessToken}` },
       });
       const json = await res.json();
-      return json.data as Array<{ id: string; event: string; status: string; response_status: number | null; duration_ms: number | null; created_at: string }>;
+      return json.data as Array<{ id: string; event: string; status: string; responseStatus: number | null; durationMs: number | null; createdAt: string }>;
     },
     enabled: !!workspaceId && !!webhookId,
   });
@@ -193,9 +219,9 @@ function WebhookDeliveryHistory({ webhookId }: { webhookId: string }) {
       columns={[
         { title: 'Event', dataIndex: 'event', key: 'event', render: (v: string) => <Tag>{v}</Tag> },
         { title: 'Status', dataIndex: 'status', key: 'status', render: (v: string) => <StatusPill variant={v === 'success' ? 'teal' : v === 'failed' ? 'red' : 'amber'}>{v}</StatusPill> },
-        { title: 'HTTP', dataIndex: 'response_status', key: 'response_status', render: (v: number | null) => v ?? '—' },
-        { title: 'Duration', dataIndex: 'duration_ms', key: 'duration_ms', render: (v: number | null) => v ? `${v}ms` : '—' },
-        { title: 'Time', dataIndex: 'created_at', key: 'created_at', render: (v: string) => new Date(v).toLocaleString() },
+        { title: 'HTTP', dataIndex: 'responseStatus', key: 'responseStatus', render: (v: number | null) => v ?? '—' },
+        { title: 'Duration', dataIndex: 'durationMs', key: 'durationMs', render: (v: number | null) => v ? `${v}ms` : '—' },
+        { title: 'Time', dataIndex: 'createdAt', key: 'createdAt', render: (v: string) => new Date(v).toLocaleString() },
       ]}
     />
   );

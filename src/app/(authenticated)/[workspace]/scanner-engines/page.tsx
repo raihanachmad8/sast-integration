@@ -2,15 +2,18 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { Button, App, Flex, Typography, theme } from 'antd';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { DataTable, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { DataTable, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { RulesDrawer } from '@/features/scanner-engines/ScannerModals';
 import { useScannerEnginesQuery } from '@/modules/scanner-engines';
-import { PermissionGate } from '@/components/shared/PermissionGate';
-import { ErrorState } from '@/components/shared/ErrorState';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { ErrorState } from '@/commons/components/ErrorState';
 import { PERMISSION } from '@/commons/constants/permissions';
-import { StatusPill } from '@/components/shared/StatusPill';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { FeatureGate } from '@/commons/components/FeatureGate';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 
 interface ScannerDisplay {
   id: string;
@@ -80,6 +83,29 @@ function buildColumns(_token: ReturnType<typeof theme.useToken>['token']): DataT
 }
 
 export default function ScannerEnginesPage() {
+  const { token } = theme.useToken();
+
+  return (
+    <FeatureGate
+      flag={FEATURE_FLAG.SCANNER_ENGINES}
+      fallback={
+        <Flex vertical gap={token.paddingXL}>
+          <PageHeader title="Scanner Engines" description="View and manage static analysis scanner engines available in this workspace." />
+          <ComingSoonCard
+            icon="fa-magnifying-glass"
+            title="Scanner Engines"
+            description="Scanner engines allow you to configure and manage static analysis tools."
+            envHint="FEATURE_FLAG_SCANNER_ENGINES"
+          />
+        </Flex>
+      }
+    >
+      <ScannerEnginesPageContent />
+    </FeatureGate>
+  );
+}
+
+function ScannerEnginesPageContent() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -89,11 +115,8 @@ export default function ScannerEnginesPage() {
   const scanners = useMemo(() => (query.data?.data ?? []).map(mapEngine), [query.data?.data]);
 
   const handleProbeAll = () => {
-    message.info('Scanner probing is not yet implemented.');
-  };
-
-  const handleApplyChanges = () => {
-    message.info('Scanner configuration changes are not yet implemented.');
+    query.refetch();
+    message.success('Refreshed');
   };
 
   const handleBrowseRules = useCallback((scanner: ScannerDisplay) => {
@@ -124,9 +147,7 @@ export default function ScannerEnginesPage() {
             <PermissionGate permission={PERMISSION.SCANNER_MANAGE}>
               <Button onClick={handleProbeAll} icon={<FaIcon icon="fa-satellite-dish" />}>Probe all</Button>
             </PermissionGate>
-            <PermissionGate permission={PERMISSION.SCANNER_MANAGE}>
-              <Button type="primary" onClick={handleApplyChanges} icon={<FaIcon icon="fa-check" />}>Apply changes</Button>
-            </PermissionGate>
+
           </Flex>
         }
       />

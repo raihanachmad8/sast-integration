@@ -1,7 +1,7 @@
 import { createPrivateKey, createSign } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '@/server/db/client';
-import { repositories, sourceControls } from '@drizzle/schema/source-controls';
+import { sourceControls } from '@drizzle/schema/source-controls';
 import { sourceControlRepository } from './source-control.repository';
 import { createSourceControlSchema, updateSourceControlSchema } from '@/commons/schemas';
 import { AppError } from '@/server/http/errors';

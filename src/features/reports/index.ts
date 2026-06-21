@@ -1,1 +1,1 @@
-export { ReportPreviewDrawer } from './ReportPreviewDrawer';
+export { default as ReportPreviewModal } from './ReportPreviewModal';

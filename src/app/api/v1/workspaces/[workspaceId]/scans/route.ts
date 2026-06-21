@@ -8,6 +8,8 @@ import { scanService, managedScanService } from '@/server/modules/scan';
 import { parsePagination, validateBody } from '@/server/http/validate';
 import { createScanSchema } from '@/commons/schemas';
 import { logger } from '@/server/lib/logger';
+import { projectRepository } from '@/server/modules/project/repositories/project.repository';
+import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -27,11 +29,15 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     const stage = searchParams.get('stage') ?? undefined;
     const origin = searchParams.get('origin') ?? undefined;
 
+    const role = await workspaceRepository.getMemberRole(workspaceId, auth.context.userId);
+    const accessibleProjectIds = await projectRepository.getAccessibleProjectIds(workspaceId, auth.context.userId, role ?? undefined);
+
     const result = await scanService.list(workspaceId, {
       page,
       perPage,
       search,
       filters: { status, stage, origin },
+      accessibleProjectIds: accessibleProjectIds ?? undefined,
     }, auth.context.userId);
 
     logger.scan.info('listScans completed');

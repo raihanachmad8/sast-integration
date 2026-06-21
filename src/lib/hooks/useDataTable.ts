@@ -1,7 +1,7 @@
 'use client';
 
 import { useTableParams } from './useTableParams';
-import { type TableSource, type FilterConfig } from '@/components/shared/DataTable';
+import { type TableSource, type FilterConfig } from '@/commons/components/DataTable';
 import type { ListParams } from '@/commons/types/pagination';
 
 interface UseDataTableOptions {
@@ -61,7 +61,7 @@ export function useDataTable<T = unknown>({
   defaultPageSize = 10,
   filterConfigs = [],
 }: UseDataTableOptions = {}): UseDataTableReturn<T> {
-  const { params, setPage, setPageSize, setSearch, setFilter } = useTableParams({
+  const { params, setPagination, setSearch, setFilter } = useTableParams({
     filterKeys,
     defaultPageSize,
   });
@@ -72,7 +72,7 @@ export function useDataTable<T = unknown>({
     onSearchChange: setSearch,
     filterValues: params.filters,
     onFilterChange: setFilter,
-    onChange: (page, pageSize) => { setPage(page); setPageSize(pageSize); },
+    onChange: (page, pageSize) => setPagination(page, pageSize),
     filters: filterConfigs,
     params: {
       page: params.page,

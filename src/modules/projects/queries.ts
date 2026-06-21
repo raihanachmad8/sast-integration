@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { projectsApi } from './api';
 import { projectKeys } from './keys';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { STALE } from '@/commons/constants/query';
 import type { ProjectFormInput } from './types';
 import type { ListParams } from '@/commons/types/pagination';

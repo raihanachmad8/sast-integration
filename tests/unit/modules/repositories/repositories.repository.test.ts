@@ -39,7 +39,7 @@ vi.mock('@drizzle/schema/source-controls', () => ({
     name: 'name',
     url: 'url',
     defaultBranch: 'defaultBranch',
-    connectionType: 'connectionType',
+    connectionType: ['scm'],
     autoScan: 'autoScan',
     deletedAt: 'deletedAt',
     createdBy: 'createdBy',
@@ -54,6 +54,9 @@ describe('repositoriesRepository', () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Purpose: Validates that the repositoriesRepository exports all required methods
+   */
   it('should export repositoriesRepository', async () => {
     const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
     expect(repositoriesRepository).toBeDefined();
@@ -66,36 +69,57 @@ describe('repositoriesRepository', () => {
     expect(typeof repositoriesRepository.findByNameAndWorkspace).toBe('function');
   });
 
+  /**
+   * Purpose: Validates that the listByWorkspace method is available on the repository
+   */
   it('should have listByWorkspace method', async () => {
     const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
     expect(repositoriesRepository.listByWorkspace).toBeInstanceOf(Function);
   });
 
+  /**
+   * Purpose: Validates that the getById method is available on the repository
+   */
   it('should have getById method', async () => {
     const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
     expect(repositoriesRepository.getById).toBeInstanceOf(Function);
   });
 
+  /**
+   * Purpose: Validates that the create method is available on the repository
+   */
   it('should have create method', async () => {
     const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
     expect(repositoriesRepository.create).toBeInstanceOf(Function);
   });
 
+  /**
+   * Purpose: Validates that the update method is available on the repository
+   */
   it('should have update method', async () => {
     const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
     expect(repositoriesRepository.update).toBeInstanceOf(Function);
   });
 
+  /**
+   * Purpose: Validates that the delete method is available on the repository
+   */
   it('should have delete method', async () => {
     const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
     expect(repositoriesRepository.delete).toBeInstanceOf(Function);
   });
 
+  /**
+   * Purpose: Validates that the findByUrl method is available on the repository
+   */
   it('should have findByUrl method', async () => {
     const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
     expect(repositoriesRepository.findByUrl).toBeInstanceOf(Function);
   });
 
+  /**
+   * Purpose: Validates that the findByNameAndWorkspace method is available on the repository
+   */
   it('should have findByNameAndWorkspace method', async () => {
     const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
     expect(repositoriesRepository.findByNameAndWorkspace).toBeInstanceOf(Function);

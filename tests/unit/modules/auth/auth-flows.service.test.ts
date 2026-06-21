@@ -90,6 +90,9 @@ describe('authFlowsService.forgotPassword', () => {
     process.env.APP_URL = 'http://localhost:3000';
   });
 
+  /**
+   * Purpose: Validates that a password reset email is sent with a valid token link
+   */
   it('should send a password reset email containing a valid token to a known user', async () => {
     repoMocks.findUserByEmail.mockResolvedValue({ id: 'user-1', email: 'admin@sast.local', name: 'Admin' });
     repoMocks.findRecentPasswordResetToken.mockResolvedValue(null);
@@ -104,6 +107,9 @@ describe('authFlowsService.forgotPassword', () => {
     );
   });
 
+  /**
+   * Purpose: Validates silent failure for unknown emails to prevent user enumeration
+   */
   it('should not send any email and return silently when the email is not registered', async () => {
     repoMocks.findUserByEmail.mockResolvedValue(null);
 
@@ -112,6 +118,9 @@ describe('authFlowsService.forgotPassword', () => {
     expect(mailMocks.sendMail).not.toHaveBeenCalled();
   });
 
+  /**
+   * Purpose: Validates that rate limiting prevents repeated password reset requests
+   */
   it('should throw a rate limit error when a recent reset token already exists for the user', async () => {
     repoMocks.findUserByEmail.mockResolvedValue({ id: 'user-1', email: 'admin@sast.local', name: 'Admin' });
     repoMocks.findRecentPasswordResetToken.mockResolvedValue({ id: 'recent-token' });
@@ -130,12 +139,18 @@ describe('authFlowsService.resetPassword', () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Purpose: Validates that expired reset tokens are rejected
+   */
   it('should throw TOKEN_EXPIRED when the reset token has expired', async () => {
     repoMocks.findPasswordResetToken.mockResolvedValue({ id: 't-1', userId: 'u-1', expiresAt: new Date(0), usedAt: null });
 
     await expect(authFlowsService.resetPassword('token', 'newpass123')).rejects.toThrow(MAIL.MESSAGES.TOKEN_EXPIRED);
   });
 
+  /**
+   * Purpose: Validates that already-used reset tokens are rejected
+   */
   it('should throw TOKEN_ALREADY_USED when the reset token has already been used', async () => {
     repoMocks.findPasswordResetToken.mockResolvedValue({ id: 't-1', userId: 'u-1', expiresAt: new Date(Date.now() + 60000), usedAt: new Date() });
 
@@ -159,12 +174,18 @@ describe('authFlowsService.verifyEmail', () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Purpose: Validates that expired verification tokens are rejected
+   */
   it('should throw TOKEN_EXPIRED when the verification token has expired', async () => {
     repoMocks.findEmailVerificationToken.mockResolvedValue({ id: 't-1', userId: 'u-1', expiresAt: new Date(0), verifiedAt: null });
 
     await expect(authFlowsService.verifyEmail('token')).rejects.toThrow(MAIL.MESSAGES.TOKEN_EXPIRED);
   });
 
+  /**
+   * Purpose: Validates that already-used verification tokens are rejected
+   */
   it('should throw TOKEN_ALREADY_USED when the verification token has already been used', async () => {
     repoMocks.findEmailVerificationToken.mockResolvedValue({ id: 't-1', userId: 'u-1', expiresAt: new Date(Date.now() + 60000), verifiedAt: new Date() });
 
@@ -183,6 +204,9 @@ describe('authFlowsService.sendVerificationEmail', () => {
     process.env.APP_URL = 'http://localhost:3000';
   });
 
+  /**
+   * Purpose: Validates that a verification email is sent to unverified users
+   */
   it('should send a verification email to an unverified user', async () => {
     repoMocks.findUserById.mockResolvedValue({ id: 'user-1', email: 'new@test.com', name: 'New', emailVerifiedAt: null });
     repoMocks.findRecentEmailVerificationToken.mockResolvedValue(null);
@@ -197,12 +221,18 @@ describe('authFlowsService.sendVerificationEmail', () => {
     );
   });
 
+  /**
+   * Purpose: Validates that sending verification to a verified user throws an error
+   */
   it('should throw EMAIL_ALREADY_VERIFIED when trying to send verification to an already verified user', async () => {
     repoMocks.findUserById.mockResolvedValue({ id: 'user-1', email: 'v@test.com', name: 'V', emailVerifiedAt: new Date() });
 
     await expect(authFlowsService.sendVerificationEmail('user-1')).rejects.toThrow(MAIL.MESSAGES.EMAIL_ALREADY_VERIFIED);
   });
 
+  /**
+   * Purpose: Validates that rate limiting prevents repeated verification email requests
+   */
   it('should throw RATE_LIMITED when a recent verification token already exists for the user', async () => {
     repoMocks.findUserById.mockResolvedValue({ id: 'user-1', email: 'new@test.com', name: 'New', emailVerifiedAt: null });
     repoMocks.findRecentEmailVerificationToken.mockResolvedValue({ id: 'recent' });

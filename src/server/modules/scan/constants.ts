@@ -76,9 +76,6 @@ export const QUEUE_JOB_NAMES = {
   TRIGGER_SCHEDULED_MANAGED_SCAN: QUEUE_JOBS.TRIGGER_SCHEDULED_MANAGED_SCAN,
 } as const;
 
-/** Max message length used for fingerprint hash input (controls deduplication sensitivity). */
-export const FINGERPRINT_MESSAGE_MAX_LENGTH = 180;
-
 /** Default title max length when generating finding group titles from fingerprints. */
 export const FINDING_TITLE_FINGERPRINT_MAX_LENGTH = 40;
 

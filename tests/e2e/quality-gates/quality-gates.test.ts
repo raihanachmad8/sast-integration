@@ -1,46 +1,43 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { api, signin } from '../../helpers/setup';
 
-const API_BASE = 'http://localhost:3000';
-const WORKSPACE_ID = '506416af-1f67-4ae9-906a-e84b20948a72';
+let token: string;
+let WORKSPACE_ID: string;
 
-const TEST_USER = {
-  email: 'owner@sast.local',
-  password: 'ChangeMe123!',
-};
-
-async function getAccessToken(): Promise<string> {
-  const res = await fetch(`${API_BASE}/api/v1/auth/signin`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(TEST_USER),
-  });
+beforeAll(async () => {
+  const session = await signin();
+  token = session.accessToken;
+  const res = await api('/workspaces', { headers: { Authorization: `Bearer ${token}` } });
   const json = await res.json();
-  return json.data.accessToken;
-}
+  WORKSPACE_ID = json.data?.[0]?.id ?? '';
+});
 
 describe('GET /api/v1/quality-gates', () => {
-  let token: string;
-
-  beforeAll(async () => {
-    token = await getAccessToken();
-  });
-
+  /**
+   * Purpose: Ensure the quality gates endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/quality-gates`, {
+    const res = await api('/quality-gates', {
       headers: { 'X-Workspace-Id': WORKSPACE_ID },
     });
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Ensure the quality gates endpoint requires the X-Workspace-Id header.
+   */
   it('should return 400 without workspace header', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/quality-gates`, {
+    const res = await api('/quality-gates', {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status).toBe(400);
   });
 
+  /**
+   * Purpose: Verify that the quality gate configuration can be retrieved successfully.
+   */
   it('should get quality gate config', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/quality-gates`, {
+    const res = await api('/quality-gates', {
       headers: {
         Authorization: `Bearer ${token}`,
         'X-Workspace-Id': WORKSPACE_ID,
@@ -55,14 +52,11 @@ describe('GET /api/v1/quality-gates', () => {
 });
 
 describe('PUT /api/v1/quality-gates', () => {
-  let token: string;
-
-  beforeAll(async () => {
-    token = await getAccessToken();
-  });
-
+  /**
+   * Purpose: Ensure the quality gate update endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/quality-gates`, {
+    const res = await api('/quality-gates', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -73,8 +67,11 @@ describe('PUT /api/v1/quality-gates', () => {
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that the quality gate configuration can be updated successfully.
+   */
   it('should update quality gate config', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/quality-gates`, {
+    const res = await api('/quality-gates', {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -83,11 +80,11 @@ describe('PUT /api/v1/quality-gates', () => {
       },
       body: JSON.stringify({
         threshold: 'high',
-        fail_on_critical: true,
-        fail_on_high_tp: true,
-        warn_on_pending: true,
-        require_human_ack: false,
-        pending_behavior: 'warn',
+        failOnCritical: true,
+        failOnHighTp: true,
+        warnOnPending: true,
+        requireHumanAck: false,
+        pendingBehavior: 'warn',
       }),
     });
     expect(res.status).toBe(200);
@@ -95,8 +92,11 @@ describe('PUT /api/v1/quality-gates', () => {
     expect(json.success).toBe(true);
   });
 
+  /**
+   * Purpose: Ensure invalid quality gate data (invalid threshold) is rejected with 422.
+   */
   it('should return 422 for invalid data', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/quality-gates`, {
+    const res = await api('/quality-gates', {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${token}`,

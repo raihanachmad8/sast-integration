@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
 import { Modal, Input, Select, Form, App, Row, Col, theme } from 'antd';
 import { MODAL_WIDTH } from '@/commons/constants/layout';
 import { createScheduleSchema, updateScheduleSchema } from '@/commons/schemas/schedule.schema';
 import { createZodSync } from '@/lib/utils/zod-sync';
+import { useRepositoriesQuery } from '@/modules/repositories';
 
 interface Schedule {
   id: string;
@@ -32,11 +32,8 @@ export function EditScheduleModal({ open, schedule, onClose, onSave }: EditSched
   const [form] = Form.useForm();
   const rule = createZodSync(updateScheduleSchema);
 
-  useEffect(() => {
-    if (schedule) {
-      form.setFieldsValue({ repositoryId: schedule.repo, branch: schedule.branch, cronExpression: schedule.frequency, timezone: schedule.timezone });
-    }
-  }, [schedule, form]);
+  const reposQuery = useRepositoriesQuery({ page: 1, perPage: 200 });
+  const repoOptions = (reposQuery.data?.data ?? []).map((r: { id: string; name: string }) => ({ value: r.id, label: r.name }));
 
   const handleSave = () => {
     form.validateFields().then((values) => {
@@ -47,17 +44,23 @@ export function EditScheduleModal({ open, schedule, onClose, onSave }: EditSched
   };
 
   return (
-    <Modal title="Edit schedule" open={open} onOk={handleSave} onCancel={onClose} okText="Save" width={MODAL_WIDTH.MD}>
-      <Form form={form} layout="vertical">
+    <Modal title="Edit schedule" open={open} destroyOnHidden onOk={handleSave} onCancel={onClose} okText="Save" width={MODAL_WIDTH.MD}>
+      <Form form={form} layout="vertical" initialValues={{ repositoryId: schedule?.repo ?? '', branch: schedule?.branch ?? '', cronExpression: schedule?.frequency ?? '', timezone: schedule?.timezone ?? '' }}>
         <Row gutter={[token.marginMD, 0]}>
           <Col xs={24} sm={12}>
             <Form.Item label="Repository" name="repositoryId" rules={[rule]}>
-              <Input />
+              <Select
+                showSearch
+                placeholder="Select repository"
+                options={repoOptions}
+                loading={reposQuery.isLoading}
+                filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+              />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}>
             <Form.Item label="Branch" name="branch" rules={[rule]}>
-              <Input />
+              <Input placeholder="e.g., main" />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}>
@@ -88,6 +91,9 @@ export function AddScheduleModal({ open, onClose, onSave }: AddScheduleModalProp
   const [form] = Form.useForm();
   const rule = createZodSync(createScheduleSchema);
 
+  const reposQuery = useRepositoriesQuery({ page: 1, perPage: 200 });
+  const repoOptions = (reposQuery.data?.data ?? []).map((r: { id: string; name: string }) => ({ value: r.id, label: r.name }));
+
   const handleSave = () => {
     form.validateFields().then((values) => {
       onSave(values);
@@ -98,12 +104,19 @@ export function AddScheduleModal({ open, onClose, onSave }: AddScheduleModalProp
   };
 
   return (
-    <Modal title="Add schedule" open={open} onOk={handleSave} onCancel={onClose} okText="Create" width={MODAL_WIDTH.MD}>
-      <Form form={form} layout="vertical">
+    <Modal title="Add schedule" open={open} destroyOnHidden onOk={handleSave} onCancel={onClose} okText="Create" width={MODAL_WIDTH.MD}>
+      <Form form={form} layout="vertical" initialValues={{ repositoryId: '', branch: '', cronExpression: '', timezone: '' }}>
         <Row gutter={[token.marginMD, 0]}>
           <Col xs={24} sm={12}>
             <Form.Item label="Repository" name="repositoryId" rules={[rule]}>
-              <Input placeholder="e.g., backend-api" />
+              <Select
+                showSearch
+                placeholder="Select repository"
+                options={repoOptions}
+                loading={reposQuery.isLoading}
+                filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+
+              />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}>

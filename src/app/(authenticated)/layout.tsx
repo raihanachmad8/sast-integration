@@ -1,5 +1,5 @@
-import { QueryProvider } from '@/components/providers/QueryProvider';
-import { AuthenticatedShell } from '@/components/layout/AuthenticatedShell';
+import { QueryProvider } from '@/commons/providers/QueryProvider';
+import { AuthenticatedShell } from '@/commons/components/layout/AuthenticatedShell';
 
 export default function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   return (

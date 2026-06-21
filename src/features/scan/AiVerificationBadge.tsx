@@ -1,7 +1,7 @@
 'use client';
 
 import { Tag, Tooltip, Typography, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import type { AiVerdictDb } from './types';
 
 const { Text } = Typography;

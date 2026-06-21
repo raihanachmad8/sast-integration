@@ -1,45 +1,32 @@
 /**
  * Gitea API Service
  *
- * Provides methods to interact with Gitea API for PR comments and commit statuses.
- * Used by CI/CD endpoints to post scan results back to Gitea.
+ * Implements ScmApiService for Gitea.
+ * Uses Gitea API v1 for PR comments (issues API) and commit statuses.
  *
  * @module source-control/gitea-api
  */
 
 import { logger } from '@/server/lib/logger';
-
-export interface GiteaCredentials {
-  baseUrl: string;
-  token: string;
-}
-
-export interface CommitStatus {
-  status: 'pending' | 'success' | 'failure' | 'error';
-  description: string;
-  context: string;
-  targetUrl?: string;
-}
-
-export interface PullRequestComment {
-  body: string;
-}
+import { AppError } from '@/server/http/errors';
+import { HTTP } from '@/server/http/constants';
+import type { ScmApiService, ScmCredentials, CommitStatus, InlineReviewComment } from './scm-api.service';
 
 /**
- * Gitea API client for PR comments and commit statuses.
+ * Gitea implementation of ScmApiService.
  *
  * @example
  * ```ts
  * const gitea = new GiteaApiService({ baseUrl: 'http://gitea:4000', token: 'xxx' });
- * await gitea.postPrComment('owner', 'repo', 123, '## SAST Report\n...');
+ * await gitea.postOrUpdatePrComment('owner', 'repo', 123, 'scan-id', '## SAST Report\n...');
  * await gitea.createCommitStatus('owner', 'repo', 'sha123', { status: 'success', description: 'Passed', context: 'sast/gate' });
  * ```
  */
-export class GiteaApiService {
+export class GiteaApiService implements ScmApiService {
   private baseUrl: string;
   private token: string;
 
-  constructor(credentials: GiteaCredentials) {
+  constructor(credentials: ScmCredentials) {
     this.baseUrl = credentials.baseUrl.replace(/\/+$/, '');
     this.token = credentials.token;
   }
@@ -47,11 +34,6 @@ export class GiteaApiService {
   /**
    * Post a comment on a pull request (issue).
    * Gitea treats PRs as issues, so we use the issues API.
-   *
-   * @param owner - Repository owner
-   * @param repo - Repository name
-   * @param prNumber - PR/issue number
-   * @param body - Comment body (Markdown)
    */
   async postPrComment(owner: string, repo: string, prNumber: number, body: string): Promise<void> {
     const url = `${this.baseUrl}/api/v1/repos/${owner}/${repo}/issues/${prNumber}/comments`;
@@ -70,19 +52,93 @@ export class GiteaApiService {
     if (!response.ok) {
       const errorText = await response.text();
       logger.scan.error('Gitea: PR comment failed', { status: response.status, error: errorText });
-      throw new Error(`Gitea PR comment failed: ${response.status} ${errorText}`);
+      throw new AppError(`Gitea PR comment failed: ${response.status} ${errorText}`, 502, HTTP.ERROR_CODES.SCM_ERROR);
     }
 
     logger.scan.info('Gitea: PR comment posted', { owner, repo, prNumber });
   }
 
   /**
+   * Find an existing PR comment by scan ID marker.
+   * Searches for `Scan: {scanId}` pattern in comment body.
+   */
+  async findPrComment(owner: string, repo: string, prNumber: number, scanId: string): Promise<number | null> {
+    const url = `${this.baseUrl}/api/v1/repos/${owner}/${repo}/issues/${prNumber}/comments?limit=50`;
+
+    logger.scan.info('Gitea: finding PR comment', { owner, repo, prNumber, scanId });
+
+    const response = await fetch(url, {
+      headers: { 'Authorization': `token ${this.token}` },
+    });
+
+    if (!response.ok) {
+      logger.scan.warn('Gitea: failed to list PR comments', { status: response.status });
+      return null;
+    }
+
+    const comments = await response.json() as Array<{ id: number; body: string }>;
+    const scanIdShort = scanId.substring(0, 8);
+
+    for (const comment of comments) {
+      if (comment.body.includes(`Scan: \`${scanIdShort}\``) || comment.body.includes(`Scan: ${scanId}`)) {
+        logger.scan.info('Gitea: found existing PR comment', { commentId: comment.id, scanId });
+        return comment.id;
+      }
+    }
+
+    logger.scan.info('Gitea: no existing PR comment found', { scanId });
+    return null;
+  }
+
+  /**
+   * Update an existing PR comment.
+   */
+  async updatePrComment(owner: string, repo: string, prNumber: number, commentId: number, body: string): Promise<void> {
+    const url = `${this.baseUrl}/api/v1/repos/${owner}/${repo}/issues/comments/${commentId}`;
+
+    logger.scan.info('Gitea: updating PR comment', { owner, repo, prNumber, commentId, bodyLength: body.length });
+
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `token ${this.token}`,
+      },
+      body: JSON.stringify({ body }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.scan.error('Gitea: update PR comment failed', { status: response.status, error: errorText });
+      throw new AppError(`Gitea update PR comment failed: ${response.status} ${errorText}`, 502, HTTP.ERROR_CODES.SCM_ERROR);
+    }
+
+    logger.scan.info('Gitea: PR comment updated', { owner, repo, prNumber, commentId });
+  }
+
+  /**
+   * Post or update a PR comment (dedup by scan ID).
+   */
+  async postOrUpdatePrComment(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    scanId: string,
+    body: string,
+  ): Promise<'created' | 'updated'> {
+    const existingCommentId = await this.findPrComment(owner, repo, prNumber, scanId);
+
+    if (existingCommentId) {
+      await this.updatePrComment(owner, repo, prNumber, existingCommentId, body);
+      return 'updated';
+    }
+
+    await this.postPrComment(owner, repo, prNumber, body);
+    return 'created';
+  }
+
+  /**
    * Create or update a commit status.
-   *
-   * @param owner - Repository owner
-   * @param repo - Repository name
-   * @param sha - Commit SHA
-   * @param status - Status to set
    */
   async createCommitStatus(owner: string, repo: string, sha: string, status: CommitStatus): Promise<void> {
     const url = `${this.baseUrl}/api/v1/repos/${owner}/${repo}/statuses/${sha}`;
@@ -106,89 +162,107 @@ export class GiteaApiService {
     if (!response.ok) {
       const errorText = await response.text();
       logger.scan.error('Gitea: commit status failed', { status: response.status, error: errorText });
-      throw new Error(`Gitea commit status failed: ${response.status} ${errorText}`);
+      throw new AppError(`Gitea commit status failed: ${response.status} ${errorText}`, 502, HTTP.ERROR_CODES.SCM_ERROR);
     }
 
     logger.scan.info('Gitea: commit status created', { owner, repo, sha, status: status.status });
   }
 
   /**
-   * Parse a repository name into owner and repo.
-   * Supports formats: "owner/repo" or "owner-repo" (Gitea Actions format).
-   *
-   * @param repoName - Repository name (e.g., "MeAdmin/vuln-app")
-   * @returns Tuple of [owner, repo]
+   * Post inline review comments on specific lines of a PR.
+   * Gitea uses the pull reviews API: POST /repos/{owner}/{repo}/pulls/{index}/reviews
    */
-  static parseRepoName(repoName: string): [string, string] {
-    if (repoName.includes('/')) {
-      const [owner, repo] = repoName.split('/');
-      return [owner, repo];
+  async postInlineReviewComments(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    scanId: string,
+    comments: InlineReviewComment[],
+  ): Promise<{ created: number; updated: number }> {
+    let created = 0;
+    let updated = 0;
+
+    try {
+      // Gitea requires creating a review with comments
+      const url = `${this.baseUrl}/api/v1/repos/${owner}/${repo}/pulls/${prNumber}/reviews`;
+      const headSha = await this.getPrHeadSha(owner, repo, prNumber);
+
+      logger.scan.info('Gitea: posting inline review comments', {
+        owner, repo, prNumber, commentCount: comments.length,
+      });
+
+      const reviewComments = comments.map((c) => ({
+        body: `<!-- sast-integration:inline-review -->\n${c.body}`,
+        path: c.filePath,
+        new_position: c.lineNumber,
+        old_position: 0,
+      }));
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `token ${this.token}`,
+        },
+        body: JSON.stringify({
+          body: `## 🔒 SAST Security Analysis\n\nFound ${comments.length} security issue(s) in this PR.\n\n---\n*Scan: \`${scanId.substring(0, 8)}\`*`,
+          event: 'COMMENT',
+          commit_id: headSha,
+          comments: reviewComments,
+        }),
+      });
+
+      if (response.ok) {
+        created = comments.length;
+        logger.scan.info('Gitea: inline review comments posted', {
+          owner, repo, prNumber, count: created,
+        });
+      } else {
+        const errorText = await response.text();
+        logger.scan.warn('Gitea: inline review comments failed', {
+          status: response.status, error: errorText,
+        });
+      }
+    } catch (err) {
+      logger.scan.warn('Gitea: inline review comments error', {
+        error: (err as Error).message,
+      });
     }
-    // Gitea Actions format: "owner-repo"
-    const dashIndex = repoName.indexOf('-');
-    if (dashIndex > 0) {
-      return [repoName.substring(0, dashIndex), repoName.substring(dashIndex + 1)];
-    }
-    throw new Error(`Invalid repo name format: ${repoName}`);
+
+    return { created, updated };
   }
 
   /**
-   * Build a formatted PR comment with scan results.
-   *
-   * @param scanId - Scan UUID
-   * @param gateStatus - Quality gate status
-   * @param newFindings - Number of new findings
-   * @param fixedFindings - Number of fixed findings
-   * @param blockingFindings - Number of blocking findings
-   * @param findings - Array of new finding details
-   * @returns Formatted Markdown comment
+   * Delete inline review comments from a previous scan.
+   * Gitea doesn't support deleting individual review comments easily,
+   * so we just log a warning.
    */
-  static buildPrComment(
+  async deleteInlineReviewComments(
+    owner: string,
+    repo: string,
+    prNumber: number,
     scanId: string,
-    gateStatus: string,
-    newFindings: number,
-    fixedFindings: number,
-    blockingFindings: number,
-    findings: Array<{
-      severity: string;
-      filePath: string | null;
-      lineNumber: number | null;
-      rule: string | null;
-      message: string | null;
-      scanner: string | null;
-    }>,
-  ): string {
-    const gateIcon = gateStatus === 'passed' ? '✅' : gateStatus === 'failed' ? '❌' : '⚠️';
-    const gateLabel = gateStatus.toUpperCase();
+  ): Promise<number> {
+    // Gitea doesn't have a straightforward way to delete review comments
+    // We'll return 0 and rely on the scan ID marker for dedup
+    logger.scan.info('Gitea: inline comment deletion not supported, using dedup', { owner, repo, prNumber, scanId });
+    return 0;
+  }
 
-    let comment = `## 🔒 SAST Security Analysis\n\n`;
-    comment += `### Quality Gate: ${gateIcon} ${gateLabel}\n\n`;
-    comment += `| Metric | Value |\n`;
-    comment += `|--------|-------|\n`;
-    comment += `| New findings | ${newFindings} |\n`;
-    comment += `| Fixed findings | ${fixedFindings} |\n`;
-    comment += `| Blocking (Critical/High) | ${blockingFindings} |\n`;
+  /**
+   * Get PR head SHA for posting review comments.
+   */
+  private async getPrHeadSha(owner: string, repo: string, prNumber: number): Promise<string> {
+    const url = `${this.baseUrl}/api/v1/repos/${owner}/${repo}/pulls/${prNumber}`;
+    const response = await fetch(url, {
+      headers: { 'Authorization': `token ${this.token}` },
+    });
 
-    if (findings.length > 0) {
-      comment += `\n### New Findings\n\n`;
-      comment += `| Severity | File | Rule | Message |\n`;
-      comment += `|----------|------|------|---------|\n`;
-
-      for (const f of findings.slice(0, 10)) {
-        const sevIcon = f.severity === 'critical' ? '🔴' : f.severity === 'high' ? '🟠' : f.severity === 'medium' ? '🟡' : '⚪';
-        const file = f.filePath ? `${f.filePath}${f.lineNumber ? `:${f.lineNumber}` : ''}` : 'N/A';
-        const rule = f.rule || 'N/A';
-        const message = (f.message || 'N/A').slice(0, 80);
-        comment += `| ${sevIcon} ${f.severity} | \`${file}\` | ${rule} | ${message} |\n`;
-      }
-
-      if (findings.length > 10) {
-        comment += `\n*...and ${findings.length - 10} more findings*\n`;
-      }
+    if (!response.ok) {
+      throw new AppError(`Gitea: failed to get PR info`, 502, HTTP.ERROR_CODES.SCM_ERROR);
     }
 
-    comment += `\n---\n*Powered by SAST Integration • Scan: ${scanId.substring(0, 8)}*`;
-
-    return comment;
+    const pr = await response.json() as { head: { sha: string } };
+    return pr.head.sha;
   }
 }

@@ -8,6 +8,10 @@ import { FEATURE_FLAG_DEFAULTS, type FeatureFlagKey } from '@/commons/constants/
  * Since env vars are baked in at build time for the client,
  * we use the defaults as the source of truth on the client.
  * Server-side can override via API response headers if needed.
+ *
+ * **Invariant:** This module is client-only. The module-level cache
+ * (`_clientFlags`) must never be populated during SSR to avoid
+ * stale data leaking across requests in edge/serverless runtimes.
  */
 
 // Client-side flags are resolved from NEXT_PUBLIC_* env vars
@@ -30,7 +34,11 @@ function getClientFlags(): Record<FeatureFlagKey, boolean> {
   return result;
 }
 
-/** Cached client flags */
+/**
+ * Cached client flags.
+ * Only populated on first client-side call. Safe because env vars
+ * are build-time constants and never change within a session.
+ */
 let _clientFlags: Record<FeatureFlagKey, boolean> | null = null;
 
 function getClientFlagsCached(): Record<FeatureFlagKey, boolean> {

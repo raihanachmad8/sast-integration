@@ -10,44 +10,46 @@
  * - API token management
  * - Repository attachment
  */
-import { describe, it, expect } from 'vitest';
-import { api, TEST_USER } from '../../helpers/setup';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { api, TEST_USER, getFirstWorkspaceId, signin } from '../../helpers/setup';
 
-/**
- * Signs in using the seeded admin account and returns a valid access token.
- */
-async function getAccessToken() {
-  const res = await api('/auth/signin', {
-    method: 'POST',
-    body: JSON.stringify({ email: TEST_USER.email, password: TEST_USER.password }),
-  });
-  const json = await res.json();
-  return json.data.accessToken;
-}
+let token: string;
+let WORKSPACE_ID: string;
+const createdProjectIds: string[] = [];
 
-/**
- * Helper to get the first workspace ID for the authenticated user.
- */
-async function getFirstWorkspaceId(token: string) {
-  const res = await api('/workspaces', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const json = await res.json();
-  return json.data[0]?.id;
-}
+beforeAll(async () => {
+  const session = await signin();
+  token = session.accessToken;
+  WORKSPACE_ID = (await getFirstWorkspaceId(token)) ?? '';
+});
+
+afterAll(async () => {
+  try {
+    for (const projectId of createdProjectIds) {
+      await api(`/workspaces/${WORKSPACE_ID}/projects/${projectId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+  } catch {
+    // Cleanup is best-effort, don't fail tests
+  }
+});
 
 describe('GET /api/v1/workspaces/[workspaceId]/projects', () => {
+  /**
+   * Purpose: Ensure the projects list endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/ws-1/projects');
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that authenticated workspace members can list projects.
+   */
   it('should return projects list for authenticated workspace member', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
-    const res = await api(`/workspaces/${wsId}/projects`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/projects`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json();
@@ -56,8 +58,10 @@ describe('GET /api/v1/workspaces/[workspaceId]/projects', () => {
     expect(Array.isArray(json.data)).toBe(true);
   });
 
+  /**
+   * Purpose: Ensure non-members cannot access a workspace's projects list.
+   */
   it('should return 403 when user is not a workspace member', async () => {
-    const token = await getAccessToken();
     const res = await api('/workspaces/00000000-0000-0000-0000-000000000000/projects', {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -66,6 +70,9 @@ describe('GET /api/v1/workspaces/[workspaceId]/projects', () => {
 });
 
 describe('POST /api/v1/workspaces/[workspaceId]/projects', () => {
+  /**
+   * Purpose: Ensure the project creation endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/ws-1/projects', {
       method: 'POST',
@@ -74,12 +81,11 @@ describe('POST /api/v1/workspaces/[workspaceId]/projects', () => {
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Ensure invalid input (empty name) is rejected with 422 Validation Error.
+   */
   it('should return 422 on invalid input', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
-    const res = await api(`/workspaces/${wsId}/projects`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/projects`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: '' }),
@@ -87,13 +93,12 @@ describe('POST /api/v1/workspaces/[workspaceId]/projects', () => {
     expect(res.status).toBe(422);
   });
 
+  /**
+   * Purpose: Verify that a project can be created with valid input and returns 201.
+   */
   it('should create a project with valid input', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
     const projectName = `E2E Project ${Date.now()}`;
-    const res = await api(`/workspaces/${wsId}/projects`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/projects`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: projectName }),
@@ -102,15 +107,15 @@ describe('POST /api/v1/workspaces/[workspaceId]/projects', () => {
     expect(res.status).toBe(201);
     expect(json.success).toBe(true);
     expect(json.data.name).toBe(projectName);
+    createdProjectIds.push(json.data.id);
   });
 
+  /**
+   * Purpose: Verify that optional fields (description, platform, language) are persisted on creation.
+   */
   it('should create a project with optional fields', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
     const projectName = `E2E Full Project ${Date.now()}`;
-    const res = await api(`/workspaces/${wsId}/projects`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/projects`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({
@@ -125,31 +130,35 @@ describe('POST /api/v1/workspaces/[workspaceId]/projects', () => {
     expect(json.data.description).toBe('A test project');
     expect(json.data.platform).toBe('web');
     expect(json.data.language).toBe('typescript');
+    createdProjectIds.push(json.data.id);
   });
 });
 
 describe('GET /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
+  /**
+   * Purpose: Ensure the project detail endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/ws-1/projects/proj-1');
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that project details can be retrieved for an existing project.
+   */
   it('should return project detail for valid project', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
     // Create a project first
     const projectName = `E2E Detail ${Date.now()}`;
-    const createRes = await api(`/workspaces/${wsId}/projects`, {
+    const createRes = await api(`/workspaces/${WORKSPACE_ID}/projects`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: projectName }),
     });
     const createJson = await createRes.json();
     const projectId = createJson.data.id;
+    createdProjectIds.push(projectId);
 
-    const res = await api(`/workspaces/${wsId}/projects/${projectId}`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/projects/${projectId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json();
@@ -157,12 +166,11 @@ describe('GET /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
     expect(json.data.id).toBe(projectId);
   });
 
+  /**
+   * Purpose: Verify that requesting a non-existent project returns 404 Not Found.
+   */
   it('should return 404 for non-existent project', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
-    const res = await api(`/workspaces/${wsId}/projects/00000000-0000-0000-0000-000000000000`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/projects/00000000-0000-0000-0000-000000000000`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status).toBe(404);
@@ -170,6 +178,9 @@ describe('GET /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
 });
 
 describe('PUT /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
+  /**
+   * Purpose: Ensure the project update endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/ws-1/projects/proj-1', {
       method: 'PUT',
@@ -178,22 +189,22 @@ describe('PUT /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that a project can be updated and the new name is returned.
+   */
   it('should update a project successfully', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
     // Create a project first
     const projectName = `E2E Update ${Date.now()}`;
-    const createRes = await api(`/workspaces/${wsId}/projects`, {
+    const createRes = await api(`/workspaces/${WORKSPACE_ID}/projects`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: projectName }),
     });
     const createJson = await createRes.json();
     const projectId = createJson.data.id;
+    createdProjectIds.push(projectId);
 
-    const res = await api(`/workspaces/${wsId}/projects/${projectId}`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/projects/${projectId}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: 'Updated Project' }),
@@ -205,19 +216,21 @@ describe('PUT /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
 });
 
 describe('DELETE /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
+  /**
+   * Purpose: Ensure the project deletion endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/ws-1/projects/proj-1', { method: 'DELETE' });
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that soft-deleted projects are no longer retrievable via GET.
+   */
   it('should soft delete a project', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
     // Create a project first
     const projectName = `E2E Delete ${Date.now()}`;
-    const createRes = await api(`/workspaces/${wsId}/projects`, {
+    const createRes = await api(`/workspaces/${WORKSPACE_ID}/projects`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: projectName }),
@@ -225,14 +238,14 @@ describe('DELETE /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
     const createJson = await createRes.json();
     const projectId = createJson.data.id;
 
-    const res = await api(`/workspaces/${wsId}/projects/${projectId}`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/projects/${projectId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status).toBe(204);
 
     // Verify it's gone
-    const getRes = await api(`/workspaces/${wsId}/projects/${projectId}`, {
+    const getRes = await api(`/workspaces/${WORKSPACE_ID}/projects/${projectId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(getRes.status).toBe(404);
@@ -240,23 +253,23 @@ describe('DELETE /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
 });
 
 describe('Project API Token Management', () => {
+  /**
+   * Purpose: Verify that a project API token can be created and returns the raw token.
+   */
   it('should create an API token for a project', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
     // Create a project first
     const projectName = `E2E Token ${Date.now()}`;
-    const createRes = await api(`/workspaces/${wsId}/projects`, {
+    const createRes = await api(`/workspaces/${WORKSPACE_ID}/projects`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: projectName }),
     });
     const createJson = await createRes.json();
     const projectId = createJson.data.id;
+    createdProjectIds.push(projectId);
 
     // Create token
-    const tokenRes = await api(`/workspaces/${wsId}/projects/${projectId}/api-tokens`, {
+    const tokenRes = await api(`/workspaces/${WORKSPACE_ID}/projects/${projectId}/api-tokens`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: 'CI Token', expiresInDays: 30 }),
@@ -268,46 +281,47 @@ describe('Project API Token Management', () => {
     expect(tokenJson.data.token.name).toBe('CI Token');
   });
 
+  /**
+   * Purpose: Verify that API tokens for a project can be listed with pagination metadata.
+   */
   it('should list API tokens for a project', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
     // Create a project first
     const projectName = `E2E ListTokens ${Date.now()}`;
-    const createRes = await api(`/workspaces/${wsId}/projects`, {
+    const createRes = await api(`/workspaces/${WORKSPACE_ID}/projects`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: projectName }),
     });
     const createJson = await createRes.json();
     const projectId = createJson.data.id;
+    createdProjectIds.push(projectId);
 
-    const res = await api(`/workspaces/${wsId}/projects/${projectId}/api-tokens`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/projects/${projectId}/api-tokens`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(Array.isArray(json.data)).toBe(true);
+    expect(json.meta.pagination).toBeDefined();
   });
 
+  /**
+   * Purpose: Verify that a project API token can be revoked and returns 204.
+   */
   it('should revoke an API token', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
     // Create a project first
     const projectName = `E2E Revoke ${Date.now()}`;
-    const createRes = await api(`/workspaces/${wsId}/projects`, {
+    const createRes = await api(`/workspaces/${WORKSPACE_ID}/projects`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: projectName }),
     });
     const createJson = await createRes.json();
     const projectId = createJson.data.id;
+    createdProjectIds.push(projectId);
 
     // Create a token
-    const tokenRes = await api(`/workspaces/${wsId}/projects/${projectId}/api-tokens`, {
+    const tokenRes = await api(`/workspaces/${WORKSPACE_ID}/projects/${projectId}/api-tokens`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: 'To Revoke' }),
@@ -316,7 +330,7 @@ describe('Project API Token Management', () => {
     const tokenId = tokenJson.data.token.id;
 
     // Revoke it
-    const revokeRes = await api(`/workspaces/${wsId}/projects/${projectId}/api-tokens/${tokenId}`, {
+    const revokeRes = await api(`/workspaces/${WORKSPACE_ID}/projects/${projectId}/api-tokens/${tokenId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });

@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { aiModelKeys } from './keys';
 import { aiModelsApi } from './api';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { STALE } from '@/commons/constants/query';
 import type { ListParams } from '@/commons/types/pagination';
 import type { CreateAiModelInput } from '@/commons/schemas/ai-model.schema';

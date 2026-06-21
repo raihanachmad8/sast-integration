@@ -2,7 +2,7 @@
 
 import { Card, Button, Typography, Tag, Flex, Space, theme } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import type { PendingInvitation } from '@/modules/workspace/types';
 
 const { Text } = Typography;

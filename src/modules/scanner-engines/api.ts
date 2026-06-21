@@ -1,7 +1,9 @@
 import { Api } from '@/lib/api/client';
 import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
+import { extractPaginated } from '@/lib/api/pagination';
 import type { ApiResponse } from '@/commons/types/api';
+import type { PaginatedResponse } from '@/commons/types/pagination';
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });
 
@@ -36,33 +38,30 @@ export interface ScannerRulesResponse {
   totalPages: number;
 }
 
-interface ScannerEnginesListResponse {
-  scanners: ScannerEngine[];
-}
-
 export const scannerEnginesApi = {
   async list(): Promise<{ data: ScannerEngine[]; total: number }> {
-    const response = await _api.Get<ApiResponse<ScannerEnginesListResponse>>(ENDPOINTS.SCANNER_ENGINES.LIST);
-    const scanners = response.data.scanners ?? [];
-    return { data: scanners, total: scanners.length };
+    const response = await _api.Get<ApiResponse<PaginatedResponse<ScannerEngine>>>(ENDPOINTS.SCANNER_ENGINES.LIST);
+    const result = extractPaginated(response);
+    return { data: result.data, total: result.meta.total };
   },
 
   async getRules(scannerId: string, params?: { page?: number; perPage?: number; search?: string }): Promise<ScannerRulesResponse> {
     const queryParams: Record<string, string> = {};
     if (params?.page) queryParams.page = String(params.page);
-    if (params?.perPage) queryParams.per_page = String(params.perPage);
+    if (params?.perPage) queryParams.perPage = String(params.perPage);
     if (params?.search) queryParams.search = params.search;
 
     const qs = new URLSearchParams(queryParams).toString();
     const url = ENDPOINTS.SCANNER_ENGINES.RULES(scannerId) + (qs ? `?${qs}` : '');
     const response = await _api.Get<ApiResponse<{ scanner: string; rulesPath: string; rules: ScannerRule[]; packs: string[] }>>(url);
     const pagination = response.meta?.pagination;
+    const data = response.data;
 
     return {
-      scanner: response.data.scanner,
-      rulesPath: response.data.rulesPath,
-      rules: response.data.rules,
-      packs: response.data.packs,
+      scanner: data?.scanner ?? '',
+      rulesPath: data?.rulesPath ?? '',
+      rules: data?.rules ?? [],
+      packs: data?.packs ?? [],
       page: pagination?.page ?? 1,
       perPage: pagination?.perPage ?? 50,
       total: pagination?.total ?? 0,

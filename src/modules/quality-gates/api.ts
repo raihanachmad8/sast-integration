@@ -8,14 +8,14 @@ const _api = Api({ baseUrl: clientEnv.apiUrl });
 function mapGate(raw: Record<string, unknown>): QualityGate {
   return {
     id: raw.id as string,
-    workspaceId: raw.workspace_id as string,
+    workspaceId: raw.workspaceId as string,
     threshold: raw.threshold as string,
-    failOnCritical: Boolean(raw.fail_on_critical),
-    failOnHighTp: Boolean(raw.fail_on_high_tp),
-    warnOnPending: Boolean(raw.warn_on_pending),
-    requireHumanAck: Boolean(raw.require_human_ack),
-    pendingBehavior: raw.pending_behavior as string,
-    createdAt: raw.created_at as string,
+    failOnCritical: Boolean(raw.failOnCritical),
+    failOnHighTp: Boolean(raw.failOnHighTp),
+    warnOnPending: Boolean(raw.warnOnPending),
+    requireHumanAck: Boolean(raw.requireHumanAck),
+    pendingBehavior: raw.pendingBehavior as string,
+    createdAt: raw.createdAt as string,
   };
 }
 
