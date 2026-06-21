@@ -101,10 +101,10 @@ function parseCppcheckXml(
     if (!err) continue;
 
     // Extract attributes — fast-xml-parser stores them with @_ prefix directly on element
-    const id = (err['@_id'] as string) ?? (attrs.id as string) ?? 'cppcheck-unknown';
-    const severityRaw = (err['@_severity'] as string) ?? (attrs.severity as string) ?? 'medium';
-    const msg = (err['@_msg'] as string) ?? (attrs.msg as string) ?? (err['@_verbose'] as string) ?? (attrs.verbose as string) ?? '';
-    const cwe = err['@_cwe-id'] ?? err['@_cwe'] ?? attrs.cwe;
+    const id = (err['@_id'] as string) ?? 'cppcheck-unknown';
+    const severityRaw = (err['@_severity'] as string) ?? 'medium';
+    const msg = (err['@_msg'] as string) ?? (err['@_verbose'] as string) ?? '';
+    const cwe = err['@_cwe-id'] ?? err['@_cwe'] ?? null;
 
     // Extract first location — fast-xml-parser stores attributes with @_ prefix
     let locations = err['location'] as Record<string, unknown> | Record<string, unknown>[] | undefined;

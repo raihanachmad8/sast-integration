@@ -76,9 +76,6 @@ export const QUEUE_JOB_NAMES = {
   TRIGGER_SCHEDULED_MANAGED_SCAN: QUEUE_JOBS.TRIGGER_SCHEDULED_MANAGED_SCAN,
 } as const;
 
-/** Max message length used for fingerprint hash input (controls deduplication sensitivity). */
-export const FINGERPRINT_MESSAGE_MAX_LENGTH = 180;
-
 /** Default title max length when generating finding group titles from fingerprints. */
 export const FINDING_TITLE_FINGERPRINT_MAX_LENGTH = 40;
 
@@ -89,7 +86,7 @@ export const FINDING_TITLE_MESSAGE_MAX_LENGTH = 80;
 export const DEFAULT_MANAGED_SCAN_BRANCH = 'main';
 
 /** Default scanners used when no profile is specified. */
-export const DEFAULT_SCANNERS: readonly string[] = ['semgrep', 'gitleaks'];
+export const DEFAULT_SCANNERS: readonly string[] = ['semgrep', 'cppcheck', 'clang-tidy', 'gcc-fanalyzer', 'flawfinder', 'gitleaks'];
 
 /** Default cron expression for scheduled managed scans (daily at 03:00 UTC). */
 export const DEFAULT_MANAGED_SCAN_CRON = '0 3 * * *';
