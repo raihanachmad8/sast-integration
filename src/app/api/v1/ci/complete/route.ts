@@ -3,8 +3,11 @@
  *
  * POST /api/v1/ci/complete
  *
- * Finalizes a scan from CI/CD pipelines and evaluates quality gate.
- * For PR scans, evaluates only NEW findings (SonarQube-like behavior).
+ * Finalizes a scan from CI/CD pipelines:
+ * 1. Updates scan status
+ * 2. Evaluates quality gate
+ * 3. Auto-posts PR comment (dedup by scan ID)
+ * 4. Sets commit status (for branch protection)
  *
  * ## Authentication
  * Uses Project API Token via `Authorization: Bearer sast_p_xxxxx`
@@ -28,17 +31,12 @@
  * ```json
  * {
  *   "success": true,
- *   "message": "Scan completed",
  *   "data": {
  *     "scanId": "uuid",
  *     "status": "completed",
- *     "qualityGate": {
- *       "status": "passed|failed|warning",
- *       "newFindings": 3,
- *       "fixedFindings": 1,
- *       "blockingFindings": 1,
- *       "pendingFindings": 0
- *     }
+ *     "qualityGate": { "status": "passed", ... },
+ *     "prComment": { "action": "created", "prNumber": 2 },
+ *     "commitStatus": { "status": "success", "context": "sast-integration/gate" }
  *   }
  * }
  * ```
@@ -48,15 +46,24 @@ import type { NextRequest } from 'next/server';
 import { ApiResponse } from '@/server/http/response';
 import { authenticateCiCd } from '@/server/modules/scan/ci-cd-auth';
 import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
+import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
 import { qualityGateService } from '@/server/modules/scan/services/quality-gate.service';
+import { qualityGateRepository } from '@/server/modules/scan/repositories/quality-gate.repository';
+import { createScmApiService, parseRepoName, buildPrComment, buildInlineReviewComment } from '@/server/modules/source-control/scm-api.service';
+import type { InlineReviewComment } from '@/server/modules/source-control/scm-api.service';
+import { repositoriesRepository } from '@/server/modules/repositories/repositories.repository';
+import { sourceControls } from '@drizzle/schema/source-controls';
+import { db } from '@/server/db/client';
+import { eq } from 'drizzle-orm';
 import { logger } from '@/server/lib/logger';
 import { AppError } from '@/server/http/errors';
 import { randomUUID } from 'node:crypto';
 import { validateBody } from '@/server/http/validate';
 import { ciCompleteSchema } from '@/commons/schemas/ci.schema';
 
+const COMMIT_STATUS_CONTEXT = 'sast-integration/gate';
+
 export async function POST(request: NextRequest) {
-  // Authenticate using CI/CD token
   const auth = await authenticateCiCd(request);
   if (!auth.success) return auth.response;
 
@@ -77,25 +84,17 @@ export async function POST(request: NextRequest) {
       trigger,
     } = validation.data;
 
-    logger.scan.info('CI/CD complete', {
-      scanId,
-      status,
-      totalFindings,
-      totalDuration,
-      tools,
-      platform,
-    });
+    logger.scan.info('CI/CD complete', { scanId, status, totalFindings, tools, platform });
 
-    // Look up scan to check for PR metadata
     const scan = await scanRepository.getById(scanId);
     if (!scan) {
       return ApiResponse.error('Scan not found', 'NOT_FOUND', undefined, 404);
     }
 
-    // Update scan status
+    // 1. Update scan status
     await scanRepository.updateStatus(scanId, status || 'completed');
 
-    // Append completion event
+    // 2. Append completion event
     await scanRepository.appendProgressEvent(scanId, {
       id: randomUUID(),
       type: 'completed',
@@ -103,38 +102,44 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
 
-    // Store summary in scan result
+    // 3. Store summary
     await scanRepository.createScanResult({
-      scanId: scanId,
+      scanId,
       scanner: 'ci-cd',
       format: 'json',
-      parsedSummary: {
-        totalFindings,
-        totalDuration,
-        successRate,
-        tools,
-        platform,
-        trigger,
-      },
+      parsedSummary: { totalFindings, totalDuration, successRate, tools, platform, trigger },
     });
 
-    // Evaluate quality gate
+    // 4. Evaluate quality gate
     let gateResult = null;
     if (scan.prNumber && scan.baseBranch && scan.headBranch && scan.repositoryId) {
-      // PR scan — evaluate only NEW findings (SonarQube-like)
       gateResult = await qualityGateService.evaluatePrScan(
-        scanId,
-        workspaceId,
-        scan.repositoryId,
-        scan.headBranch,
-        scan.baseBranch,
+        scanId, workspaceId, scan.repositoryId, scan.headBranch, scan.baseBranch,
       );
     } else if (projectId) {
-      // Regular scan — evaluate all findings
       gateResult = await qualityGateService.evaluateScan(scanId, workspaceId, projectId);
     }
 
-    logger.scan.info('CI/CD scan completed', { scanId, status, totalFindings, gateStatus: gateResult?.status });
+    logger.scan.info('CI/CD scan completed', { scanId, status, gateStatus: gateResult?.status });
+
+    // 5. Auto-post PR comment + commit status (if PR scan)
+    let prCommentResult = null;
+    let commitStatusResult = null;
+    let inlineCommentsResult = null;
+
+    if (scan.prNumber && scan.headBranch && scan.baseBranch && scan.repositoryId) {
+      try {
+        const scmResult = await postPrCommentAndCommitStatus(
+          scanId, workspaceId, scan, gateResult,
+          (gateResult as { newFindingsData?: unknown[] })?.newFindingsData,
+        );
+        prCommentResult = scmResult.prComment;
+        commitStatusResult = scmResult.commitStatus;
+        inlineCommentsResult = scmResult.inlineComments;
+      } catch (err) {
+        logger.scan.error('CI/CD SCM actions failed (non-critical)', { scanId, error: (err as Error).message });
+      }
+    }
 
     return ApiResponse.success('Scan completed', {
       scanId,
@@ -146,6 +151,9 @@ export async function POST(request: NextRequest) {
         blockingFindings: gateResult.findings.blocking,
         pendingFindings: gateResult.findings.pending,
       } : null,
+      prComment: prCommentResult,
+      inlineComments: inlineCommentsResult,
+      commitStatus: commitStatusResult,
     });
   } catch (error) {
     logger.scan.error('CI/CD complete failed', { error: (error as Error).message });
@@ -154,4 +162,136 @@ export async function POST(request: NextRequest) {
     }
     return ApiResponse.error('Failed to complete scan', 'INTERNAL_ERROR', undefined, 500);
   }
+}
+
+/**
+ * Post PR comment and set commit status for a completed scan.
+ */
+async function postPrCommentAndCommitStatus(
+  scanId: string,
+  workspaceId: string,
+  scan: { repositoryId: string | null; headBranch: string | null; baseBranch: string | null; prNumber: number | null; commitSha: string | null },
+  gateResult: { status: string; newFindings?: number; fixedFindings?: number; blockingFindings?: number } | null,
+  precomputedFindings?: unknown[],
+): Promise<{
+  prComment: { action: 'created' | 'updated'; prNumber: number } | null;
+  commitStatus: { status: string; context: string } | null;
+  inlineComments: { created: number; updated: number } | null;
+}> {
+  if (!scan.repositoryId || !scan.headBranch || !scan.baseBranch || !scan.prNumber) {
+    return { prComment: null, commitStatus: null, inlineComments: null };
+  }
+
+  // Get repository and source control credentials
+  const repository = await repositoriesRepository.getById(scan.repositoryId, workspaceId);
+  if (!repository) return { prComment: null, commitStatus: null, inlineComments: null };
+
+  const [sourceControl] = await db
+    .select()
+    .from(sourceControls)
+    .where(eq(sourceControls.workspaceId, workspaceId))
+    .limit(1);
+
+  if (!sourceControl?.credentials) return { prComment: null, commitStatus: null, inlineComments: null };
+
+  const credentials = sourceControl.credentials as { baseUrl?: string; token?: string; provider?: string };
+  if (!credentials.baseUrl || !credentials.token) return { prComment: null, commitStatus: null, inlineComments: null };
+
+  const provider = sourceControl.provider || 'gitea';
+  const scm = createScmApiService(provider, { baseUrl: credentials.baseUrl, token: credentials.token });
+  const [owner, repo] = parseRepoName(repository.name);
+
+  // Post PR comment
+  let prCommentResult = null;
+  let inlineCommentsResult = null;
+  try {
+    // Use precomputed findings from quality gate, or fallback to fresh query
+    const diffData = precomputedFindings && precomputedFindings.length > 0
+      ? precomputedFindings
+      : (await findingRepository.diffNewFindings(
+          scan.repositoryId!, scan.headBranch!, scan.baseBranch!, {}, { page: 1, perPage: 1000 },
+        )).data;
+
+    const newFindings = diffData.map((f) => {
+      const rec = f as Record<string, unknown>;
+      return {
+        severity: (rec.severity as string) ?? 'medium',
+        filePath: rec.filePath as string,
+        lineNumber: rec.lineNumber as number,
+        rule: rec.rule as string,
+        message: rec.message as string,
+        scanner: rec.scanner as string,
+        codeSnippet: rec.codeSnippet as string ?? null,
+        aiVerdict: rec.aiVerdict as string ?? null,
+        confidence: String(rec.confidence ?? ''),
+        findingId: (rec.id ?? rec.findingId) as string,
+      };
+    });
+
+    const gateDb = await qualityGateRepository.getResultByScanId(scanId);
+    const gateStatus = gateDb?.status ?? gateResult?.status ?? 'pending';
+    const newCount = gateDb?.newFindings ?? gateResult?.newFindings ?? newFindings.length;
+    const fixedCount = gateDb?.fixedFindings ?? gateResult?.fixedFindings ?? 0;
+    const blockingCount = gateDb?.blockingFindings ?? gateResult?.blockingFindings ?? 0;
+
+    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const commentBody = buildPrComment(
+      scanId, gateStatus, newCount, fixedCount, blockingCount, newFindings, appBaseUrl,
+    );
+
+    const action = await scm.postOrUpdatePrComment(owner, repo, scan.prNumber, scanId, commentBody);
+    prCommentResult = { action, prNumber: scan.prNumber };
+
+    // Post inline review comments on specific lines (all severities)
+    // One comment per finding (deduplicated by findingId)
+    const seenFindingIds = new Set<string>();
+    const inlineFindings = newFindings.filter((f) => {
+      if (!f.filePath || !f.lineNumber || !f.findingId) return false;
+      if (seenFindingIds.has(f.findingId)) return false;
+      seenFindingIds.add(f.findingId);
+      return true;
+    });
+
+    if (inlineFindings.length > 0) {
+      // Delete previous inline comments for this scan
+      await scm.deleteInlineReviewComments(owner, repo, scan.prNumber, scanId);
+
+      const inlineComments: InlineReviewComment[] = inlineFindings.map((f) => ({
+        filePath: f.filePath!,
+        lineNumber: f.lineNumber!,
+        body: buildInlineReviewComment(f, appBaseUrl),
+        severity: f.severity,
+        findingId: f.findingId,
+      }));
+
+      inlineCommentsResult = await scm.postInlineReviewComments(
+        owner, repo, scan.prNumber, scanId, inlineComments,
+      );
+    }
+  } catch (err) {
+    logger.scan.error('PR comment failed', { scanId, error: (err as Error).message });
+  }
+
+  // Set commit status
+  let commitStatusResult = null;
+  if (scan.commitSha) {
+    try {
+      const gateStatus = gateResult?.status ?? 'pending';
+      const commitStatus = gateStatus === 'passed' ? 'success' : gateStatus === 'failed' ? 'failure' : 'pending';
+      const description = gateStatus === 'passed' ? 'SAST quality gate passed' : `SAST quality gate ${gateStatus}`;
+      const targetUrl = `${credentials.baseUrl}/${repository.name}/src/commit/${scan.commitSha}`;
+
+      await scm.createCommitStatus(owner, repo, scan.commitSha, {
+        status: commitStatus,
+        description,
+        context: COMMIT_STATUS_CONTEXT,
+        targetUrl,
+      });
+      commitStatusResult = { status: commitStatus, context: COMMIT_STATUS_CONTEXT };
+    } catch (err) {
+      logger.scan.error('Commit status failed', { scanId, error: (err as Error).message });
+    }
+  }
+
+  return { prComment: prCommentResult, commitStatus: commitStatusResult, inlineComments: inlineCommentsResult };
 }

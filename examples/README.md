@@ -1,133 +1,116 @@
 # CI/CD Integration Examples
 
-This directory contains examples for integrating SAST scanners with the API.
+Workflow SAST scan untuk GitHub Actions, GitLab CI, dan Gitea Actions.
 
-## Quick Start
+## Flow Baru: `init → parallel scanners → finalize`
 
-### 1. Shell Script (Bash)
-```bash
-# Set environment variables
-export SAST_API_URL=http://localhost:3000/api/v1
-export SAST_WORKSPACE_ID=ws_xxx
-export SAST_PROJECT_ID=repo_xxx
-export SAST_AUTH_TOKEN=your-token
+Semua workflow mengikuti pola yang sama:
 
-# Run the script
-chmod +x ci-cd-upload.sh
-./ci-cd-upload.sh
+1. **Init** — buat scan record via `/api/v1/ci/init`
+2. **Scan** — jalankan scanner paralel, masing-masing upload via `/api/v1/ci/upload`
+3. **Finalize** — tutup scan via `/api/v1/ci/complete`
+
+## Setup
+
+### Required Secrets / Variables
+
+| Name | Description |
+|------|-------------|
+| `SAST_API_URL` | API base URL, e.g. `https://sast.example.com` |
+| `SAST_API_KEY` | API authentication token |
+
+### GitHub Actions
+
+Copy `github-actions.yml` ke `.github/workflows/sast-scan.yml`.
+
+### GitLab CI
+
+Copy `gitlab-ci.yml` ke root repository.
+
+### Gitea Actions
+
+Copy `gitea-actions.yml` ke `.gitea/workflows/sast-scan.yml`.
+
+**Setup Gitea Runner:**
+
+1. Jalankan Gitea + Runner (lihat [DEPLOYMENT.md](../docs/DEPLOYMENT.md#gitea--actions-runner))
+2. Buka Gitea → Site Administration → Actions → Runners
+3. Copy registration token
+4. Set `RUNNER_TOKEN=<token>` di `.env`
+5. Jalankan `docker compose -f docker-compose.runner.yml up -d`
+
+**Job container akses Gitea via Docker network** (`http://gitea:4000`), bukan `localhost:4000`. Ini sudah di-handle oleh `runner-config.yaml` yang override `GITHUB_SERVER_URL`.
+
+## Supported Scanners
+
+| Scanner | Type | Tools |
+|---------|------|-------|
+| Semgrep | SAST | p/default + p/security-audit |
+| Cppcheck | C/C++ Static | `--enable=all` + SARIF conversion |
+| Flawfinder | C/C++ Sinks | `--sarif --minlevel 1` |
+| Gitleaks | Secrets | `--report-format json` + SARIF conversion |
+| Clang-Tidy | C/C++ Analysis | `clang-analyzer-*,cert-*,bugprone-*,security-*` |
+| GCC Fanalyzer | C Static | `gcc -fanalyzer` + SARIF merge |
+
+## API Endpoints
+
+### POST `/api/v1/ci/init`
+
+Buat scan record baru.
+
+**Request:**
+```json
+{
+  "repoName": "owner/repo",
+  "repoUrl": "https://github.com/owner/repo.git",
+  "branch": "main",
+  "commit": "abc12345",
+  "prNumber": 42,
+  "baseBranch": "main",
+  "headBranch": "feature/my-feature"
+}
 ```
 
-### 2. GitHub Actions
-Copy `github-actions.yml` to `.github/workflows/sast-scan.yml` in your repository.
-
-Set these secrets in your GitHub repository:
-- `SAST_API_URL` — Your SAST API URL
-- `SAST_WORKSPACE_ID` — Your workspace ID
-- `SAST_PROJECT_ID` — The project/repository ID
-- `SAST_AUTH_TOKEN` — Your API token
-
-### 3. GitLab CI
-Copy `gitlab-ci.yml` to the root of your repository.
-
-Set these variables in GitLab (Settings > CI/CD > Variables):
-- `SAST_API_URL` — Your SAST API URL
-- `SAST_WORKSPACE_ID` — Your workspace ID
-- `SAST_PROJECT_ID` — The project/repository ID
-- `SAST_AUTH_TOKEN` — Your API token (masked)
-
-### 4. Node.js
-```bash
-# Install dependencies (optional, for running scanners)
-npm install -g @semgrep/cli gitleaks trivy
-
-# Set environment variables
-export SAST_API_URL=http://localhost:3000/api/v1
-export SAST_WORKSPACE_ID=ws_xxx
-export SAST_PROJECT_ID=repo_xxx
-export SAST_AUTH_TOKEN=your-token
-
-# Run the script
-node upload-scan.js
-```
-
-## API Reference
-
-### POST `/api/v1/workspaces/:workspaceId/scans/upload`
-
-Upload scan results from CI/CD pipelines.
-
-**Request:** `multipart/form-data`
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `projectId` | string | Yes | Repository ID (auto-registered if not exists) |
-| `repositoryUrl` | string | No | Repository URL (for auto-registration) |
-| `repositoryName` | string | No | Display name (for auto-registration) |
-| `branch` | string | No | Branch name (default: `main`) |
-| `commit` | string | No | Commit SHA |
-| `source` | string | No | Source identifier (default: `ci_upload`) |
-| `file` | file | Yes | One or more SARIF/JSON scanner output files |
+> **PR metadata** (`prNumber`, `baseBranch`, `headBranch`) bersifat optional. Jika diisi, system akan:
+> 1. Evaluate quality gate dengan diff findings (new vs fixed)
+> 2. Post PR comment dengan severity breakdown + inline findings
+> 3. Set commit status (`sast-integration/gate`) untuk branch protection
 
 **Response:**
 ```json
 {
   "success": true,
   "data": {
-    "scanId": "scan_xxx",
-    "findingsCount": 42
+    "scanId": "scan_xxx"
   }
 }
 ```
 
-## Auto-Registration
+### POST `/api/v1/ci/upload`
 
-When you upload scan results, the API automatically:
+Upload SARIF results per scanner.
 
-1. **Checks if the repository exists** by `projectId`
-2. **If not, searches by URL** (`repositoryUrl`) for deduplication
-3. **If not found, creates an external repository** with the provided name
+**Request:** `multipart/form-data`
 
-This means you can start uploading scans immediately without pre-registering repositories.
+| Field | Type | Description |
+|-------|------|-------------|
+| `scanId` | string | Scan ID dari init |
+| `tool` | string | Nama scanner (semgrep, cppcheck, dll) |
+| `sarif` | file | File SARIF hasil scan |
+| `repoName` | string | Nama repository |
+| `findingsCount` | number | Jumlah findings |
 
-## Supported Scanners
+### POST `/api/v1/ci/complete`
 
-The API accepts any SARIF format output. These scanners are tested:
+Tutup scan dan trigger quality gate.
 
-| Scanner | Type | Command |
-|---------|------|---------|
-| Semgrep | SAST | `semgrep scan --config p/default --sarif` |
-| Gitleaks | Secrets | `gitleaks detect --report-format sarif` |
-| Trivy | Dependencies | `trivy fs --format sarif` |
-| Cppcheck | C/C++ | `cppcheck --xml` (converted to SARIF) |
-| Flawfinder | C/C++ | Custom parser |
-
-## Example CI/CD Pipeline
-
-```yaml
-# .github/workflows/sast.yml
-name: Security Scan
-on: [push, pull_request]
-
-jobs:
-  scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Run Semgrep
-        uses: semgrep/semgrep-action@v1
-        with:
-          config: p/default
-          generateSarif: true
-      
-      - name: Upload to SAST
-        run: |
-          curl -X POST \
-            "${{ secrets.SAST_API_URL }}/workspaces/${{ secrets.SAST_WORKSPACE_ID }}/scans/upload" \
-            -H "Authorization: Bearer ${{ secrets.SAST_AUTH_TOKEN }}" \
-            -F "projectId=${{ secrets.SAST_PROJECT_ID }}" \
-            -F "repositoryUrl=${{ github.server_url }}/${{ github.repository }}" \
-            -F "branch=${{ github.ref_name }}" \
-            -F "commit=${{ github.sha }}" \
-            -F "file=@semgrep.sarif"
+**Request:**
+```json
+{
+  "scanId": "scan_xxx",
+  "status": "completed",
+  "tools": ["semgrep", "cppcheck", "flawfinder", "gitleaks", "clang-tidy", "gcc-fanalyzer"],
+  "platform": "github",
+  "trigger": "ci"
+}
 ```

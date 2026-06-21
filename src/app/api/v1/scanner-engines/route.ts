@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { ApiResponse } from '@/server/http/response';
 import { authenticate } from '@/server/http/authenticate';
 import { SCANNER_COMMANDS } from '@/server/modules/scan/scanners';
-import { SUPPORTED_SCANNERS, type ScannerId } from '@/server/modules/scan/constants';
+import { SUPPORTED_SCANNERS } from '@/server/modules/scan/constants';
 import { checkScannerAvailability } from '@/server/modules/scan/scanner-availability';
 import { AppError } from '@/server/http/errors';
 

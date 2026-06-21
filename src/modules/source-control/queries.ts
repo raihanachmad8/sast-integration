@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { sourceControlApi } from './api';
 import { sourceControlKeys } from './keys';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { STALE } from '@/commons/constants/query';
 import type { ListParams } from '@/commons/types/pagination';
 import type { UpdateSourceControlInput } from '@/commons/schemas/source-control.schema';
@@ -61,7 +61,7 @@ export function useSyncProviderMutation() {
   return useMutation({
     mutationFn: (providerId: string) =>
       sourceControlApi.syncProvider(workspaceId!, providerId),
-    onSuccess: (_data, providerId) => {
+    onSuccess: (_data, _providerId) => {
       queryClient.invalidateQueries({ queryKey: sourceControlKeys.allRepos() });
     },
   });

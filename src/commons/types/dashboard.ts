@@ -5,36 +5,6 @@
  */
 
 /**
- * Mock comment — user discussion on a finding.
- *
- * @example
- * ```ts
- * const comment: Comment = {
- *   id: 'cmt_01',
- *   findingId: 'f_01',
- *   content: 'Confirmed — this needs immediate fix.',
- *   createdByName: 'Bob Chen',
- *   createdAt: '2026-06-04T08:00:00Z',
- *   updatedAt: '2026-06-04T08:00:00Z',
- * };
- * ```
- */
-export type Comment = {
-  /** Unique comment ID. */
-  id: string;
-  /** Finding ID the comment belongs to. */
-  findingId: string;
-  /** Comment body text. */
-  content: string;
-  /** Display name of comment author. */
-  createdByName: string;
-  /** ISO 8601 creation timestamp. */
-  createdAt: string;
-  /** ISO 8601 last update timestamp. */
-  updatedAt: string;
-};
-
-/**
  * Mock audit log — security-relevant workspace events.
  *
  * @example

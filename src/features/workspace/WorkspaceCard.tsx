@@ -3,7 +3,7 @@
 import { Card, Button, Typography, Tag, Flex, Space, theme } from 'antd';
 import { RightOutlined } from '@ant-design/icons';
 import { WORKSPACE } from '@/server/modules/workspace/constants';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 
 const { Text } = Typography;
 

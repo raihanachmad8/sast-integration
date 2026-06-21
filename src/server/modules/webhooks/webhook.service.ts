@@ -1,5 +1,5 @@
 import { webhookRepository } from './webhook.repository';
-import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
 import { createWebhookSchema, updateWebhookSchema } from '@/commons/schemas';
 import { AppError, validateSchema } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
@@ -16,10 +16,7 @@ export const webhookService = {
    */
   async createWebhook(workspaceId: string, input: unknown, createdBy: string) {
     logger.webhook.info('createWebhook', { workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, createdBy);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, createdBy);
     const data = validateSchema(createWebhookSchema, input);
 
     const result = await webhookRepository.create({
@@ -63,10 +60,7 @@ export const webhookService = {
    */
   async updateWebhook(id: string, input: unknown, updatedBy: string, workspaceId: string) {
     logger.webhook.info('updateWebhook', { id });
-    const role = await workspaceRepository.getMemberRole(workspaceId, updatedBy);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, updatedBy);
     const data = validateSchema(updateWebhookSchema, input);
 
     await this.getWebhookById(id);
@@ -84,10 +78,7 @@ export const webhookService = {
    */
   async deleteWebhook(id: string, deletedBy: string, workspaceId: string) {
     logger.webhook.info('deleteWebhook', { id });
-    const role = await workspaceRepository.getMemberRole(workspaceId, deletedBy);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, deletedBy);
     const existing = await this.getWebhookById(id);
 
     await webhookRepository.softDelete(id, deletedBy);
@@ -101,10 +92,7 @@ export const webhookService = {
    */
   async testWebhook(id: string, workspaceId: string, userId: string) {
     logger.webhook.info('testWebhook', { id });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
     const webhook = await this.getWebhookById(id);
 
     const testPayload = { event: 'webhook.test', timestamp: new Date().toISOString(), data: { webhookId: webhook.id, name: webhook.name } };

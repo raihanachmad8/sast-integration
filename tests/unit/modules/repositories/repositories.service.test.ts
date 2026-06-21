@@ -39,6 +39,9 @@ describe('repositoriesService', () => {
   });
 
   describe('list', () => {
+    /**
+     * Purpose: Validates that all repositories for a workspace are returned
+     */
     it('should list repositories for workspace', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const mockRepos = [
@@ -54,6 +57,9 @@ describe('repositoriesService', () => {
       expect(result).toEqual(mockRepos);
     });
 
+    /**
+     * Purpose: Validates that an empty array is returned when no repositories exist
+     */
     it('should return empty array when no repositories', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       vi.mocked(repositoriesRepository.listByWorkspace).mockResolvedValue([]);
@@ -65,6 +71,9 @@ describe('repositoriesService', () => {
   });
 
   describe('getById', () => {
+    /**
+     * Purpose: Validates that a repository is returned correctly by its ID
+     */
     it('should get repository by ID', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const mockRepo = { id: mockRepoId, name: 'test-repo', workspaceId: mockWorkspaceId };
@@ -77,6 +86,9 @@ describe('repositoriesService', () => {
       expect(result.id).toBe(mockRepoId);
     });
 
+    /**
+     * Purpose: Validates that an error is thrown when the repository does not exist
+     */
     it('should throw NOT_FOUND when repository does not exist', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       vi.mocked(repositoriesRepository.getById).mockResolvedValue(null);
@@ -88,6 +100,9 @@ describe('repositoriesService', () => {
   });
 
   describe('create', () => {
+    /**
+     * Purpose: Validates that a repository can be created by a workspace member
+     */
     it('should create repository when user is member', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -109,6 +124,9 @@ describe('repositoriesService', () => {
       expect(result.name).toBe('new-repo');
     });
 
+    /**
+     * Purpose: Validates that non-members are forbidden from creating repositories
+     */
     it('should throw FORBIDDEN when user is not member', async () => {
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
       vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
@@ -147,6 +165,9 @@ describe('repositoriesService', () => {
       expect(result.name).toBe('updated-name');
     });
 
+    /**
+     * Purpose: Validates that non-members are forbidden from updating repositories
+     */
     it('should throw FORBIDDEN when user is not member', async () => {
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
       vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
@@ -156,6 +177,9 @@ describe('repositoriesService', () => {
       ).rejects.toThrow('You are not a member of this workspace');
     });
 
+    /**
+     * Purpose: Validates that updating a nonexistent repository throws NOT_FOUND
+     */
     it('should throw NOT_FOUND when repository does not exist', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -170,6 +194,9 @@ describe('repositoriesService', () => {
   });
 
   describe('delete', () => {
+    /**
+     * Purpose: Validates that a repository can be deleted by a workspace member
+     */
     it('should delete repository when user is member', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -189,6 +216,9 @@ describe('repositoriesService', () => {
       expect(repositoriesRepository.delete).toHaveBeenCalledWith(mockRepoId);
     });
 
+    /**
+     * Purpose: Validates that non-members are forbidden from deleting repositories
+     */
     it('should throw FORBIDDEN when user is not member', async () => {
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
       vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
@@ -198,6 +228,9 @@ describe('repositoriesService', () => {
       ).rejects.toThrow('You are not a member of this workspace');
     });
 
+    /**
+     * Purpose: Validates that deleting a nonexistent repository throws NOT_FOUND
+     */
     it('should throw NOT_FOUND when repository does not exist', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -212,6 +245,9 @@ describe('repositoriesService', () => {
   });
 
   describe('list edge cases', () => {
+    /**
+     * Purpose: Validates that the workspace ID is passed correctly to the repository
+     */
     it('+ should call repository with workspace ID', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       vi.mocked(repositoriesRepository.listByWorkspace).mockResolvedValue([]);
@@ -220,6 +256,9 @@ describe('repositoriesService', () => {
       expect(repositoriesRepository.listByWorkspace).toHaveBeenCalledWith('test-workspace');
     });
 
+    /**
+     * Purpose: Validates that multiple repositories are returned correctly
+     */
     it('+ should return multiple repositories', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       vi.mocked(repositoriesRepository.listByWorkspace).mockResolvedValue([
@@ -232,6 +271,9 @@ describe('repositoriesService', () => {
       expect(result).toHaveLength(3);
     });
 
+    /**
+     * Purpose: Validates that the order from the repository is preserved in the response
+     */
     it('+ should preserve repository order', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const repos = [{ id: 'r1', name: 'alpha' }, { id: 'r2', name: 'beta' }];
@@ -244,6 +286,9 @@ describe('repositoriesService', () => {
   });
 
   describe('create edge cases', () => {
+    /**
+     * Purpose: Validates that a repository can be created with all optional fields
+     */
     it('+ should create with all optional fields', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -260,13 +305,16 @@ describe('repositoriesService', () => {
         name: 'full-repo',
         url: 'https://github.com/test/full-repo',
         defaultBranch: 'develop',
-        connectionType: 'scm',
+        connectionType: ['scm'],
         autoScan: true,
       }, mockWorkspaceId, mockUserId);
 
       expect(result).toBeDefined();
     });
 
+    /**
+     * Purpose: Validates that the manager role is allowed to create repositories
+     */
     it('+ should allow manager role to create', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -281,6 +329,9 @@ describe('repositoriesService', () => {
       expect(result).toBeDefined();
     });
 
+    /**
+     * Purpose: Validates that viewer role can still create repositories as a workspace member
+     */
     it('- should throw for viewer role', async () => {
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
       vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('viewer');
@@ -300,6 +351,9 @@ describe('repositoriesService', () => {
   });
 
   describe('update edge cases', () => {
+    /**
+     * Purpose: Validates that a repository can be updated with a partial field set
+     */
     it('+ should update with partial fields', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -312,6 +366,9 @@ describe('repositoriesService', () => {
       expect(result).toBeDefined();
     });
 
+    /**
+     * Purpose: Validates that the repository is called with the correct ID during update
+     */
     it('+ should call repository with correct ID', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -326,6 +383,9 @@ describe('repositoriesService', () => {
   });
 
   describe('delete edge cases', () => {
+    /**
+     * Purpose: Validates that the delete method is called with the correct repository ID
+     */
     it('+ should call repository delete with correct ID', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -338,6 +398,9 @@ describe('repositoriesService', () => {
       expect(repositoriesRepository.delete).toHaveBeenCalledWith(mockRepoId);
     });
 
+    /**
+     * Purpose: Validates that the full repository data is returned after deletion
+     */
     it('+ should return deleted repository data', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -353,6 +416,9 @@ describe('repositoriesService', () => {
   });
 
   describe('list with various states', () => {
+    /**
+     * Purpose: Validates that a large number of repositories are handled correctly
+     */
     it('+ should handle workspace with many repositories', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const repos = Array.from({ length: 20 }, (_, i) => ({ id: `r-${i}`, name: `repo-${i}` }));
@@ -362,10 +428,13 @@ describe('repositoriesService', () => {
       expect(result).toHaveLength(20);
     });
 
+    /**
+     * Purpose: Validates that all repository properties are preserved in the response
+     */
     it('+ should preserve repository properties', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       vi.mocked(repositoriesRepository.listByWorkspace).mockResolvedValue([
-        { id: 'r1', name: 'repo-1', url: 'https://github.com/test/repo1', defaultBranch: 'main', connectionType: 'scm' },
+        { id: 'r1', name: 'repo-1', url: 'https://github.com/test/repo1', defaultBranch: 'main', connectionType: ['scm'] },
       ]);
 
       const result = await repositoriesService.list(mockWorkspaceId);
@@ -375,6 +444,9 @@ describe('repositoriesService', () => {
   });
 
   describe('create with various roles', () => {
+    /**
+     * Purpose: Validates that the owner role can create repositories
+     */
     it('+ should allow owner to create', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -386,6 +458,9 @@ describe('repositoriesService', () => {
       expect(result.id).toBe(mockRepoId);
     });
 
+    /**
+     * Purpose: Validates that the manager role can create repositories
+     */
     it('+ should allow manager to create', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -399,6 +474,9 @@ describe('repositoriesService', () => {
   });
 
   describe('update with various changes', () => {
+    /**
+     * Purpose: Validates that updating only the name field works correctly
+     */
     it('+ should update name only', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -411,6 +489,9 @@ describe('repositoriesService', () => {
       expect(result.name).toBe('new-name');
     });
 
+    /**
+     * Purpose: Validates that updating only the URL field works correctly
+     */
     it('+ should update url only', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -425,6 +506,9 @@ describe('repositoriesService', () => {
   });
 
   describe('delete with various states', () => {
+    /**
+     * Purpose: Validates that deleting a repository returns the full repository data
+     */
     it('+ should delete and return full repository data', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -438,6 +522,9 @@ describe('repositoriesService', () => {
       expect(result.defaultBranch).toBe('main');
     });
 
+    /**
+     * Purpose: Validates that getById is called to verify existence before deletion
+     */
     it('+ should call getById before delete', async () => {
       const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');

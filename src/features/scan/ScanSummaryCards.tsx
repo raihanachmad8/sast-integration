@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, Row, Col, Typography, Flex, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { STATUS_TOKENS } from '@/commons/constants/tokens';
 import type { ScanRow } from './types';
 

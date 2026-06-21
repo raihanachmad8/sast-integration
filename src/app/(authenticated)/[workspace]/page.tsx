@@ -1,11 +1,13 @@
 'use client';
 
 import { Flex, Typography, theme } from 'antd';
+import { useRouter } from 'next/navigation';
 import { useSessionData } from '@/modules/auth/queries';
 import { useDashboardStatsQuery, useDashboardScansQuery, useDashboardFindingsQuery, useDashboardHealthQuery } from '@/modules/dashboard';
 import { DashboardSummaryCards, RecentScansTable, AttentionRequired, WorkspaceHealth } from '@/features/dashboard';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorState } from '@/components/shared/ErrorState';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorState } from '@/commons/components/ErrorState';
+import type { DashboardScan } from '@/modules/dashboard';
 
 /**
  * Workspace dashboard page.
@@ -15,7 +17,9 @@ import { ErrorState } from '@/components/shared/ErrorState';
  */
 export default function DashboardPage() {
   const { token } = theme.useToken();
+  const router = useRouter();
   const session = useSessionData();
+  const workspaceSlug = session.data?.workspace?.slug ?? '';
   const workspaceId = session.data?.workspace?.id ?? '';
 
   const statsQuery = useDashboardStatsQuery(workspaceId);
@@ -41,6 +45,13 @@ export default function DashboardPage() {
     { label: 'AI Models', value: healthData.models, ready: healthData.models > 0 },
   ];
 
+  const handleViewAll = () => router.push(`/${workspaceSlug}/scans`);
+  const handleViewFindings = (scan: DashboardScan) => router.push(`/${workspaceSlug}/scans/${scan.id}`);
+  const handleRetry = (_scan: DashboardScan) => {
+    // Retry would trigger a new scan for the same repository
+    router.push(`/${workspaceSlug}/scans`);
+  };
+
   return (
     <Flex vertical gap={token.paddingXL}>
       <div>
@@ -61,9 +72,9 @@ export default function DashboardPage() {
         <div style={{ flex: '2 1 500px', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <RecentScansTable
             scans={scans}
-            onViewAll={() => {}}
-            onViewFindings={() => {}}
-            onRetry={() => {}}
+            onViewAll={handleViewAll}
+            onViewFindings={handleViewFindings}
+            onRetry={handleRetry}
           />
         </div>
         <div style={{ flex: '1 1 280px', display: 'flex', flexDirection: 'column' }}>

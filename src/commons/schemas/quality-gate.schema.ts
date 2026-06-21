@@ -3,20 +3,20 @@ import { z } from 'zod';
 export const updateQualityGateSchema = z.object({
   workspaceId: z.string().uuid('Invalid workspace ID'),
   threshold: z.enum(['critical', 'high', 'medium', 'low']).optional(),
-  fail_on_critical: z.boolean().optional(),
-  fail_on_high_tp: z.boolean().optional(),
-  warn_on_pending: z.boolean().optional(),
-  require_human_ack: z.boolean().optional(),
-  pending_behavior: z.enum(['warn', 'fail', 'ignore']).optional(),
+  failOnCritical: z.boolean().optional(),
+  failOnHighTp: z.boolean().optional(),
+  warnOnPending: z.boolean().optional(),
+  requireHumanAck: z.boolean().optional(),
+  pendingBehavior: z.enum(['warn', 'fail', 'ignore']).optional(),
 });
 
 export const qualityGateConfigSchema = z.object({
-  fail_on_critical: z.boolean(),
-  fail_on_high_tp: z.boolean(),
-  warn_on_pending: z.boolean(),
-  require_human_ack: z.boolean(),
+  failOnCritical: z.boolean(),
+  failOnHighTp: z.boolean(),
+  warnOnPending: z.boolean(),
+  requireHumanAck: z.boolean(),
   threshold: z.enum(['critical', 'high', 'medium', 'low']),
-  pending_behavior: z.enum(['warn', 'fail', 'ignore']),
+  pendingBehavior: z.enum(['warn', 'fail', 'ignore']),
 });
 
 export const evaluateQualityGateSchema = z.object({

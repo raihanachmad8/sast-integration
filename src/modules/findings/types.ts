@@ -10,6 +10,8 @@ export interface FindingListParams {
   severity?: Severity;
   verdict?: AiVerdict;
   status?: FindingStatus;
+  projectId?: string;
+  repositoryId?: string;
   sort?: string;
   order?: 'ASC' | 'DESC';
 }

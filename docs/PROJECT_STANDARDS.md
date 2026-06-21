@@ -8,8 +8,15 @@ src/
 ├── features/       # UI feature modules (components, hooks, state)
 ├── modules/        # Client-side data modules (API clients, queries)
 ├── server/         # Backend logic (services, repositories, schemas)
-├── commons/        # Shared UI components, constants, types
+├── commons/        # Shared UI components, constants, types, schemas
+│   ├── components/ # Shared UI components (DataTable, FaIcon, etc.)
+│   │   └── layout/ # Layout components (AppShell, SidebarNav, etc.)
+│   ├── providers/  # React providers (QueryProvider, AntdProvider)
+│   ├── constants/  # App-wide constants (tokens, routes, etc.)
+│   ├── types/      # Shared TypeScript types
+│   └── schemas/    # Zod validation schemas
 ├── lib/            # Third-party integrations (drizzle, redis, queue)
+│   └── hooks/      # Custom React hooks (useWorkspace, useDataTable, etc.)
 ├── utils/          # Pure helper functions
 └── config/         # App configuration & env validation
 ```
@@ -21,7 +28,10 @@ src/
 | `modules/` | Client data access | Query hooks + API client calls |
 | `server/` | Backend business logic | Never imported from client code |
 | `commons/` | Shared across features | No feature-specific code |
+| `commons/components/` | Shared UI components | Used by all features |
+| `commons/providers/` | React context providers | App-wide providers only |
 | `lib/` | External service wrappers | Thin adapters only |
+| `lib/hooks/` | Custom React hooks | Reusable across features |
 | `utils/` | Stateless helpers | No side effects |
 
 ---
@@ -30,23 +40,43 @@ src/
 
 ```text
 features/
-└── scan-results/
-    ├── components/
-    │   ├── scan-results-table.tsx
-    │   ├── vulnerability-card.tsx
-    │   └── index.ts
-    ├── hooks/
-    │   └── use-scan-filters.ts
-    ├── constants.ts
-    ├── types.ts
-    └── index.ts
+└── scan/
+    ├── ScanTable.tsx
+    ├── ScanDetailDrawer.tsx
+    ├── ScanTimeline.tsx
+    ├── NewScanModal.tsx
+    ├── FindingItem.tsx
+    ├── types.ts          # Feature-specific types
+    └── index.ts          # Public API exports
 ```
 
 Rules:
 - Each feature is a self-contained directory
 - Export public API via index.ts
-- Feature-specific types stay in the feature
-- Shared types go to commons/types/
+- Feature-specific types stay in the feature (e.g., `features/scan/types.ts`)
+- Feature-specific components stay in the feature (e.g., `features/auth/components/`)
+- Shared types go to `commons/types/`
+- Shared UI components go to `commons/components/`
+
+---
+
+## Type Naming Conventions
+
+When multiple types exist for the same entity, use context-specific names to avoid confusion:
+
+| Type Name | Location | Purpose |
+|-----------|----------|---------|
+| `FindingRow` | `commons/types/findings.ts` | DB model mirror |
+| `FindingExtended` | `commons/types/findings.ts` | List view with joins |
+| `FindingGroup` | `commons/types/findings.ts` | Deduplicated finding |
+| `ScanFinding` | `features/scan/types.ts` | Scan-specific (rich AI analysis) |
+| `Finding` | `commons/types/domain.ts` | Unified cross-feature type |
+
+Rules:
+- Prefix feature-specific types with the feature name (e.g., `ScanFinding`, not just `Finding`)
+- Add JSDoc explaining when to use each variant
+- Prefer `FindingRow`/`FindingExtended` from commons for most use cases
+- Use `ScanFinding` only for scan detail/parsing components
 
 ---
 
@@ -60,11 +90,11 @@ Page (app/) → Feature UI (features/) → Query Hook (modules/) → Client API 
 |-------|--------------|----------------|
 | Page | `app/**/page.tsx` | Compose features, fetch data |
 | Feature UI | `features/*/` | Render UI, handle interactions |
-| Query Hook | `modules/*/queries/` | TanStack Query cache layer |
-| Client API | `modules/*/api/` | HTTP calls to API routes |
+| Query Hook | `modules/*/queries.ts` | TanStack Query cache layer |
+| Client API | `modules/*/api.ts` | HTTP calls to API routes |
 | API Route | `app/api/v1/**/` | Validate input, call service |
-| Service | `server/*/services/` | Business logic orchestration |
-| Repository | `server/*/repositories/` | Database queries (Drizzle) |
+| Service | `server/modules/*/services/` | Business logic orchestration |
+| Repository | `server/modules/*/repositories/` | Database queries (Drizzle) |
 | Database | PostgreSQL | Data persistence |
 
 ---
@@ -73,14 +103,15 @@ Page (app/) → Feature UI (features/) → Query Hook (modules/) → Client API 
 
 ```text
 server/
-└── scans/
-    ├── services/
-    │   └── scan.service.ts
-    ├── repositories/
-    │   └── scan.repository.ts
-    ├── schemas/
-    │   └── scan.schema.ts
-    └── index.ts
+└── modules/
+    └── scan/
+        ├── services/
+        │   └── managed-scan.service.ts
+        ├── repositories/
+        │   └── scan.repository.ts
+        ├── parsers/
+        │   └── semgrep.parser.ts
+        └── scanners.ts
 ```
 
 Rules:
@@ -88,6 +119,119 @@ Rules:
 - Repositories are the only layer that touches the database
 - Schemas define Zod validation for input/output
 - Never call a repository directly from an API route
+
+---
+
+## AI Verification Pattern
+
+The AI verification pipeline follows this flow:
+
+```
+Finding → Build CWE Context → Construct Prompt → Call LLM → Parse Response → Store Verification
+```
+
+### CWE Context Enrichment
+
+Knowledge base entries (global, not workspace-scoped) provide context to the LLM:
+
+```typescript
+// ai-verification.service.ts
+const cweContext = await this.buildCweContext(finding.cweId);
+// Returns: "CWE Knowledge (CWE-787 - Out-of-bounds Write): Description: ... Severity: ... Remediation: ..."
+```
+
+### Prompt Templates
+
+Two prompt variants exist (same JSON response format):
+- **strict** — Detailed explanation, data flow analysis
+- **balanced** — Brief explanation only
+
+Both use the same system prompt with strict rules:
+- Default assumption: scanner is CORRECT (true_positive)
+- Only classify as false_positive with PROOF of safety
+- If unsure → true_positive
+
+### Response Format
+
+```typescript
+interface AiModelResponse {
+  verdict: 'true_positive' | 'false_positive';
+  confidence: number;        // 0-1
+  explanation: string;
+  dataFlow?: string;         // source → sink path
+  taintSource?: string;      // untrusted input origin
+  matchDetail?: string;      // what scanner found
+  likelyCwe?: string[];      // CWE predictions
+  fixSuggestion?: string;
+  rawResponse?: string;      // for debugging
+}
+```
+
+---
+
+## Comment System Pattern
+
+Comments are backed by the `comments` table and exposed via:
+
+```
+GET  /api/v1/workspaces/:wid/findings/:fid/comments
+POST /api/v1/workspaces/:wid/findings/:fid/comments
+```
+
+Frontend uses:
+- `useCommentsQuery(findingId)` — fetches comments
+- `useAddCommentMutation(findingId)` — adds a comment
+
+Both are in `modules/findings/queries.ts` and exported via `modules/findings/index.ts`.
+
+---
+
+## Modal Pattern
+
+All modals must use:
+- `destroyOnHidden` prop to reset form state
+- `initialValues` on `<Form>` for data population
+- No `useEffect` for `form.setFieldsValue`
+
+```tsx
+<Modal destroyOnHidden title="Edit" open={open} onOk={handleSave}>
+  <Form initialValues={{ name: item.name }}>
+    <Form.Item name="name"><Input /></Form.Item>
+  </Form>
+</Modal>
+```
+
+---
+
+## React Query Pattern
+
+All queries follow this structure:
+
+```typescript
+// hooks file
+export function useXxxQuery(params) {
+  return useQuery({
+    queryKey: moduleKeys.xxx(params),
+    queryFn: () => moduleApi.xxx(params),
+    staleTime: STALE.DEFAULT,
+    enabled: !!requiredParam,
+  });
+}
+
+export function useXxxMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars) => moduleApi.xxx(vars),
+    onSuccess: () => qc.invalidateQueries({ queryKey: moduleKeys.all }),
+  });
+}
+```
+
+Rules:
+- Query keys centralized in `keys.ts`
+- Use `STALE.*` constants, never raw numbers
+- Use `keepPreviousData` for paginated lists
+- All hooks must have JSDoc with @param and @example
 
 ---
 

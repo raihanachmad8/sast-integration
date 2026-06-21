@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, jsonb, timestamp, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, jsonb, timestamp, text, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
+import { isNull } from 'drizzle-orm';
 import { users } from './users';
 import { workspaces } from './workspaces';
 import { projects } from './projects';
@@ -18,7 +19,7 @@ export const sourceControlRepositories = pgTable('source_control_repositories', 
   id: uuid('id').primaryKey().defaultRandom(),
   sourceControlId: uuid('source_control_id').notNull().references(() => sourceControls.id, { onDelete: 'cascade' }),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
-  externalId: varchar('external_id', { length: 255 }), // Provider's stable repo ID
+  externalId: varchar('external_id', { length: 255 }),
   name: varchar('name', { length: 255 }).notNull(),
   fullName: varchar('full_name', { length: 500 }).notNull(),
   url: varchar('url', { length: 500 }),
@@ -53,12 +54,12 @@ export const repositories = pgTable('repositories', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
   projectId: uuid('project_id').references(() => projects.id),
-  externalId: varchar('external_id', { length: 255 }), // Provider's stable repo ID
-  provider: varchar('provider', { length: 20 }), // e.g. 'gitea', 'github'
+  externalId: varchar('external_id', { length: 255 }),
+  provider: varchar('provider', { length: 20 }),
   name: varchar('name', { length: 255 }).notNull(),
   url: varchar('url', { length: 500 }).notNull(),
   defaultBranch: varchar('default_branch', { length: 100 }).default('main'),
-  connectionType: varchar('connection_type', { length: 20 }).notNull().default('scm'),
+  connectionType: text('connection_type').array().notNull().default(['scm']),
   importMode: varchar('import_mode', { length: 20 }).default('manual'),
   autoScan: boolean('auto_scan').default(false),
   lastSyncedAt: timestamp('last_synced_at'),
@@ -68,7 +69,9 @@ export const repositories = pgTable('repositories', {
   updatedBy: uuid('updated_by').references(() => users.id),
   deletedAt: timestamp('deleted_at'),
   deletedBy: uuid('deleted_by').references(() => users.id),
-});
+}, (t) => [
+  uniqueIndex('repositories_workspace_name_idx').on(t.workspaceId, t.name).where(isNull(t.deletedAt)),
+]);
 
 export type SourceControl = typeof sourceControls.$inferSelect;
 export type NewSourceControl = typeof sourceControls.$inferInsert;

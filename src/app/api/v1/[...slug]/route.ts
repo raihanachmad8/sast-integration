@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server';
 import { ApiResponse } from '@/server/http/response';
 
 /**

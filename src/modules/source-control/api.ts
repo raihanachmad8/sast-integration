@@ -69,7 +69,8 @@ export const sourceControlApi = {
    * @param payload - Provider configuration.
    */
   async addProvider(workspaceId: string, payload: { provider: string; name: string; credentials?: Record<string, unknown> }): Promise<{ sourceControl: ScmProviderConnection; redirectUrl: string | null }> {
-    const response = await _api.Post<ApiResponse<{ sourceControl: ScmProviderConnection; redirectUrl: string | null }>>(ENDPOINTS.SOURCE_CONTROLS.LIST(workspaceId), payload);
+    const normalized = { ...payload, provider: payload.provider.toLowerCase() };
+    const response = await _api.Post<ApiResponse<{ sourceControl: ScmProviderConnection; redirectUrl: string | null }>>(ENDPOINTS.SOURCE_CONTROLS.LIST(workspaceId), normalized);
     return response.data;
   },
 
@@ -96,7 +97,8 @@ export const sourceControlApi = {
   },
 
   async updateProvider(workspaceId: string, id: string, data: Record<string, unknown>): Promise<{ redirectUrl: string | null }> {
-    const response = await _api.Patch<ApiResponse<{ redirectUrl: string | null }>>(ENDPOINTS.SOURCE_CONTROLS.DETAIL(workspaceId, id), data);
+    const normalized = { ...data, provider: data.provider ? String(data.provider).toLowerCase() : undefined };
+    const response = await _api.Patch<ApiResponse<{ redirectUrl: string | null }>>(ENDPOINTS.SOURCE_CONTROLS.DETAIL(workspaceId, id), normalized);
     return response.data;
   },
 

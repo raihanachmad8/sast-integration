@@ -1,8 +1,33 @@
 'use client';
 
-import { useState } from 'react';
-import { App, Form, Select, Switch, Card, Typography, Row, Col, Flex, Button, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { App, Form, Select, Switch, Card, Typography, Row, Col, Flex, Button, Skeleton, theme } from 'antd';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+import { clientEnv } from '@/config/client-env';
+import { Api } from '@/lib/api/client';
+import { ENDPOINTS } from '@/commons/constants/endpoints';
+import type { ApiResponse } from '@/commons/types/api';
+import { createZodSync } from '@/lib/utils/zod-sync';
+import { z } from 'zod';
+
+const verificationSchema = z.object({
+  confidence: z.string().min(1, 'Confidence threshold is required'),
+  timeout: z.string().min(1, 'Timeout is required'),
+  cweMismatch: z.string().min(1, 'CWE mismatch setting is required'),
+});
+
+const validateVerification = createZodSync(verificationSchema);
+
+interface VerificationSettings {
+  attachKnowledge: boolean;
+  requireConfidence: boolean;
+  allowFallback: boolean;
+  confidenceThreshold: string;
+  timeout: string;
+  cweMismatch: string;
+}
 
 interface ToggleRowProps {
   label: string;
@@ -27,16 +52,69 @@ function ToggleRow({ label, description, checked, onChange }: ToggleRowProps) {
 export function VerificationSettingsCard() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
+  const { workspaceId } = useWorkspace();
+  const api = Api({ baseUrl: clientEnv.apiUrl });
   const [form] = Form.useForm();
+  const [saving, setSaving] = useState(false);
   const [attachKnowledge, setAttachKnowledge] = useState(true);
   const [requireConfidence, setRequireConfidence] = useState(true);
   const [allowFallback, setAllowFallback] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
 
-  const handleSave = () => {
-    message.success('Verification settings saved');
-    setHasChanges(false);
+  const query = useQuery<VerificationSettings>({
+    queryKey: ['verification-settings', workspaceId],
+    queryFn: async () => {
+      const { data } = await api.Get<ApiResponse<VerificationSettings>>(ENDPOINTS.WORKSPACE_SETTINGS?.VERIFICATION?.(workspaceId!) ?? `/api/v1/workspaces/${workspaceId}/settings/verification`);
+      if (!data) throw new Error('No data');
+      return data;
+    },
+    enabled: !!workspaceId,
+  });
+
+  useEffect(() => {
+    if (query.data) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAttachKnowledge(query.data.attachKnowledge);
+      setRequireConfidence(query.data.requireConfidence);
+      setAllowFallback(query.data.allowFallback);
+      form.setFieldsValue({
+        confidence: query.data.confidenceThreshold,
+        timeout: query.data.timeout,
+        cweMismatch: query.data.cweMismatch,
+      });
+    }
+  }, [query.data, form]);
+
+  useEffect(() => {
+    if (query.error) {
+      message.warning('Could not load verification settings');
+    }
+  }, [query.error, message]);
+
+  const handleSave = async (values: { confidence: string; timeout: string; cweMismatch: string }) => {
+    if (!workspaceId) return;
+    setSaving(true);
+    try {
+      await api.Put<ApiResponse<null>>(`/api/v1/workspaces/${workspaceId}/settings/verification`, {
+        attachKnowledge,
+        requireConfidence,
+        allowFallback,
+        confidenceThreshold: values.confidence,
+        timeout: values.timeout,
+        cweMismatch: values.cweMismatch,
+      });
+      message.success('Verification settings saved');
+      setHasChanges(false);
+    } catch {
+      message.error('Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (query.isLoading) {
+    return <Card styles={{ body: { padding: token.paddingXL } }}><Skeleton active paragraph={{ rows: 6 }} /></Card>;
+  }
 
   return (
     <Card styles={{ body: { padding: token.paddingXL } }}>
@@ -62,31 +140,31 @@ export function VerificationSettingsCard() {
         />
       </Flex>
 
-      <Form form={form} layout="vertical" onValuesChange={() => setHasChanges(true)}>
+      <Form form={form} layout="vertical" onValuesChange={() => setHasChanges(true)} onFinish={handleSave}>
         <Row gutter={[16, 16]} style={{ marginTop: token.paddingXL }}>
           <Col xs={24} sm={8}>
-            <Form.Item label="Confidence threshold" name="confidence" initialValue="90">
+            <Form.Item label="Confidence threshold" name="confidence" rules={[validateVerification]}>
               <Select style={{ width: '100%' }} options={[{ value: '85', label: '85%' }, { value: '90', label: '90%' }, { value: '95', label: '95%' }]} />
             </Form.Item>
           </Col>
           <Col xs={24} sm={8}>
-            <Form.Item label="Timeout" name="timeout" initialValue="90">
+            <Form.Item label="Timeout" name="timeout" rules={[validateVerification]}>
               <Select style={{ width: '100%' }} options={[{ value: '60', label: '60 sec' }, { value: '90', label: '90 sec' }, { value: '120', label: '120 sec' }]} />
             </Form.Item>
           </Col>
           <Col xs={24} sm={8}>
-            <Form.Item label="CWE mismatch" name="cweMismatch" initialValue="warn">
+            <Form.Item label="CWE mismatch" name="cweMismatch" rules={[validateVerification]}>
               <Select style={{ width: '100%' }} options={[{ value: 'warn', label: 'Warn' }, { value: 'fail', label: 'Fail' }, { value: 'ignore', label: 'Ignore' }]} />
             </Form.Item>
           </Col>
         </Row>
-      </Form>
 
-      <Flex justify="flex-end" style={{ marginTop: token.paddingXL }}>
-        <Button type="primary" onClick={handleSave} disabled={!hasChanges} icon={<FaIcon icon="fa-check" />}>
-          Save settings
-        </Button>
-      </Flex>
+        <Flex justify="flex-end" style={{ marginTop: token.paddingXL }}>
+          <Button type="primary" htmlType="submit" disabled={!hasChanges} loading={saving} icon={<FaIcon icon="fa-check" />}>
+            Save settings
+          </Button>
+        </Flex>
+      </Form>
     </Card>
   );
 }

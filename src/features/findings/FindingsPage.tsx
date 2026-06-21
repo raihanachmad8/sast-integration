@@ -1,12 +1,18 @@
 'use client';
 
 import { Button, Flex, theme } from 'antd';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorState } from '@/components/shared/ErrorState';
-import { FindingsTable, FindingDetailDrawer } from '@/features/findings';
-import { PermissionGate } from '@/components/shared/PermissionGate';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorState } from '@/commons/components/ErrorState';
+import dynamic from 'next/dynamic';
+import { FindingsTable } from '@/features/findings';
+
+const FindingDetailDrawer = dynamic(
+  () => import('@/features/findings/FindingDetailDrawer').then((m) => m.FindingDetailDrawer),
+  { ssr: false },
+);
+import { PermissionGate } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { useFindingsPageState } from './useFindingsPageState';
 import { BulkAssignModal } from './BulkAssignModal';
@@ -25,6 +31,8 @@ export default function FindingsPage() {
     totalCount,
     members,
     MEMBER_OPTIONS,
+    PROJECT_OPTIONS,
+    REPOSITORY_OPTIONS,
     tableParams,
     drawerOpen,
     setDrawerOpen,
@@ -88,6 +96,9 @@ export default function FindingsPage() {
         onReverify={handleBulkReverify}
         onAssign={handleBulkAssign}
         onAssignRow={handleReview}
+        members={members.map((m) => ({ userId: m.userId, name: m.name, email: m.email }))}
+        projectOptions={PROJECT_OPTIONS}
+        repositoryOptions={REPOSITORY_OPTIONS}
       />
 
       <FindingDetailDrawer
@@ -100,7 +111,6 @@ export default function FindingsPage() {
         onReverify={handleReverify}
         onOpenFullPage={handleOpenFullPage}
         onAssign={handleAssign}
-        onAddComment={() => {}}
       />
 
       <BulkAssignModal

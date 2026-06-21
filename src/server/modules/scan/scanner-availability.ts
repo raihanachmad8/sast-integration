@@ -28,7 +28,6 @@
 
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import path from 'node:path';
 import { logger } from '@/server/lib/logger';
 import { SCANNER_COMMANDS } from './scanners';
 import type { ScannerId } from './constants';

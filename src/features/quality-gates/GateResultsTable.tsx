@@ -1,11 +1,11 @@
 'use client';
 
 import { Table } from 'antd';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { EmptyState } from '@/components/shared/EmptyState';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { EmptyState } from '@/commons/components/EmptyState';
 import { useQualityGatesQuery } from '@/modules/quality-gates';
 import type { QualityGate } from '@/commons/types/reports';
-import { StatusPill } from '@/components/shared/StatusPill';
+import { StatusPill } from '@/commons/components/StatusPill';
 
 interface GateResultsTableProps {
   workspaceId: string;

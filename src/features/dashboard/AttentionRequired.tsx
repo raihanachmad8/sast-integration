@@ -2,8 +2,8 @@
 
 import { Card, Typography, theme } from 'antd';
 import type { DashboardFinding } from '@/modules/dashboard';
-import { StatusTag } from '@/components/shared/StatusTag';
-import { StatusPill } from '@/components/shared/StatusPill';
+import { StatusTag } from '@/commons/components/StatusTag';
+import { StatusPill } from '@/commons/components/StatusPill';
 
 interface AttentionRequiredProps {
   /** Array of findings requiring attention. */

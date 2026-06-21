@@ -1,5 +1,6 @@
 export { ScanTable } from './ScanTable';
 export { NewScanModal } from './NewScanModal';
+export { CICDSetupModal } from './CICDSetupModal';
 export { ScanSummaryCards } from './ScanSummaryCards';
 export { ScanDetailDrawer } from './ScanDetailDrawer';
 export { FindingItem } from './FindingItem';
@@ -25,4 +26,5 @@ export type {
   RepositoryConnectionType,
   AiVerdictDb,
   AiRichAnalysis,
+  ScanFinding,
 } from './types';

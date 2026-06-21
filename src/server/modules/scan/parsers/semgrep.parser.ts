@@ -1,8 +1,11 @@
 import { type NewFinding } from '@drizzle/schema/findings';
 import { logger } from '@/server/lib/logger';
 import { AppError } from '@/server/http/errors';
+import { normalizeFilePath } from './path-normalizer';
+import type { Severity } from '@/commons/types/domain';
+import type { ParseResult } from './index';
 
-export interface SemgrepResult {
+interface SemgrepResult {
   check_id: string;
   path: string;
   start: { line: number; col?: number };
@@ -90,7 +93,7 @@ export function parseSemgrep(
   jsonContent: string | Buffer,
   scanId: string,
   scanner: string = 'semgrep'
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   logger.scan.debug('parseSemgrep', { scanId });
 
   let parsed: Record<string, unknown>;
@@ -122,7 +125,7 @@ function parseSemgrepNativeJson(
   report: SemgrepReport,
   scanId: string,
   scanner: string
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const findings: NewFinding[] = [];
   const severityCount: Record<string, number> = {
     critical: 0, high: 0, medium: 0, low: 0, info: 0,
@@ -139,15 +142,12 @@ function parseSemgrepNativeJson(
       scanner,
       rule: r.check_id,
       severity,
-      filePath: r.path,
+      filePath: normalizeFilePath(r.path),
       lineNumber: r.start?.line ?? null,
       message: r.extra?.message ?? '',
       description: r.extra?.message ?? '',
       codeSnippet: r.extra?.lines ?? null,
       cweId: cwe,
-      status: 'open',
-      createdAt: new Date(),
-      updatedAt: new Date(),
     });
   }
 
@@ -163,7 +163,7 @@ function parseSemgrepSarif(
   sarif: Record<string, unknown>,
   scanId: string,
   scanner: string
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const findings: NewFinding[] = [];
   const severityCount: Record<string, number> = {
     critical: 0, high: 0, medium: 0, low: 0, info: 0,
@@ -209,15 +209,12 @@ function parseSemgrepSarif(
       scanner,
       rule: ruleId,
       severity,
-      filePath: filePath,
+      filePath: normalizeFilePath(filePath),
       lineNumber: line,
       message,
       description: message,
       codeSnippet: codeSnippet,
       cweId: cweId ?? null,
-      status: 'open',
-      createdAt: new Date(),
-      updatedAt: new Date(),
     });
   }
 
@@ -225,7 +222,7 @@ function parseSemgrepSarif(
   return { findings, summary: severityCount };
 }
 
-function mapSemgrepSeverity(sev: string | undefined): string {
+function mapSemgrepSeverity(sev: string | undefined): Severity {
   if (!sev) return 'medium';
   const s = sev.toUpperCase();
   if (s === 'CRITICAL') return 'critical';

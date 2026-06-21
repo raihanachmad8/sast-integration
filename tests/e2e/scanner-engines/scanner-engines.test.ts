@@ -1,36 +1,27 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { api, signin } from '../../helpers/setup';
 
-const API_BASE = 'http://localhost:3000';
+let token: string;
 
-const TEST_USER = {
-  email: 'owner@sast.local',
-  password: 'ChangeMe123!',
-};
-
-async function getAccessToken(): Promise<string> {
-  const res = await fetch(`${API_BASE}/api/v1/auth/signin`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(TEST_USER),
-  });
-  const json = await res.json();
-  return json.data.accessToken;
-}
+beforeAll(async () => {
+  const session = await signin();
+  token = session.accessToken;
+});
 
 describe('GET /api/v1/scanner-engines', () => {
-  let token: string;
-
-  beforeAll(async () => {
-    token = await getAccessToken();
-  });
-
+  /**
+   * Purpose: Ensure the scanner engines endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/scanner-engines`);
+    const res = await api('/scanner-engines');
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that authenticated users can list available scanner engines.
+   */
   it('should list scanner engines', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/scanner-engines`, {
+    const res = await api('/scanner-engines', {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status).toBe(200);
@@ -40,8 +31,11 @@ describe('GET /api/v1/scanner-engines', () => {
     expect(Array.isArray(json.data.scanners)).toBe(true);
   });
 
+  /**
+   * Purpose: Ensure each scanner engine entry includes required fields (name, command, format, status).
+   */
   it('should return scanners with required fields', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/scanner-engines`, {
+    const res = await api('/scanner-engines', {
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json();

@@ -3,6 +3,9 @@ import { describe, it, expect } from 'vitest';
 const API_BASE = 'http://localhost:3000';
 
 describe('GET /api/v1/health', () => {
+  /**
+   * Purpose: Verify that the health endpoint returns 200 with a healthy status without requiring authentication.
+   */
   it('should return health status without auth', async () => {
     const res = await fetch(`${API_BASE}/api/v1/health`);
     expect(res.status).toBe(200);
@@ -12,6 +15,9 @@ describe('GET /api/v1/health', () => {
     expect(json.data.timestamp).toBeDefined();
   });
 
+  /**
+   * Purpose: Ensure the timestamp field in the health response is a valid ISO 8601 date.
+   */
   it('should return valid ISO timestamp', async () => {
     const res = await fetch(`${API_BASE}/api/v1/health`);
     const json = await res.json();
@@ -19,6 +25,9 @@ describe('GET /api/v1/health', () => {
     expect(timestamp.getTime()).not.toBeNaN();
   });
 
+  /**
+   * Purpose: Verify the health response contains all expected fields (success, message, data).
+   */
   it('should return consistent response format', async () => {
     const res = await fetch(`${API_BASE}/api/v1/health`);
     const json = await res.json();
@@ -29,6 +38,9 @@ describe('GET /api/v1/health', () => {
     expect(json.data).toHaveProperty('timestamp');
   });
 
+  /**
+   * Purpose: Confirm the health endpoint is accessible without any authorization token.
+   */
   it('should not require authentication', async () => {
     const res = await fetch(`${API_BASE}/api/v1/health`);
     expect(res.status).toBe(200);
@@ -36,6 +48,9 @@ describe('GET /api/v1/health', () => {
     expect(res.status).not.toBe(401);
   });
 
+  /**
+   * Purpose: Ensure the health endpoint responds within an acceptable time threshold (5 seconds).
+   */
   it('should return quickly', async () => {
     const start = Date.now();
     await fetch(`${API_BASE}/api/v1/health`);

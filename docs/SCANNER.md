@@ -1,7 +1,7 @@
 # SCANNER System — Technical Documentation
 
-> **Last Updated:** 2026-06-10
-> **Status:** Production-ready (semgrep, gitleaks, flawfinder, cppcheck verified)
+> **Last Updated:** 2026-06-17
+> **Status:** Production-ready (semgrep, gitleaks, flawfinder, cppcheck, clang-tidy, gcc-fanalyzer verified)
 
 ---
 
@@ -72,9 +72,10 @@
 │         ├── parseScanResult(scanner, content, scanId)              │
 │         │      ├── parseSemgrep()    (JSON)                        │
 │         │      ├── parseGitleaks()   (JSON)                        │
-│         │      ├── parseFlawfinder() (text)                        │
+│         │      ├── parseFlawfinder() (SARIF)                       │
 │         │      ├── parseCppcheck()   (XML)                         │
-│         │      └── parseTrivy()      (SARIF)                       │
+│         │      ├── parseClangTidy()  (Text)                        │
+│         │      └── parseGCCFanalyzer() (Text)                      │
 │         │                                                           │
 │         └── findingService.createManyWithDedup()                   │
 │                ├── SHA-256 fingerprint generation                   │
@@ -106,14 +107,14 @@
 
 ## 2. Supported Scanners
 
-| Scanner | Version | Language Focus | Output Format | Parser |
-|---------|---------|----------------|---------------|--------|
-| **semgrep** | 1.146.0 | Multi-language (30+) | JSON (`--json`) | `semgrep.parser.ts` |
-| **gitleaks** | 8.30.1 | Secrets detection | JSON (`--report-format json`) | `gitleaks.parser.ts` |
-| **flawfinder** | 2.0.19 | C/C++ buffer overflows | Text (default stdout) | `flawfinder.parser.ts` |
-| **cppcheck** | 2.20.0 | C/C++ static analysis | XML (`--xml`) | `cppcheck.parser.ts` |
-| **trivy** | — | Vulnerabilities + misconfigs | SARIF (`--format sarif`) | `trivy.parser.ts` |
-| **sarif** | — | Generic SARIF parser | SARIF | `parseSarifStub()` |
+| Scanner | Language Focus | Output Format | Parser |
+|---------|----------------|---------------|--------|
+| **semgrep** | Multi-language (30+) | JSON (`--json`) | `semgrep.parser.ts` |
+| **gitleaks** | Secrets detection | JSON (`--report-format json`) | `gitleaks.parser.ts` |
+| **flawfinder** | C/C++ buffer overflows | SARIF (`--sarif`) | `flawfinder.parser.ts` (SARIF) |
+| **cppcheck** | C/C++ static analysis | XML (`--xml`) | `cppcheck.parser.ts` |
+| **clang-tidy** | C/C++ linter + static analysis | Text (stderr) | `clang-tidy.parser.ts` |
+| **gcc-fanalyzer** | C/C++ static analysis | Text (stderr) | `gcc-fanalyzer.parser.ts` |
 
 ### Scanner Selection Rules
 
@@ -122,6 +123,12 @@
 - **Graceful degradation**: scan continues if individual scanners fail; only fails if ALL fail
 - **Max buffer**: 50MB per scanner output (`MAX_SCANNER_OUTPUT_BUFFER_BYTES`)
 - **Timeout**: 300 seconds per scanner (`DEFAULT_SCANNER_TIMEOUT_SECONDS`)
+
+### Semgrep Config
+
+- **Manual scan**: `--config p/default --config p/security-audit --metrics off`
+- **CI/CD**: `--config p/default --config p/security-audit --metrics off`
+- **Custom rules**: Set `SEMGREP_RULES_DIR` env var to use local rules directory
 
 ---
 
@@ -314,18 +321,30 @@
 ### Scan Status
 
 ```
-pending ──► queued ──► processing ──► completed
-                         │
-                         └──────────► failed
+queued ──► running ──► processing ──► parsing ──► completed
+                         │              │
+                         └──────────────┴──────────► failed
 ```
 
 | Status | Description |
 |--------|-------------|
-| `pending` | Initial state on creation |
 | `queued` | Enqueued to pg-boss worker |
-| `processing` | Worker picked up, scanning in progress |
-| `completed` | All scanners finished successfully |
-| `failed` | One or more scanners failed, or all failed |
+| `running` | Worker picked up job (sets `started_at`) |
+| `processing` | Scanners executing in parallel |
+| `parsing` | Scanner output being parsed (background jobs) |
+| `completed` | All parse jobs finished successfully |
+| `failed` | One or more scanners/parse jobs failed |
+
+### Scan Status Display (Frontend)
+
+| DB Status | Badge Color | Findings Display |
+|-----------|-------------|------------------|
+| `queued` | Gray | `—` |
+| `running` | Blue | dimmed count |
+| `processing` | Dark blue | dimmed count |
+| `parsing` | Purple | dimmed count |
+| `completed` | Green | **bold** count with critical badge |
+| `failed` | Red | bold count |
 
 ### Complete Timeline Flow
 
@@ -395,7 +414,7 @@ pending ──► queued ──► processing ──► completed
 interface ScannerCommandConfig {
   command: string;                          // Executable name
   args: (targetDir: string) => string[];   // CLI arguments
-  format: 'sarif' | 'json' | 'xml';       // Output format
+  format: 'sarif' | 'json' | 'xml' | 'text';   // Output format
   outputStream?: string;                    // File to read output from (if not stdout)
   env?: Record<string, string>;            // Extra environment variables
 }
@@ -463,34 +482,31 @@ interface ScannerCommandConfig {
 ```ts
 {
   command: 'flawfinder',
-  args: (targetDir) => [targetDir],
-  format: 'json',                          // Note: actual output is text
+  args: (targetDir) => {
+    const args: string[] = ['--sarif', '--columns'];
+    if (env.FLAWFINDER_RULES_DIR) args.push('--rulesdir', env.FLAWFINDER_RULES_DIR);
+    args.push(targetDir);
+    return args;
+  },
+  format: 'json',                          // Actually SARIF; format field is metadata
 }
 ```
 
-**Output format:** Flawfinder outputs plain text by default (no `--sarif` flag). Parser uses regex to match text lines:
-```
-./path/file.c:42:  [2] (buffer) strcpy: Does not check for buffer overflows...
-```
+**Output format:** Flawfinder with `--sarif` outputs SARIF JSON. The `format` field is used for parser dispatch metadata. Parser uses `parseSarif()` for unified SARIF handling.
 
 #### Cppcheck
 
 ```ts
 {
   command: 'cppcheck',
-  args: (targetDir) => ['--enable=all', '--output-file=results.xml', '--xml', targetDir],
+  args: (targetDir) => {
+    const args = ['--enable=warning,style,performance,portability,information', '--force', '--quiet', '--xml', '--xml-version=2'];
+    if (env.CPPCHECK_SUPPRESSIONS_PATH) args.push('--suppressions-list', env.CPPCHECK_SUPPRESSIONS_PATH);
+    args.push('.');
+    return args;
+  },
   format: 'xml',
   outputStream: 'results.xml',             // Read from file
-}
-```
-
-#### Trivy
-
-```ts
-{
-  command: 'trivy',
-  args: (targetDir) => ['fs', '--format', 'sarif', targetDir],
-  format: 'sarif',
 }
 ```
 
@@ -603,7 +619,21 @@ Handles scanner execution with special cases:
 function parseScanResult(scanner: string, content: string | Buffer, scanId: string): ParseResult
 ```
 
-Dispatches by scanner name (case-insensitive, strips file extensions).
+**Dispatch flow:**
+1. Check if content is SARIF format (`isSarifContent()` — checks for `runs` array)
+2. If SARIF → use unified `parseSarif()` parser (handles all scanners)
+3. If not SARIF → route to scanner-specific parser by name
+
+**Scanner-specific parsers:**
+
+| Scanner | Native Format | Parser | SARIF Fallback |
+|---------|--------------|--------|----------------|
+| semgrep | JSON (`{results:[...]}`) | `parseSemgrep()` | `parseSarif()` |
+| gitleaks | JSON (flat array `[{...}]`) | `parseGitleaks()` | `parseSarif()` |
+| flawfinder | SARIF (`--sarif`) | `parseSarif()` (unified) | — |
+| cppcheck | XML | `parseCppcheck()` | `parseSarif()` |
+| clang-tidy | Text (regex) | `parseClangTidy()` | `parseSarif()` |
+| gcc-fanalyzer | Text (regex) | `parseGCCFanalyzer()` | `parseSarif()` |
 
 ### Semgrep Parser
 
@@ -630,6 +660,10 @@ Dispatches by scanner name (case-insensitive, strips file extensions).
 
 **Input:** JSON output from `gitleaks detect --report-format json`
 
+**Supported formats:**
+1. **Flat array** (native gitleaks): `[{...}, {...}]`
+2. **Object with results** (converters): `{results: [{...}]}`
+
 **Key fields:**
 - `RuleID` → `rule`
 - `File` → `file_path`
@@ -641,31 +675,9 @@ Dispatches by scanner name (case-insensitive, strips file extensions).
 
 ### Flawfinder Parser
 
-**Input:** Text output from `flawfinder <targetDir>` (default stdout)
+**Input:** SARIF output from `flawfinder --sarif`
 
-**Line format:**
-```
-./path/file.c:42:  [2] (buffer) strcpy: Does not check for buffer overflows...
-```
-
-**Regex:** `/^\s*(.+?):(\d+):\s*\[(\d+)\]\s*\(([^)]+)\)\s*([^:]+?):\s*(.+)$/gm`
-
-**Groups:**
-1. File path
-2. Line number
-3. Level (1-5)
-4. Category
-5. Rule name
-6. Message
-
-**Severity mapping (Flawfinder levels):**
-| Level | Severity |
-|-------|----------|
-| 5 | `critical` |
-| 4 | `high` |
-| 3 | `medium` |
-| 2 | `low` |
-| 1 | `low` |
+Uses unified `parseSarif()` handler for SARIF-format input.
 
 ### Cppcheck Parser
 
@@ -681,16 +693,48 @@ Uses `fast-xml-parser` with attribute handling (`@_` prefix).
 | `style` / `performance` / `portability` | `low` |
 | `information` | `info` |
 
-### Trivy Parser
+### Clang-Tidy Parser
 
-**Input:** SARIF output from `trivy fs --format sarif`
+**Input:** Text output from `clang-tidy` (stderr)
 
-Processes three result types:
-1. **Vulnerabilities**: `{VulnerabilityID} {PkgName}@{InstalledVersion}: {Title}`
-2. **Misconfigurations**: `{ID}: {Title}`
-3. **Secrets**: `{RuleID}: {Title}`
+**Line format:**
+```
+/path/file.c:42:12: warning: message [check-name]
+C:\path\file.c:42:12: error: message [check-name]
+```
 
----
+**Regex:** `/^(.+):(\d+):(\d+):\s+(warning|error):\s+(.+?)(?:\s+\[([^\]]+)\])?\s*$/`
+
+**Note:** Uses greedy `.+` for file path to handle Windows drive letters (`C:\path`).
+
+**Severity mapping:**
+| Check Type | Severity |
+|------------|----------|
+| `error` level | `high` |
+| `cert-*` or `security-*` | `high` |
+| `clang-analyzer-*` | `medium` |
+| `bugprone-*` | `medium` |
+| Other | `low` |
+
+### GCC-Fanalyzer Parser
+
+**Input:** Text output from `gcc -fanalyzer` (stderr)
+
+**Line format:**
+```
+/path/file.c:42:12: warning: message [CWE-XXX] [-Wcheck-name]
+```
+
+**Regex:** `/^(.+?):(\d+):(\d+):\s+(warning|error):\s+(.+?)\s+\[(-W[^\]]+)\]\s*$/`
+
+**CWE extraction:** Parses `[CWE-XXX]` from message for vulnerability classification.
+
+**Severity mapping (CWE-based):**
+| CWE | Severity |
+|-----|----------|
+| CWE-416, CWE-476, CWE-78, CWE-120, CWE-125 | `high` |
+| CWE-401, CWE-690, CWE-190 | `medium` |
+| Other | `medium` |
 
 ## 9. Finding Deduplication
 
@@ -781,34 +825,86 @@ WHERE id = $1;
 
 ## 11. CI/CD Upload Flow
 
-### `upload.service.ts`
+### CI/CD Init (`ci/init/route.ts`)
 
-**Endpoint:** `POST /api/v1/workspaces/:workspaceId/scans/upload`
+**Endpoint:** `POST /api/v1/ci/init`
+
+**Purpose:** Create scan record before tools run (SonarQube-like flow).
+
+**Request Body:**
+```json
+{
+  "repoName": "MeAdmin/net-scanner",
+  "repoUrl": "http://localhost:4000/MeAdmin/net-scanner.git",
+  "branch": "main",
+  "commit": "abc123",
+  "prNumber": 1,
+  "baseBranch": "main",
+  "headBranch": "feature/test"
+}
+```
+
+**Flow:**
+1. Authenticate via CI/CD token (resolves workspace_id + project_id)
+2. Find or create repository (auto-created as `external` if not found)
+3. Create scan record: `status: 'queued'`, `triggerSource: 'ci'`
+4. Return `scanId` for tools to use
+
+### CI/CD Upload (`ci/upload/route.ts`)
+
+**Endpoint:** `POST /api/v1/ci/upload`
 
 **Request:** `multipart/form-data`
-- `files[]`: Scanner output files
-- `projectId`: Project UUID
-- `branch`: Branch name
-- `commit`: Commit SHA
-- `source`: Upload source identifier
-- `repositoryUrl`: Repository URL
+- `scanId`: Scan UUID (from init)
+- `tool`: Scanner name (e.g., `semgrep`, `cppcheck`)
+- `sarif`: SARIF/JSON/XML output file
+- `repoName`: Repository name
+- `findingsCount`: Number of findings (optional, for logging)
 
-**Scanner Detection from Filename:**
-| Filename contains | Scanner |
-|-------------------|---------|
-| `semgrep` | semgrep |
-| `gitleaks` | gitleaks |
-| `trivy` | trivy |
-| `cppcheck` | cppcheck |
-| `flawfinder` | flawfinder |
-| `*.sarif` | sarif |
-| (other) | unknown |
+**Flow:**
+1. Authenticate via CI/CD token
+2. Look up scan by ID
+3. Parse output using `parseScanResult()`
+4. Store findings with dedup (per scanner + repository)
+5. Upload SARIF to storage
+6. Enqueue AI verification for new findings
+7. Return `findingsCount`
 
-**Hybrid Parsing Strategy:**
-- Files **≤ 5MB**: Parsed synchronously in request
-- Files **> 5MB**: Enqueued as `parse-scan-result` background job
+### CI/CD Complete (`ci/complete/route.ts`)
 
-**Size Limit:** 50MB total (`MAX_UPLOAD_TOTAL_SIZE_BYTES`)
+**Endpoint:** `POST /api/v1/ci/complete`
+
+**Request Body:**
+```json
+{
+  "scanId": "uuid",
+  "status": "completed",
+  "tools": ["semgrep", "cppcheck", "flawfinder", "gitleaks", "clang-tidy", "gcc-fanalyzer"],
+  "platform": "gitea",
+  "trigger": "ci"
+}
+```
+
+**Flow:**
+1. Authenticate via CI/CD token
+2. Update scan status
+3. Evaluate quality gate (if projectId exists)
+4. Post PR comment and set commit status (if applicable)
+
+### CI/CD Workflow (`examples/gitea-actions.yml`)
+
+**Scanner Commands:**
+
+| Scanner | Command | Config |
+|---------|---------|--------|
+| semgrep | `semgrep scan --json --metrics=off --disable-version-check --no-git-ignore --skip-unknown-extensions --config p/default --config p/security-audit` | `p/default + p/security-audit` |
+| cppcheck | `cppcheck --enable=warning,style,performance,portability,information --force --quiet --xml --xml-version=2` | XML output |
+| flawfinder | `flawfinder --sarif --columns` | SARIF output |
+| gitleaks | `gitleaks detect --source <dir> --report-format json --report-path results.json --no-git` | JSON output |
+| clang-tidy | `clang-tidy --checks=-*,clang-analyzer-*,cert-*,bugprone-*,security-* --warnings-as-errors=-* <files>` | Text output |
+| gcc-fanalyzer | `gcc -fanalyzer -Wall <files> -c` | Text output |
+
+**Note:** All scanners use `--metrics off` for privacy. Semgrep requires specific configs (`p/default + p/security-audit`) when metrics are off.
 
 ---
 
@@ -828,6 +924,8 @@ Uses **pg-boss** (PostgreSQL-based job queue). Jobs are stored in `pgboss.job` t
 | `trigger-scheduled-managed-scan` | `processScheduledManagedScanJob` | Trigger scheduled scan |
 | `cleanup-old-scan-files` | `processCleanupOldScanFilesJob` | Retention cleanup |
 | `nvd-knowledge-backfill` | `processNvdKnowledgeBackfillJob` | NVD CVE data import |
+| `sync-source-control` | `processSyncSourceControlJob` | SCM token refresh, rename detection |
+| `scan-timeout-watchdog` | `processScanTimeoutWatchdog` | Detect orphaned scans (>30min) |
 
 ### Worker Registration
 
@@ -836,11 +934,24 @@ Workers are registered at server startup in `src/instrumentation.ts`:
 ```ts
 await registerWorker(QUEUE_JOBS.RUN_MANAGED_SCAN, processRunManagedScanJob);
 await registerWorker(QUEUE_JOBS.PARSE_SCAN_RESULT, processParseScanResultJob);
-await registerWorker(QUEUE_JOBS.AI_VERIFY_FINDING, processAiVerifyFindingJob);
-await registerWorker(QUEUE_JOBS.TRIGGER_SCHEDULED_MANAGED_SCAN, processScheduledManagedScanJob);
+await registerWorker(QUEUE_JOBS.AI_VERIFY_FINDING, async (job) => {
+  await processAiVerifyJob(job as Parameters<typeof processAiVerifyJob>[0]);
+});
+await registerWorker(QUEUE_JOBS.TRIGGER_SCHEDULED_MANAGED_SCAN, async (job) => {
+  await processTriggerScheduledManagedScanJob(job as Parameters<typeof processTriggerScheduledManagedScanJob>[0]);
+});
 await registerWorker(QUEUE_JOBS.CLEANUP_OLD_SCAN_FILES, processCleanupOldScanFilesJob);
 await registerWorker(QUEUE_JOBS.NVD_KNOWLEDGE_BACKFILL, processNvdKnowledgeBackfillJob);
+await registerWorker(QUEUE_JOBS.SYNC_SOURCE_CONTROL, processSyncSourceControlJob);
+await registerWorker(QUEUE_JOBS.SCAN_TIMEOUT_WATCHDOG, processScanTimeoutWatchdog);
 ```
+
+### Scheduled Jobs
+
+| Job | Schedule | Description |
+|-----|----------|-------------|
+| `sync-source-control` | `*/30 * * * *` | Refresh SCM tokens, detect renames |
+| `scan-timeout-watchdog` | `*/5 * * * *` | Fail scans stuck >30min |
 
 ---
 
@@ -969,8 +1080,8 @@ Get scanner availability.
   "gitleaks": true,
   "flawfinder": true,
   "cppcheck": true,
-  "trivy": false,
-  "sarif": false
+  "clang-tidy": true,
+  "gcc-fanalyzer": true
 }
 ```
 
@@ -1034,7 +1145,7 @@ interface ScanRow {
   id: string;
   repository: string;        // Repository name
   repoSub: string;           // Branch name
-  status: 'Running' | 'Completed' | 'Failed';
+  status: 'Queued' | 'Running' | 'Processing' | 'Parsing' | 'Completed' | 'Failed';
   stage: string;             // Raw DB status
   findings: number;          // Total findings count
   critical: number;          // Critical findings count
@@ -1057,7 +1168,7 @@ interface ScanDetail {
   branch: string;
   commitSha: string;
   origin: 'managed' | 'external_upload';
-  status: 'queued' | 'processing' | 'completed' | 'failed';
+  status: 'queued' | 'running' | 'processing' | 'parsing' | 'completed' | 'failed';
   startedAt: string;
   completedAt?: string;
   durationSeconds?: number;
@@ -1139,12 +1250,13 @@ interface Finding {
 
 | File | Lines | Input Format |
 |------|-------|-------------|
-| `src/server/modules/scan/parsers/index.ts` | 101 | Parser dispatcher |
+| `src/server/modules/scan/parsers/index.ts` | 154 | Parser dispatcher + SARIF auto-detect |
 | `src/server/modules/scan/parsers/semgrep.parser.ts` | 126 | JSON |
-| `src/server/modules/scan/parsers/gitleaks.parser.ts` | 68 | JSON |
-| `src/server/modules/scan/parsers/flawfinder.parser.ts` | 66 | Text |
-| `src/server/modules/scan/parsers/cppcheck.parser.ts` | 109 | XML |
-| `src/server/modules/scan/parsers/trivy.parser.ts` | 133 | SARIF |
+| `src/server/modules/scan/parsers/gitleaks.parser.ts` | 103 | JSON (flat array or object) |
+| `src/server/modules/scan/parsers/flawfinder.parser.ts` | 193 | SARIF |
+| `src/server/modules/scan/parsers/cppcheck.parser.ts` | 211 | XML |
+| `src/server/modules/scan/parsers/clang-tidy.parser.ts` | 154 | Text (regex) |
+| `src/server/modules/scan/parsers/gcc-fanalyzer.parser.ts` | 192 | Text (regex) |
 
 ### Repository Files
 
@@ -1169,9 +1281,11 @@ interface Finding {
 | File | Lines | Purpose |
 |------|-------|---------|
 | `src/server/modules/queue/jobs/run-managed-scan.job.ts` | 15 | Managed scan worker |
-| `src/server/modules/queue/jobs/parse-scan-result.job.ts` | 79 | Parse worker |
+| `src/server/modules/queue/jobs/parse-scan-result.job.ts` | 331 | Parse worker + quality gate |
 | `src/server/modules/queue/jobs/ai-verify-finding.job.ts` | — | AI verify worker |
-| `src/server/modules/queue/queue.service.ts` | 76 | pg-boss singleton |
+| `src/server/modules/queue/jobs/scan-timeout-watchdog.job.ts` | 79 | Detect orphaned scans |
+| `src/server/modules/queue/jobs/sync-source-control.job.ts` | — | SCM token refresh |
+| `src/server/modules/queue/queue.service.ts` | 79 | pg-boss singleton |
 
 ### Schema Files
 
@@ -1189,6 +1303,9 @@ interface Finding {
 | `src/app/api/v1/workspaces/[workspaceId]/scans/[scanId]/route.ts` | GET | Scan detail |
 | `src/app/api/v1/workspaces/[workspaceId]/scans/upload/route.ts` | POST | Upload results |
 | `src/app/api/v1/workspaces/[workspaceId]/scanners/route.ts` | GET | Scanner availability |
+| `src/app/api/v1/ci/init/route.ts` | POST | CI/CD scan init |
+| `src/app/api/v1/ci/upload/route.ts` | POST | CI/CD findings upload |
+| `src/app/api/v1/ci/complete/route.ts` | POST | CI/CD scan complete |
 
 ### Frontend Files
 
@@ -1203,3 +1320,45 @@ interface Finding {
 | `src/modules/scan/queries.ts` | React Query hooks |
 | `src/modules/scan/types.ts` | Frontend types |
 | `src/commons/types/domain.ts` | Shared domain types |
+
+---
+
+## 17. Known Issues & Fixes (2026-06-13)
+
+### Parser Fixes
+
+| Issue | Root Cause | Fix |
+|-------|------------|-----|
+| **Gitleaks 0 findings** | Flat array `[{...}]` not handled | Added `Array.isArray(report)` check |
+| **Cppcheck fragile XML** | Complex extraction chain | Simplified direct `resultsObj['error']` extraction |
+| **Clang-tidy missing findings** | Non-greedy regex fails on Windows paths | Greedy `.+` for file path |
+| **System header filter** | `file.includes('include')` filters ALL user files | Precise: `/usr/include/`, `\include\` |
+
+### Scan Status Fixes
+
+| Issue | Root Cause | Fix |
+|-------|------------|-----|
+| **Status shows "Running" for all** | `toScanRow()` collapses to 3 states | Proper `statusMap` for all 6 states |
+| **Findings visible during parsing** | No status filter on findings count | Dim count for non-completed scans |
+| **Missing status colors** | `scanStatus` token map incomplete | Added `Processing` (blue), `Parsing` (purple) |
+
+### Critical Bug Fixes
+
+| Issue | Root Cause | Fix |
+|-------|------------|-----|
+| **Quality gate wrong ID** | `repositoryId` passed as `workspaceId` | Look up `workspaceId` from `repositories` table |
+| **CI/CD schema invalid status** | `pending` not handled by watchdog/UI | Changed to actual scan statuses |
+| **Semgrep config conflict** | `--config auto` + `--metrics off` | Use `--config p/default --config p/security-audit` |
+| **GCC-analyzer name mismatch** | Workflow sends `gcc-analyzer` | Changed to `gcc-fanalyzer` |
+
+### Semgrep Config
+
+| Config | Findings | Coverage |
+|--------|----------|----------|
+| `p/default` | 1 (scanf) | Basic |
+| `p/security-audit` | 2 (strcpy + scanf) | Better |
+| `p/default + p/security-audit` | 2 (deduplicated) | **Recommended** |
+| `p/owasp-top-ten` | 0 | Limited C rules |
+| `p/cwe-top-25` | 0 | Limited C rules |
+
+**Note:** Semgrep's C rules are limited. Command injection (CWE-78) and use-after-free (CWE-416) are NOT detected. Use cppcheck, flawfinder, or custom rules for comprehensive C coverage.

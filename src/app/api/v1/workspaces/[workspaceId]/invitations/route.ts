@@ -5,9 +5,8 @@ import { parsePagination, validateBody } from '@/server/http/validate';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { memberService } from '@/server/modules/workspace/services/member.service';
-import { inviteMemberSchema, type InviteMemberInput } from '@/commons/schemas/member.schema';
+import { inviteMemberSchema } from '@/commons/schemas/member.schema';
 import { AppError } from '@/server/http/errors';
-import { WORKSPACE } from '@/server/modules/workspace/constants';
 import { logger } from '@/server/lib/logger';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ workspaceId: string }> }) {
@@ -57,7 +56,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const result = await memberService.inviteMember(workspaceId, { email: validation.data.email, role: validation.data.role as 'owner' | 'manager' | 'reviewer' | 'member' }, auth.context.userId);
     logger.member.info('inviteMember completed');
-    return ApiResponse.success(WORKSPACE.MESSAGES.INVITATIONS_LIST, result);
+    return ApiResponse.created('Invitation created', result);
   } catch (e) {
     logger.member.error('inviteMember failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

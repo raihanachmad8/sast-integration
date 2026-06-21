@@ -1,5 +1,5 @@
 import type { Project } from '@/commons/types';
-import type { ProjectFormInput } from './types';
+import type { ProjectFormInput, ProjectMember } from './types';
 import { extractPaginated } from '@/lib/api/pagination';
 import type { ApiResponse } from '@/commons/types/api';
 import type { ListParams, PaginatedResponse } from '@/commons/types/pagination';
@@ -98,5 +98,17 @@ export const projectsApi = {
    */
   async delete(workspaceId: string, id: string): Promise<void> {
     await _api.Delete<ApiResponse<null>>(ENDPOINTS.PROJECTS.DETAIL(workspaceId, id));
+  },
+
+  /**
+   * List all members of a project (direct + team-based).
+   * Returns deduplicated list of members with user details.
+   * @param workspaceId - The workspace ID.
+   * @param projectId - The project ID.
+   * @returns Array of ProjectMember objects.
+   */
+  async listMembers(workspaceId: string, projectId: string): Promise<ProjectMember[]> {
+    const { data } = await _api.Get<ApiResponse<ProjectMember[]>>(ENDPOINTS.PROJECTS.MEMBERS(workspaceId, projectId));
+    return data ?? [];
   },
 };

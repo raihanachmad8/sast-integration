@@ -79,7 +79,7 @@ export interface AiRichAnalysis {
  * Individual scan finding data (scan-specific version).
  *
  * @remarks
- * This type differs from the unified `Finding` in `@/commons/types`:
+ * This type differs from `FindingRow`/`FindingExtended` in `@/commons/types`:
  * - Uses `filePath` instead of `file`
  * - Has `lineNumber` as required
  * - Has `message` as required
@@ -87,10 +87,17 @@ export interface AiRichAnalysis {
  * - Has `groundTruth` for evaluation labels
  * - Has `aiAnalysis` keyed by model name (rich analysis)
  *
- * The unified `Finding` type is used by the findings list page.
- * This scan-specific type is used by scan detail components.
+ * Use `FindingRow`/`FindingExtended` from `@/commons/types` for:
+ * - Finding list pages
+ * - Finding detail pages
+ * - Cross-feature finding data
+ *
+ * Use this `ScanFinding` type for:
+ * - Scan result parsing
+ * - Direct scanner output processing
+ * - Scan detail components
  */
-export interface Finding {
+export interface ScanFinding {
   /** Unique finding identifier. */
   id: string;
   /** Scanner that detected this finding. */
@@ -117,6 +124,10 @@ export interface Finding {
   confidence?: number;
   /** Source code snippet around the finding. */
   codeSnippet?: string;
+  /** When this finding group was first seen (ISO 8601). */
+  firstSeenAt?: string;
+  /** Whether this finding is new in the current scan (computed from firstSeenAt vs scan start). */
+  isNew?: boolean;
   /** Full source file content (for code viewer). */
   sourceCode?: string;
   /** CWE identifiers array. */

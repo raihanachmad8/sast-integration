@@ -26,7 +26,7 @@ const MAX_PER_PAGE = 100;
  */
 export function parsePagination(searchParams: URLSearchParams, defaults: { page?: number; perPage?: number } = {}): PaginationParams {
   const rawPage = parseInt(searchParams.get('page') ?? String(defaults.page ?? 1), 10);
-  const rawPerPage = parseInt(searchParams.get('per_page') ?? searchParams.get('limit') ?? String(defaults.perPage ?? 10), 10);
+  const rawPerPage = parseInt(searchParams.get('per_page') ?? searchParams.get('perPage') ?? searchParams.get('limit') ?? String(defaults.perPage ?? 10), 10);
   const page = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1;
   const perPage = Number.isFinite(rawPerPage) && rawPerPage >= 1 ? Math.min(rawPerPage, MAX_PER_PAGE) : 10;
   return { page, perPage };

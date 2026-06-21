@@ -1,509 +1,110 @@
 import { NextRequest } from 'next/server';
-import { PassThrough } from 'node:stream';
+import { Readable } from 'node:stream';
 import { authenticate } from '@/server/http/authenticate';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { reportsService } from '@/server/modules/reports/reports.service';
-import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
-import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
+import { getStorageDriver } from '@/server/modules/storage/storage.service';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
 import { ApiResponse } from '@/server/http/response';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type PdfDoc = any;
-
 type RouteContext = { params: Promise<{ workspaceId: string; reportId: string }> };
 
-const SEVERITY_COLORS: Record<string, string> = {
-  critical: '#DC2626',
-  high: '#EA580C',
-  medium: '#D97706',
-  low: '#2563EB',
-  info: '#6B7280',
+const CONTENT_TYPES: Record<string, string> = {
+  pdf: 'application/pdf',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  csv: 'text/csv; charset=utf-8',
 };
 
-const SEVERITY_BG: Record<string, string> = {
-  critical: 'FFFFEDED',
-  high: 'FFFFF7ED',
-  medium: 'FFFFFBEB',
-  low: 'FFEFF6FF',
-  info: 'FFF9FAFB',
-};
+/**
+ * Convert a Node.js Readable stream to a Web ReadableStream.
+ */
+function nodeToWebStream(nodeStream: Readable): ReadableStream {
+  return new ReadableStream({
+    start(controller) {
+      nodeStream.on('data', (chunk) => {
+        controller.enqueue(chunk instanceof Buffer ? chunk : Buffer.from(chunk));
+      });
+      nodeStream.on('end', () => controller.close());
+      nodeStream.on('error', (err) => controller.error(err));
+    },
+    cancel() {
+      nodeStream.destroy();
+    },
+  });
+}
 
+/**
+ * GET /api/v1/workspaces/:workspaceId/reports/:reportId/download
+ * Serves a generated report file from storage.
+ */
 export async function GET(request: NextRequest, { params }: RouteContext) {
-  logger.report.info('downloadReport');
+  const start = Date.now();
+  logger.report.info('download:start');
+
   const auth = await authenticate(request);
-  if (!auth.success) return auth.response;
+  if (!auth.success) {
+    logger.report.warn('download:authFailed');
+    return auth.response;
+  }
 
   const { workspaceId, reportId } = await params;
+  logger.report.info('download:params', { workspaceId, reportId });
+
   const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.REPORT_VIEW);
-  if (!workspace.success) return workspace.response;
+  if (!workspace.success) {
+    logger.report.warn('download:permissionDenied', { workspaceId });
+    return workspace.response;
+  }
 
   try {
+    // Step 1: Fetch report record
     const report = await reportsService.getById(reportId, workspaceId);
-    const filters = (typeof report.filters === 'object' && report.filters !== null ? report.filters : {}) as Record<string, unknown>;
-    const format = report.format ?? 'csv';
+    logger.report.info('download:reportFound', { status: report.status, filePath: report.filePath, format: report.format });
 
-    if (format === 'pdf') return await generatePdf(report.title, report.type, workspaceId, filters);
-    if (format === 'xlsx') return await generateXlsx(report.title, report.type, workspaceId, filters);
-    return await generateCsv(report.title, report.type, workspaceId, filters);
+    if (report.status !== 'ready') {
+      logger.report.warn('download:notReady', { status: report.status, reportId });
+      return ApiResponse.error('Report is not ready yet', 'NOT_READY', undefined, 425);
+    }
+
+    if (!report.filePath) {
+      logger.report.warn('download:noFilePath', { reportId });
+      return ApiResponse.error('Report file not found', 'NOT_FOUND', undefined, 404);
+    }
+
+    // Step 2: Get file stream from storage
+    const storage = await getStorageDriver();
+    logger.report.info('download:storageResolved', { filePath: report.filePath });
+
+    const nodeStream = await storage.getStream(report.filePath);
+    logger.report.info('download:streamReady', { filePath: report.filePath, ms: Date.now() - start });
+
+    // Step 3: Convert Node.js stream to Web ReadableStream and respond
+    const webStream = nodeToWebStream(nodeStream);
+    const ext = report.format ?? 'pdf';
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const filename = `${report.title.replace(/[^a-zA-Z0-9]/g, '_')}_${dateStr}.${ext}`;
+
+    logger.report.info('download:sending', { filename, contentType: CONTENT_TYPES[ext], ms: Date.now() - start });
+
+    return new Response(webStream, {
+      status: 200,
+      headers: {
+        'Content-Type': CONTENT_TYPES[ext] ?? 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Cache-Control': 'private, max-age=0',
+      },
+    });
   } catch (error) {
-    logger.report.error('downloadReport failed', { error: error instanceof Error ? error.message : error });
+    logger.report.error('download:failed', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      ms: Date.now() - start,
+    });
     if (error instanceof AppError) {
       return ApiResponse.error(error.message, error.code, undefined, error.statusCode);
     }
     return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
   }
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// PDF — Professional Enterprise Report
-// ═══════════════════════════════════════════════════════════════════════════════
-
-async function generatePdf(title: string, type: string, wsId: string, filters: Record<string, unknown>): Promise<Response> {
-  const PdfDoc = (await import('pdfkit')).default;
-  const doc = new PdfDoc({ size: 'A4', margin: 50, bufferPages: true });
-  const stream = new PassThrough();
-  doc.pipe(stream);
-
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const range = String(filters.range ?? 'All time');
-
-  // ── Cover Header ──
-  doc.rect(0, 0, doc.page.width, 120).fill('#1E3A5F');
-  doc.fontSize(28).fillColor('#FFFFFF').text(title, 50, 40, { align: 'center' });
-  doc.fontSize(11).fillColor('#94A3B8').text(`SAST Security Report  |  ${dateStr}  |  Range: ${range}`, 50, 80, { align: 'center' });
-
-  doc.fillColor('#000000');
-  doc.y = 140;
-
-  // ── Content ──
-  if (type === 'findings') {
-    await renderFindingsPdf(doc, wsId);
-  } else if (type === 'verdict') {
-    await renderVerdictPdf(doc, wsId);
-  } else if (type === 'executive') {
-    await renderExecutivePdf(doc, wsId);
-  } else if (type === 'compliance') {
-    await renderCompliancePdf(doc, wsId);
-  }
-
-  // ── Footer with page numbers ──
-  const pageCount = doc.bufferedPageRange().count;
-  for (let i = 0; i < pageCount; i++) {
-    doc.switchToPage(i);
-    doc.fontSize(8).fillColor('#94A3B8');
-    doc.text(`Page ${i + 1} of ${pageCount}`, 50, doc.page.height - 40, { align: 'center' });
-    doc.text(`Generated by SAST Integration  |  Confidential`, 50, doc.page.height - 28, { align: 'center' });
-  }
-
-  doc.end();
-
-  const filename = `${title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-  return new Response(stream as unknown as ReadableStream, {
-    status: 200,
-    headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${filename}"` },
-  });
-}
-
-async function renderFindingsPdf(doc: PdfDoc, wsId: string) {
-  const data = await findingRepository.listByWorkspace(wsId, { page: 1, perPage: 500 });
-
-  // Summary section
-  doc.fontSize(14).fillColor('#1E3A5F').text('Executive Summary', { underline: true });
-  doc.moveDown(0.5);
-  const bySeverity = countBy(data.data, 'severity');
-  doc.fontSize(10).fillColor('#333');
-  doc.text(`Total Findings: ${data.data.length}`);
-  doc.text(`Critical: ${bySeverity.get('critical') ?? 0}  |  High: ${bySeverity.get('high') ?? 0}  |  Medium: ${bySeverity.get('medium') ?? 0}  |  Low: ${bySeverity.get('low') ?? 0}`);
-  doc.moveDown(1);
-
-  // Findings table
-  doc.fontSize(14).fillColor('#1E3A5F').text('Detailed Findings', { underline: true });
-  doc.moveDown(0.5);
-
-  const headers = ['#', 'Severity', 'Rule', 'Scanner', 'File', 'Status'];
-  const colWidths = [30, 55, 120, 60, 160, 55];
-  let y = doc.y;
-
-  // Table header
-  doc.fontSize(8).fillColor('#FFFFFF');
-  doc.rect(50, y, doc.page.width - 100, 18).fill('#1E3A5F');
-  let x = 55;
-  for (let i = 0; i < headers.length; i++) {
-    doc.text(headers[i], x, y + 4, { width: colWidths[i], align: i === 0 ? 'center' : 'left' });
-    x += colWidths[i];
-  }
-  y += 20;
-
-  // Table rows
-  for (const [idx, f] of data.data.slice(0, 80).entries()) {
-    if (y > doc.page.height - 80) {
-      doc.addPage();
-      y = 50;
-    }
-
-    const bgColor = idx % 2 === 0 ? '#F8FAFC' : '#FFFFFF';
-    doc.rect(50, y, doc.page.width - 100, 16).fill(bgColor);
-
-    x = 55;
-    doc.fontSize(7).fillColor('#333');
-    doc.text(String(idx + 1), x, y + 3, { width: colWidths[0], align: 'center' }); x += colWidths[0];
-
-    const sevColor = SEVERITY_COLORS[f.severity ?? ''] ?? '#6B7280';
-    doc.fillColor(sevColor).fontSize(7).text((f.severity ?? '').toUpperCase(), x, y + 3, { width: colWidths[1] }); x += colWidths[1];
-
-    doc.fillColor('#333').text(truncate(f.rule ?? '', 30), x, y + 3, { width: colWidths[2] }); x += colWidths[2];
-    doc.text(f.scanner ?? '', x, y + 3, { width: colWidths[3] }); x += colWidths[3];
-    doc.text(truncate(f.filePath ?? '—', 40), x, y + 3, { width: colWidths[4] }); x += colWidths[4];
-    doc.text(f.status, x, y + 3, { width: colWidths[5] });
-
-    y += 16;
-  }
-}
-
-async function renderVerdictPdf(doc: PdfDoc, wsId: string) {
-  const data = await findingRepository.listByWorkspace(wsId, { page: 1, perPage: 10000 });
-  const verdicts = countBy(data.data, 'verdict');
-  const total = data.data.length;
-
-  doc.fontSize(14).fillColor('#1E3A5F').text('AI Verification Summary', { underline: true });
-  doc.moveDown(0.5);
-  doc.fontSize(10).fillColor('#333').text(`Total Findings Analyzed: ${total}`);
-  doc.moveDown(0.5);
-
-  // Verdict bars
-  for (const [verdict, count] of verdicts) {
-    const pct = total > 0 ? (count / total) * 100 : 0;
-    const barWidth = (doc.page.width - 160) * (pct / 100);
-
-    doc.fontSize(10).fillColor('#333').text(`${verdict}: ${count} (${pct.toFixed(1)}%)`, 50, doc.y, { continued: false });
-    doc.y += 2;
-
-    // Background bar
-    doc.rect(50, doc.y, doc.page.width - 160, 8).fill('#E5E7EB');
-    // Filled bar
-    const color = verdict === 'TP' ? '#16A34A' : verdict === 'FP' ? '#DC2626' : '#F59E0B';
-    doc.rect(50, doc.y, barWidth, 8).fill(color);
-    doc.y += 14;
-  }
-
-  doc.moveDown(1);
-
-  // Per-scanner breakdown
-  doc.fontSize(14).fillColor('#1E3A5F').text('Breakdown by Scanner', { underline: true });
-  doc.moveDown(0.5);
-
-  const byScanner = new Map<string, Map<string, number>>();
-  for (const f of data.data) {
-    const sc = f.scanner ?? 'unknown';
-    if (!byScanner.has(sc)) byScanner.set(sc, new Map());
-    const v = f.verdict ?? 'Pending';
-    byScanner.get(sc)!.set(v, (byScanner.get(sc)!.get(v) ?? 0) + 1);
-  }
-
-  for (const [scanner, vMap] of byScanner) {
-    const scannerTotal = Array.from(vMap.values()).reduce((a, b) => a + b, 0);
-    doc.fontSize(10).fillColor('#333').text(`${scanner} (${scannerTotal} findings)`, 50);
-    for (const [v, c] of vMap) {
-      doc.fontSize(9).fillColor('#666').text(`  ${v}: ${c}`, 70);
-    }
-    doc.moveDown(0.3);
-  }
-}
-
-async function renderExecutivePdf(doc: PdfDoc, wsId: string) {
-  const scans = await scanRepository.listByWorkspace(wsId, { page: 1, perPage: 10000 });
-  const findings = await findingRepository.listByWorkspace(wsId, { page: 1, perPage: 10000 });
-
-  const totalScans = scans.data.length;
-  const completed = scans.data.filter((s) => s.status === 'completed').length;
-  const failed = scans.data.filter((s) => s.status === 'failed').length;
-  const totalFindings = findings.data.length;
-  const bySeverity = countBy(findings.data, 'severity');
-
-  doc.fontSize(14).fillColor('#1E3A5F').text('Security Posture Overview', { underline: true });
-  doc.moveDown(0.5);
-
-  // KPI Cards
-  const kpis = [
-    { label: 'Total Scans', value: String(totalScans), color: '#1E3A5F' },
-    { label: 'Completion Rate', value: totalScans > 0 ? `${((completed / totalScans) * 100).toFixed(0)}%` : '—', color: '#16A34A' },
-    { label: 'Total Findings', value: String(totalFindings), color: '#D97706' },
-    { label: 'Critical', value: String(bySeverity.get('critical') ?? 0), color: '#DC2626' },
-  ];
-
-  let kpiX = 50;
-  const kpiW = (doc.page.width - 120) / 4;
-  for (const kpi of kpis) {
-    doc.roundedRect(kpiX, doc.y, kpiW - 8, 50, 4).fill('#F1F5F9');
-    doc.fontSize(18).fillColor(kpi.color).text(kpi.value, kpiX + 8, doc.y + 8, { width: kpiW - 16, align: 'center' });
-    doc.fontSize(8).fillColor('#64748B').text(kpi.label, kpiX + 8, doc.y + 32, { width: kpiW - 16, align: 'center' });
-    kpiX += kpiW;
-  }
-  doc.y += 65;
-
-  // Scan status breakdown
-  doc.fontSize(14).fillColor('#1E3A5F').text('Scan Activity', { underline: true });
-  doc.moveDown(0.5);
-  doc.fontSize(10).fillColor('#333');
-  doc.text(`Completed: ${completed}  |  Failed: ${failed}  |  Other: ${totalScans - completed - failed}`);
-  doc.moveDown(0.5);
-
-  // Severity breakdown
-  doc.fontSize(14).fillColor('#1E3A5F').text('Findings by Severity', { underline: true });
-  doc.moveDown(0.5);
-
-  for (const [sev, count] of Object.entries({ critical: bySeverity.get('critical') ?? 0, high: bySeverity.get('high') ?? 0, medium: bySeverity.get('medium') ?? 0, low: bySeverity.get('low') ?? 0, info: bySeverity.get('info') ?? 0 })) {
-    const pct = totalFindings > 0 ? (count / totalFindings) * 100 : 0;
-    const barW = (doc.page.width - 200) * (pct / 100);
-    doc.fontSize(9).fillColor('#333').text(`${sev.toUpperCase()}: ${count} (${pct.toFixed(1)}%)`, 50, doc.y);
-    doc.y += 2;
-    doc.rect(50, doc.y, doc.page.width - 160, 6).fill('#E5E7EB');
-    doc.rect(50, doc.y, barW, 6).fill(SEVERITY_COLORS[sev] ?? '#6B7280');
-    doc.y += 12;
-  }
-}
-
-async function renderCompliancePdf(doc: PdfDoc, wsId: string) {
-  const data = await findingRepository.listByWorkspace(wsId, { page: 1, perPage: 5000 });
-  const cweMap = new Map<string, { count: number; severity: string }>();
-  for (const f of data.data) {
-    const cwe = f.cweId ?? 'N/A';
-    const existing = cweMap.get(cwe);
-    if (existing) existing.count++;
-    else cweMap.set(cwe, { count: 1, severity: f.severity });
-  }
-
-  doc.fontSize(14).fillColor('#1E3A5F').text('CWE Compliance Mapping', { underline: true });
-  doc.moveDown(0.5);
-  doc.fontSize(10).fillColor('#333').text(`Total Unique CWEs: ${cweMap.size}`);
-  doc.text(`Total Findings: ${data.data.length}`);
-  doc.moveDown(0.5);
-
-  // Table
-  const headers = ['CWE', 'Count', 'Severity', 'Risk Level'];
-  const colW = [120, 60, 80, 80];
-  let y = doc.y;
-
-  doc.rect(50, y, doc.page.width - 100, 18).fill('#1E3A5F');
-  doc.fontSize(8).fillColor('#FFFFFF');
-  let x = 55;
-  for (let i = 0; i < headers.length; i++) {
-    doc.text(headers[i], x, y + 4, { width: colW[i] });
-    x += colW[i];
-  }
-  y += 20;
-
-  const sorted = Array.from(cweMap.entries()).sort((a, b) => b[1].count - a[1].count);
-  for (const [cwe, info] of sorted.slice(0, 60)) {
-    if (y > doc.page.height - 80) { doc.addPage(); y = 50; }
-
-    doc.rect(50, y, doc.page.width - 100, 14).fill(doc.y % 2 === 0 ? '#F8FAFC' : '#FFFFFF');
-    x = 55;
-    doc.fontSize(7).fillColor('#333');
-    doc.text(cwe, x, y + 3, { width: colW[0] }); x += colW[0];
-    doc.text(String(info.count), x, y + 3, { width: colW[1] }); x += colW[1];
-    doc.fillColor(SEVERITY_COLORS[info.severity] ?? '#333').text(info.severity, x, y + 3, { width: colW[2] }); x += colW[2];
-    doc.fillColor('#333').text(info.count > 10 ? 'High' : info.count > 5 ? 'Medium' : 'Low', x, y + 3, { width: colW[3] });
-    y += 14;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Excel — Professional Enterprise Report
-// ═══════════════════════════════════════════════════════════════════════════════
-
-async function generateXlsx(title: string, type: string, wsId: string, filters: Record<string, unknown>): Promise<Response> {
-  const ExcelJS = (await import('exceljs')).default;
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'SAST Integration';
-  wb.created = new Date();
-
-  const range = String(filters.range ?? 'All time');
-
-  if (type === 'findings') {
-    const data = await findingRepository.listByWorkspace(wsId, { page: 1, perPage: 5000 });
-    const ws = wb.addWorksheet('Findings', { views: [{ state: 'frozen', ySplit: 1 }] });
-
-    ws.columns = [
-      { header: '#', key: 'idx', width: 6 },
-      { header: 'Severity', key: 'severity', width: 12 },
-      { header: 'Rule', key: 'rule', width: 35 },
-      { header: 'Scanner', key: 'scanner', width: 14 },
-      { header: 'Status', key: 'status', width: 12 },
-      { header: 'File', key: 'filePath', width: 45 },
-      { header: 'Line', key: 'lineNumber', width: 8 },
-      { header: 'Message', key: 'message', width: 55 },
-      { header: 'CWE', key: 'cweId', width: 14 },
-      { header: 'Verdict', key: 'verdict', width: 12 },
-      { header: 'Confidence', key: 'confidence', width: 12 },
-      { header: 'Repository', key: 'repositoryName', width: 25 },
-    ];
-
-    styleHeader(ws);
-    ws.autoFilter = { from: 'A1', to: 'L1' };
-
-    for (const [i, f] of data.data.entries()) {
-      const row = ws.addRow({
-        idx: i + 1, severity: f.severity, rule: f.rule, scanner: f.scanner, status: f.status,
-        filePath: f.filePath ?? '', lineNumber: f.lineNumber ?? '', message: f.message ?? '',
-        cweId: f.cweId ?? '', verdict: f.verdict ?? '', confidence: f.confidence ?? '', repositoryName: f.repositoryName ?? '',
-      });
-      const bg = SEVERITY_BG[f.severity];
-      if (bg) row.eachCell((c) => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } }; });
-    }
-
-    // Summary sheet
-    const summary = wb.addWorksheet('Summary');
-    summary.columns = [{ header: 'Metric', key: 'm', width: 25 }, { header: 'Value', key: 'v', width: 15 }];
-    styleHeader(summary);
-    const bySev = countBy(data.data, 'severity');
-    summary.addRow({ m: 'Total Findings', v: data.data.length });
-    summary.addRow({ m: 'Critical', v: bySev.get('critical') ?? 0 });
-    summary.addRow({ m: 'High', v: bySev.get('high') ?? 0 });
-    summary.addRow({ m: 'Medium', v: bySev.get('medium') ?? 0 });
-    summary.addRow({ m: 'Low', v: bySev.get('low') ?? 0 });
-    summary.addRow({ m: 'Date Range', v: range });
-  } else if (type === 'verdict') {
-    const data = await findingRepository.listByWorkspace(wsId, { page: 1, perPage: 10000 });
-    const ws = wb.addWorksheet('Verdicts', { views: [{ state: 'frozen', ySplit: 1 }] });
-    ws.columns = [
-      { header: 'Verdict', key: 'verdict', width: 20 },
-      { header: 'Count', key: 'count', width: 12 },
-      { header: 'Percentage', key: 'pct', width: 14 },
-    ];
-    styleHeader(ws);
-    const verdicts = countBy(data.data, 'verdict');
-    for (const [v, c] of verdicts) {
-      ws.addRow({ verdict: v, count: c, pct: data.data.length > 0 ? `${((c / data.data.length) * 100).toFixed(1)}%` : '0%' });
-    }
-
-    // Per-scanner sheet
-    const byScanner = new Map<string, { total: number; tp: number; fp: number; pending: number }>();
-    for (const f of data.data) {
-      const sc = f.scanner ?? 'unknown';
-      if (!byScanner.has(sc)) byScanner.set(sc, { total: 0, tp: 0, fp: 0, pending: 0 });
-      const s = byScanner.get(sc)!;
-      s.total++;
-      if (f.verdict === 'TP') s.tp++;
-      else if (f.verdict === 'FP') s.fp++;
-      else s.pending++;
-    }
-    const scannerWs = wb.addWorksheet('By Scanner', { views: [{ state: 'frozen', ySplit: 1 }] });
-    scannerWs.columns = [
-      { header: 'Scanner', key: 'scanner', width: 18 },
-      { header: 'Total', key: 'total', width: 10 },
-      { header: 'True Positive', key: 'tp', width: 14 },
-      { header: 'False Positive', key: 'fp', width: 14 },
-      { header: 'Pending', key: 'pending', width: 12 },
-      { header: 'TP Rate', key: 'rate', width: 12 },
-    ];
-    styleHeader(scannerWs);
-    for (const [sc, s] of byScanner) {
-      scannerWs.addRow({ scanner: sc, total: s.total, tp: s.tp, fp: s.fp, pending: s.pending, rate: s.total > 0 ? `${((s.tp / s.total) * 100).toFixed(1)}%` : '—' });
-    }
-  } else if (type === 'executive') {
-    const scans = await scanRepository.listByWorkspace(wsId, { page: 1, perPage: 10000 });
-    const findings = await findingRepository.listByWorkspace(wsId, { page: 1, perPage: 10000 });
-    const ws = wb.addWorksheet('Overview', { views: [{ state: 'frozen', ySplit: 1 }] });
-    ws.columns = [{ header: 'Metric', key: 'm', width: 30 }, { header: 'Value', key: 'v', width: 18 }];
-    styleHeader(ws);
-    const bySev = countBy(findings.data, 'severity');
-    ws.addRow({ m: 'Report Period', v: range });
-    ws.addRow({ m: 'Total Scans', v: scans.data.length });
-    ws.addRow({ m: 'Completed Scans', v: scans.data.filter((s) => s.status === 'completed').length });
-    ws.addRow({ m: 'Failed Scans', v: scans.data.filter((s) => s.status === 'failed').length });
-    ws.addRow({ m: 'Total Findings', v: findings.data.length });
-    ws.addRow({ m: 'Critical Findings', v: bySev.get('critical') ?? 0 });
-    ws.addRow({ m: 'High Findings', v: bySev.get('high') ?? 0 });
-    ws.addRow({ m: 'Medium Findings', v: bySev.get('medium') ?? 0 });
-    ws.addRow({ m: 'Low Findings', v: bySev.get('low') ?? 0 });
-  } else if (type === 'compliance') {
-    const data = await findingRepository.listByWorkspace(wsId, { page: 1, perPage: 5000 });
-    const ws = wb.addWorksheet('CWE Mapping', { views: [{ state: 'frozen', ySplit: 1 }] });
-    ws.columns = [
-      { header: 'CWE', key: 'cwe', width: 18 },
-      { header: 'Count', key: 'count', width: 10 },
-      { header: 'Severity', key: 'severity', width: 12 },
-      { header: 'Risk', key: 'risk', width: 10 },
-    ];
-    styleHeader(ws);
-    const cweMap = new Map<string, { count: number; severity: string }>();
-    for (const f of data.data) {
-      const cwe = f.cweId ?? 'N/A';
-      const e = cweMap.get(cwe);
-      if (e) e.count++; else cweMap.set(cwe, { count: 1, severity: f.severity });
-    }
-    const sorted = Array.from(cweMap.entries()).sort((a, b) => b[1].count - a[1].count);
-    for (const [cwe, info] of sorted) {
-      ws.addRow({ cwe, count: info.count, severity: info.severity, risk: info.count > 10 ? 'High' : info.count > 5 ? 'Medium' : 'Low' });
-    }
-  }
-
-  const buffer = await wb.xlsx.writeBuffer();
-  const filename = `${title.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
-  return new Response(buffer, {
-    status: 200,
-    headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="${filename}"` },
-  });
-}
-
-function styleHeader(ws: import('exceljs').Worksheet) {
-  const row = ws.getRow(1);
-  row.eachCell((c) => {
-    c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
-    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } };
-    c.alignment = { vertical: 'middle', horizontal: 'left' };
-    c.border = { bottom: { style: 'thin', color: { argb: 'FF000000' } } };
-  });
-  row.height = 22;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// CSV
-// ═══════════════════════════════════════════════════════════════════════════════
-
-async function generateCsv(title: string, type: string, wsId: string, filters: Record<string, unknown>): Promise<Response> {
-  let csv = '';
-  if (type === 'findings') {
-    const data = await findingRepository.listByWorkspace(wsId, { page: 1, perPage: 10000 });
-    csv = 'ID,Rule,Scanner,Severity,Status,File,Line,Message,CWE,Verdict,Confidence,Repository\n';
-    for (const f of data.data) csv += `"${f.id}","${esc(f.rule)}","${esc(f.scanner)}","${f.severity}","${f.status}","${esc(f.filePath ?? '')}","${f.lineNumber ?? ''}","${esc(f.message ?? '')}","${esc(f.cweId ?? '')}","${f.verdict ?? ''}","${f.confidence ?? ''}","${esc(f.repositoryName ?? '')}"\n`;
-  } else if (type === 'verdict') {
-    const data = await findingRepository.listByWorkspace(wsId, { page: 1, perPage: 5000 });
-    const verdicts = countBy(data.data, 'verdict');
-    csv = 'Verdict,Count,Percentage\n';
-    for (const [v, c] of verdicts) csv += `"${v}","${c}","${data.data.length > 0 ? ((c / data.data.length) * 100).toFixed(1) : 0}%"\n`;
-  } else if (type === 'executive') {
-    const scans = await scanRepository.listByWorkspace(wsId, { page: 1, perPage: 10000 });
-    const findings = await findingRepository.listByWorkspace(wsId, { page: 1, perPage: 10000 });
-    csv = 'Metric,Value\n';
-    csv += `"Total Scans","${scans.data.length}"\n`;
-    csv += `"Completed Scans","${scans.data.filter((s) => s.status === 'completed').length}"\n`;
-    csv += `"Total Findings","${findings.data.length}"\n`;
-    csv += `"Critical Findings","${findings.data.filter((f) => f.severity === 'critical').length}"\n`;
-    csv += `"High Findings","${findings.data.filter((f) => f.severity === 'high').length}"\n`;
-  } else if (type === 'compliance') {
-    const data = await findingRepository.listByWorkspace(wsId, { page: 1, perPage: 5000 });
-    const cweMap = new Map<string, { count: number; severity: string }>();
-    for (const f of data.data) { const c = f.cweId ?? 'N/A'; const e = cweMap.get(c); if (e) e.count++; else cweMap.set(c, { count: 1, severity: f.severity }); }
-    csv = 'CWE,Count,Severity\n';
-    for (const [cwe, info] of cweMap) csv += `"${esc(cwe)}","${info.count}","${info.severity}"\n`;
-  }
-  const filename = `${title.replace(/[^a-zA-Z0-9]/g, '_')}.csv`;
-  return new Response(csv, { status: 200, headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${filename}"` } });
-}
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function countBy<T>(arr: T[], key: keyof T): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const item of arr) { const v = String(item[key] ?? 'N/A'); map.set(v, (map.get(v) ?? 0) + 1); }
-  return map;
-}
-
-function truncate(s: string, max: number): string { return s.length > max ? s.slice(0, max) + '…' : s; }
-function esc(v: string | null | undefined): string { return (v ?? '').replace(/"/g, '""'); }

@@ -46,7 +46,7 @@ export const scanApi = {
    * Uses the workspace findings API with scanId filter.
    */
   async getFindings(workspaceId: string, scanId: string): Promise<Finding[]> {
-    const response = await _api.Get<ApiResponse<Finding[]>>(ENDPOINTS.FINDINGS.LIST(workspaceId), { params: { scanId } });
+    const response = await _api.Get<ApiResponse<Finding[]>>(ENDPOINTS.FINDINGS.LIST(workspaceId), { scanId });
     return response.data ?? [];
   },
 

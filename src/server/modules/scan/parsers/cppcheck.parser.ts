@@ -1,6 +1,9 @@
 import { XMLParser } from 'fast-xml-parser';
 import { type NewFinding } from '@drizzle/schema/findings';
 import { logger } from '@/server/lib/logger';
+import { normalizeFilePath } from './path-normalizer';
+import type { Severity } from '@/commons/types/domain';
+import type { ParseResult } from './index';
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -22,7 +25,7 @@ export function parseCppcheck(
   content: string | Buffer,
   scanId: string,
   scanner: string = 'cppcheck'
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const text = typeof content === 'string' ? content : content.toString('utf8');
 
   // Try SARIF format first (CI/CD uploads)
@@ -47,7 +50,7 @@ function parseCppcheckXml(
   text: string,
   scanId: string,
   scanner: string
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const findings: NewFinding[] = [];
   const severityCount: Record<string, number> = {
     critical: 0,
@@ -117,7 +120,6 @@ function parseCppcheckXml(
       message: String(msg),
       description: String(msg),
       cweId: cwe ? String(cwe) : null,
-      status: 'open',
     });
   }
 
@@ -132,7 +134,7 @@ function parseCppcheckSarif(
   sarif: Record<string, unknown>,
   scanId: string,
   scanner: string
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const findings: NewFinding[] = [];
   const severityCount: Record<string, number> = {
     critical: 0, high: 0, medium: 0, low: 0, info: 0,
@@ -173,13 +175,12 @@ function parseCppcheckSarif(
       scanner,
       rule: ruleId,
       severity,
-      filePath: filePath,
+      filePath: normalizeFilePath(filePath),
       lineNumber: line,
       message,
       description: message,
       codeSnippet: codeSnippet,
       cweId: cweId,
-      status: 'open',
     });
   }
 
@@ -212,7 +213,7 @@ function extractSnippetFromProperties(props?: Record<string, unknown>): string |
   return null;
 }
 
-function mapCppcheckSeverity(sev: string): string {
+function mapCppcheckSeverity(sev: string): Severity {
   const s = String(sev).toLowerCase();
   if (s === 'error') return 'high';
   if (s === 'warning') return 'medium';

@@ -1,4 +1,3 @@
-/** Project module constants */
 export const PROJECT = {
   ERRORS: {
     NOT_FOUND: 'Project not found',
@@ -18,21 +17,22 @@ export const PROJECT = {
     DETAIL: 'Project retrieved',
   },
   ERROR_CODE: 'PROJECT_ERROR',
-  /** Maximum length for project slugs */
   MAX_SLUG_LENGTH: 255,
 } as const;
 
-/** Milliseconds in one day (used for token expiry calculations) */
 export const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/**
- * Repository connection types.
- * - 'scm': Connected via GitHub App / GitLab / etc. Platform can checkout and run managed scans.
- * - 'external': No SCM connection. Only supports direct upload of pre-generated results from CI.
- */
 export const REPOSITORY_CONNECTION_TYPES = {
   SCM: 'scm',
   EXTERNAL: 'external',
 } as const;
 
 export type RepositoryConnectionType = typeof REPOSITORY_CONNECTION_TYPES[keyof typeof REPOSITORY_CONNECTION_TYPES];
+
+export function hasScmConnection(connectionType: string[] | null): boolean {
+  return connectionType?.includes(REPOSITORY_CONNECTION_TYPES.SCM) ?? false;
+}
+
+export function hasExternalConnection(connectionType: string[] | null): boolean {
+  return connectionType?.includes(REPOSITORY_CONNECTION_TYPES.EXTERNAL) ?? false;
+}

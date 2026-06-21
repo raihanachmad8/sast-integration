@@ -22,8 +22,8 @@
 export type RepositoryRow = {
   /** Unique repository ID. */
   id: string;
-  /** Parent project ID. */
-  projectId: string;
+  /** Parent project ID (null = unassigned). */
+  projectId: string | null;
   /** Repository name. */
   name: string;
   /** Repository URL. */
@@ -74,21 +74,16 @@ export type SourceControl = {
  *   defaultBranch: 'main',
  *   autoScan: true,
  *   sourceControlId: 'sc_01',
- *   connectionType: 'scm',
+ *   connectionType: ['scm'],
  *   lastSyncedAt: '2026-06-04T05:00:00Z',
  *   projectName: 'Backend API',
  * };
  * ```
  */
 export type RepositoryExtended = RepositoryRow & {
-  /** Associated source control connection ID. */
   sourceControlId: string | null;
-  /** Connection type — SCM (webhook) or external (CI upload). */
-  connectionType: 'scm' | 'external';
-  /** ISO 8601 timestamp of last sync. */
+  connectionType: string[];
   lastSyncedAt: string | null;
-  /** Parent project name. */
   projectName: string;
-  /** SCM provider (github, gitlab, gitea). */
   provider: 'github' | 'gitlab' | 'gitea' | null;
 };

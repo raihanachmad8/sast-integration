@@ -90,7 +90,6 @@ export const ENTITY_COLORS = {
 
 // ─── Types ─────────────────────────────────────────────────────────
 
-export type Severity = keyof typeof ENTITY_COLORS.severity;
 export type Verdict = keyof typeof ENTITY_COLORS.verdict;
 export type FindingStatus = keyof typeof ENTITY_COLORS.findingStatus;
 export type Scanner = keyof typeof ENTITY_COLORS.scanner;

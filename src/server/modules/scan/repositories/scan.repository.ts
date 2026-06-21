@@ -1,9 +1,11 @@
-import { eq, desc, count, sql, and, ilike, isNull } from 'drizzle-orm';
+import { eq, desc, count, sql, and, or, ilike, isNull, inArray } from 'drizzle-orm';
 import { db } from '@/server/db/client';
+import { getOffset } from '@/lib/pagination';
 import { scans, scanResults, scanUploads } from '@drizzle/schema/scans';
 import type { ProgressEvent } from '@drizzle/schema/scans';
 import { repositories } from '@drizzle/schema/source-controls';
-import { findings, aiVerifications } from '@drizzle/schema/findings';
+import { findings, findingGroups, aiVerifications } from '@drizzle/schema/findings';
+import { logger } from '@/server/lib/logger';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -40,9 +42,9 @@ export const scanRepository = {
    * @param tx - Optional transaction context
    * @returns Paginated scan list with total count
    */
-  async listByWorkspace(workspaceId: string, params: { page: number; perPage: number; search?: string; filters?: ScanListFilters }, tx?: Tx) {
+  async listByWorkspace(workspaceId: string, params: { page: number; perPage: number; search?: string; filters?: ScanListFilters; accessibleProjectIds?: string[] }, tx?: Tx) {
     const executor = tx ?? db;
-    const offset = (params.page - 1) * params.perPage;
+    const offset = getOffset(params.page, params.perPage);
     const filters = params.filters ?? {};
 
     // Build where conditions
@@ -55,6 +57,16 @@ export const scanRepository = {
       if (VALID_STAGES.includes(filters.stage)) {
         conditions.push(sql`${scans.progressEvents}::text like ${`%"type":"${filters.stage}"%`}`);
       }
+    }
+
+    // Project-scoped filter: repos with null projectId visible to all, others only if in accessibleProjectIds
+    if (params.accessibleProjectIds) {
+      conditions.push(
+        or(
+          isNull(repositories.projectId),
+          inArray(repositories.projectId, params.accessibleProjectIds),
+        )!,
+      );
     }
 
     // Main query: get scans with repository info
@@ -76,7 +88,7 @@ export const scanRepository = {
       .orderBy(desc(scans.createdAt))
       .limit(params.perPage).offset(offset);
 
-    // Get findings count for each scan (active only)
+    // Get findings count for each scan (open groups only)
     const scanIds = data.map((s) => s.id);
     const findingsCounts = scanIds.length > 0
       ? await executor.select({
@@ -85,7 +97,8 @@ export const scanRepository = {
           critical: sql<number>`count(*) filter (where ${findings.severity} = 'critical')`.as('critical'),
         })
           .from(findings)
-          .where(and(sql`${findings.scanId} in ${scanIds}`, eq(findings.active, true)))
+          .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+          .where(and(sql`${findings.scanId} in ${scanIds}`, eq(findingGroups.status, 'open')))
           .groupBy(findings.scanId)
       : [];
 
@@ -129,7 +142,7 @@ export const scanRepository = {
    */
   async listByRepository(repositoryId: string, params: { page: number; perPage: number }, tx?: Tx) {
     const executor = tx ?? db;
-    const offset = (params.page - 1) * params.perPage;
+    const offset = getOffset(params.page, params.perPage);
     const data = await executor.select({
       id: scans.id,
       repositoryId: scans.repositoryId,
@@ -183,6 +196,37 @@ export const scanRepository = {
   async listScanResultsByScanId(scanId: string, tx?: Tx) {
     const executor = tx ?? db;
     return executor.select().from(scanResults).where(eq(scanResults.scanId, scanId));
+  },
+
+  /**
+   * Atomically mark a scan as completed — only if currently in 'parsing' or 'processing' status.
+   * Returns the updated scan if this call won the race, null otherwise.
+   *
+   * @remarks
+   * Uses a single UPDATE ... WHERE ... RETURNING to ensure only one caller wins.
+   * This prevents the race condition where two parse jobs both check-then-update.
+   */
+  async tryCompleteScan(scanId: string, tx?: Tx) {
+    const executor = tx ?? db;
+    logger.scan.info('tryCompleteScan: attempting atomic complete', { scanId });
+
+    const [scan] = await executor.update(scans)
+      .set({ status: 'completed', completedAt: new Date() })
+      .where(and(eq(scans.id, scanId), sql`${scans.status} IN ('parsing', 'processing')`))
+      .returning();
+
+    if (scan) {
+      logger.scan.info('tryCompleteScan: scan marked completed', { scanId, previousStatus: scan.status });
+    } else {
+      // Check current status to understand why it didn't complete
+      const [current] = await executor.select({ status: scans.status }).from(scans).where(eq(scans.id, scanId)).limit(1);
+      logger.scan.warn('tryCompleteScan: scan not updated (wrong status or already completed)', {
+        scanId,
+        currentStatus: current?.status ?? 'not_found',
+      });
+    }
+
+    return scan ?? null;
   },
 
   /**
@@ -292,15 +336,31 @@ export const scanRepository = {
       medium: sql<number>`count(*) filter (where ${findings.severity} = 'medium')`.as('medium'),
       low: sql<number>`count(*) filter (where ${findings.severity} = 'low')`.as('low'),
       info: sql<number>`count(*) filter (where ${findings.severity} = 'info')`.as('info'),
-    }).from(findings).where(and(eq(findings.scanId, scanId), eq(findings.active, true)));
+    }).from(findings)
+      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+      .where(and(eq(findings.scanId, scanId), eq(findingGroups.status, 'open')));
+    return stats;
+  },
+
+  /**
+   * Get new vs pre-existing finding counts for a scan.
+   * A finding is "new" if its group's firstSeenAt is within the scan's time window.
+   * A finding is "pre-existing" if the group existed before this scan.
+   */
+  async getNewVsExistingStats(scanId: string, tx?: Tx) {
+    const executor = tx ?? db;
+    const [stats] = await executor.select({
+      newCount: sql<number>`count(*) filter (where ${findingGroups.firstSeenAt} >= ${scans.startedAt})`.as('newCount'),
+      existingCount: sql<number>`count(*) filter (where ${findingGroups.firstSeenAt} < ${scans.startedAt})`.as('existingCount'),
+    }).from(findings)
+      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+      .innerJoin(scans, eq(findings.scanId, scans.id))
+      .where(and(eq(findings.scanId, scanId), eq(findingGroups.status, 'open')));
     return stats;
   },
 
   /**
    * Get total AI verification count for a scan.
-   * @param scanId - Scan UUID
-   * @param tx - Optional transaction context
-   * @returns Object with total count
    */
   async getAiStats(scanId: string, tx?: Tx) {
     const executor = tx ?? db;
@@ -308,15 +368,13 @@ export const scanRepository = {
       total: count(),
     }).from(aiVerifications)
       .innerJoin(findings, eq(aiVerifications.findingId, findings.id))
-      .where(and(eq(findings.scanId, scanId), eq(findings.active, true)));
+      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+      .where(and(eq(findings.scanId, scanId), eq(findingGroups.status, 'open')));
     return stats;
   },
 
   /**
    * Get AI verdict breakdown (true positives, false positives, pending) for a scan.
-   * @param scanId - Scan UUID
-   * @param tx - Optional transaction context
-   * @returns Counts by verdict type
    */
   async getAiVerdictStats(scanId: string, tx?: Tx) {
     const executor = tx ?? db;
@@ -326,7 +384,8 @@ export const scanRepository = {
       pending: sql<number>`count(*) filter (where ${aiVerifications.verdict} = 'pending')`.as('pending'),
     }).from(aiVerifications)
       .innerJoin(findings, eq(aiVerifications.findingId, findings.id))
-      .where(and(eq(findings.scanId, scanId), eq(findings.active, true)));
+      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+      .where(and(eq(findings.scanId, scanId), eq(findingGroups.status, 'open')));
     return stats;
   },
 

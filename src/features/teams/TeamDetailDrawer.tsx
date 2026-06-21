@@ -2,13 +2,13 @@
 
 import { App, Button, Drawer, Typography, Avatar, Card, Statistic, Flex, Table, theme } from 'antd';
 import { CloseOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
 import { useDeleteTeamMutation } from '@/modules/teams';
 import { errorMessage } from '@/lib/api/errors';
 import type { Team, TeamMember } from '@/commons/types';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { EmptyState } from '@/components/shared/EmptyState';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { EmptyState } from '@/commons/components/EmptyState';
 
 interface TeamDetailDrawerProps {
   open: boolean;

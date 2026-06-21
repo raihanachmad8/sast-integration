@@ -1,4 +1,4 @@
-import { and, eq, count, or, ilike, sql, isNull, desc, inArray } from 'drizzle-orm';
+import { and, eq, count, or, ilike, sql, desc, inArray } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { knowledgeEntries, knowledgeSources, knowledgeBackfillJobs } from '@drizzle/schema/integrations';
 
@@ -26,20 +26,14 @@ export const knowledgeBaseRepository = {
   // ── Knowledge Entries ──────────────────────────────────────────────
 
   /**
-   * Count entries matching conditions with workspace + global source join.
+   * Count entries matching conditions (global — not workspace-scoped).
    */
-  async countEntriesByWorkspace(
-    workspaceId: string,
+  async countEntries(
     params: { search?: string; source?: string },
     tx?: Tx,
   ): Promise<number> {
     const executor = tx ?? db;
-    const conditions = [
-      or(
-        eq(knowledgeSources.workspaceId, workspaceId),
-        isNull(knowledgeSources.workspaceId),
-      )!,
-    ];
+    const conditions: ReturnType<typeof and> extends infer R ? R[] : never = [];
 
     if (params.search) {
       const q = `%${params.search}%`;
@@ -57,7 +51,7 @@ export const knowledgeBaseRepository = {
       conditions.push(eq(knowledgeSources.type, params.source));
     }
 
-    const where = and(...conditions);
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
     const [{ total }] = await executor
       .select({ total: count() })
       .from(knowledgeEntries)
@@ -68,20 +62,14 @@ export const knowledgeBaseRepository = {
   },
 
   /**
-   * List entries with workspace + global source join, ordered by title.
+   * List entries (global — not workspace-scoped), ordered by title.
    */
-  async listEntriesByWorkspace(
-    workspaceId: string,
+  async listEntries(
     params: { search?: string; source?: string; limit: number; offset: number },
     tx?: Tx,
   ) {
     const executor = tx ?? db;
-    const conditions = [
-      or(
-        eq(knowledgeSources.workspaceId, workspaceId),
-        isNull(knowledgeSources.workspaceId),
-      )!,
-    ];
+    const conditions: ReturnType<typeof and> extends infer R ? R[] : never = [];
 
     if (params.search) {
       const q = `%${params.search}%`;
@@ -99,7 +87,7 @@ export const knowledgeBaseRepository = {
       conditions.push(eq(knowledgeSources.type, params.source));
     }
 
-    const where = and(...conditions);
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
 
     return executor
       .select(entrySelectFields)
@@ -112,37 +100,24 @@ export const knowledgeBaseRepository = {
   },
 
   /**
-   * Get a single entry by ID, scoped to workspace (workspace-owned or global sources).
+   * Get a single entry by ID (global — not workspace-scoped).
    */
-  async findEntryByIdWithWorkspaceScope(entryId: string, workspaceId: string, tx?: Tx) {
+  async findEntryById(entryId: string, tx?: Tx) {
     const executor = tx ?? db;
     const [entry] = await executor
       .select(entrySelectFields)
       .from(knowledgeEntries)
       .innerJoin(knowledgeSources, eq(knowledgeSources.id, knowledgeEntries.sourceId))
-      .where(and(
-        or(
-          eq(knowledgeSources.workspaceId, workspaceId),
-          isNull(knowledgeSources.workspaceId),
-        )!,
-        eq(knowledgeEntries.id, entryId),
-      ))
+      .where(eq(knowledgeEntries.id, entryId))
       .limit(1);
     return entry ?? null;
   },
 
   /**
-   * Get entry ID and sourceId, verifying the entry's source belongs to the workspace.
+   * Get entry by ID (alias for backward compatibility).
    */
-  async findEntryForWorkspace(entryId: string, workspaceId: string, tx?: Tx) {
-    const executor = tx ?? db;
-    const [row] = await executor
-      .select({ id: knowledgeEntries.id, sourceId: knowledgeEntries.sourceId })
-      .from(knowledgeEntries)
-      .innerJoin(knowledgeSources, eq(knowledgeSources.id, knowledgeEntries.sourceId))
-      .where(and(eq(knowledgeEntries.id, entryId), eq(knowledgeSources.workspaceId, workspaceId)))
-      .limit(1);
-    return row ?? null;
+  async findEntryForWorkspace(entryId: string, _workspaceId: string, tx?: Tx) {
+    return this.findEntryById(entryId, tx);
   },
 
   /**
@@ -241,58 +216,96 @@ export const knowledgeBaseRepository = {
     return executor.delete(knowledgeEntries).where(eq(knowledgeEntries.sourceId, sourceId));
   },
 
+  /**
+   * Find knowledge entries by CWE ID (global — not workspace-scoped).
+   * Knowledge base is shared across all workspaces.
+   * Used by AI verification to enrich prompts with CWE context.
+   *
+   * @param cweId - CWE identifier (e.g. "CWE-787")
+   * @param tx - Optional transaction context
+   * @returns Matching knowledge entries with source info
+   */
+  async findByCweId(cweId: string, tx?: Tx) {
+    const executor = tx ?? db;
+    return executor
+      .select({
+        id: knowledgeEntries.id,
+        cweId: knowledgeEntries.cweId,
+        title: knowledgeEntries.title,
+        content: knowledgeEntries.content,
+        severity: knowledgeEntries.severity,
+        remediation: knowledgeEntries.remediation,
+        tags: knowledgeEntries.tags,
+        sourceName: knowledgeSources.name,
+      })
+      .from(knowledgeEntries)
+      .innerJoin(knowledgeSources, eq(knowledgeSources.id, knowledgeEntries.sourceId))
+      .where(eq(knowledgeEntries.cweId, cweId))
+      .orderBy(desc(knowledgeEntries.createdAt));
+  },
+
   // ── Knowledge Sources ──────────────────────────────────────────────
 
   /**
-   * List sources for a workspace (workspace-owned + global).
+   * List all knowledge sources with live entry counts.
    */
-  async listSourcesByWorkspace(workspaceId: string, tx?: Tx) {
+  async listSources(tx?: Tx) {
     const executor = tx ?? db;
-    return executor.select().from(knowledgeSources).where(
-      or(
-        eq(knowledgeSources.workspaceId, workspaceId),
-        isNull(knowledgeSources.workspaceId),
-      ),
-    );
+    const rows = await executor
+      .select({
+        id: knowledgeSources.id,
+        name: knowledgeSources.name,
+        type: knowledgeSources.type,
+        status: knowledgeSources.status,
+        lastSyncedAt: knowledgeSources.lastSyncedAt,
+        createdAt: knowledgeSources.createdAt,
+        entryCount: sql<number>`count(${knowledgeEntries.id})`,
+      })
+      .from(knowledgeSources)
+      .leftJoin(knowledgeEntries, eq(knowledgeEntries.sourceId, knowledgeSources.id))
+      .groupBy(knowledgeSources.id);
+    return rows;
   },
 
   /**
-   * Find a source by ID, scoped to workspace (workspace-owned + global).
+   * List sources for backward compatibility (calls listSources).
    */
-  async findSourceByIdWithWorkspaceScope(sourceId: string, workspaceId: string, tx?: Tx) {
+  async listSourcesByWorkspace(_workspaceId: string, tx?: Tx) {
+    return this.listSources(tx);
+  },
+
+  /**
+   * Find a source by ID (global — not workspace-scoped).
+   */
+  async findSourceById(sourceId: string, tx?: Tx) {
     const executor = tx ?? db;
     const [source] = await executor
       .select()
       .from(knowledgeSources)
-      .where(and(
-        eq(knowledgeSources.id, sourceId),
-        or(
-          eq(knowledgeSources.workspaceId, workspaceId),
-          isNull(knowledgeSources.workspaceId),
-        ),
-      ))
+      .where(eq(knowledgeSources.id, sourceId))
       .limit(1);
     return source ?? null;
   },
 
   /**
-   * Find a source by ID, scoped to a specific workspace (workspace-owned only).
+   * Find a source by ID (alias for backward compatibility).
    */
-  async findSourceByIdForWorkspace(sourceId: string, workspaceId: string, tx?: Tx) {
-    const executor = tx ?? db;
-    const [source] = await executor
-      .select()
-      .from(knowledgeSources)
-      .where(and(eq(knowledgeSources.id, sourceId), eq(knowledgeSources.workspaceId, workspaceId)))
-      .limit(1);
-    return source ?? null;
+  async findSourceByIdWithWorkspaceScope(sourceId: string, _workspaceId: string, tx?: Tx) {
+    return this.findSourceById(sourceId, tx);
   },
 
   /**
-   * Insert a knowledge source.
+   * Find a source by ID (alias for backward compatibility).
+   */
+  async findSourceByIdForWorkspace(sourceId: string, _workspaceId: string, tx?: Tx) {
+    return this.findSourceById(sourceId, tx);
+  },
+
+  /**
+   * Insert a knowledge source (global — workspaceId optional).
    */
   async insertSource(data: {
-    workspaceId: string;
+    workspaceId?: string;
     name: string;
     type: string;
     url?: string;
@@ -302,7 +315,7 @@ export const knowledgeBaseRepository = {
     const [source] = await executor
       .insert(knowledgeSources)
       .values({
-        workspaceId: data.workspaceId,
+        workspaceId: data.workspaceId ?? null,
         name: data.name,
         type: data.type,
         url: data.url,

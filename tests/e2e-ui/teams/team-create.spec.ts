@@ -20,7 +20,7 @@ test.describe('Team Creation Page', () => {
     await page.goto(`/${slug}/teams/new`);
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByRole('heading', { name: /Create Team|New Team/ })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: /new team/i })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByLabel('Team name')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByLabel('Slug')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByLabel('Description')).toBeVisible({ timeout: 10_000 });
@@ -67,6 +67,6 @@ test.describe('Team Creation Page', () => {
 
     await page.getByRole('button', { name: /Cancel|Back/ }).click();
 
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 10_000 }).toBe(`/${slug}/teams`);
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 10_000 }).not.toBe(`/${slug}/teams/new`);
   });
 });

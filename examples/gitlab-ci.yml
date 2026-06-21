@@ -1,140 +1,454 @@
-# =============================================================================
-# GitLab CI — SAST Scan Upload
-# =============================================================================
-# This pipeline runs SAST scanners on every push/merge request and uploads
-# results to the SAST Integration API. The API auto-registers the repository
-# if it doesn't exist yet.
-#
-# Required Variables (Settings > CI/CD > Variables):
-#   SAST_API_URL       - Your SAST API base URL
-#   SAST_WORKSPACE_ID  - Your workspace ID
-#   SAST_PROJECT_ID    - The project/repository ID in SAST
-#   SAST_AUTH_TOKEN    - Your API authentication token (masked)
-# =============================================================================
-
 stages:
+  - init
   - scan
-  - upload
+  - finalize
 
 variables:
-  SEMGREP_CONFIG: "p/default p/security-audit"
+  SAST_API_URL: "${SAST_API_URL:-http://localhost:4000}"
 
-# ─── Stage 1: Run Scanners ──────────────────────────────────────────────────
+default:
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
 
-semgrep-sast:
-  stage: scan
-  image: semgrep/semgrep
+# ─── Stage 1: Create scan record ────────────────────────────────────────────
+
+init-scan:
+  stage: init
+  image: curlimages/curl:latest
   script:
-    - semgrep scan
-        --config $SEMGREP_CONFIG
-        --sarif
-        --output semgrep.sarif
-        --quiet
-        .
+    - |
+      COMMIT_SHORT=$(echo "${CI_COMMIT_SHA}" | cut -c1-8)
+      echo "Creating scan for ${CI_PROJECT_PATH} @ ${CI_COMMIT_REF_NAME}:${COMMIT_SHORT}"
+
+      # Detect MR metadata (GitLab CI provides these for merge_request_event)
+      MR_JSON=""
+      if [ "${CI_PIPELINE_SOURCE}" = "merge_request_event" ] && [ -n "${CI_MERGE_REQUEST_IID}" ]; then
+        MR_NUMBER="${CI_MERGE_REQUEST_IID}"
+        BASE_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}"
+        HEAD_BRANCH="${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
+        echo "MR !${MR_NUMBER}: ${HEAD_BRANCH} -> ${BASE_BRANCH}"
+        MR_JSON="\"prNumber\":${MR_NUMBER},\"baseBranch\":\"${BASE_BRANCH}\",\"headBranch\":\"${HEAD_BRANCH}\""
+      fi
+
+      RESP=$(curl -s -X POST "${SAST_API_URL}/api/v1/ci/init" \
+        -H "Authorization: Bearer ${SAST_API_KEY}" \
+        -H "Content-Type: application/json" \
+        -d "{\"repoName\":\"${CI_PROJECT_PATH}\",\"repoUrl\":\"${CI_SERVER_URL}/${CI_PROJECT_PATH}.git\",\"branch\":\"${CI_COMMIT_REF_NAME}\",\"commit\":\"${CI_COMMIT_SHA}\",${MR_JSON}}")
+      echo "Init response: ${RESP}"
+      SCAN_ID=$(echo "${RESP}" | grep -o '"scanId":"[^"]*"' | cut -d'"' -f4)
+      echo "SCAN_ID=${SCAN_ID}" >> build.env
+      echo "Scan created: ${SCAN_ID}"
+  artifacts:
+    reports:
+      dotenv: build.env
+
+# ─── Stage 2: Run scanners in parallel ──────────────────────────────────────
+
+semgrep:
+  stage: scan
+  image: semgrep/semgrep:latest
+  needs: [init-scan]
+  script:
+    - mkdir -p results
+    - semgrep scan --config p/default --config p/security-audit --json --output results/semgrep.json --metrics off . || true
+    - test -s results/semgrep.json || echo '{"results":[]}' > results/semgrep.json
+    - |
+      FINDINGS=$(python3 -c "import json; print(len(json.load(open('results/semgrep.json')).get('results',[])))" 2>/dev/null || echo 0)
+      curl -X POST -H "Authorization: Bearer ${SAST_API_KEY}" \
+        -F "scanId=${SCAN_ID}" \
+        -F "tool=semgrep" \
+        -F "sarif=@results/semgrep.json" \
+        -F "repoName=${CI_PROJECT_PATH}" \
+        -F "findingsCount=${FINDINGS}" \
+        "${SAST_API_URL}/api/v1/ci/upload" || echo "Upload failed"
   artifacts:
     paths:
-      - semgrep.sarif
-    expire_in: 1 hour
+      - results/
+    expire_in: 7 days
   allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
 
-gitleaks-secrets:
+cppcheck:
   stage: scan
-  image:
-    name: zricethezav/gitleaks:latest
-    entrypoint: [""]
+  image: ubuntu:22.04
+  needs: [init-scan]
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq cppcheck python3 > /dev/null 2>&1
   script:
-    - gitleaks detect
-        --source .
-        --report-format sarif
-        --report-path gitleaks.sarif
-        --verbose
+    - mkdir -p results
+    - cppcheck --enable=all --inconclusive --std=c++17 --xml --xml-version=2 --output-file=results/cppcheck.xml --suppress=missingIncludeSystem --suppress=checkersReport --suppress=missingInclude --inline-suppr . 2>/dev/null || true
+    - test -s results/cppcheck.xml || echo '<?xml version="1.0"?><results version="2"><cppcheck version="0"/><errors/></results>' > results/cppcheck.xml
+    - |
+      python3 - << 'PYEOF'
+      import xml.etree.ElementTree as ET
+      import json, os, sys
+
+      def get_snippet_text(fp, line, context=3):
+          for p in [fp, os.path.join(os.getcwd(), fp)]:
+              try:
+                  with open(p, 'r', errors='replace') as f:
+                      lines = f.readlines()
+                  start = max(0, line - 1 - context)
+                  end = min(len(lines), line + context)
+                  return ''.join(lines[start:end]).rstrip()
+              except:
+                  continue
+          return ''
+
+      try:
+          tree = ET.parse('results/cppcheck.xml')
+      except:
+          sys.exit(0)
+
+      results = []
+      for err in tree.getroot().findall('.//error'):
+          eid = err.get('id', '')
+          if eid in {'missingIncludeSystem', 'checkersReport', 'unmatchedSuppression'}:
+              continue
+          sev = err.get('severity', 'style')
+          msg = err.get('verbose', err.get('msg', ''))
+          cwe = err.get('cwe', '')
+          locs = err.findall('location')
+          if not locs:
+              continue
+          pf = locs[0].get('file', '') or err.get('file0', '')
+          pl = int(locs[0].get('line', 0) or 0)
+          pc = int(locs[0].get('column', 0) or 0)
+          if pf.startswith(('/usr', '/opt')):
+              continue
+
+          snippet = get_snippet_text(pf, pl)
+          results.append({
+              'ruleId': eid,
+              'level': 'error' if sev == 'error' else 'warning',
+              'message': {'text': msg},
+              'locations': [{
+                  'physicalLocation': {
+                      'artifactLocation': {'uri': pf},
+                      'region': {
+                          'startLine': pl,
+                          'startColumn': pc,
+                          'snippet': {'text': snippet} if snippet else None
+                      }
+                  }
+              }],
+              'properties': {'cwe': f'CWE-{cwe}' if cwe else '', 'severity': sev}
+          })
+
+      sarif = {'version': '2.1.0', 'runs': [{'tool': {'driver': {'name': 'cppcheck', 'version': '2.x'}}, 'results': results}]}
+      with open('results/cppcheck.sarif', 'w') as f:
+          json.dump(sarif, f, indent=2)
+      print(f'Cppcheck findings: {len(results)}')
+      PYEOF
+    - |
+      [ -s results/cppcheck.sarif ] || exit 0
+      FINDINGS=$(python3 -c "import json; print(len(json.load(open('results/cppcheck.sarif'))['runs'][0]['results']))" 2>/dev/null || echo 0)
+      curl -X POST -H "Authorization: Bearer ${SAST_API_KEY}" \
+        -F "scanId=${SCAN_ID}" \
+        -F "tool=cppcheck" \
+        -F "sarif=@results/cppcheck.sarif" \
+        -F "repoName=${CI_PROJECT_PATH}" \
+        -F "findingsCount=${FINDINGS}" \
+        "${SAST_API_URL}/api/v1/ci/upload" || echo "Upload failed"
   artifacts:
     paths:
-      - gitleaks.sarif
-    expire_in: 1 hour
+      - results/
+    expire_in: 7 days
   allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
 
-trivy-dependencies:
+flawfinder:
   stage: scan
-  image:
-    name: aquasec/trivy:latest
-    entrypoint: [""]
+  image: python:3.12-slim
+  needs: [init-scan]
+  before_script:
+    - pip install --quiet flawfinder
   script:
-    - trivy fs
-        --format sarif
-        --output trivy.sarif
-        --quiet
-        .
+    - mkdir -p results
+    - flawfinder --sarif --minlevel 1 --columns . > results/flawfinder.sarif 2>/dev/null || true
+    - test -s results/flawfinder.sarif || echo '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"flawfinder"}},"results":[]}]}' > results/flawfinder.sarif
+    - |
+      FINDINGS=$(python3 -c "import json; print(len(json.load(open('results/flawfinder.sarif'))['runs'][0]['results']))" 2>/dev/null || echo 0)
+      curl -X POST -H "Authorization: Bearer ${SAST_API_KEY}" \
+        -F "scanId=${SCAN_ID}" \
+        -F "tool=flawfinder" \
+        -F "sarif=@results/flawfinder.sarif" \
+        -F "repoName=${CI_PROJECT_PATH}" \
+        -F "findingsCount=${FINDINGS}" \
+        "${SAST_API_URL}/api/v1/ci/upload" || echo "Upload failed"
   artifacts:
     paths:
-      - trivy.sarif
-    expire_in: 1 hour
+      - results/
+    expire_in: 7 days
   allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
 
-# ─── Stage 2: Upload Results ────────────────────────────────────────────────
+gitleaks:
+  stage: scan
+  image: zricethezav/gitleaks:latest
+  needs: [init-scan]
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - mkdir -p results
+    - gitleaks detect --source . --report-format json --report-path results/gitleaks.json --no-git --verbose || true
+    - test -s results/gitleaks.json || echo '[]' > results/gitleaks.json
+    - |
+      python3 - << 'PYEOF'
+      import json
+      with open('results/gitleaks.json') as f:
+          findings = json.load(f)
+      results = []
+      for f in findings:
+          results.append({
+              'ruleId': f.get('RuleID', 'unknown'),
+              'level': 'error',
+              'message': {'text': f.get('Description', 'Secret detected')},
+              'locations': [{
+                  'physicalLocation': {
+                      'artifactLocation': {'uri': f.get('File', '')},
+                      'region': {
+                          'startLine': f.get('StartLine', 0),
+                          'snippet': {'text': f.get('Match', '')[:200]} if f.get('Match') else None
+                      }
+                  }
+              }],
+              'properties': {'entropy': f.get('Entropy', 0)}
+          })
+      sarif = {'version': '2.1.0', 'runs': [{'tool': {'driver': {'name': 'gitleaks'}}, 'results': results}]}
+      with open('results/gitleaks.sarif', 'w') as fh:
+          json.dump(sarif, fh, indent=2)
+      print(f'Gitleaks findings: {len(results)}')
+      PYEOF
+    - |
+      [ -s results/gitleaks.sarif ] || exit 0
+      FINDINGS=$(python3 -c "import json; print(len(json.load(open('results/gitleaks.sarif'))['runs'][0]['results']))" 2>/dev/null || echo 0)
+      curl -X POST -H "Authorization: Bearer ${SAST_API_KEY}" \
+        -F "scanId=${SCAN_ID}" \
+        -F "tool=gitleaks" \
+        -F "sarif=@results/gitleaks.sarif" \
+        -F "repoName=${CI_PROJECT_PATH}" \
+        -F "findingsCount=${FINDINGS}" \
+        "${SAST_API_URL}/api/v1/ci/upload" || echo "Upload failed"
+  artifacts:
+    paths:
+      - results/
+    expire_in: 7 days
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
 
-upload-to-sast:
-  stage: upload
+clang-tidy:
+  stage: scan
+  image: ubuntu:22.04
+  needs: [init-scan]
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq clang-tidy python3 > /dev/null 2>&1
+  script:
+    - mkdir -p results
+    - find . -type f \( -name "*.c" -o -name "*.cpp" -o -name "*.cc" \) | grep -v -E "(_build|build|third_party|vendor)/" | xargs -P$(nproc) -I{} clang-tidy --checks='clang-analyzer-*,cert-*,bugprone-*,security-*' {} 2>/dev/null > results/clang_tidy_raw.txt || true
+    - |
+      python3 - << 'PYEOF'
+      import re, json, os
+
+      def get_snippet_text(fp, line, context=3):
+          for p in [fp, os.path.join(os.getcwd(), fp)]:
+              try:
+                  with open(p, 'r', errors='replace') as f:
+                      lines = f.readlines()
+                  start = max(0, line - 1 - context)
+                  end = min(len(lines), line + context)
+                  return ''.join(lines[start:end]).rstrip()
+              except:
+                  continue
+          return ''
+
+      pattern = re.compile(r'^(?P<file>[^:]+):(?P<line>\d+):(?P<col>\d+):\s+(?P<sev>warning|error):\s+(?P<msg>.+?)\s+\[(?P<rule>[^\]]+)\]$')
+      results = []
+      try:
+          with open('results/clang_tidy_raw.txt') as f:
+              for line in f:
+                  m = pattern.match(line.strip())
+                  if not m:
+                      continue
+                  fp, ln, c, s, msg, r = m.group('file'), int(m.group('line')), int(m.group('col')), m.group('sev'), m.group('msg'), m.group('rule')
+                  if fp.startswith(('/usr', '/opt')):
+                      continue
+                  snippet = get_snippet_text(fp, ln)
+                  results.append({
+                      'ruleId': r,
+                      'level': 'error' if s == 'error' else 'warning',
+                      'message': {'text': msg},
+                      'locations': [{
+                          'physicalLocation': {
+                              'artifactLocation': {'uri': fp},
+                              'region': {
+                                  'startLine': ln,
+                                  'startColumn': c,
+                                  'snippet': {'text': snippet} if snippet else None
+                              }
+                          }
+                      }]
+                  })
+      except:
+          pass
+      sarif = {'version': '2.1.0', 'runs': [{'tool': {'driver': {'name': 'clang-tidy'}}, 'results': results}]}
+      with open('results/clang_tidy.sarif', 'w') as f:
+          json.dump(sarif, f, indent=2)
+      print(f'Clang-Tidy findings: {len(results)}')
+      PYEOF
+    - |
+      [ -s results/clang_tidy.sarif ] || exit 0
+      FINDINGS=$(python3 -c "import json; print(len(json.load(open('results/clang_tidy.sarif'))['runs'][0]['results']))" 2>/dev/null || echo 0)
+      curl -X POST -H "Authorization: Bearer ${SAST_API_KEY}" \
+        -F "scanId=${SCAN_ID}" \
+        -F "tool=clang-tidy" \
+        -F "sarif=@results/clang_tidy.sarif" \
+        -F "repoName=${CI_PROJECT_PATH}" \
+        -F "findingsCount=${FINDINGS}" \
+        "${SAST_API_URL}/api/v1/ci/upload" || echo "Upload failed"
+  artifacts:
+    paths:
+      - results/
+    expire_in: 7 days
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+gcc-fanalyzer:
+  stage: scan
+  image: gcc:13
+  needs: [init-scan]
+  script:
+    - apt-get update -qq && apt-get install -y -qq python3 > /dev/null 2>&1 || true
+    - mkdir -p results gcc_sarif_tmp
+    - |
+      find . -type f -name "*.c" | grep -v -E "(_build|build|third_party|vendor)/" | while read -r src; do
+        gcc -fanalyzer -fdiagnostics-format=sarif-file -std=c11 -Wall -c "$src" -o /dev/null 2>/dev/null || true
+        [ -f "${src}.sarif" ] && mv "${src}.sarif" "gcc_sarif_tmp/$(basename "${src%.*}").sarif" || true
+      done
+    - |
+      python3 - << 'PYEOF'
+      import json, glob, os
+
+      def get_snippet_text(fp, line, context=3):
+          fp = fp.replace('file://', '')
+          for p in [fp, os.path.join(os.getcwd(), fp)]:
+              try:
+                  with open(p, 'r', errors='replace') as f:
+                      lines = f.readlines()
+                  start = max(0, line - 1 - context)
+                  end = min(len(lines), line + context)
+                  return ''.join(lines[start:end]).rstrip()
+              except:
+                  continue
+          return ''
+
+      sarif_files = glob.glob('gcc_sarif_tmp/*.sarif')
+      all_results = []
+      base = None
+      for sf in sarif_files:
+          with open(sf) as f:
+              d = json.load(f)
+          for run in d.get('runs', []):
+              if base is None:
+                  base = run
+                  base['results'] = []
+              for r in run.get('results', []):
+                  locs = r.get('locations', [])
+                  if locs:
+                      phys = locs[0].get('physicalLocation', {})
+                      uri = phys.get('artifactLocation', {}).get('uri', '').replace('file://', '')
+                      line = phys.get('region', {}).get('startLine', 0)
+                      if not uri.startswith(('/usr', '/opt')):
+                          snippet = get_snippet_text(uri, line)
+                          if snippet:
+                              phys.setdefault('region', {})['snippet'] = {'text': snippet}
+                  all_results.append(r)
+      if base:
+          base['results'] = all_results
+          merged = {'version': '2.1.0', 'runs': [base]}
+      else:
+          merged = {'version': '2.1.0', 'runs': [{'tool': {'driver': {'name': 'GCC'}}, 'results': []}]}
+      with open('results/gcc_analyzer.sarif', 'w') as f:
+          json.dump(merged, f, indent=2)
+      print(f'GCC Analyzer findings: {len(all_results)}')
+      PYEOF
+    - |
+      [ -s results/gcc_analyzer.sarif ] || exit 0
+      FINDINGS=$(python3 -c "import json; print(len(json.load(open('results/gcc_analyzer.sarif'))['runs'][0]['results']))" 2>/dev/null || echo 0)
+      curl -X POST -H "Authorization: Bearer ${SAST_API_KEY}" \
+        -F "scanId=${SCAN_ID}" \
+        -F "tool=gcc-fanalyzer" \
+        -F "sarif=@results/gcc_analyzer.sarif" \
+        -F "repoName=${CI_PROJECT_PATH}" \
+        -F "findingsCount=${FINDINGS}" \
+        "${SAST_API_URL}/api/v1/ci/upload" || echo "Upload failed"
+  artifacts:
+    paths:
+      - results/
+    expire_in: 7 days
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+# ─── Stage 3: Finalize ──────────────────────────────────────────────────────
+
+finalize-scan:
+  stage: finalize
   image: curlimages/curl:latest
   needs:
-    - job: semgrep-sast
+    - job: init-scan
       artifacts: true
+    - job: semgrep
       optional: true
-    - job: gitleaks-secrets
-      artifacts: true
+    - job: cppcheck
       optional: true
-    - job: trivy-dependencies
-      artifacts: true
+    - job: flawfinder
+      optional: true
+    - job: gitleaks
+      optional: true
+    - job: clang-tidy
+      optional: true
+    - job: gcc-fanalyzer
       optional: true
   script:
     - |
-      echo "╔════════════════════════════════════════════════════════════════╗"
-      echo "║              Uploading results to SAST API                   ║"
-      echo "╚════════════════════════════════════════════════════════════════╝"
-      
-      # Build file arguments
-      FILES=""
-      for f in semgrep.sarif gitleaks.sarif trivy.sarif; do
-        if [ -f "$f" ]; then
-          FILES="$FILES -F file=@$f;filename=$f"
-          echo "  Adding: $f"
-        fi
-      done
-      
-      if [ -z "$FILES" ]; then
-        echo "No SARIF files found, skipping upload"
-        exit 0
-      fi
-      
-      # Upload to SAST API
-      RESPONSE=$(curl --fail-with-body \
-        -X POST \
-        "${SAST_API_URL}/workspaces/${SAST_WORKSPACE_ID}/scans/upload" \
-        -H "Authorization: Bearer ${SAST_AUTH_TOKEN}" \
-        -F "projectId=${SAST_PROJECT_ID}" \
-        -F "repositoryUrl=${CI_REPOSITORY_URL}" \
-        -F "repositoryName=${CI_PROJECT_NAME}" \
-        -F "branch=${CI_COMMIT_REF_NAME}" \
-        -F "commit=${CI_COMMIT_SHA}" \
-        -F "source=gitlab_ci" \
-        $FILES)
-      
-      echo "Response: $RESPONSE"
-      
-      # Extract scan ID
-      SCAN_ID=$(echo "$RESPONSE" | grep -o '"scanId":"[^"]*"' | cut -d'"' -f4)
-      if [ -n "$SCAN_ID" ]; then
-        echo "✓ Scan uploaded: $SCAN_ID"
-      fi
+      echo "Completing scan ${SCAN_ID}..."
+      RESP=$(curl -s -X POST "${SAST_API_URL}/api/v1/ci/complete" \
+        -H "Authorization: Bearer ${SAST_API_KEY}" \
+        -H "Content-Type: application/json" \
+        -d "{\"scanId\":\"${SCAN_ID}\",\"status\":\"completed\",\"tools\":[\"semgrep\",\"cppcheck\",\"flawfinder\",\"gitleaks\",\"clang-tidy\",\"gcc-fanalyzer\"],\"platform\":\"gitlab\",\"trigger\":\"ci\"}" \
+        || echo '{"data":{"qualityGate":null}}')
+      echo "Complete response: ${RESP}"
+      GATE_STATUS=$(echo "${RESP}" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+      echo "Quality Gate: ${GATE_STATUS:-unknown}"
   rules:
     - if: $CI_PIPELINE_SOURCE == "push"
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"

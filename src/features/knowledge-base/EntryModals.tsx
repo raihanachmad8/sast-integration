@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { Button, Drawer, Modal, Input, Select, Form, App, Card, Typography, Tag, Flex, theme } from 'antd';
 import { MODAL_WIDTH } from '@/commons/constants/layout';
 import { updateKnowledgeEntrySchema } from '@/commons/schemas/knowledge-base.schema';
@@ -10,8 +9,8 @@ import { formatDate } from '@/lib/utils/formatDate';
 
 const { Title } = Typography;
 import { CloseOutlined } from '@ant-design/icons';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { StatusTag } from '@/components/shared/StatusTag';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { StatusTag } from '@/commons/components/StatusTag';
 
 interface KnowledgeBaseEntry {
   id: string;
@@ -144,12 +143,6 @@ export function EditEntryModal({ open, entry, onClose, onSave }: EditEntryModalP
   const [form] = Form.useForm();
   const rule = createZodSync(updateKnowledgeEntrySchema);
 
-  useEffect(() => {
-    if (open && entry) {
-      form.setFieldsValue({ title: entry.name, content: entry.snippet, severity: entry.severity });
-    }
-  }, [open, entry, form]);
-
   const handleSave = () => {
     form.validateFields().then((values) => {
       onSave(values);
@@ -159,9 +152,9 @@ export function EditEntryModal({ open, entry, onClose, onSave }: EditEntryModalP
   };
 
   return (
-    <Modal title="Edit entry" open={open} onOk={handleSave} onCancel={onClose} okText="Save" width={MODAL_WIDTH.MD}>
+    <Modal title="Edit entry" open={open} destroyOnHidden onOk={handleSave} onCancel={onClose} okText="Save" width={MODAL_WIDTH.MD}>
       <Flex vertical gap={token.paddingLG} style={{ padding: `${token.paddingSM} 0` }}>
-        <Form form={form} layout="vertical" initialValues={{ title: '', content: '', severity: 'Medium' }}>
+        <Form form={form} layout="vertical" initialValues={{ title: entry?.name ?? '', content: entry?.snippet ?? '', severity: entry?.severity ?? 'Medium' }}>
           <Form.Item label="Title" name="title" required rules={[rule]}>
             <Input />
           </Form.Item>
@@ -199,7 +192,7 @@ export function CreateCustomRuleModal({ open, onClose, onSave }: CreateCustomRul
   };
 
   return (
-    <Modal title="Create custom rule" open={open} onOk={handleSave} onCancel={onClose} okText="Create" width={MODAL_WIDTH.MD}>
+    <Modal title="Create custom rule" open={open} destroyOnHidden onOk={handleSave} onCancel={onClose} okText="Create" width={MODAL_WIDTH.MD}>
       <Flex vertical gap={token.paddingLG} style={{ padding: `${token.paddingSM} 0` }}>
         <Form form={form} layout="vertical" initialValues={{ name: '', severity: 'Medium', pattern: '', description: '' }}>
           <Form.Item label="Rule name" name="name" required rules={[rule]}>

@@ -73,7 +73,7 @@ export const sourceControlImportRepository = {
     name: string;
     url: string;
     defaultBranch: string;
-    connectionType: string;
+    connectionType: string[];
     importMode: string;
     createdBy: string;
   }): Promise<Repository> {

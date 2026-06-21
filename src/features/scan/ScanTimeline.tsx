@@ -1,7 +1,7 @@
 'use client';
 
 import { Timeline, Typography, Empty, Flex, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import type { TimelineEvent, TimelineEventType } from './types';
 
 const { Text } = Typography;

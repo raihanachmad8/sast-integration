@@ -31,7 +31,8 @@
 
 import type { ScannerId } from './constants';
 import path from 'node:path';
-import { readdirSync } from 'node:fs';
+import { readdirSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { env } from '@/server/env';
 
 /** Resolved path to the local semgrep rules directory. Uses forward slashes for cross-platform compatibility with semgrep CLI. */
@@ -108,15 +109,12 @@ export const SCANNER_COMMANDS: Record<ScannerId, ScannerCommandConfig> = {
         '--disable-version-check',
         '--no-git-ignore',
         '--skip-unknown-extensions',
+        '--config', SEMGREP_RULES_DIR
+          ? SEMGREP_RULES_DIR.split(path.sep).join('/')
+          : 'p/default',
+        '--config', 'p/security-audit',
+        targetDir,
       ];
-      // Use custom rules dir if set, otherwise use p/default + p/security-audit
-      if (SEMGREP_RULES_DIR) {
-        args.push('--config', SEMGREP_RULES_DIR.split(path.sep).join('/'));
-      } else {
-        args.push('--config', 'p/default');
-        args.push('--config', 'p/security-audit');
-      }
-      args.push(targetDir);
       return args;
     },
     format: 'json',
@@ -131,7 +129,7 @@ export const SCANNER_COMMANDS: Record<ScannerId, ScannerCommandConfig> = {
   },
   cppcheck: {
     command: 'cppcheck',
-    args: (targetDir) => {
+    args: (_targetDir) => {
       const args = ['--enable=warning,style,performance,portability,information', '--force', '--quiet', '--xml', '--xml-version=2'];
       if (env.CPPCHECK_SUPPRESSIONS_PATH) args.push('--suppressions-list', env.CPPCHECK_SUPPRESSIONS_PATH);
       args.push('.');
@@ -196,9 +194,8 @@ export const SCANNER_COMMANDS: Record<ScannerId, ScannerCommandConfig> = {
       // Get GCC include paths for system headers
       const extraArgs: string[] = [];
       try {
-        const { execSync } = require('node:child_process');
         const dummyPath = `${targetDir}/__dummy.c`;
-        require('node:fs').writeFileSync(dummyPath, '#include <stdio.h>\n');
+        writeFileSync(dummyPath, '#include <stdio.h>\n');
         const output = execSync(`gcc -v -E "${dummyPath}"`, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
         const lines = output.split('\n');
         let inSearch = false;
@@ -206,12 +203,12 @@ export const SCANNER_COMMANDS: Record<ScannerId, ScannerCommandConfig> = {
           if (line.includes('search starts here')) { inSearch = true; continue; }
           if (inSearch) {
             const m = line.match(/^\s+(.+)/);
-            if (m && require('node:fs').existsSync(m[1].trim())) {
+            if (m && existsSync(m[1].trim())) {
               extraArgs.push(`--extra-arg=-I${m[1].trim()}`);
             }
           }
         }
-        require('node:fs').unlinkSync(dummyPath);
+        unlinkSync(dummyPath);
       } catch { /* ignore errors */ }
 
       return [

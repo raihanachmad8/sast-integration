@@ -2,7 +2,6 @@ import type { SetupGuide } from './SetupGuideDrawer';
 import { APP_BASE_URL } from '@/commons/constants/app';
 
 const cbUrl = (id: string) => `${APP_BASE_URL}/api/v1/source-control/callback/${id}`;
-const whUrl = (id: string) => `${APP_BASE_URL}/api/v1/source-control/webhooks/${id}`;
 
 export const GITEA_GUIDE: SetupGuide = {
   title: 'Gitea setup',
@@ -21,7 +20,7 @@ export const GITEA_GUIDE: SetupGuide = {
       },
       {
         label: 'Create new OAuth2 application',
-        detail: 'Click Create OAuth2 Application. Set the application name and redirect URI.',
+        detail: 'Click Create OAuth2 Application. Set the application name and paste the redirect URI below.',
         copyFields: [{ label: 'Redirect URI', value: cbUrl('gitea') }],
         checks: ['Application name set', 'Redirect URI pasted'],
       },
@@ -32,9 +31,8 @@ export const GITEA_GUIDE: SetupGuide = {
       },
       {
         label: 'Paste credentials here',
-        detail: 'Click Configure on the Gitea card. Also set the Base URL to your Gitea instance address.',
-        copyFields: [{ label: 'Webhook URL (for repo webhooks)', value: whUrl('gitea') }],
-        checks: ['Base URL set to your Gitea instance', 'Client ID entered', 'Client Secret entered'],
+        detail: 'Click Configure on the Gitea card. Set the Base URL to your Gitea instance address (e.g. http://localhost:4000).',
+        checks: ['Base URL set', 'Client ID entered', 'Client Secret entered'],
       },
     ],
     pat: [
@@ -46,8 +44,7 @@ export const GITEA_GUIDE: SetupGuide = {
       },
       {
         label: 'Copy and paste token',
-        detail: 'Copy the generated token immediately. Paste it in the Configure modal along with your Gitea Base URL.',
-        copyFields: [{ label: 'Webhook URL (for repo webhooks)', value: whUrl('gitea') }],
+        detail: 'Copy the generated token immediately. Click Configure on the Gitea card and paste the token along with your Gitea Base URL.',
         checks: ['Token copied', 'Base URL set', 'Token pasted in Configure modal'],
       },
     ],

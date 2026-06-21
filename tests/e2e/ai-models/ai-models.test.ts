@@ -1,31 +1,26 @@
-import { describe, it, expect } from 'vitest';
-import { api, TEST_USER } from '../../helpers/setup';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { api, getFirstWorkspaceId, signin } from '../../helpers/setup';
 
-async function getAccessToken() {
-  const res = await api('/auth/signin', {
-    method: 'POST',
-    body: JSON.stringify({ email: TEST_USER.email, password: TEST_USER.password }),
-  });
-  const json = await res.json();
-  return json.data.accessToken;
-}
+let token: string;
 
-async function getFirstWorkspaceId(token: string) {
-  const res = await api('/workspaces', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const json = await res.json();
-  return json.data[0]?.id;
-}
+beforeAll(async () => {
+  const session = await signin();
+  token = session.accessToken;
+});
 
 describe('GET /api/v1/workspaces/[workspaceId]/model', () => {
+  /**
+   * Purpose: Ensure the AI models list endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/ws-1/model');
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that authenticated users can list available AI models for their workspace.
+   */
   it('should return AI models list', async () => {
-    const token = await getAccessToken();
     const wsId = await getFirstWorkspaceId(token);
     if (!wsId) return;
 
@@ -39,6 +34,9 @@ describe('GET /api/v1/workspaces/[workspaceId]/model', () => {
 });
 
 describe('POST /api/v1/workspaces/[workspaceId]/model', () => {
+  /**
+   * Purpose: Ensure the AI model creation endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/ws-1/model', {
       method: 'POST',
@@ -47,8 +45,10 @@ describe('POST /api/v1/workspaces/[workspaceId]/model', () => {
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Ensure invalid input (empty name) is rejected with 422 Validation Error.
+   */
   it('should return 422 on invalid input', async () => {
-    const token = await getAccessToken();
     const wsId = await getFirstWorkspaceId(token);
     if (!wsId) return;
 

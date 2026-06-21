@@ -1,5 +1,6 @@
 import { eq, desc, count } from 'drizzle-orm';
 import { db } from '@/server/db/client';
+import { getOffset } from '@/lib/pagination';
 import { auditLogs, activityLogs } from '@drizzle/schema/integrations';
 
 export interface ListLogsParams {
@@ -16,7 +17,7 @@ export const auditRepository = {
   async listLogs(workspaceId: string, params: ListLogsParams) {
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
-    const offset = (page - 1) * limit;
+    const offset = getOffset(page, limit);
 
     const [data, countResult] = await Promise.all([
       db
@@ -38,7 +39,7 @@ export const auditRepository = {
   async listActivityLogs(workspaceId: string, params: ListActivityLogsParams) {
     const page = params.page ?? 1;
     const limit = params.limit ?? 20;
-    const offset = (page - 1) * limit;
+    const offset = getOffset(page, limit);
 
     const [data, countResult] = await Promise.all([
       db

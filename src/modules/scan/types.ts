@@ -91,6 +91,10 @@ export interface ScanDetailData {
   }>;
   /** Total findings count. */
   totalFindings: number;
+  /** Findings first seen in this scan. */
+  newFindings: number;
+  /** Findings that existed before this scan. */
+  existingFindings: number;
   /** Breakdown by severity. */
   severityBreakdown: Record<Severity, number>;
   /** AI verification statistics. */

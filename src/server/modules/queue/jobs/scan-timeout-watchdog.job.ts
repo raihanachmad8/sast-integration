@@ -3,7 +3,7 @@
  *
  * Detects and fails orphaned scans stuck in non-terminal states (queued, processing, parsing).
  * These can occur when:
- * - CI/CD pipeline crashes without calling /ci/status
+ * - CI/CD pipeline crashes without calling /ci/complete
  * - Managed scan job crashes after creating the scan record
  * - Queue worker dies mid-processing
  *
@@ -50,18 +50,31 @@ export async function processScanTimeoutWatchdog(_job: Job) {
 
     for (const scan of orphanedScans) {
       try {
-        // Mark as failed with descriptive message
-        await scanRepository.updateStatus(scan.id, 'failed');
+        // Check if scan has findings (might have actually completed but stuck)
+        const hasFindings = await db.execute<{ count: number }>(
+          sql`SELECT count(*)::int as count FROM findings WHERE "scanId" = ${scan.id}`
+        );
+        const findingCount = hasFindings[0]?.count ?? 0;
+
+        // If scan has findings, it likely completed parsing but got stuck — mark completed, not failed
+        const targetStatus = findingCount > 0 ? 'completed' : 'failed';
+        const reason = findingCount > 0
+          ? `Scan had ${findingCount} findings — marking as completed (parsing finished but status never updated)`
+          : `Scan timed out after ${TIMEOUT_MINUTES} minutes in "${scan.status}" state. Possible causes: CI/CD pipeline crashed, queue worker died, or server restarted during scan.`;
+
+        await scanRepository.updateStatus(scan.id, targetStatus);
         await scanRepository.appendProgressEvent(scan.id, {
           id: randomUUID(),
-          type: 'failed',
-          description: `Scan timed out after ${TIMEOUT_MINUTES} minutes in "${scan.status}" state. Possible causes: CI/CD pipeline crashed, queue worker died, or server restarted during scan.`,
+          type: targetStatus === 'completed' ? 'completed' : 'failed',
+          description: reason,
           timestamp: new Date().toISOString(),
         });
 
-        logger.queue.warn('scan-timeout-watchdog: marked scan as failed', {
+        logger.queue.warn('scan-timeout-watchdog: marked scan', {
           scanId: scan.id,
-          status: scan.status,
+          previousStatus: scan.status,
+          newStatus: targetStatus,
+          findingCount,
           createdAt: scan.createdAt,
         });
       } catch (err) {

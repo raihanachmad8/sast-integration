@@ -1,7 +1,7 @@
 'use client';
 
 import { Flex, theme } from 'antd';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { PageHeader } from '@/commons/components/PageHeader';
 import { ProjectForm } from '@/features/projects';
 
 export function NewProjectPage() {

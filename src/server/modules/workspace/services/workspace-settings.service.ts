@@ -23,6 +23,9 @@ export const workspaceSettingsService = {
   /**
    * Get PR review settings for a workspace.
    * Returns default settings if none configured.
+   *
+   * @param workspaceId - Workspace UUID
+   * @returns PR review settings (custom or defaults)
    */
   async getPrReviewSettings(workspaceId: string): Promise<PrReviewSettings> {
     logger.workspace.info('getPrReviewSettings', { workspaceId });
@@ -46,6 +49,10 @@ export const workspaceSettingsService = {
 
   /**
    * Update PR review settings for a workspace.
+   *
+   * @param workspaceId - Workspace UUID
+   * @param settings - Partial PR review settings to merge with current values
+   * @returns Updated PR review settings
    */
   async updatePrReviewSettings(workspaceId: string, settings: Partial<PrReviewSettings>): Promise<PrReviewSettings> {
     logger.workspace.info('updatePrReviewSettings', { workspaceId });

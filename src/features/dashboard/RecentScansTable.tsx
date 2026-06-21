@@ -1,10 +1,10 @@
 'use client';
 
 import { Card, Button, Typography, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { DataTable, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { DataTable, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import type { DashboardScan } from '@/modules/dashboard';
-import { StatusTag } from '@/components/shared/StatusTag';
+import { StatusTag } from '@/commons/components/StatusTag';
 
 interface RecentScansTableProps {
   /** Array of recent scan data. */

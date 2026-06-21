@@ -1,5 +1,5 @@
 import { repositoriesRepository } from './repositories.repository';
-import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
 
@@ -12,6 +12,9 @@ import { logger } from '@/server/lib/logger';
 export const repositoriesService = {
   /**
    * Lists all repositories belonging to a workspace.
+   *
+   * @param workspaceId - Workspace UUID to scope the query
+   * @returns Array of repository records
    */
   async list(workspaceId: string) {
     logger.repository.info('listRepositories', { workspaceId });
@@ -22,6 +25,11 @@ export const repositoriesService = {
 
   /**
    * Retrieves a single repository by ID within a workspace.
+   *
+   * @param id - Repository UUID
+   * @param workspaceId - Workspace UUID for scope validation
+   * @returns Repository record
+   * @throws {AppError} 404 - Repository not found
    */
   async getById(id: string, workspaceId: string) {
     logger.repository.info('getRepositoryById', { id, workspaceId });
@@ -35,13 +43,16 @@ export const repositoriesService = {
 
   /**
    * Creates a new repository for a workspace.
+   *
+   * @param data - Repository creation data (projectId, name, url, etc.)
+   * @param workspaceId - Workspace UUID
+   * @param userId - User UUID of the creator
+   * @returns Created repository record
+   * @throws {AppError} 403 - User is not a member of the workspace
    */
   async create(data: unknown, workspaceId: string, userId: string) {
     logger.repository.info('createRepository', { workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
 
     const input = data as {
       projectId: string;
@@ -49,7 +60,7 @@ export const repositoriesService = {
       name: string;
       url: string;
       defaultBranch?: string;
-      connectionType?: string;
+      connectionType?: string[];
       autoScan?: boolean;
     };
 
@@ -69,13 +80,18 @@ export const repositoriesService = {
 
   /**
    * Updates an existing repository.
+   *
+   * @param id - Repository UUID to update
+   * @param data - Partial update data (name, url, defaultBranch, etc.)
+   * @param workspaceId - Workspace UUID for scope validation
+   * @param userId - User UUID performing the update
+   * @returns Updated repository record
+   * @throws {AppError} 403 - User is not a member of the workspace
+   * @throws {AppError} 404 - Repository not found
    */
   async update(id: string, data: unknown, workspaceId: string, userId: string) {
     logger.repository.info('updateRepository', { id, workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
     const existing = await repositoriesRepository.getById(id, workspaceId);
     if (!existing) {
       throw new AppError('Repository not found', 404, 'NOT_FOUND');
@@ -87,7 +103,7 @@ export const repositoriesService = {
       name?: string;
       url?: string;
       defaultBranch?: string;
-      connectionType?: string;
+      connectionType?: string[];
       autoScan?: boolean;
       webhookId?: string;
       webhookSecret?: string;
@@ -107,13 +123,17 @@ export const repositoriesService = {
 
   /**
    * Deletes a repository.
+   *
+   * @param id - Repository UUID to delete
+   * @param workspaceId - Workspace UUID for scope validation
+   * @param userId - User UUID performing the deletion
+   * @returns Soft-deleted repository record
+   * @throws {AppError} 403 - User is not a member of the workspace
+   * @throws {AppError} 404 - Repository not found
    */
   async delete(id: string, workspaceId: string, userId: string) {
     logger.repository.info('deleteRepository', { id, workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
     const existing = await repositoriesRepository.getById(id, workspaceId);
     if (!existing) {
       throw new AppError('Repository not found', 404, 'NOT_FOUND');

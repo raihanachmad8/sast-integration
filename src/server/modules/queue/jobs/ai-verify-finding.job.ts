@@ -7,6 +7,7 @@ interface AiVerifyJobData {
   scanId?: string;
   findingId?: string;
   modelId: string;
+  workspaceId?: string;
 }
 
 /**
@@ -19,15 +20,15 @@ interface AiVerifyJobData {
  * - User can manually re-trigger from findings page
  */
 export async function processAiVerifyJob(job: JobWithMetadata<AiVerifyJobData>) {
-  const { scanId, findingId, modelId } = job.data;
+  const { scanId, findingId, modelId, workspaceId } = job.data;
   logger.queue.debug('processAiVerifyJob', { scanId, findingId, modelId, attempt: job.retryCount });
 
   try {
     if (scanId) {
-      const result = await aiVerificationService.verifyFindingsBatch(scanId, modelId);
+      const result = await aiVerificationService.verifyFindingsBatch(scanId, modelId, workspaceId);
       logger.queue.debug('processAiVerifyJob batch completed', { scanId, verified: result.verified, failed: result.failed });
     } else if (findingId) {
-      await aiVerificationService.verifyFinding(findingId, modelId);
+      await aiVerificationService.verifyFinding(findingId, modelId, workspaceId);
       logger.queue.debug('processAiVerifyJob single completed', { findingId });
     } else {
       logger.queue.error('processAiVerifyJob: no scanId or findingId provided', { jobData: job.data });
@@ -41,7 +42,10 @@ export async function processAiVerifyJob(job: JobWithMetadata<AiVerifyJobData>) 
     if (isLastRetry && findingId) {
       try {
         // Update finding status to 'needs_reverify' so user knows to re-trigger
-        await findingRepository.updateStatus(findingId, 'needs_reverify', 'system');
+        const finding = await findingRepository.findById(findingId);
+        if (finding?.groupId) {
+          await findingRepository.updateGroupStatus(finding.groupId, 'needs_reverify', 'system');
+        }
         logger.queue.info('processAiVerifyJob: finding marked needs_reverify', { findingId });
       } catch (statusError) {
         logger.queue.error('processAiVerifyJob: failed to update finding status', { findingId, error: statusError instanceof Error ? statusError.message : String(statusError) });
