@@ -1,6 +1,9 @@
 import { XMLParser } from 'fast-xml-parser';
 import { type NewFinding } from '@drizzle/schema/findings';
 import { logger } from '@/server/lib/logger';
+import { normalizeFilePath } from './path-normalizer';
+import type { Severity } from '@/commons/types/domain';
+import type { ParseResult } from './index';
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -22,7 +25,7 @@ export function parseCppcheck(
   content: string | Buffer,
   scanId: string,
   scanner: string = 'cppcheck'
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const text = typeof content === 'string' ? content : content.toString('utf8');
 
   // Try SARIF format first (CI/CD uploads)
@@ -47,7 +50,7 @@ function parseCppcheckXml(
   text: string,
   scanId: string,
   scanner: string
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const findings: NewFinding[] = [];
   const severityCount: Record<string, number> = {
     critical: 0,
@@ -71,34 +74,45 @@ function parseCppcheckXml(
   const resultsObj = (parsedObj.results ?? parsedObj) as Record<string, unknown> | undefined;
 
   // Extract error array — handle both { error: [...] } and flat array formats
+  // Also handle <results><errors><error>...</error></errors></results> wrapper
   let errorList: Record<string, unknown>[] = [];
   if (resultsObj) {
+    // Try direct: results.error
     const errors = resultsObj['error'];
     if (Array.isArray(errors)) {
       errorList = errors;
     } else if (errors && typeof errors === 'object') {
       errorList = [errors as Record<string, unknown>];
+    } else {
+      // Try wrapped: results.errors.error
+      const errorsWrapper = resultsObj['errors'] as Record<string, unknown> | undefined;
+      if (errorsWrapper) {
+        const innerErrors = errorsWrapper['error'];
+        if (Array.isArray(innerErrors)) {
+          errorList = innerErrors;
+        } else if (innerErrors && typeof innerErrors === 'object') {
+          errorList = [innerErrors as Record<string, unknown>];
+        }
+      }
     }
   }
 
   for (const err of errorList) {
     if (!err) continue;
 
-    // Extract attributes with @_ prefix (fast-xml-parser convention)
-    const attrs = (err['@_'] as Record<string, unknown>) ?? err;
-    const id = (attrs['@_id'] as string) ?? (attrs.id as string) ?? 'cppcheck-unknown';
-    const severityRaw = (attrs['@_severity'] as string) ?? (attrs.severity as string) ?? 'medium';
-    const msg = (attrs['@_msg'] as string) ?? (attrs.msg as string) ?? (attrs['@_verbose'] as string) ?? (attrs.verbose as string) ?? '';
-    const cwe = attrs['@_cwe'] ?? attrs.cwe;
+    // Extract attributes — fast-xml-parser stores them with @_ prefix directly on element
+    const id = (err['@_id'] as string) ?? (attrs.id as string) ?? 'cppcheck-unknown';
+    const severityRaw = (err['@_severity'] as string) ?? (attrs.severity as string) ?? 'medium';
+    const msg = (err['@_msg'] as string) ?? (attrs.msg as string) ?? (err['@_verbose'] as string) ?? (attrs.verbose as string) ?? '';
+    const cwe = err['@_cwe-id'] ?? err['@_cwe'] ?? attrs.cwe;
 
-    // Extract first location
+    // Extract first location — fast-xml-parser stores attributes with @_ prefix
     let locations = err['location'] as Record<string, unknown> | Record<string, unknown>[] | undefined;
     if (!Array.isArray(locations)) locations = locations ? [locations] : [];
     const firstLoc = (locations[0] ?? {}) as Record<string, unknown>;
-    const locAttrs = (firstLoc['@_'] as Record<string, unknown>) ?? firstLoc;
 
-    const filePath = (locAttrs['@_file'] as string) ?? (locAttrs.file as string) ?? null;
-    const lineStr = locAttrs['@_line'] ?? locAttrs.line;
+    const filePath = (firstLoc['@_file'] as string) ?? (firstLoc.file as string) ?? null;
+    const lineStr = firstLoc['@_line'] ?? firstLoc.line;
     const line = lineStr ? parseInt(String(lineStr), 10) : null;
 
     const severity = mapCppcheckSeverity(String(severityRaw));
@@ -117,7 +131,6 @@ function parseCppcheckXml(
       message: String(msg),
       description: String(msg),
       cweId: cwe ? String(cwe) : null,
-      status: 'open',
     });
   }
 
@@ -132,7 +145,7 @@ function parseCppcheckSarif(
   sarif: Record<string, unknown>,
   scanId: string,
   scanner: string
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const findings: NewFinding[] = [];
   const severityCount: Record<string, number> = {
     critical: 0, high: 0, medium: 0, low: 0, info: 0,
@@ -173,13 +186,12 @@ function parseCppcheckSarif(
       scanner,
       rule: ruleId,
       severity,
-      filePath: filePath,
+      filePath: normalizeFilePath(filePath),
       lineNumber: line,
       message,
       description: message,
       codeSnippet: codeSnippet,
       cweId: cweId,
-      status: 'open',
     });
   }
 
@@ -212,7 +224,7 @@ function extractSnippetFromProperties(props?: Record<string, unknown>): string |
   return null;
 }
 
-function mapCppcheckSeverity(sev: string): string {
+function mapCppcheckSeverity(sev: string): Severity {
   const s = String(sev).toLowerCase();
   if (s === 'error') return 'high';
   if (s === 'warning') return 'medium';

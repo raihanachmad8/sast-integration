@@ -8,7 +8,6 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { repositories } from '@drizzle/schema/source-controls';
 import { schedules } from '@drizzle/schema/scans';
-import type { ProgressEvent } from '@drizzle/schema/scans';
 import { logger } from '@/server/lib/logger';
 import { projectRepository } from '@/server/modules/project/repositories/project.repository';
 import { scanRepository } from '../repositories/scan.repository';
@@ -23,7 +22,7 @@ import {
   MAX_SCANNER_OUTPUT_BUFFER_BYTES,
   type ScannerId,
 } from '../constants';
-import { REPOSITORY_CONNECTION_TYPES } from '@/server/modules/project/constants';
+import { hasScmConnection } from '@/server/modules/project/constants';
 import { SCANNER_COMMANDS, DEFAULT_SCANNER_TIMEOUT_SECONDS } from '../scanners';
 import { checkScannerAvailability } from '../scanner-availability';
 import { enqueue } from '@/server/modules/queue/queue.service';
@@ -274,7 +273,7 @@ export const managedScanService = {
       if (input.projectId && repoData.project?.id !== input.projectId) throw new AppError('Repository not found in this project', 404, SCAN.ERRORS.NOT_FOUND_CODE);
 
       const repository = repoData.repository;
-      if (repository.connectionType !== REPOSITORY_CONNECTION_TYPES.SCM) {
+      if (!hasScmConnection(repository.connectionType)) {
         throw new AppError('Managed scans require SCM-connected repositories.', 400, SCAN.ERRORS.INVALID_REPOSITORY_TYPE_FOR_MANAGED_SCAN);
       }
 
@@ -558,6 +557,15 @@ async function runScanner(scanner: ScannerId, targetDir: string, timeoutSeconds:
   let content = result.stdout || result.stderr || '';
   if (config.outputStream) {
     try { content = await readFile(path.join(targetDir, config.outputStream), 'utf-8'); } catch { /* fall back to stdout */ }
+  }
+
+  // Some scanners (cppcheck --xml) write primary output to stderr
+  // Prefer whichever stream has the actual structured content
+  if (scanner === 'cppcheck') {
+    const stderr = String(result.stderr || '');
+    if (stderr.includes('<?xml') && !content.includes('<?xml')) {
+      content = stderr;
+    }
   }
 
   return { format: config.format, content };

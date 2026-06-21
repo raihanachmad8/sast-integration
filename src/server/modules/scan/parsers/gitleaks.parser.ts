@@ -1,5 +1,7 @@
 import { type NewFinding } from '@drizzle/schema/findings';
 import { GITLEAKS_MATCH_PREVIEW_MAX_LENGTH } from '../constants';
+import { normalizeFilePath } from './path-normalizer';
+import type { ParseResult } from './index';
 
 export interface GitleaksFinding {
   Description: string;
@@ -64,7 +66,7 @@ export function parseGitleaks(
   jsonContent: string | Buffer,
   scanId: string,
   scanner: string = 'gitleaks'
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   let report: GitleaksFinding[] | GitleaksReport;
 
   try {
@@ -96,14 +98,11 @@ export function parseGitleaks(
       scanner,
       rule: r.RuleID,
       severity,
-      filePath: r.File,
+      filePath: normalizeFilePath(r.File),
       lineNumber: r.StartLine,
-      message: r.Description || 'Secret detected',
+      message: `${r.Description || 'Secret detected'} at line ${r.StartLine}`,
       description: `Match: ${r.Match?.slice(0, GITLEAKS_MATCH_PREVIEW_MAX_LENGTH)}...`,
       codeSnippet: r.Match ?? null,
-      status: 'open',
-      createdAt: new Date(),
-      updatedAt: new Date(),
     });
   }
 
