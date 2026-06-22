@@ -244,6 +244,8 @@ export function buildPrComment(
   appBaseUrl: string = 'http://localhost:3000',
   persistentFindings: number = 0,
   workspaceSlug: string = 'workspace',
+  dismissedFindings: number = 0,
+  resolvedFindings: number = 0,
 ): string {
   // Gate status icon
   const gateIcon = gateStatus === 'passed' ? '✅' : gateStatus === 'failed' ? '❌' : '⚠️';
@@ -272,8 +274,10 @@ export function buildPrComment(
   comment += `|---------|---------------|\n`;
   comment += `| Total | ${newFindings + persistentFindings} |\n`;
   comment += `| New | ${newFindings} |\n`;
-  comment += `| Resolved | ${fixedFindings} |\n`;
   comment += `| Pre-existing | ${persistentFindings} |\n`;
+  comment += `| Fixed | ${fixedFindings} |\n`;
+  comment += `| Dismissed | ${dismissedFindings} |\n`;
+  comment += `| Resolved (FP) | ${resolvedFindings} |\n`;
   comment += `\n| AI Verification | Count |\n`;
   comment += `|-----------------|-------|\n`;
   comment += `| ✅ Verified TP | ${verified} |\n`;

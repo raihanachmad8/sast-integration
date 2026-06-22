@@ -268,6 +268,11 @@ export const qualityGateService = {
         logger.scan.warn('evaluatePrScan: failed to get fixed findings', { error: (err as Error).message });
       }
 
+      // Count dismissed/resolved findings for this scan
+      const statusCounts = await findingRepository.countGroupsByStatusForScan(scanId);
+      const dismissedFindings = statusCounts.dismissed;
+      const resolvedFindings = statusCounts.resolved;
+
       const blockingFindings = countBlockingFindings(newFindings.data, gate);
       const openFindings = newFindings.data.filter((f) => (f.groupStatus ?? 'open') === 'open');
       const tpFindings = newFindings.data.filter((f) => f.aiVerdict === 'true_positive');
@@ -337,6 +342,8 @@ export const qualityGateService = {
         pr: {
           newFindings: newFindings.total,
           fixedFindings: fixedFindingsTotal,
+          dismissedFindings,
+          resolvedFindings,
           headBranch,
           baseBranch,
         },
@@ -455,9 +462,11 @@ export const qualityGateService = {
       const fixedCount = gateDb?.fixedFindings ?? gateResult.pr?.fixedFindings ?? 0;
       const blockingCount = gateDb?.blockingFindings ?? gateResult.findings.blocking;
       const persistentCount = gateDb?.persistentFindings ?? 0;
+      const dismissedCount = gateResult.pr?.dismissedFindings ?? 0;
+      const resolvedCount = gateResult.pr?.resolvedFindings ?? 0;
 
       const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      const commentBody = buildPrComment(scanId, gateStatus, newCount, fixedCount, blockingCount, newFindings, appBaseUrl, persistentCount, workspaceSlug);
+      const commentBody = buildPrComment(scanId, gateStatus, newCount, fixedCount, blockingCount, newFindings, appBaseUrl, persistentCount, workspaceSlug, dismissedCount, resolvedCount);
 
       await scm.postOrUpdatePrComment(owner, repoName, scan.prNumber, scanId, commentBody);
       logger.scan.info('repostPrComment: PR comment updated', { scanId, prNumber: scan.prNumber, status: gateStatus });

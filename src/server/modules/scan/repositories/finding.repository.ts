@@ -1113,6 +1113,34 @@ export const findingRepository = {
   },
 
   /**
+   * Count finding groups by status for a specific scan.
+   * Returns counts for open, dismissed, and resolved.
+   */
+  async countGroupsByStatusForScan(
+    scanId: string,
+    tx?: Tx,
+  ): Promise<{ open: number; dismissed: number; resolved: number }> {
+    const executor = tx ?? db;
+
+    const rows = await executor
+      .select({
+        status: findingGroups.status,
+        total: count(sql`DISTINCT ${findingGroups.id}`),
+      })
+      .from(findings)
+      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+      .where(eq(findings.scanId, scanId))
+      .groupBy(findingGroups.status);
+
+    const result = { open: 0, dismissed: 0, resolved: 0 };
+    for (const row of rows) {
+      const s = row.status as keyof typeof result;
+      if (s in result) result[s] = Number(row.total) || 0;
+    }
+    return result;
+  },
+
+  /**
    * Find new findings by comparing scan findings against code diff (git diff).
    * A finding is "new" if it's on a file and line that was changed in the PR.
    *
