@@ -8,6 +8,13 @@ import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
 import type { SourceControl } from '@drizzle/schema/source-controls';
 import type { CredentialMap, DiscoveredRepository } from './helpers';
+import type { ScmProvider } from '@/commons/types/domain';
+import {
+  getScmProviderConfig,
+  resolveConnectionType,
+  refreshOAuthToken,
+  buildScmAuthUrl,
+} from './scm-api.service';
 
 /**
  * Sanitize source control credentials for frontend response.
@@ -216,7 +223,8 @@ export const sourceControlService = {
   buildRedirectUrl(sourceControl: SourceControl | null, workspaceId: string, origin: string, returnTo?: string | null) {
     if (!sourceControl) return null;
     const credentials = toCredentials(sourceControl.credentials);
-    const mode = stringValue(credentials.mode);
+    const connectionType = resolveConnectionType(credentials);
+    const provider = sourceControl.provider as ScmProvider;
     const callbackUrl = `${origin}/api/v1/source-control/callback/${sourceControl.provider}`;
     const state = new URLSearchParams({
       workspaceId,
@@ -225,49 +233,22 @@ export const sourceControlService = {
       ...(returnTo && { returnTo }),
     }).toString();
 
-    if (sourceControl.provider === 'github' && mode === 'github-app') {
-      const appSlug = stringValue(credentials.appSlug);
-      if (!appSlug) return null;
-      return `https://github.com/apps/${encodeURIComponent(appSlug)}/installations/new?state=${encodeURIComponent(state)}`;
-    }
-
-    if (mode !== 'oauth-app') return null;
-
-    const clientId = stringValue(credentials.clientId);
+    const clientId = stringValue(credentials.clientId) || stringValue(credentials.appSlug);
     if (!clientId) return null;
 
-    if (sourceControl.provider === 'github') {
-      const url = new URL('https://github.com/login/oauth/authorize');
-      url.searchParams.set('client_id', clientId);
-      url.searchParams.set('redirect_uri', callbackUrl);
-      url.searchParams.set('scope', 'repo read:org');
-      url.searchParams.set('state', state);
-      return url.toString();
+    // GitHub App uses appSlug as clientId in the config
+    if (connectionType === 'github-app') {
+      return buildScmAuthUrl(provider, connectionType, { clientId, callbackUrl, state, baseUrl: stringValue(credentials.baseUrl) });
     }
 
-    if (sourceControl.provider === 'gitlab') {
-      const baseUrl = normalizeBaseUrl(stringValue(credentials.baseUrl) || 'https://gitlab.com');
-      const url = new URL('/oauth/authorize', baseUrl);
-      url.searchParams.set('client_id', clientId);
-      url.searchParams.set('redirect_uri', callbackUrl);
-      url.searchParams.set('response_type', 'code');
-      url.searchParams.set('scope', 'read_api read_repository');
-      url.searchParams.set('state', state);
-      return url.toString();
-    }
+    if (connectionType !== 'oauth') return null;
 
-    if (sourceControl.provider === 'gitea') {
-      const baseUrl = normalizeBaseUrl(stringValue(credentials.baseUrl));
-      if (!baseUrl) return null;
-      const url = new URL('/login/oauth/authorize', baseUrl);
-      url.searchParams.set('client_id', clientId);
-      url.searchParams.set('redirect_uri', callbackUrl);
-      url.searchParams.set('response_type', 'code');
-      url.searchParams.set('state', state);
-      return url.toString();
-    }
-
-    return null;
+    return buildScmAuthUrl(provider, connectionType, {
+      clientId,
+      callbackUrl,
+      state,
+      baseUrl: stringValue(credentials.baseUrl) || undefined,
+    });
   },
 
   /**
@@ -351,25 +332,26 @@ export const sourceControlService = {
 
 async function discoverRepositories(sourceControlId: string, sourceControl: SourceControl): Promise<DiscoveredRepository[]> {
   const credentials = toCredentials(sourceControl.credentials);
-  const mode = stringValue(credentials.mode);
+  const connectionType = resolveConnectionType(credentials);
   const token = stringValue(credentials.token);
+  const provider = sourceControl.provider as ScmProvider;
 
-  logger.sourceControl.info('discoverRepositories', { provider: sourceControl.provider, mode, hasToken: !!token, credentialKeys: Object.keys(credentials) });
+  logger.sourceControl.info('discoverRepositories', { provider, connectionType, hasToken: !!token, credentialKeys: Object.keys(credentials) });
 
-  if (sourceControl.provider === 'github') {
-    if (mode === 'github-app') return discoverGitHubAppRepositories(credentials);
+  if (provider === 'github') {
+    if (connectionType === 'github-app') return discoverGitHubAppRepositories(credentials);
     if (token) return discoverGitHubRepositories(credentials, token);
-    logger.sourceControl.warn('discoverRepositories: no token for github', { mode });
+    logger.sourceControl.warn('discoverRepositories: no token for github', { connectionType });
     return [];
   }
-  if (sourceControl.provider === 'gitlab') {
+  if (provider === 'gitlab') {
     if (!token) {
       logger.sourceControl.warn('discoverRepositories: no token for gitlab');
       return [];
     }
-    return discoverGitLabRepositories(credentials, token);
+    return discoverGitLabRepositories(sourceControlId, credentials, token);
   }
-  if (sourceControl.provider === 'gitea') {
+  if (provider === 'gitea') {
     if (!token) {
       logger.sourceControl.warn('discoverRepositories: no token for gitea');
       return [];
@@ -446,19 +428,53 @@ async function discoverGitHubRepositories(credentials: CredentialMap, token: str
   })).filter(hasRepositoryIdentity);
 }
 
-async function discoverGitLabRepositories(credentials: CredentialMap, token: string) {
+async function discoverGitLabRepositories(sourceControlId: string, credentials: CredentialMap, token: string) {
   const baseUrl = stringValue(credentials.baseUrl);
   const apiUrl = normalizeBaseUrl(stringValue(credentials.apiUrl) || (baseUrl ? `${baseUrl}/api/v4` : 'https://gitlab.com/api/v4'));
-  const rows = await fetchJson<Array<Record<string, unknown>>>(
-    `${apiUrl}projects?membership=true&per_page=100&simple=true&order_by=last_activity_at`,
-    { 'PRIVATE-TOKEN': token },
-  );
-  return rows.map((row) => ({
-    name: stringValue(row.path_with_namespace) || stringValue(row.name),
-    url: stringValue(row.http_url_to_repo) || stringValue(row.web_url),
-    defaultBranch: stringValue(row.default_branch) || 'main',
-    externalId: String(row.id || row.path_with_namespace || row.name),
-  })).filter(hasRepositoryIdentity);
+
+  try {
+    const rows = await fetchJson<Array<Record<string, unknown>>>(
+      `${apiUrl}projects?membership=true&per_page=100&simple=true&order_by=last_activity_at`,
+      { 'PRIVATE-TOKEN': token },
+    );
+    return rows.map((row) => ({
+      name: stringValue(row.path_with_namespace) || stringValue(row.name),
+      url: stringValue(row.http_url_to_repo) || stringValue(row.web_url),
+      defaultBranch: stringValue(row.default_branch) || 'main',
+      externalId: String(row.id || row.path_with_namespace || row.name),
+    })).filter(hasRepositoryIdentity);
+  } catch (e) {
+    // If 401, try to refresh token (GitLab OAuth supports refresh_token)
+    if (e instanceof AppError && e.statusCode === 401) {
+      logger.sourceControl.info('discoverGitLabRepositories: token expired, attempting refresh', { sourceControlId });
+      const refreshed = await refreshProviderToken('gitlab', credentials);
+      if (refreshed) {
+        // Update stored credentials with new token
+        const { sourceControlRepository: repoService } = await import('./source-control.repository');
+        await repoService.update(sourceControlId, {
+          credentials: {
+            ...credentials,
+            token: refreshed.accessToken,
+            refreshToken: refreshed.refreshToken,
+            tokenExpiresAt: Date.now() + (refreshed.expiresIn || 3600) * 1000,
+          },
+        });
+
+        // Retry with new token
+        const rows = await fetchJson<Array<Record<string, unknown>>>(
+          `${apiUrl}projects?membership=true&per_page=100&simple=true&order_by=last_activity_at`,
+          { 'PRIVATE-TOKEN': refreshed.accessToken },
+        );
+        return rows.map((row) => ({
+          name: stringValue(row.path_with_namespace) || stringValue(row.name),
+          url: stringValue(row.http_url_to_repo) || stringValue(row.web_url),
+          defaultBranch: stringValue(row.default_branch) || 'main',
+          externalId: String(row.id || row.path_with_namespace || row.name),
+        })).filter(hasRepositoryIdentity);
+      }
+    }
+    throw e;
+  }
 }
 
 async function discoverGiteaRepositories(sourceControlId: string, credentials: CredentialMap, token: string): Promise<DiscoveredRepository[]> {
@@ -479,7 +495,7 @@ async function discoverGiteaRepositories(sourceControlId: string, credentials: C
     // If 401, try to refresh token
     if (e instanceof AppError && e.statusCode === 401) {
       logger.sourceControl.info('discoverGiteaRepositories: token expired, attempting refresh', { sourceControlId });
-      const refreshed = await refreshGiteaToken(credentials);
+      const refreshed = await refreshProviderToken('gitea', credentials);
       if (refreshed) {
         // Update stored credentials with new token
         const { sourceControlRepository: repoService } = await import('./source-control.repository');
@@ -519,33 +535,26 @@ async function exchangeOAuthCode(provider: string, credentials: CredentialMap, c
     throw new AppError('OAuth client ID and client secret are required.', 400, 'SOURCE_CONTROL_OAUTH_NOT_CONFIGURED');
   }
 
-  if (provider === 'github') {
-    const baseUrl = normalizeBaseUrl(stringValue(credentials.baseUrl) || 'https://github.com');
-    const payload = await postForm<{ access_token?: string }>(new URL('/login/oauth/access_token', baseUrl).toString(), {
-      client_id: clientId, client_secret: clientSecret, code, redirect_uri: callbackUrl,
-    }, { Accept: 'application/json' });
-    const accessToken = stringValue(payload.access_token);
-    if (accessToken) return accessToken;
-  }
+  const scmProvider = provider as ScmProvider;
+  const config = getScmProviderConfig(scmProvider, 'oauth');
+  const tokenEndpoint = config.getTokenEndpoint(
+    normalizeBaseUrl(stringValue(credentials.baseUrl) || (provider === 'github' ? 'https://github.com' : provider === 'gitlab' ? 'https://gitlab.com' : '')),
+  );
 
-  if (provider === 'gitlab') {
-    const baseUrl = normalizeBaseUrl(stringValue(credentials.baseUrl) || 'https://gitlab.com');
-    const payload = await postForm<{ access_token?: string }>(new URL('/oauth/token', baseUrl).toString(), {
+  if (provider === 'github' || provider === 'gitlab') {
+    const payload = await postForm<{ access_token?: string }>(tokenEndpoint, {
       client_id: clientId, client_secret: clientSecret, code, grant_type: 'authorization_code', redirect_uri: callbackUrl,
-    });
+    }, provider === 'github' ? { Accept: 'application/json' } : {});
     const accessToken = stringValue(payload.access_token);
     if (accessToken) return accessToken;
   }
 
   if (provider === 'gitea') {
-    const baseUrl = normalizeBaseUrl(stringValue(credentials.baseUrl));
-    if (!baseUrl) return null;
-    const payload = await postJson<{ access_token?: string; refresh_token?: string; expires_in?: number }>(new URL('/login/oauth/access_token', baseUrl).toString(), {
+    const payload = await postJson<{ access_token?: string; refresh_token?: string; expires_in?: number }>(tokenEndpoint, {
       client_id: clientId, client_secret: clientSecret, code, grant_type: 'authorization_code', redirect_uri: callbackUrl,
     });
     const accessToken = stringValue(payload.access_token);
     if (accessToken) {
-      // Store refresh token and expiry for automatic refresh
       return {
         accessToken,
         refreshToken: payload.refresh_token || null,
@@ -570,45 +579,34 @@ async function fetchJson<T>(url: string, headers: Record<string, string>, method
 }
 
 /**
- * Refresh Gitea OAuth token using refresh_token.
- * Returns new tokens or null if refresh fails.
+ * Refresh OAuth token for a provider.
+ * Delegates to centralized refreshOAuthToken from scm-api.service.
  */
-async function refreshGiteaToken(credentials: CredentialMap): Promise<{ accessToken: string; refreshToken?: string; expiresIn?: number } | null> {
+async function refreshProviderToken(provider: string, credentials: CredentialMap) {
+  const scmProvider = provider as ScmProvider;
   const clientId = stringValue(credentials.clientId);
   const clientSecret = stringValue(credentials.clientSecret);
   const refreshToken = stringValue(credentials.refreshToken);
   const baseUrl = normalizeBaseUrl(stringValue(credentials.baseUrl));
 
-  if (!clientId || !clientSecret || !refreshToken || !baseUrl) {
-    logger.sourceControl.warn('refreshGiteaToken: missing credentials', { hasClientId: !!clientId, hasClientSecret: !!clientSecret, hasRefreshToken: !!refreshToken, hasBaseUrl: !!baseUrl });
+  if (!baseUrl || !clientId || !clientSecret || !refreshToken) {
+    logger.sourceControl.warn('refreshProviderToken: missing credentials', { provider, hasBaseUrl: !!baseUrl });
     return null;
   }
 
-  try {
-    const payload = await postJson<{ access_token?: string; refresh_token?: string; expires_in?: number }>(
-      new URL('/login/oauth/access_token', baseUrl).toString(),
-      {
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-      },
-    );
-
-    const accessToken = stringValue(payload.access_token);
-    if (accessToken) {
-      logger.sourceControl.info('refreshGiteaToken: token refreshed');
-      return {
-        accessToken,
-        refreshToken: payload.refresh_token || refreshToken, // Keep old if new not provided
-        expiresIn: payload.expires_in || undefined,
-      };
-    }
-  } catch (e) {
-    logger.sourceControl.error('refreshGiteaToken: refresh failed', { error: e instanceof Error ? e.message : String(e) });
+  const result = await refreshOAuthToken(scmProvider, {
+    baseUrl,
+    token: stringValue(credentials.token),
+    clientId,
+    clientSecret,
+    refreshToken,
+  });
+  if (result) {
+    logger.sourceControl.info('refreshProviderToken: token refreshed', { provider });
+  } else {
+    logger.sourceControl.warn('refreshProviderToken: refresh failed or unsupported', { provider });
   }
-
-  return null;
+  return result;
 }
 
 async function postForm<T>(url: string, values: Record<string, string>, headers: Record<string, string> = {}) {

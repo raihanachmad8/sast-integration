@@ -10,8 +10,15 @@
 import { logger } from '@/server/lib/logger';
 import { AppError } from '@/server/http/errors';
 import { HTTP } from '@/server/http/constants';
-import type { ScmApiService, ScmCredentials, CommitStatus, InlineReviewComment, ChangedFile } from './scm-api.service';
-import { extractFingerprintFromMarker, parsePatchToChangedLines } from './scm-api.service';
+import type { ScmApiService, ScmOAuthCredentials, CommitStatus, InlineReviewComment, ChangedFile } from './scm-api.service';
+import { extractFingerprintFromMarker, parsePatchToChangedLines, refreshOAuthToken } from './scm-api.service';
+import type { RefreshedTokens } from './scm-api.service';
+
+/** Dedup lock for concurrent token refresh per sourceControlId. */
+const refreshLocks = new Map<string, Promise<RefreshedTokens | null>>();
+
+/** Dedup lock for concurrent PR comment posts per (owner/repo/prNumber/scanId). */
+const prCommentLocks = new Map<string, Promise<'created' | 'updated'>>();
 
 /**
  * Gitea implementation of ScmApiService.
@@ -26,9 +33,9 @@ import { extractFingerprintFromMarker, parsePatchToChangedLines } from './scm-ap
 export class GiteaApiService implements ScmApiService {
   private baseUrl: string;
   private token: string;
-  private credentials: ScmCredentials;
+  private credentials: ScmOAuthCredentials;
 
-  constructor(credentials: ScmCredentials) {
+  constructor(credentials: ScmOAuthCredentials) {
     this.baseUrl = credentials.baseUrl.replace(/\/+$/, '');
     this.token = credentials.token;
     this.credentials = credentials;
@@ -37,6 +44,7 @@ export class GiteaApiService implements ScmApiService {
   /**
    * Fetch with automatic token refresh on 401.
    * Retries once after refreshing the OAuth token.
+   * Uses a dedup lock to prevent concurrent refresh calls.
    */
   private async fetchWithAuth(url: string, init: RequestInit = {}): Promise<Response> {
     const headers = {
@@ -49,24 +57,44 @@ export class GiteaApiService implements ScmApiService {
     if (response.status === 401 && this.credentials.refreshToken && this.credentials.clientId && this.credentials.clientSecret) {
       logger.scan.info('Gitea: token expired, attempting refresh', { url });
 
-      const refreshed = await this.refreshToken();
+      const lockKey = this.credentials.sourceControlId || 'default';
+
+      if (!refreshLocks.has(lockKey)) {
+        // At this point we've verified clientId, clientSecret, refreshToken exist
+        const refreshPromise = refreshOAuthToken('gitea', {
+          baseUrl: this.baseUrl,
+          token: this.token,
+          clientId: this.credentials.clientId,
+          clientSecret: this.credentials.clientSecret,
+          refreshToken: this.credentials.refreshToken || '',
+        }).finally(() => refreshLocks.delete(lockKey));
+        refreshLocks.set(lockKey, refreshPromise);
+      }
+
+      const refreshed = await refreshLocks.get(lockKey);
       if (refreshed) {
         this.token = refreshed.accessToken;
+        this.credentials = {
+          ...this.credentials,
+          token: refreshed.accessToken,
+          refreshToken: refreshed.refreshToken || this.credentials.refreshToken,
+        };
 
-        // Persist new token to DB
+        // Persist new token to DB with retry
         if (this.credentials.sourceControlId) {
-          try {
-            const { sourceControlRepository } = await import('./source-control.repository');
-            await sourceControlRepository.update(this.credentials.sourceControlId, {
-              credentials: {
-                ...this.credentials,
-                token: refreshed.accessToken,
-                refreshToken: refreshed.refreshToken || this.credentials.refreshToken,
-                tokenExpiresAt: Date.now() + (refreshed.expiresIn || 3600) * 1000,
-              },
-            });
-          } catch (e) {
-            logger.scan.warn('Gitea: failed to persist refreshed token', { error: (e as Error).message });
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const { sourceControlRepository } = await import('./source-control.repository');
+              await sourceControlRepository.update(this.credentials.sourceControlId, {
+                credentials: {
+                  ...this.credentials,
+                  tokenExpiresAt: Date.now() + (refreshed.expiresIn || 3600) * 1000,
+                },
+              });
+              break;
+            } catch (e) {
+              logger.scan.warn('Gitea: DB persist retry', { attempt: attempt + 1, error: (e as Error).message });
+            }
           }
         }
 
@@ -80,39 +108,6 @@ export class GiteaApiService implements ScmApiService {
     }
 
     return response;
-  }
-
-  /**
-   * Refresh Gitea OAuth token using refresh_token.
-   */
-  private async refreshToken(): Promise<{ accessToken: string; refreshToken?: string; expiresIn?: number } | null> {
-    const { clientId, clientSecret, refreshToken, baseUrl } = this.credentials;
-    if (!clientId || !clientSecret || !refreshToken) return null;
-
-    try {
-      const payload = await fetch(`${baseUrl}/login/oauth/access_token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({
-          client_id: clientId,
-          client_secret: clientSecret,
-          refresh_token: refreshToken,
-          grant_type: 'refresh_token',
-        }),
-      }).then((r) => r.json()) as { access_token?: string; refresh_token?: string; expires_in?: number };
-
-      if (payload.access_token) {
-        logger.scan.info('Gitea: token refreshed successfully');
-        return {
-          accessToken: payload.access_token,
-          refreshToken: payload.refresh_token || refreshToken,
-          expiresIn: payload.expires_in || undefined,
-        };
-      }
-    } catch (e) {
-      logger.scan.error('Gitea: token refresh failed', { error: (e as Error).message });
-    }
-    return null;
   }
 
   /**
@@ -194,6 +189,7 @@ export class GiteaApiService implements ScmApiService {
 
   /**
    * Post or update a PR comment (dedup by scan ID).
+   * Uses a Promise-based lock to prevent concurrent duplicate posts.
    */
   async postOrUpdatePrComment(
     owner: string,
@@ -202,15 +198,23 @@ export class GiteaApiService implements ScmApiService {
     scanId: string,
     body: string,
   ): Promise<'created' | 'updated'> {
-    const existingCommentId = await this.findPrComment(owner, repo, prNumber, scanId);
+    const lockKey = `${owner}/${repo}/${prNumber}/${scanId}`;
 
-    if (existingCommentId) {
-      await this.updatePrComment(owner, repo, prNumber, existingCommentId, body);
-      return 'updated';
+    if (!prCommentLocks.has(lockKey)) {
+      const operation = (async () => {
+        const existingCommentId = await this.findPrComment(owner, repo, prNumber, scanId);
+        if (existingCommentId) {
+          await this.updatePrComment(owner, repo, prNumber, existingCommentId, body);
+          return 'updated' as const;
+        }
+        await this.postPrComment(owner, repo, prNumber, body);
+        return 'created' as const;
+      })().finally(() => prCommentLocks.delete(lockKey));
+
+      prCommentLocks.set(lockKey, operation);
     }
 
-    await this.postPrComment(owner, repo, prNumber, body);
-    return 'created';
+    return prCommentLocks.get(lockKey)!;
   }
 
   /**
@@ -433,7 +437,7 @@ export class GiteaApiService implements ScmApiService {
 
   /**
    * Update inline review comments when verdict changes.
-   * For each comment: find existing by fingerprint, delete old, post new review with updated body.
+   * For each comment: post new review first, then delete old (prevents data loss on post failure).
    */
   async updateInlineReviewComments(
     owner: string,
@@ -449,19 +453,7 @@ export class GiteaApiService implements ScmApiService {
 
     for (const c of comments) {
       try {
-        // Find existing comment ID by fingerprint
-        const existingCommentId = await this.findCommentIdByFingerprint(owner, repo, prNumber, c.fingerprint);
-
-        if (existingCommentId) {
-          // Delete old comment
-          const deleteUrl = `${this.baseUrl}/api/v1/repos/${owner}/${repo}/pulls/comments/${existingCommentId}`;
-          const deleteResp = await this.fetchWithAuth(deleteUrl, { method: 'DELETE' });
-          if (!deleteResp.ok && deleteResp.status !== 404) {
-            logger.scan.warn('Gitea: failed to delete old inline comment', { commentId: existingCommentId, status: deleteResp.status });
-          }
-        }
-
-        // Post new review with updated comment
+        // Post new review with updated comment FIRST (prevents data loss)
         const reviewUrl = `${this.baseUrl}/api/v1/repos/${owner}/${repo}/pulls/${prNumber}/reviews`;
         const response = await this.fetchWithAuth(reviewUrl, {
           method: 'POST',
@@ -480,6 +472,15 @@ export class GiteaApiService implements ScmApiService {
 
         if (response.ok) {
           updated++;
+          // Delete old comment only after new one is posted successfully
+          const existingCommentId = await this.findCommentIdByFingerprint(owner, repo, prNumber, c.fingerprint);
+          if (existingCommentId) {
+            const deleteUrl = `${this.baseUrl}/api/v1/repos/${owner}/${repo}/pulls/comments/${existingCommentId}`;
+            const deleteResp = await this.fetchWithAuth(deleteUrl, { method: 'DELETE' });
+            if (!deleteResp.ok && deleteResp.status !== 404) {
+              logger.scan.warn('Gitea: failed to delete old inline comment', { commentId: existingCommentId, status: deleteResp.status });
+            }
+          }
         } else {
           failed++;
           logger.scan.warn('Gitea: failed to post updated inline comment', { fingerprint: c.fingerprint, status: response.status });

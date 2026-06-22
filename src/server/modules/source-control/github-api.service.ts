@@ -10,8 +10,11 @@
 import { logger } from '@/server/lib/logger';
 import { AppError } from '@/server/http/errors';
 import { HTTP } from '@/server/http/constants';
-import type { ScmApiService, ScmCredentials, CommitStatus, InlineReviewComment, ChangedFile } from './scm-api.service';
+import type { ScmApiService, ScmBaseCredentials, CommitStatus, InlineReviewComment, ChangedFile } from './scm-api.service';
 import { extractFingerprintFromMarker, parsePatchToChangedLines } from './scm-api.service';
+
+/** Dedup lock for concurrent PR comment posts per (owner/repo/prNumber/scanId). */
+const prCommentLocks = new Map<string, Promise<'created' | 'updated'>>();
 
 /**
  * GitHub implementation of ScmApiService.
@@ -28,7 +31,7 @@ export class GitHubScmService implements ScmApiService {
   private token: string;
   private graphqlUrl: string;
 
-  constructor(credentials: ScmCredentials) {
+  constructor(credentials: ScmBaseCredentials) {
     // GitHub API: https://api.github.com or custom Enterprise URL
     this.baseUrl = credentials.baseUrl.replace(/\/+$/, '');
     this.token = credentials.token;
@@ -132,6 +135,7 @@ export class GitHubScmService implements ScmApiService {
 
   /**
    * Post or update a PR comment (dedup by scan ID).
+   * Uses a Promise-based lock to prevent concurrent duplicate posts.
    */
   async postOrUpdatePrComment(
     owner: string,
@@ -140,15 +144,23 @@ export class GitHubScmService implements ScmApiService {
     scanId: string,
     body: string,
   ): Promise<'created' | 'updated'> {
-    const existingCommentId = await this.findPrComment(owner, repo, prNumber, scanId);
+    const lockKey = `${owner}/${repo}/${prNumber}/${scanId}`;
 
-    if (existingCommentId) {
-      await this.updatePrComment(owner, repo, prNumber, existingCommentId, body);
-      return 'updated';
+    if (!prCommentLocks.has(lockKey)) {
+      const operation = (async () => {
+        const existingCommentId = await this.findPrComment(owner, repo, prNumber, scanId);
+        if (existingCommentId) {
+          await this.updatePrComment(owner, repo, prNumber, existingCommentId, body);
+          return 'updated' as const;
+        }
+        await this.postPrComment(owner, repo, prNumber, body);
+        return 'created' as const;
+      })().finally(() => prCommentLocks.delete(lockKey));
+
+      prCommentLocks.set(lockKey, operation);
     }
 
-    await this.postPrComment(owner, repo, prNumber, body);
-    return 'created';
+    return prCommentLocks.get(lockKey)!;
   }
 
   /**

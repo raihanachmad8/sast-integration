@@ -26,6 +26,9 @@ export type ScanStatus = "queued" | "running" | "processing" | "parsing" | "comp
 /** SCM provider — used by source-control, scan, repositories */
 export type ScmProvider = "github" | "gitlab" | "gitea";
 
+/** SCM connection type — determines auth flow */
+export type ScmConnectionType = "oauth" | "pat" | "github-app";
+
 /** Repository connection type — used by repositories, scan, source-control */
 export type RepositoryConnectionType = "scm" | "external";
 

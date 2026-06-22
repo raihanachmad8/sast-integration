@@ -16,14 +16,59 @@ import { HTTP } from '@/server/http/constants';
 import { GitHubScmService } from './github-api.service';
 import { GitLabScmService } from './gitlab-api.service';
 import { GiteaApiService } from './gitea-api.service';
+import type { ScmProvider, ScmConnectionType } from '@/commons/types/domain';
 
-export interface ScmCredentials {
+// ─── Credentials ─────────────────────────────────────────────
+
+/** Base credentials shared by all providers */
+export interface ScmBaseCredentials {
   baseUrl: string;
   token: string;
-  clientId?: string;
-  clientSecret?: string;
-  refreshToken?: string;
   sourceControlId?: string;
+}
+
+/** OAuth credentials (shared by all providers) */
+export interface ScmOAuthCredentials extends ScmBaseCredentials {
+  clientId: string;
+  clientSecret: string;
+  refreshToken?: string;
+  tokenExpiresAt?: number;
+}
+
+/** GitHub App credentials */
+export interface ScmGitHubAppCredentials extends ScmBaseCredentials {
+  appId: string;
+  privateKey: string;
+  installationId: string;
+  appSlug?: string;
+}
+
+/** Union type — provider factory accepts any of these */
+export type ScmCredentials = ScmBaseCredentials | ScmOAuthCredentials | ScmGitHubAppCredentials;
+
+/** Type guard helpers */
+export function isOAuthCredentials(c: ScmCredentials): c is ScmOAuthCredentials {
+  return 'clientId' in c && 'clientSecret' in c;
+}
+
+export function isGitHubAppCredentials(c: ScmCredentials): c is ScmGitHubAppCredentials {
+  return 'appId' in c && 'privateKey' in c && 'installationId' in c;
+}
+
+// ─── Provider Config ─────────────────────────────────────────
+
+/** Provider-specific configuration */
+export interface ScmProviderConfig {
+  provider: ScmProvider;
+  connectionType: ScmConnectionType;
+  /** OAuth authorize URL (null if not applicable) */
+  getAuthUrl(params: { clientId: string; callbackUrl: string; state: string; baseUrl?: string }): string | null;
+  /** OAuth token exchange endpoint */
+  getTokenEndpoint(baseUrl: string): string;
+  /** Auth header format */
+  getAuthHeader(token: string): Record<string, string>;
+  /** Supports automatic token refresh via refresh_token */
+  supportsRefresh: boolean;
 }
 
 export interface CommitStatus {
@@ -340,6 +385,265 @@ export function parsePatchToChangedLines(patch: string): number[] {
   return changedLines;
 }
 
+// ─── Provider Configs ────────────────────────────────────────
+
+const GITHUB_OAUTH_CONFIG: ScmProviderConfig = {
+  provider: 'github',
+  connectionType: 'oauth',
+  getAuthUrl({ clientId, callbackUrl, state }) {
+    const url = new URL('https://github.com/login/oauth/authorize');
+    url.searchParams.set('client_id', clientId);
+    url.searchParams.set('redirect_uri', callbackUrl);
+    url.searchParams.set('scope', 'repo read:org');
+    url.searchParams.set('state', state);
+    return url.toString();
+  },
+  getTokenEndpoint(baseUrl) {
+    return `${baseUrl}/login/oauth/access_token`;
+  },
+  getAuthHeader(token) {
+    return { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' };
+  },
+  supportsRefresh: false,
+};
+
+const GITHUB_PAT_CONFIG: ScmProviderConfig = {
+  provider: 'github',
+  connectionType: 'pat',
+  getAuthUrl: () => null,
+  getTokenEndpoint: () => '',
+  getAuthHeader(token) {
+    return { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' };
+  },
+  supportsRefresh: false,
+};
+
+const GITHUB_APP_CONFIG: ScmProviderConfig = {
+  provider: 'github',
+  connectionType: 'github-app',
+  getAuthUrl({ clientId, state }) {
+    // GitHub App uses installation URL, not OAuth. clientId = appSlug here.
+    return `https://github.com/apps/${encodeURIComponent(clientId)}/installations/new?state=${encodeURIComponent(state)}`;
+  },
+  getTokenEndpoint: () => '',
+  getAuthHeader(token) {
+    return { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+  },
+  supportsRefresh: false,
+};
+
+const GITLAB_OAUTH_CONFIG: ScmProviderConfig = {
+  provider: 'gitlab',
+  connectionType: 'oauth',
+  getAuthUrl({ clientId, callbackUrl, state, baseUrl }) {
+    const url = new URL('/oauth/authorize', baseUrl || 'https://gitlab.com');
+    url.searchParams.set('client_id', clientId);
+    url.searchParams.set('redirect_uri', callbackUrl);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('scope', 'read_api read_repository');
+    url.searchParams.set('state', state);
+    return url.toString();
+  },
+  getTokenEndpoint(baseUrl) {
+    return `${baseUrl}/oauth/token`;
+  },
+  getAuthHeader(token) {
+    return { 'PRIVATE-TOKEN': token };
+  },
+  supportsRefresh: true,
+};
+
+const GITLAB_PAT_CONFIG: ScmProviderConfig = {
+  provider: 'gitlab',
+  connectionType: 'pat',
+  getAuthUrl: () => null,
+  getTokenEndpoint: () => '',
+  getAuthHeader(token) {
+    return { 'PRIVATE-TOKEN': token };
+  },
+  supportsRefresh: false,
+};
+
+const GITEA_OAUTH_CONFIG: ScmProviderConfig = {
+  provider: 'gitea',
+  connectionType: 'oauth',
+  getAuthUrl({ clientId, callbackUrl, state, baseUrl }) {
+    if (!baseUrl) return null;
+    const url = new URL('/login/oauth/authorize', baseUrl);
+    url.searchParams.set('client_id', clientId);
+    url.searchParams.set('redirect_uri', callbackUrl);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('state', state);
+    return url.toString();
+  },
+  getTokenEndpoint(baseUrl) {
+    return `${baseUrl}/login/oauth/access_token`;
+  },
+  getAuthHeader(token) {
+    return { Authorization: `token ${token}` };
+  },
+  supportsRefresh: true,
+};
+
+const GITEA_PAT_CONFIG: ScmProviderConfig = {
+  provider: 'gitea',
+  connectionType: 'pat',
+  getAuthUrl: () => null,
+  getTokenEndpoint: () => '',
+  getAuthHeader(token) {
+    return { Authorization: `token ${token}` };
+  },
+  supportsRefresh: false,
+};
+
+/** All provider configs indexed by provider+connectionType */
+const PROVIDER_CONFIGS: Record<string, ScmProviderConfig> = {
+  'github:oauth': GITHUB_OAUTH_CONFIG,
+  'github:pat': GITHUB_PAT_CONFIG,
+  'github:github-app': GITHUB_APP_CONFIG,
+  'gitlab:oauth': GITLAB_OAUTH_CONFIG,
+  'gitlab:pat': GITLAB_PAT_CONFIG,
+  'gitea:oauth': GITEA_OAUTH_CONFIG,
+  'gitea:pat': GITEA_PAT_CONFIG,
+};
+
+// ─── Token Refresh ───────────────────────────────────────────
+
+export interface RefreshedTokens {
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn?: number;
+}
+
+/**
+ * Refresh OAuth token for a provider.
+ * Gitea and GitLab support refresh_token flow.
+ * GitHub PATs don't support refresh.
+ */
+export async function refreshOAuthToken(
+  provider: ScmProvider,
+  credentials: ScmOAuthCredentials,
+): Promise<RefreshedTokens | null> {
+  if (provider === 'gitea') {
+    return refreshGiteaOAuthToken(
+      credentials.baseUrl,
+      credentials.clientId,
+      credentials.clientSecret,
+      credentials.refreshToken || '',
+    );
+  }
+  if (provider === 'gitlab') {
+    return refreshGitLabOAuthToken(
+      credentials.baseUrl,
+      credentials.clientId,
+      credentials.clientSecret,
+      credentials.refreshToken || '',
+    );
+  }
+  // GitHub PATs don't support refresh
+  return null;
+}
+
+/**
+ * Refresh Gitea OAuth token using refresh_token.
+ * Shared between GiteaApiService and source-control.service.ts.
+ */
+export async function refreshGiteaOAuthToken(
+  baseUrl: string,
+  clientId: string,
+  clientSecret: string,
+  refreshToken: string,
+): Promise<RefreshedTokens | null> {
+  if (!clientId || !clientSecret || !refreshToken || !baseUrl) return null;
+
+  try {
+    const payload = await fetch(`${baseUrl}/login/oauth/access_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    }).then((r) => r.json()) as { access_token?: string; refresh_token?: string; expires_in?: number };
+
+    if (payload.access_token) {
+      return {
+        accessToken: payload.access_token,
+        refreshToken: payload.refresh_token || refreshToken,
+        expiresIn: payload.expires_in || undefined,
+      };
+    }
+  } catch {
+    // Refresh failed
+  }
+  return null;
+}
+
+/**
+ * Refresh GitLab OAuth token using refresh_token.
+ * GitLab uses /oauth/token endpoint with grant_type=refresh_token.
+ */
+export async function refreshGitLabOAuthToken(
+  baseUrl: string,
+  clientId: string,
+  clientSecret: string,
+  refreshToken: string,
+): Promise<RefreshedTokens | null> {
+  if (!clientId || !clientSecret || !refreshToken || !baseUrl) return null;
+
+  try {
+    const tokenEndpoint = `${baseUrl.replace(/\/+$/, '')}/oauth/token`;
+    const payload = await fetch(tokenEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    }).then((r) => r.json()) as { access_token?: string; refresh_token?: string; expires_in?: number };
+
+    if (payload.access_token) {
+      return {
+        accessToken: payload.access_token,
+        refreshToken: payload.refresh_token || refreshToken,
+        expiresIn: payload.expires_in || undefined,
+      };
+    }
+  } catch {
+    // Refresh failed
+  }
+  return null;
+}
+
+// ─── Factory ─────────────────────────────────────────────────
+
+/**
+ * Get provider config by provider and connection type.
+ */
+export function getScmProviderConfig(provider: ScmProvider, connectionType: ScmConnectionType): ScmProviderConfig {
+  const key = `${provider}:${connectionType}`;
+  const config = PROVIDER_CONFIGS[key];
+  if (!config) {
+    throw new AppError(`Unsupported SCM provider/connection type: ${provider}/${connectionType}`, 400, HTTP.ERROR_CODES.VALIDATION);
+  }
+  return config;
+}
+
+/**
+ * Resolve connection type from credentials.
+ * If `mode` field exists, map it. Otherwise default to 'pat'.
+ */
+export function resolveConnectionType(credentials: Record<string, unknown>): ScmConnectionType {
+  const mode = typeof credentials.mode === 'string' ? credentials.mode : '';
+  if (mode === 'github-app') return 'github-app';
+  if (mode === 'oauth-app') return 'oauth';
+  return 'pat';
+}
+
 /**
  * Provider-specific factory function.
  * Returns the appropriate ScmApiService implementation based on provider.
@@ -347,12 +651,28 @@ export function parsePatchToChangedLines(patch: string): number[] {
 export function createScmApiService(provider: string, credentials: ScmCredentials): ScmApiService {
   switch (provider) {
     case 'github':
-      return new GitHubScmService(credentials);
+      // GitHub uses ScmBaseCredentials (only needs baseUrl + token)
+      return new GitHubScmService(credentials as ScmBaseCredentials);
     case 'gitlab':
-      return new GitLabScmService(credentials);
+      // GitLab uses ScmOAuthCredentials (supports refresh_token flow)
+      return new GitLabScmService(credentials as ScmOAuthCredentials);
     case 'gitea':
-      return new GiteaApiService(credentials);
+      // Gitea uses ScmOAuthCredentials (needs OAuth fields for refresh)
+      return new GiteaApiService(credentials as ScmOAuthCredentials);
     default:
       throw new AppError(`Unsupported SCM provider: ${provider}`, 400, HTTP.ERROR_CODES.VALIDATION);
   }
+}
+
+/**
+ * Build OAuth redirect URL for a provider.
+ * Uses centralized provider configs.
+ */
+export function buildScmAuthUrl(
+  provider: ScmProvider,
+  connectionType: ScmConnectionType,
+  params: { clientId: string; callbackUrl: string; state: string; baseUrl?: string },
+): string | null {
+  const config = getScmProviderConfig(provider, connectionType);
+  return config.getAuthUrl(params);
 }

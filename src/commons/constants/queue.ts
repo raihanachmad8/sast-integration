@@ -80,3 +80,25 @@ export const QUEUE_DEFAULT_RETRY_LIMIT = 3;
  * Use this for standard jobs. Override for urgent jobs.
  */
 export const QUEUE_DEFAULT_PRIORITY = 0;
+
+/**
+ * Default job expiry in seconds.
+ * Jobs active longer than this are force-failed by pg-boss.
+ * 15 minutes = 900 seconds (pg-boss default).
+ */
+export const QUEUE_DEFAULT_EXPIRE_SECONDS = 900;
+
+/**
+ * Job-specific expiry overrides (in seconds).
+ * Long-running jobs need higher expiry to avoid mid-execution kills.
+ */
+export const QUEUE_JOB_EXPIRY: Record<string, number> = {
+  [QUEUE_JOBS.RUN_MANAGED_SCAN]: 3600,          // 1 hour — runs scanners
+  [QUEUE_JOBS.AI_VERIFY_FINDING]: 600,           // 10 min — LLM API call
+  [QUEUE_JOBS.PARSE_SCAN_RESULT]: 1800,          // 30 min — parses large files
+  [QUEUE_JOBS.NVD_KNOWLEDGE_BACKFILL]: 1800,     // 30 min — batch API calls
+  [QUEUE_JOBS.SYNC_SOURCE_CONTROL]: 900,         // 15 min — repo sync
+  [QUEUE_JOBS.CLEANUP_OLD_SCAN_FILES]: 300,      // 5 min — file cleanup
+  [QUEUE_JOBS.SCAN_TIMEOUT_WATCHDOG]: 300,       // 5 min — watchdog
+  [QUEUE_JOBS.TRIGGER_SCHEDULED_MANAGED_SCAN]: 300, // 5 min — trigger only
+};

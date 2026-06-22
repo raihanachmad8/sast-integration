@@ -1025,15 +1025,12 @@ export const findingRepository = {
   ): Promise<string[]> {
     const executor = tx ?? db;
 
-    // Get fingerprints from current scan
+    // Get fingerprints from current scan (regardless of status)
     const currentFingerprints = executor
       .select({ fingerprint: findingGroups.fingerprint })
       .from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .where(and(
-        eq(findings.scanId, currentScanId),
-        eq(findingGroups.status, 'open'),
-      ));
+      .where(eq(findings.scanId, currentScanId));
 
     // Find groups that were in previous scan but NOT in current scan
     const fixedGroups = await executor
@@ -1042,7 +1039,6 @@ export const findingRepository = {
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
       .where(and(
         eq(findings.scanId, previousScanId),
-        eq(findingGroups.status, 'open'),
         sql`${findingGroups.fingerprint} NOT IN (${currentFingerprints})`,
       ));
 

@@ -1,6 +1,6 @@
 import { PgBoss, type Job as PgBossJob } from 'pg-boss';
 import { env } from '@/server/env';
-import { QUEUE_DEFAULT_PRIORITY, QUEUE_DEFAULT_RETRY_LIMIT, QUEUE_JOBS, QUEUE_MAX_CONNECTIONS, QUEUE_SCHEMA } from '@/commons/constants/queue';
+import { QUEUE_DEFAULT_PRIORITY, QUEUE_DEFAULT_RETRY_LIMIT, QUEUE_DEFAULT_EXPIRE_SECONDS, QUEUE_JOB_EXPIRY, QUEUE_JOBS, QUEUE_MAX_CONNECTIONS, QUEUE_SCHEMA } from '@/commons/constants/queue';
 import { logger } from '@/server/lib/logger';
 
 let boss: PgBoss | null = null;
@@ -50,12 +50,10 @@ export async function enqueue<T>(name: string, data: T, options?: { priority?: n
   const sendOptions: Record<string, unknown> = {
     priority: options?.priority ?? QUEUE_DEFAULT_PRIORITY,
     retryLimit: options?.retryLimit ?? QUEUE_DEFAULT_RETRY_LIMIT,
+    expireInSeconds: options?.expireInSeconds ?? QUEUE_JOB_EXPIRY[name] ?? QUEUE_DEFAULT_EXPIRE_SECONDS,
   };
   if (options?.retryDelay !== undefined) {
-    sendOptions.retryDelay = options.retryDelay; // seconds between retries, exponential backoff
-  }
-  if (options?.expireInSeconds !== undefined) {
-    sendOptions.expireInSeconds = options.expireInSeconds;
+    sendOptions.retryDelay = options.retryDelay;
   }
   const result = await queue.send(name, data as Record<string, unknown>, sendOptions);
   logger.queue.info('enqueue completed', { name, jobId: result });

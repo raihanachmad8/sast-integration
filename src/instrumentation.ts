@@ -61,5 +61,14 @@ export async function register() {
     } catch (e) {
       console.error('[env] Failed to schedule SCAN_TIMEOUT_WATCHDOG:', e);
     }
+
+    // Schedule cleanup of old scan files daily at 2 AM
+    try {
+      const queue = await getQueue();
+      await queue.schedule(QUEUE_JOBS.CLEANUP_OLD_SCAN_FILES, '0 2 * * *', {});
+      console.log('[env] Scheduled CLEANUP_OLD_SCAN_FILES daily at 2 AM');
+    } catch (e) {
+      console.error('[env] Failed to schedule CLEANUP_OLD_SCAN_FILES:', e);
+    }
   }
 }

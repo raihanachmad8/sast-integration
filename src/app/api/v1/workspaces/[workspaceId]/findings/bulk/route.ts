@@ -65,7 +65,9 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
           } catch (err) {
             logger.scan.warn('bulk: QG re-evaluation failed', { scanId, error: (err as Error).message });
           }
-        }).catch(() => {});
+        }).catch((err) => {
+          logger.scan.error('bulk: QG re-evaluation post-mutation failed', { scanId, error: (err as Error).message });
+        });
       }
     }
 

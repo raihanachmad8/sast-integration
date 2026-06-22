@@ -65,6 +65,24 @@ async function patchWebhook(
     if (!response.ok) return null;
     return { webhookId, webhookSecret: secret };
   }
+  if (provider === 'gitlab') {
+    const token = stringValue(credentials.token);
+    const baseUrl = normalizeBaseUrl(stringValue(credentials.baseUrl) || 'https://gitlab.com');
+    const projectId = encodeURIComponent(repoFullName);
+    const response = await fetch(new URL(`/api/v4/projects/${projectId}/hooks/${webhookId}`, baseUrl).toString(), {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: webhookUrl,
+        push_events: true,
+        merge_requests_events: true,
+        token: secret,
+        enable_ssl_verification: true,
+      }),
+    });
+    if (!response.ok) return null;
+    return { webhookId, webhookSecret: secret };
+  }
   return null;
 }
 

@@ -10,8 +10,15 @@
 import { logger } from '@/server/lib/logger';
 import { AppError } from '@/server/http/errors';
 import { HTTP } from '@/server/http/constants';
-import type { ScmApiService, ScmCredentials, CommitStatus, InlineReviewComment, ChangedFile } from './scm-api.service';
-import { extractFingerprintFromMarker, parsePatchToChangedLines } from './scm-api.service';
+import type { ScmApiService, ScmOAuthCredentials, CommitStatus, InlineReviewComment, ChangedFile } from './scm-api.service';
+import { extractFingerprintFromMarker, parsePatchToChangedLines, refreshOAuthToken } from './scm-api.service';
+import type { RefreshedTokens } from './scm-api.service';
+
+/** Dedup lock for concurrent token refresh per sourceControlId. */
+const refreshLocks = new Map<string, Promise<RefreshedTokens | null>>();
+
+/** Dedup lock for concurrent PR comment posts per (owner/repo/prNumber/scanId). */
+const prCommentLocks = new Map<string, Promise<'created' | 'updated'>>();
 
 /**
  * GitLab implementation of ScmApiService.
@@ -26,11 +33,80 @@ import { extractFingerprintFromMarker, parsePatchToChangedLines } from './scm-ap
 export class GitLabScmService implements ScmApiService {
   private baseUrl: string;
   private token: string;
+  private credentials: ScmOAuthCredentials;
 
-  constructor(credentials: ScmCredentials) {
+  constructor(credentials: ScmOAuthCredentials) {
     // GitLab API: https://gitlab.com/api/v4 or custom URL
     this.baseUrl = credentials.baseUrl.replace(/\/+$/, '');
     this.token = credentials.token;
+    this.credentials = credentials;
+  }
+
+  /**
+   * Fetch with automatic token refresh on 401.
+   * GitLab OAuth supports refresh_token flow.
+   */
+  private async fetchWithAuth(url: string, init: RequestInit = {}): Promise<Response> {
+    const headers = {
+      ...init.headers,
+      'PRIVATE-TOKEN': this.token,
+    };
+
+    const response = await fetch(url, { ...init, headers });
+
+    if (response.status === 401 && this.credentials.refreshToken && this.credentials.clientId && this.credentials.clientSecret) {
+      logger.scan.info('GitLab: token expired, attempting refresh', { url });
+
+      const lockKey = this.credentials.sourceControlId || 'default';
+
+      if (!refreshLocks.has(lockKey)) {
+        const refreshPromise = refreshOAuthToken('gitlab', {
+          baseUrl: this.credentials.baseUrl,
+          token: this.token,
+          clientId: this.credentials.clientId,
+          clientSecret: this.credentials.clientSecret,
+          refreshToken: this.credentials.refreshToken,
+        }).finally(() => refreshLocks.delete(lockKey));
+        refreshLocks.set(lockKey, refreshPromise);
+      }
+
+      const refreshed = await refreshLocks.get(lockKey);
+      if (refreshed) {
+        this.token = refreshed.accessToken;
+        this.credentials = {
+          ...this.credentials,
+          token: refreshed.accessToken,
+          refreshToken: refreshed.refreshToken || this.credentials.refreshToken,
+        };
+
+        // Persist new token to DB with retry
+        if (this.credentials.sourceControlId) {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const { sourceControlRepository } = await import('./source-control.repository');
+              await sourceControlRepository.update(this.credentials.sourceControlId, {
+                credentials: {
+                  ...this.credentials,
+                  tokenExpiresAt: Date.now() + (refreshed.expiresIn || 3600) * 1000,
+                },
+              });
+              break;
+            } catch (e) {
+              logger.scan.warn('GitLab: DB persist retry', { attempt: attempt + 1, error: (e as Error).message });
+            }
+          }
+        }
+
+        // Retry with new token
+        const retryHeaders = {
+          ...init.headers,
+          'PRIVATE-TOKEN': refreshed.accessToken,
+        };
+        return fetch(url, { ...init, headers: retryHeaders });
+      }
+    }
+
+    return response;
   }
 
   /**
@@ -51,11 +127,10 @@ export class GitLabScmService implements ScmApiService {
 
     logger.scan.info('GitLab: posting MR note', { owner, repo, mrIid, bodyLength: body.length });
 
-    const response = await fetch(url, {
+    const response = await this.fetchWithAuth(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'PRIVATE-TOKEN': this.token,
       },
       body: JSON.stringify({ body }),
     });
@@ -79,11 +154,7 @@ export class GitLabScmService implements ScmApiService {
 
     logger.scan.info('GitLab: finding MR note', { owner, repo, mrIid, scanId });
 
-    const response = await fetch(url, {
-      headers: {
-        'PRIVATE-TOKEN': this.token,
-      },
-    });
+    const response = await this.fetchWithAuth(url);
 
     if (!response.ok) {
       logger.scan.warn('GitLab: failed to list MR notes', { status: response.status });
@@ -114,11 +185,10 @@ export class GitLabScmService implements ScmApiService {
 
     logger.scan.info('GitLab: updating MR note', { owner, repo, mrIid, noteId, bodyLength: body.length });
 
-    const response = await fetch(url, {
+    const response = await this.fetchWithAuth(url, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'PRIVATE-TOKEN': this.token,
       },
       body: JSON.stringify({ body }),
     });
@@ -134,6 +204,7 @@ export class GitLabScmService implements ScmApiService {
 
   /**
    * Post or update a MR note (dedup by scan ID).
+   * Uses a Promise-based lock to prevent concurrent duplicate posts.
    */
   async postOrUpdatePrComment(
     owner: string,
@@ -142,15 +213,23 @@ export class GitLabScmService implements ScmApiService {
     scanId: string,
     body: string,
   ): Promise<'created' | 'updated'> {
-    const existingNoteId = await this.findPrComment(owner, repo, prNumber, scanId);
+    const lockKey = `${owner}/${repo}/${prNumber}/${scanId}`;
 
-    if (existingNoteId) {
-      await this.updatePrComment(owner, repo, prNumber, existingNoteId, body);
-      return 'updated';
+    if (!prCommentLocks.has(lockKey)) {
+      const operation = (async () => {
+        const existingNoteId = await this.findPrComment(owner, repo, prNumber, scanId);
+        if (existingNoteId) {
+          await this.updatePrComment(owner, repo, prNumber, existingNoteId, body);
+          return 'updated' as const;
+        }
+        await this.postPrComment(owner, repo, prNumber, body);
+        return 'created' as const;
+      })().finally(() => prCommentLocks.delete(lockKey));
+
+      prCommentLocks.set(lockKey, operation);
     }
 
-    await this.postPrComment(owner, repo, prNumber, body);
-    return 'created';
+    return prCommentLocks.get(lockKey)!;
   }
 
   /**
@@ -172,11 +251,10 @@ export class GitLabScmService implements ScmApiService {
 
     logger.scan.info('GitLab: creating commit status', { owner, repo, sha, status: status.status, context: status.context });
 
-    const response = await fetch(url, {
+    const response = await this.fetchWithAuth(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'PRIVATE-TOKEN': this.token,
       },
       body: JSON.stringify({
         state,
@@ -211,7 +289,7 @@ export class GitLabScmService implements ScmApiService {
 
     // Fetch MR diff_refs once (not per comment)
     const mrUrl = `${this.baseUrl}/api/v4/projects/${projectId}/merge_requests/${mrIid}`;
-    const mrResponse = await fetch(mrUrl, { headers: { 'PRIVATE-TOKEN': this.token } });
+    const mrResponse = await this.fetchWithAuth(mrUrl);
     if (!mrResponse.ok) return { created, updated: 0 };
     const mr = await mrResponse.json() as { diff_refs: { base_sha: string; head_sha: string; start_sha: string } };
     const { base_sha, head_sha, start_sha } = mr.diff_refs || {};
@@ -224,11 +302,10 @@ export class GitLabScmService implements ScmApiService {
           owner, repo, mrIid, path: comment.filePath, line: comment.lineNumber,
         });
 
-        const response = await fetch(url, {
+        const response = await this.fetchWithAuth(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'PRIVATE-TOKEN': this.token,
           },
           body: JSON.stringify({
             body: `<!-- sast-integration:inline-review:${comment.fingerprint} -->\n${comment.body}`,
@@ -277,7 +354,7 @@ export class GitLabScmService implements ScmApiService {
 
     try {
       const url = `${this.baseUrl}/api/v4/projects/${projectId}/merge_requests/${mrIid}/discussions?per_page=100`;
-      const response = await fetch(url, { headers: { 'PRIVATE-TOKEN': this.token } });
+      const response = await this.fetchWithAuth(url);
       if (!response.ok) return fingerprints;
 
       const discussions = await response.json() as Array<{
@@ -317,7 +394,7 @@ export class GitLabScmService implements ScmApiService {
 
     try {
       const url = `${this.baseUrl}/api/v4/projects/${projectId}/merge_requests/${mrIid}/discussions?per_page=100`;
-      const response = await fetch(url, { headers: { 'PRIVATE-TOKEN': this.token } });
+      const response = await this.fetchWithAuth(url);
       if (!response.ok) return { resolved: 0, failed: 0 };
 
       const discussions = await response.json() as Array<{
@@ -344,11 +421,10 @@ export class GitLabScmService implements ScmApiService {
 
         // Try to resolve the discussion
         const resolveUrl = `${this.baseUrl}/api/v4/projects/${projectId}/merge_requests/${mrIid}/discussions/${discussion.id}`;
-        const resolveResponse = await fetch(resolveUrl, {
+        const resolveResponse = await this.fetchWithAuth(resolveUrl, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'PRIVATE-TOKEN': this.token,
           },
           body: JSON.stringify({ resolved: true }),
         });
@@ -358,9 +434,8 @@ export class GitLabScmService implements ScmApiService {
           logger.scan.info('GitLab: discussion resolved', { discussionId: discussion.id, fingerprint: fp });
         } else {
           // Fallback: delete the discussion
-          const deleteResponse = await fetch(resolveUrl, {
+          const deleteResponse = await this.fetchWithAuth(resolveUrl, {
             method: 'DELETE',
-            headers: { 'PRIVATE-TOKEN': this.token },
           });
           if (deleteResponse.ok) {
             resolved++;
@@ -397,7 +472,7 @@ export class GitLabScmService implements ScmApiService {
 
     // Fetch MR diff_refs once
     const mrUrl = `${this.baseUrl}/api/v4/projects/${projectId}/merge_requests/${mrIid}`;
-    const mrResponse = await fetch(mrUrl, { headers: { 'PRIVATE-TOKEN': this.token } });
+    const mrResponse = await this.fetchWithAuth(mrUrl);
     if (!mrResponse.ok) return { updated: 0, failed: comments.length };
     const mr = await mrResponse.json() as { diff_refs: { base_sha: string; head_sha: string; start_sha: string } };
     const { base_sha, head_sha, start_sha } = mr.diff_refs || {};
@@ -410,18 +485,18 @@ export class GitLabScmService implements ScmApiService {
         if (existingDiscussionId) {
           // Resolve old discussion
           const resolveUrl = `${this.baseUrl}/api/v4/projects/${projectId}/merge_requests/${mrIid}/discussions/${existingDiscussionId}`;
-          await fetch(resolveUrl, {
+          await this.fetchWithAuth(resolveUrl, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'PRIVATE-TOKEN': this.token },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ resolved: true }),
           });
         }
 
         // Post new discussion with updated body
         const discussionUrl = `${this.baseUrl}/api/v4/projects/${projectId}/merge_requests/${mrIid}/discussions`;
-        const response = await fetch(discussionUrl, {
+        const response = await this.fetchWithAuth(discussionUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'PRIVATE-TOKEN': this.token },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             body: `<!-- sast-integration:inline-review:${c.fingerprint} -->\n${c.body}`,
             position: {
@@ -458,7 +533,7 @@ export class GitLabScmService implements ScmApiService {
     try {
       const projectId = this.getProjectId(owner, repo);
       const url = `${this.baseUrl}/api/v4/projects/${projectId}/merge_requests/${mrIid}/discussions?per_page=100`;
-      const response = await fetch(url, { headers: { 'PRIVATE-TOKEN': this.token } });
+      const response = await this.fetchWithAuth(url);
       if (!response.ok) return null;
 
       const discussions = await response.json() as Array<{
@@ -488,7 +563,7 @@ export class GitLabScmService implements ScmApiService {
 
     logger.scan.info('GitLab: getting MR changed files', { owner, repo, mrIid });
 
-    const response = await fetch(url, { headers: { 'PRIVATE-TOKEN': this.token } });
+    const response = await this.fetchWithAuth(url);
 
     if (!response.ok) {
       const errorText = await response.text();

@@ -77,7 +77,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
           logger.scan.warn('verify: inline comment update failed', { error: (err as Error).message });
         }
       }
-    }).catch(() => {});
+    }).catch((err) => {
+      logger.scan.error('verify: post-mutation side effect failed', { findingId, error: (err as Error).message });
+    });
 
     return ApiResponse.success('Verification completed', result);
   } catch (e) {

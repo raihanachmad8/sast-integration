@@ -110,7 +110,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         } catch (err) {
           logger.scan.warn('PATCH verdict: QG re-evaluation failed', { error: (err as Error).message });
         }
-      }).catch(() => {});
+      }).catch((err) => {
+        logger.scan.error('PATCH verdict: post-mutation side effect failed', { findingId, error: (err as Error).message });
+      });
     } else if (status) {
       result = await findingService.updateStatus(findingId, status, userId);
 
@@ -127,7 +129,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         } catch (err) {
           logger.scan.warn('PATCH status: QG re-evaluation failed', { error: (err as Error).message });
         }
-      }).catch(() => {});
+      }).catch((err) => {
+        logger.scan.error('PATCH status: post-mutation side effect failed', { findingId, error: (err as Error).message });
+      });
     } else if (assignedTo !== undefined) {
       result = await findingService.assign(findingId, assignedTo);
     } else {
