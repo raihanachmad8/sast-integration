@@ -2,7 +2,6 @@ import type { SetupGuide } from './SetupGuideDrawer';
 import { APP_BASE_URL } from '@/commons/constants/app';
 
 const cbUrl = (id: string) => `${APP_BASE_URL}/api/v1/source-control/callback/${id}`;
-const whUrl = (id: string) => `${APP_BASE_URL}/api/v1/source-control/webhooks/${id}`;
 
 export const GITHUB_GUIDE: SetupGuide = {
   title: 'GitHub setup',
@@ -21,13 +20,10 @@ export const GITHUB_GUIDE: SetupGuide = {
         checks: ['App name set (e.g. sast-integration)', 'Homepage URL filled in'],
       },
       {
-        label: 'Set callback & webhook URLs',
-        detail: 'Copy these values exactly into the GitHub App form.',
-        copyFields: [
-          { label: 'Callback URL', value: cbUrl('github') },
-          { label: 'Webhook URL', value: whUrl('github') },
-        ],
-        checks: ['Callback URL pasted', 'Webhook URL pasted', 'Webhook secret generated and saved'],
+        label: 'Set callback URL',
+        detail: 'Copy this value into the Callback URL field in the GitHub App form.',
+        copyFields: [{ label: 'Callback URL', value: cbUrl('github') }],
+        checks: ['Callback URL pasted'],
       },
       {
         label: 'Set required permissions',
@@ -47,7 +43,7 @@ export const GITHUB_GUIDE: SetupGuide = {
       {
         label: 'Install app to your organization',
         detail: 'Go to the App page → Install App → select your organization → All repositories or select specific repos.',
-        checks: ['App installed to organization', 'Installation ID noted (from URL after install)'],
+        checks: ['App installed to organization'],
       },
       {
         label: 'Paste credentials here',

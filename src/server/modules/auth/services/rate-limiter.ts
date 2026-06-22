@@ -2,7 +2,11 @@
  * In-memory rate limiter for auth endpoints.
  * Tracks failed attempts per key (email/IP) with sliding window.
  * Suitable for single-instance deployments (thesis scope).
+ *
+ * Disable for testing: set RATE_LIMIT_ENABLED=false in .env
  */
+
+const RATE_LIMIT_ENABLED = process.env.RATE_LIMIT_ENABLED !== 'false';
 
 const RATE_LIMIT = {
   MAX_ATTEMPTS: 5,
@@ -39,6 +43,8 @@ export const rateLimiter = {
    * @returns `null` if allowed, or `retryAfterMs` if blocked.
    */
   check(key: string): number | null {
+    if (!RATE_LIMIT_ENABLED) return null;
+
     const record = store.get(key);
     if (!record) return null;
 
@@ -67,6 +73,8 @@ export const rateLimiter = {
    * Record a failed attempt. Locks out after MAX_ATTEMPTS.
    */
   recordFailure(key: string): void {
+    if (!RATE_LIMIT_ENABLED) return;
+
     const now = Date.now();
     const record = store.get(key);
 

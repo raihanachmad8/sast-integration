@@ -56,7 +56,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     // Extract files from form data
     const files: Array<{ name: string; content: string | Buffer; size: number }> = [];
     for (const [key, value] of formData.entries()) {
-      if (value instanceof File && key.startsWith('file')) {
+      if (value instanceof File && key === 'file') {
         const buffer = Buffer.from(await value.arrayBuffer());
         files.push({ name: value.name, content: buffer, size: buffer.length });
       }

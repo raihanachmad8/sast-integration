@@ -5,6 +5,7 @@ import { Button, Typography, theme } from 'antd';
 import Link from 'next/link';
 import { GithubOutlined } from '@ant-design/icons';
 import { ROUTES } from '@/commons/constants';
+import { GITHUB_REPO_URL } from '@/commons/constants/landing';
 
 const { Text } = Typography;
 
@@ -78,16 +79,14 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
   /* ── Breakpoint listener ─────────────────────────────── */
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
-    const update = () => setIsMobile(mq.matches);
+    const update = () => {
+      setIsMobile(mq.matches);
+      if (!mq.matches) setMenuOpen(false);
+    };
     update();
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
   }, []);
-
-  /* ── Close menu on resize to desktop ────────────────── */
-  useEffect(() => {
-    if (!isMobile) setMenuOpen(false);
-  }, [isMobile]);
 
   /* ── Close menu when clicking a nav link ─────────────── */
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -184,7 +183,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           {!isMobile && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <a
-                href="https://github.com"
+                href={GITHUB_REPO_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="lp-nav-link"
@@ -300,7 +299,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
 
               {/* GitHub link */}
               <a
-                href="https://github.com"
+                href={GITHUB_REPO_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={closeMenu}

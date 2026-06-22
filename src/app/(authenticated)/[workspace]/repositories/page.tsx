@@ -2,18 +2,22 @@
 
 import { useState } from 'react';
 import { App, Modal, Select, Form, Flex, theme } from 'antd';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { useRouter } from 'next/navigation';
+import { PageHeader } from '@/commons/components/PageHeader';
 import { RepositoriesTable, RepositoryDetailDrawer } from '@/features/repositories';
 import { useProjectsQuery } from '@/modules/projects/queries';
 import { useUpdateRepositoryMutation } from '@/modules/repositories';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useTriggerScanMutation } from '@/modules/scan/queries';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import type { Repository } from '@/commons/types';
 
 export default function RepositoriesPage() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
+  const router = useRouter();
   const { workspaceId } = useWorkspace();
   const updateRepoMutation = useUpdateRepositoryMutation();
+  const triggerScanMutation = useTriggerScanMutation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selected, setSelected] = useState<Repository | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
@@ -66,6 +70,15 @@ export default function RepositoriesPage() {
         open={drawerOpen}
         onClose={() => { setDrawerOpen(false); setSelected(null); }}
         repository={selected}
+        onRunScan={(repoId) => {
+          triggerScanMutation.mutate({ repositoryId: repoId, branch: 'main', scanners: ['semgrep', 'gitleaks'] }, {
+            onSuccess: () => message.success('Scan started'),
+            onError: (_err) => message.error('Failed to start scan'),
+          });
+        }}
+        onViewHistory={(repoId) => {
+          router.push(`/${workspaceId || ''}/scans?repositoryId=${repoId}`);
+        }}
       />
 
       <Modal

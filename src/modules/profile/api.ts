@@ -29,7 +29,7 @@ export const profileApi = {
   },
 
   async changePassword(data: { currentPassword: string; newPassword: string; confirmPassword: string }) {
-    await _api.Post<ApiResponse<null>>(ENDPOINTS.AUTH.CHANGE_PASSWORD, data);
+    await _api.Put<ApiResponse<null>>(ENDPOINTS.AUTH.CHANGE_PASSWORD, data);
   },
 
   async uploadAvatar(file: File) {

@@ -2,10 +2,10 @@
 
 import { useMemo } from 'react';
 import { Typography, Flex, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { ErrorState } from '@/components/shared/ErrorState';
-import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { ErrorState } from '@/commons/components/ErrorState';
+import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useTeamsQuery } from '@/modules/teams';
 import { useProjectsQuery } from '@/modules/projects/queries';
@@ -19,7 +19,7 @@ interface TeamsTableProps {
 export function TeamsTable({ onView, onEdit }: TeamsTableProps) {
   const { token } = theme.useToken();
 
-  const { params, setPage, setPageSize, setSearch, setFilter } = useTableParams({
+  const { params, setPagination, setSearch, setFilter } = useTableParams({
     filterKeys: ['project'],
     defaultPageSize: 10,
   });
@@ -121,7 +121,7 @@ export function TeamsTable({ onView, onEdit }: TeamsTableProps) {
       onFilterRemove={(key) => setFilter(key, '')}
       actions={actions}
       emptyText="No teams found. Create your first team to group members."
-      onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+      onChange={(p, ps) => setPagination(p, ps)}
     />
   );
 }

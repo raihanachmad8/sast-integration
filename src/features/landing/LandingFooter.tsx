@@ -4,6 +4,7 @@ import { Typography, Row, Col, Flex, Space, theme } from 'antd';
 import Link from 'next/link';
 import { GithubOutlined } from '@ant-design/icons';
 import { ROUTES } from '@/commons/constants';
+import { GITHUB_REPO_URL } from '@/commons/constants/landing';
 
 const { Text } = Typography;
 
@@ -32,7 +33,6 @@ const FOOTER_LINKS = [
       { label: 'Features',        href: '#features'                   },
       { label: 'How It Works',    href: '#how-it-works'               },
       { label: 'Metrics',         href: '#metrics'                    },
-      { label: 'Changelog',       href: '/CHANGELOG.md'               },
     ],
   },
   {
@@ -41,7 +41,6 @@ const FOOTER_LINKS = [
       { label: 'Documentation',   href: ROUTES.DOCS.INDEX             },
       { label: 'Getting Started', href: ROUTES.DOCS.GETTING_STARTED   },
       { label: 'API Reference',   href: ROUTES.DOCS.API_REFERENCE     },
-      { label: 'Contributing',    href: '/CONTRIBUTING.md'            },
     ],
   },
   {
@@ -126,7 +125,7 @@ export function LandingFooter() {
               {/* Social */}
               <Flex gap={12} style={{ marginTop: 4 }}>
                 <a
-                  href="https://github.com"
+                  href={GITHUB_REPO_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="GitHub repository"
@@ -215,23 +214,18 @@ export function LandingFooter() {
             © {new Date().getFullYear()} SAST Integration. Released under the MIT License.
           </Text>
           <Space size={token.marginLG}>
-            {[
-              { label: 'Privacy',  href: '#' },
-              { label: 'Terms',    href: '#' },
-              { label: 'License',  href: '#' },
-            ].map((l) => (
-              <a
-                key={l.label}
-                href={l.href}
-                className="lp-link"
-                style={{
-                  color: 'rgba(255,255,255,0.3)',
-                  fontSize: token.fontSizeSM,
-                }}
-              >
-                {l.label}
-              </a>
-            ))}
+            <a
+              href="https://opensource.org/licenses/MIT"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="lp-link"
+              style={{
+                color: 'rgba(255,255,255,0.3)',
+                fontSize: token.fontSizeSM,
+              }}
+            >
+              MIT License
+            </a>
           </Space>
         </div>
       </div>

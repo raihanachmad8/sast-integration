@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Input, Result } from 'antd';
-import { PasswordStrength } from '@/components/shared/PasswordStrength';
+import { PasswordStrength } from '@/commons/components/PasswordStrength';
 import { useSignupMutation } from '@/modules/auth/queries';
 import { clientEnv } from '@/config/client-env';
 import { ROUTES } from '@/commons/constants';

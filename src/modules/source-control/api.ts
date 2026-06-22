@@ -17,7 +17,6 @@ const _api = Api({ baseUrl: clientEnv.apiUrl });
  * const providers = await sourceControlApi.listProviders('ws_01');
  * const repos = await sourceControlApi.listRepos('ws_01', 'sc_01');
  * await sourceControlApi.addProvider('ws_01', { name: 'GitHub', type: 'github', token: 'ghp_xxx', org: 'acme' });
- * await sourceControlApi.syncRepos('ws_01', { providerId: 'sc_01', fullNames: ['acme/backend-api'] });
  * ```
  */
 export const sourceControlApi = {
@@ -34,15 +33,21 @@ export const sourceControlApi = {
   /**
    * Fetch repositories discovered from an SCM provider with import status.
    */
-  async listRepos(workspaceId: string, providerId?: string): Promise<PaginatedResponse<RepositoryCatalog>> {
+  async listRepos(workspaceId: string, providerId?: string, params?: { page?: number; perPage?: number; search?: string }): Promise<PaginatedResponse<RepositoryCatalog>> {
     if (!providerId) {
       return { data: [], meta: { page: 1, perPage: 10, total: 0, lastPage: 1 } };
     }
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.set('page', String(params.page));
+    if (params?.perPage) queryParams.set('perPage', String(params.perPage));
+    if (params?.search) queryParams.set('search', params.search);
+    const qs = queryParams.toString();
+    const url = ENDPOINTS.SOURCE_CONTROLS.REPOS(workspaceId, providerId) + (qs ? `?${qs}` : '');
     const response = await _api.Get<ApiResponse<Array<{
       id: string; name: string; fullName: string; url: string; branch: string;
       visibility: string; imported: boolean; importId: string | null;
       repositoryId: string | null; webhookStatus: string | null;
-    }>>>(ENDPOINTS.SOURCE_CONTROLS.REPOS(workspaceId, providerId));
+    }>>>(url);
     const rows = response.data ?? [];
     const repos: RepositoryCatalog[] = rows.map((row) => ({
       id: row.id,
@@ -59,7 +64,7 @@ export const sourceControlApi = {
     }));
     return {
       data: repos,
-      meta: { page: 1, perPage: repos.length || 10, total: repos.length, lastPage: 1 },
+      meta: { page: params?.page ?? 1, perPage: params?.perPage ?? (repos.length || 10), total: repos.length, lastPage: 1 },
     };
   },
 
@@ -69,7 +74,8 @@ export const sourceControlApi = {
    * @param payload - Provider configuration.
    */
   async addProvider(workspaceId: string, payload: { provider: string; name: string; credentials?: Record<string, unknown> }): Promise<{ sourceControl: ScmProviderConnection; redirectUrl: string | null }> {
-    const response = await _api.Post<ApiResponse<{ sourceControl: ScmProviderConnection; redirectUrl: string | null }>>(ENDPOINTS.SOURCE_CONTROLS.LIST(workspaceId), payload);
+    const normalized = { ...payload, provider: payload.provider.toLowerCase() };
+    const response = await _api.Post<ApiResponse<{ sourceControl: ScmProviderConnection; redirectUrl: string | null }>>(ENDPOINTS.SOURCE_CONTROLS.LIST(workspaceId), normalized);
     return response.data;
   },
 
@@ -84,19 +90,9 @@ export const sourceControlApi = {
     return response.data;
   },
 
-  /**
-   * Sync repositories from an SCM provider.
-   * @param workspaceId - The workspace ID.
-   * @param payload - Sync configuration.
-   */
-  async syncRepos(workspaceId: string, payload: { providerId: string; fullNames: string[] }): Promise<void> {
-    await _api.Post<ApiResponse<null>>(ENDPOINTS.SOURCE_CONTROLS.SYNC(workspaceId, payload.providerId), {
-      fullNames: payload.fullNames,
-    });
-  },
-
   async updateProvider(workspaceId: string, id: string, data: Record<string, unknown>): Promise<{ redirectUrl: string | null }> {
-    const response = await _api.Patch<ApiResponse<{ redirectUrl: string | null }>>(ENDPOINTS.SOURCE_CONTROLS.DETAIL(workspaceId, id), data);
+    const normalized = { ...data, provider: data.provider ? String(data.provider).toLowerCase() : undefined };
+    const response = await _api.Patch<ApiResponse<{ redirectUrl: string | null }>>(ENDPOINTS.SOURCE_CONTROLS.DETAIL(workspaceId, id), normalized);
     return response.data;
   },
 

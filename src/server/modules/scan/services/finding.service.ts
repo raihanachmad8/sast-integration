@@ -23,9 +23,9 @@ export const findingService = {
    * Flow:
    * 1. Compute fingerprints (intra-batch dedup)
    * 2. Find/create groups (ON CONFLICT)
-   * 3. Reopen groups with status 'fixed'/'false_positive' → 'open'
+   * 3. Reopen groups with status 'resolved' → 'open'
    * 4. Insert finding records (historical)
-   * 5. Mark groups without incoming fingerprint → status='fixed'
+   * 5. Mark groups without incoming fingerprint → status='resolved'
    *
    * @returns Object with counts: new, persistent, resolved, and findings array
    */
@@ -77,7 +77,7 @@ export const findingService = {
         }
       }
 
-      // Step 1.5: Get existing groups for this scan+scanner to detect fixed findings
+      // Step 1.5: Get existing groups for this scan+scanner to detect resolved findings
       const existingGroupsForScan = inputScanners.length > 0
         ? await tx.select({ id: findingGroups.id, fingerprint: findingGroups.fingerprint })
             .from(findingGroups)
@@ -87,9 +87,8 @@ export const findingService = {
               inArray(findingGroups.fingerprint, Array.from(seenFingerprints.keys())),
             ))
         : [];
-      const existingFingerprintsBefore = new Set(existingGroupsForScan.map((g) => g.fingerprint));
 
-      // Step 2: Batch find-or-create groups (also reopens fixed/false_positive groups)
+      // Step 2: Batch find-or-create groups (also reopens resolved groups)
       const fingerprintEntries = Array.from(seenFingerprints.entries()).map(([fp, input]) => ({
         fingerprint: fp,
         title: input.rule || input.message?.slice(0, FINDING_TITLE_MESSAGE_MAX_LENGTH) || fp.substring(0, FINDING_TITLE_FINGERPRINT_MAX_LENGTH),
@@ -113,14 +112,14 @@ export const findingService = {
       }));
       const created = await findingRepository.createMany(findingsToInsert, tx);
 
-      // Step 4: Mark groups that were in previous scan but NOT in current batch → status='fixed'
+      // Step 4: Mark groups that were in previous scan but NOT in current batch → status='resolved'
       // These are groups that existed before this scan but their fingerprints are not in the incoming batch
       const incomingFingerprints = new Set(seenFingerprints.keys());
       const groupsPreviouslyExisting = existingGroupsForScan
         .filter((g) => !incomingFingerprints.has(g.fingerprint))
         .map((g) => g.id);
       if (groupsPreviouslyExisting.length > 0) {
-        await findingRepository.updateGroupsStatusBulk(groupsPreviouslyExisting, 'fixed', tx);
+        await findingRepository.updateGroupsStatusBulk(groupsPreviouslyExisting, 'resolved', tx);
       }
 
       // Build findings array with isNew flag from groupMap
@@ -171,6 +170,7 @@ export const findingService = {
           page,
           perPage: limit,
           status: filters.status,
+          onlyNew: true,
         });
         logger.scan.debug('list completed', { projectId, total: result.total });
         return result;
@@ -289,7 +289,7 @@ export const findingService = {
     logger.scan.info('updateStatus', { findingId, status });
 
     try {
-      const validStatuses = ['open', 'accepted', 'needs_review', 'fixed', 'false_positive', 'ignored'];
+      const validStatuses = ['open', 'dismissed', 'resolved'];
       if (!validStatuses.includes(status)) {
         throw new AppError(`Invalid status: ${status}. Must be one of: ${validStatuses.join(', ')}`, 400, SCAN.ERRORS.VALIDATION_ERROR);
       }
@@ -339,7 +339,7 @@ export const findingService = {
         throw new AppError('Finding has no associated group', 400, SCAN.ERRORS.VALIDATION_ERROR);
       }
 
-      const status = verdict === 'true_positive' ? 'open' : 'false_positive';
+      const status = verdict === 'true_positive' ? 'open' : 'resolved';
       const result = await findingRepository.updateGroupStatus(finding.groupId, status, userId);
       if (!result) {
         throw new AppError(SCAN.ERRORS.NOT_FOUND, 404, SCAN.ERRORS.NOT_FOUND_CODE);
@@ -355,6 +355,7 @@ export const findingService = {
       if (group?.fingerprint) {
         this.updateInlineCommentsForVerdict({
           fingerprint: group.fingerprint,
+          findingId: findingId,
           filePath: finding.filePath,
           lineNumber: finding.lineNumber,
           scanner: finding.scanner,
@@ -381,7 +382,7 @@ export const findingService = {
    * and calls SCM updateInlineReviewComments.
    */
   async updateInlineCommentsForVerdict(
-    finding: { fingerprint: string; filePath?: string | null; lineNumber?: number | null; scanner?: string | null; message?: string | null; severity?: string | null; rule?: string | null; groupId?: string | null },
+    finding: { fingerprint: string; findingId?: string; filePath?: string | null; lineNumber?: number | null; scanner?: string | null; message?: string | null; severity?: string | null; rule?: string | null; groupId?: string | null },
     verdict: string,
   ) {
     if (!finding.fingerprint) return;
@@ -449,7 +450,7 @@ export const findingService = {
           codeSnippet: null,
           aiVerdict: verdictDisplay,
           confidence: '',
-          findingId: '',
+          findingId: finding.findingId ?? '',
           fingerprint: finding.fingerprint,
         }, appBaseUrl, wsSlug);
 

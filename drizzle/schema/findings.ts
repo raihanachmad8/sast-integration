@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, integer, numeric, jsonb, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, integer, numeric, jsonb, uniqueIndex, primaryKey, boolean } from 'drizzle-orm/pg-core';
 import { users } from './users';
 import { projects } from './projects';
 import { scans } from './scans';
@@ -11,6 +11,7 @@ export const findingGroups = pgTable('finding_groups', {
   repositoryId: uuid('repository_id').references(() => repositories.id),
   fingerprint: varchar('fingerprint', { length: 64 }).notNull(),
   title: varchar('title', { length: 500 }),
+  status: varchar('status', { length: 20 }).notNull().default('open'),
   firstSeenAt: timestamp('first_seen_at').defaultNow().notNull(),
   lastSeenAt: timestamp('last_seen_at').defaultNow().notNull(),
 }, (t) => [
@@ -21,10 +22,8 @@ export const findings = pgTable('findings', {
   id: uuid('id').primaryKey().defaultRandom(),
   scanId: uuid('scan_id').notNull().references(() => scans.id),
   groupId: uuid('group_id').references(() => findingGroups.id),
-  cweId: varchar('cwe_id', { length: 20 }),
+  cweId: varchar('cwe_id', { length: 255 }),
   severity: varchar('severity', { length: 20 }).notNull(),
-  status: varchar('status', { length: 20 }).notNull().default('open'),
-  active: boolean('active').notNull().default(true),
   filePath: varchar('file_path', { length: 500 }),
   lineNumber: integer('line_number'),
   codeSnippet: text('code_snippet'),
@@ -40,7 +39,8 @@ export const findings = pgTable('findings', {
 export const aiVerifications = pgTable('ai_verifications', {
   id: uuid('id').primaryKey().defaultRandom(),
   findingId: uuid('finding_id').references(() => findings.id),
-  modelId: uuid('model_id').references(() => models.id),
+  groupId: uuid('group_id').references(() => findingGroups.id),
+  modelId: uuid('model_id').references(() => models.id, { onDelete: 'cascade' }),
   verdict: varchar('verdict', { length: 20 }).notNull(),
   confidence: numeric('confidence', { precision: 3, scale: 2 }),
   explanation: text('explanation'),
@@ -64,7 +64,23 @@ export const findingHistory = pgTable('finding_history', {
   createdBy: uuid('created_by').references(() => users.id),
 });
 
-export type FindingGroup = typeof findingGroups.$inferSelect;
+/**
+ * Junction table tracking which finding groups appeared in each scan.
+ * `isNew = true` means the group was first created in this scan
+ * (ON CONFLICT DO NOTHING did NOT match → genuinely new).
+ * `isNew = false` means the group already existed before this scan.
+ */
+export const findingGroupScans = pgTable('finding_group_scans', {
+  scanId: uuid('scan_id').notNull().references(() => scans.id),
+  groupId: uuid('group_id').notNull().references(() => findingGroups.id),
+  isNew: boolean('is_new').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.scanId, t.groupId] }),
+]);
+
+export type FindingGroupScan = typeof findingGroupScans.$inferSelect;
+export type NewFindingGroupScan = typeof findingGroupScans.$inferInsert;
 export type NewFindingGroup = typeof findingGroups.$inferInsert;
 export type Finding = typeof findings.$inferSelect;
 export type NewFinding = typeof findings.$inferInsert;
@@ -72,19 +88,3 @@ export type AiVerification = typeof aiVerifications.$inferSelect;
 export type NewAiVerification = typeof aiVerifications.$inferInsert;
 export type FindingHistory = typeof findingHistory.$inferSelect;
 export type NewFindingHistory = typeof findingHistory.$inferInsert;
-
-export const comments = pgTable('comments', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  findingId: uuid('finding_id').notNull().references(() => findings.id),
-  parentId: uuid('parent_id'),
-  content: text('content').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  createdBy: uuid('created_by').references(() => users.id),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-  updatedBy: uuid('updated_by').references(() => users.id),
-  deletedAt: timestamp('deleted_at'),
-  deletedBy: uuid('deleted_by').references(() => users.id),
-});
-
-export type Comment = typeof comments.$inferSelect;
-export type NewComment = typeof comments.$inferInsert;

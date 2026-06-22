@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Modal, Input, Select, Form, App, theme, Flex, Typography, Tooltip } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
 import { MODAL_WIDTH } from '@/commons/constants/layout';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { PROVIDERS, ROLE_OPTIONS, PROFILE_TYPE_OPTIONS } from './providers';
 import { updateAiModelSchema } from '@/commons/schemas/ai-model.schema';
 import { createZodSync } from '@/lib/utils/zod-sync';
@@ -32,7 +32,7 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const [form] = Form.useForm();
-  const [selectedProvider, setSelectedProvider] = useState<string>(model?.provider ?? 'openai-compatible');
+  const selectedProvider = Form.useWatch('provider', form) ?? model?.provider ?? 'openai-compatible';
   const [fetchingModels, setFetchingModels] = useState(false);
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
   const rule = createZodSync(updateAiModelSchema);
@@ -45,20 +45,7 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
     return merged.map(m => ({ value: m, label: m }));
   }, [providerConfig, fetchedModels]);
 
-  useEffect(() => {
-    if (open && model) {
-      setSelectedProvider(model.provider);
-      setFetchedModels([]);
-      form.setFieldsValue({ name: model.name, provider: model.provider, baseUrl: model.baseUrl, role: model.role, promptPreset: model.promptPreset ?? 'strict' });
-    } else if (open) {
-      form.resetFields();
-      setSelectedProvider('openai-compatible');
-      setFetchedModels([]);
-    }
-  }, [open, model, form]);
-
   const handleProviderChange = (value: string) => {
-    setSelectedProvider(value);
     setFetchedModels([]);
     const config = PROVIDERS.find(p => p.value === value);
     if (config) {
@@ -67,10 +54,13 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
   };
 
   const handleFetchModels = useCallback(async () => {
-    const baseUrl = form.getFieldValue('baseUrl');
+    let baseUrl = form.getFieldValue('baseUrl');
     if (!baseUrl) {
       message.warning('Enter a Base URL first');
       return;
+    }
+    if (!/^https?:\/\//i.test(baseUrl)) {
+      baseUrl = `http://${baseUrl}`;
     }
     const modelsUrl = baseUrl.endsWith('/v1') ? `${baseUrl}/models` : `${baseUrl}/v1/models`;
     setFetchingModels(true);
@@ -94,6 +84,10 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
 
   const handleSave = () => {
     form.validateFields().then((values) => {
+      // Ensure baseUrl has a protocol prefix
+      if (values.baseUrl && !/^https?:\/\//i.test(values.baseUrl)) {
+        values.baseUrl = `http://${values.baseUrl}`;
+      }
       onSave(values);
       onClose();
     });
@@ -103,12 +97,13 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
     <Modal
       title="Edit model"
       open={open}
+      destroyOnHidden
       onOk={handleSave}
       onCancel={onClose}
       okText="Save"
       width={MODAL_WIDTH.MD}
     >
-      <Form form={form} layout="vertical">
+      <Form form={form} layout="vertical" initialValues={{ name: model?.name ?? '', provider: model?.provider ?? 'openai-compatible', baseUrl: model?.baseUrl ?? '', role: model?.role ?? 'fallback', promptPreset: model?.promptPreset ?? 'strict' }}>
         <Flex vertical gap={token.paddingMD} style={{ padding: `${token.paddingSM} 0` }}>
 
           {/* Provider */}
@@ -203,7 +198,7 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
           </Form.Item>
 
           {/* Profile type */}
-          <Form.Item label="Profile type" name="promptPreset" initialValue="strict" rules={[rule]}>
+          <Form.Item label="Profile type" name="promptPreset" rules={[rule]}>
             <Select options={PROFILE_TYPE_OPTIONS} />
           </Form.Item>
 

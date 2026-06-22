@@ -11,6 +11,7 @@ import { schedules } from '@drizzle/schema/scans';
 import { logger } from '@/server/lib/logger';
 import { projectRepository } from '@/server/modules/project/repositories/project.repository';
 import { scanRepository } from '../repositories/scan.repository';
+import { resolveCodeContextsBatch } from './source-context';
 import { AppError } from '@/server/http/errors';
 import {
   QUEUE_JOB_NAMES,
@@ -338,9 +339,16 @@ export const managedScanService = {
 
       // Check if all scanners failed
       const completed = executionResults.filter(r => r.status === 'completed');
+      const skipped = executionResults.filter(r => r.status === 'skipped');
       if (completed.length === 0 && executionResults.length > 0) {
+        if (skipped.length === executionResults.length) {
+          // All scanners were unavailable — complete with 0 findings
+          await scanRepository.tryCompleteScan(data.scanId);
+          await scanRepository.appendProgressEvent(data.scanId, { id: randomUUID(), type: 'completed', description: 'All scanners unavailable — no findings', timestamp: new Date().toISOString() });
+          return { scanId: data.scanId, status: 'completed' as const, executionResults };
+        }
         const summary = executionResults.map(r => `${r.scanner}(${r.status})`).join(', ');
-        throw new AppError(`All scanners failed or were unavailable: ${summary}`, 500, 'SCANNERS_FAILED');
+        throw new AppError(`All scanners failed: ${summary}`, 500, 'SCANNERS_FAILED');
       }
 
       // Collect source context and code contexts BEFORE enqueuing parse jobs
@@ -459,8 +467,6 @@ async function collectAndStoreContexts(
   storage: Awaited<ReturnType<typeof getStorageDriver>>,
 ) {
   try {
-    const { resolveCodeContextsBatch } = await import('./source-context');
-
     // Extract finding locations from all scanner outputs
     const allLocations: FindingLocation[] = [];
     for (const result of executionResults) {
@@ -541,7 +547,7 @@ async function runScanner(scanner: ScannerId, targetDir: string, timeoutSeconds:
     if (textScanners.includes(scanner)) {
       const stderr = typeof err.stderr === 'string' ? err.stderr : String(err.stderr || '');
       const stdout = typeof err.stdout === 'string' ? err.stdout : String(err.stdout || '');
-      const output = stdout || stderr;
+      const output = stderr || stdout;
       if (output.length > 0) return { format: config.format, content: output };
     }
 

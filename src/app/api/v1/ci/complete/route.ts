@@ -47,11 +47,13 @@ import { ApiResponse } from '@/server/http/response';
 import { authenticateCiCd } from '@/server/modules/scan/ci-cd-auth';
 import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
 import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
+import { aiVerificationRepository } from '@/server/modules/scan/repositories/ai-verification.repository';
 import { qualityGateService } from '@/server/modules/scan/services/quality-gate.service';
 import { qualityGateRepository } from '@/server/modules/scan/repositories/quality-gate.repository';
 import { createScmApiService, parseRepoName, buildPrComment, buildInlineReviewComment } from '@/server/modules/source-control/scm-api.service';
 import type { InlineReviewComment } from '@/server/modules/source-control/scm-api.service';
 import { repositoriesRepository } from '@/server/modules/repositories/repositories.repository';
+import { enqueue } from '@/server/modules/queue/queue.service';
 import { sourceControls } from '@drizzle/schema/source-controls';
 import { workspaces } from '@drizzle/schema/workspaces';
 import { db } from '@/server/db/client';
@@ -116,15 +118,79 @@ export async function POST(request: NextRequest) {
 
     // 4. Evaluate quality gate
     let gateResult = null;
-    if (scan.prNumber && scan.baseBranch && scan.headBranch && scan.repositoryId) {
+    const hasPrFields = !!(scan.prNumber && scan.baseBranch && scan.headBranch && scan.repositoryId);
+    logger.scan.info('CI/CD: evaluating quality gate', {
+      scanId,
+      hasPrFields,
+      prNumber: scan.prNumber,
+      hasBaseBranch: !!scan.baseBranch,
+      hasHeadBranch: !!scan.headBranch,
+      hasRepositoryId: !!scan.repositoryId,
+      hasProjectId: !!projectId,
+      willCallEvaluatePrScan: hasPrFields,
+      willCallEvaluateScan: !hasPrFields && !!projectId,
+    });
+
+    if (hasPrFields) {
       gateResult = await qualityGateService.evaluatePrScan(
-        scanId, workspaceId, scan.repositoryId, scan.headBranch, scan.baseBranch,
+        scanId, workspaceId, scan.repositoryId!, scan.headBranch!, scan.baseBranch!,
       );
     } else if (projectId) {
       gateResult = await qualityGateService.evaluateScan(scanId, workspaceId, projectId);
     }
 
-    logger.scan.info('CI/CD scan completed', { scanId, status, gateStatus: gateResult?.status });
+    logger.scan.info('CI/CD scan completed', {
+      scanId,
+      status,
+      gateStatus: gateResult?.status,
+      hasNewFindingsData: !!(gateResult as { newFindingsData?: unknown[] })?.newFindingsData,
+      newFindingsDataLength: Array.isArray((gateResult as { newFindingsData?: unknown[] })?.newFindingsData)
+        ? ((gateResult as { newFindingsData?: unknown[] })?.newFindingsData as unknown[]).length
+        : 'N/A',
+    });
+
+    // 4b. Queue AI verification ONLY for NEW findings (on changed lines)
+    if (scan.prNumber && scan.repositoryId && gateResult) {
+      try {
+        const newFindingsData = (gateResult as { newFindingsData?: Array<{ id?: string; groupId?: string | null }> }).newFindingsData ?? [];
+        const model = await aiVerificationRepository.getPrimaryModel();
+
+        if (model && newFindingsData.length > 0) {
+          // Skip groups that already have verification
+          const groupIds = [...new Set(newFindingsData.map((f) => f.groupId).filter(Boolean))] as string[];
+          const verifiedGroupIds = new Set<string>();
+          if (groupIds.length > 0) {
+            const verifiedGroups = await aiVerificationRepository.hasVerificationBatch(groupIds);
+            verifiedGroups.forEach((id) => verifiedGroupIds.add(id));
+          }
+
+          const toVerify = newFindingsData.filter((f) => {
+            if (!f.id) return false;
+            if (!f.groupId) return true;
+            return !verifiedGroupIds.has(f.groupId);
+          });
+
+          for (const finding of toVerify) {
+            if (!finding.id) continue;
+            await enqueue('ai-verify-finding', {
+              findingId: finding.id,
+              scanId,
+              modelId: model.id,
+              workspaceId,
+            }, { retryLimit: 5, retryDelay: 30 });
+          }
+
+          logger.scan.info('CI/CD complete: AI verification enqueued', {
+            scanId,
+            totalNew: newFindingsData.length,
+            toVerify: toVerify.length,
+            skippedGroups: verifiedGroupIds.size,
+          });
+        }
+      } catch (err) {
+        logger.scan.error('CI/CD complete: AI verification enqueue failed (non-critical)', { scanId, error: (err as Error).message });
+      }
+    }
 
     // 5. Auto-post PR comment + commit status (if PR scan)
     let prCommentResult = null;
@@ -133,9 +199,16 @@ export async function POST(request: NextRequest) {
 
     if (scan.prNumber && scan.headBranch && scan.baseBranch && scan.repositoryId) {
       try {
+        const precomputedData = (gateResult as { newFindingsData?: unknown[] })?.newFindingsData;
+        logger.scan.info('CI/CD: calling postPrCommentAndCommitStatus', {
+          scanId,
+          hasPrecomputedData: precomputedData !== undefined && precomputedData !== null,
+          precomputedDataLength: Array.isArray(precomputedData) ? precomputedData.length : 'N/A',
+        });
+
         const scmResult = await postPrCommentAndCommitStatus(
           scanId, workspaceId, scan, gateResult,
-          (gateResult as { newFindingsData?: unknown[] })?.newFindingsData,
+          precomputedData,
         );
         prCommentResult = scmResult.prComment;
         commitStatusResult = scmResult.commitStatus;
@@ -222,7 +295,16 @@ async function postPrCommentAndCommitStatus(
   let inlineCommentsResult = null;
   try {
     // Use precomputed findings from quality gate, or fallback to fresh query
-    const diffData = precomputedFindings && precomputedFindings.length > 0
+    const isPrecomputed = precomputedFindings !== undefined && precomputedFindings !== null;
+    logger.scan.info('CI/CD: postPrComment precomputed check', {
+      scanId,
+      isPrecomputed,
+      precomputedType: typeof precomputedFindings,
+      precomputedLength: Array.isArray(precomputedFindings) ? precomputedFindings.length : 'N/A',
+      willUseFallback: !isPrecomputed,
+    });
+
+    const diffData = isPrecomputed
       ? precomputedFindings
       : (await findingRepository.diffNewFindings(
           scan.repositoryId!, scan.headBranch!, scan.baseBranch!, {}, { page: 1, perPage: 1000 },
@@ -244,12 +326,6 @@ async function postPrCommentAndCommitStatus(
         fingerprint: rec.fingerprint as string,
       };
     });
-
-    // Normalize filePath and deduplicate by normalized filePath + lineNumber
-    const normalizePath = (p: string) => {
-      const m = p.match(/^\/workspace\/[^/]+\/[^/]+\/(.+)$/);
-      return m ? m[1] : p;
-    };
 
     // Dedup by fingerprint — each unique finding = 1 inline comment
     const seenFingerprints = new Set<string>();
@@ -284,7 +360,7 @@ async function postPrCommentAndCommitStatus(
     // Post inline review comments for ALL new findings
     const inlineFindings = uniqueFindings;
 
-    // Resolve inline comments for fixed findings (close/resolve threads)
+    // Resolve inline comments for resolved findings (close/resolve threads)
     try {
       // Use fixedFingerprints from branch comparison (previous scan vs current scan)
       const fixedFingerprints = (gateResult as { fixedFingerprints?: string[] })?.fixedFingerprints;
@@ -293,12 +369,12 @@ async function postPrCommentAndCommitStatus(
         const resolveResult = await scm.resolveInlineReviewComments(
           owner, repo, scan.prNumber, fixedFingerprints,
         );
-        logger.scan.info('CI/CD: resolved fixed finding threads', {
+        logger.scan.info('CI/CD: resolved finding threads', {
           scanId, resolved: resolveResult.resolved, failed: resolveResult.failed,
         });
       }
     } catch (err) {
-      logger.scan.warn('CI/CD: resolve fixed threads failed (non-critical)', { scanId, error: (err as Error).message });
+      logger.scan.warn('CI/CD: resolve threads failed (non-critical)', { scanId, error: (err as Error).message });
     }
 
     // Post new inline comments (skip findings that already have comments)

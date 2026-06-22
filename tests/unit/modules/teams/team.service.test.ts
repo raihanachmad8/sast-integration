@@ -53,6 +53,9 @@ const { teamService } = await import('@/server/modules/teams/services/team.servi
 describe('teamService.list', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  /**
+   * Purpose: Validates that teams are returned when the user is a workspace member
+   */
   it('should return teams when user is a workspace member', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.listByWorkspaceWithSummaries.mockResolvedValue([
@@ -65,6 +68,9 @@ describe('teamService.list', () => {
     expect(mockTeamRepo.listByWorkspaceWithSummaries).toHaveBeenCalledWith('ws-1');
   });
 
+  /**
+   * Purpose: Validates that non-members cannot list teams
+   */
   it('should throw NOT_MEMBER when user is not in the workspace', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
 
@@ -77,6 +83,9 @@ describe('teamService.list', () => {
 describe('teamService.getById', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  /**
+   * Purpose: Validates that a team is returned when the user is a member and the team belongs to the workspace
+   */
   it('should return team when user is a member and team exists in workspace', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1', name: 'Security' });
@@ -86,6 +95,9 @@ describe('teamService.getById', () => {
     expect(result.id).toBe('team-1');
   });
 
+  /**
+   * Purpose: Validates that non-members cannot get team details
+   */
   it('should throw NOT_MEMBER when user is not in the workspace', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
 
@@ -94,6 +106,9 @@ describe('teamService.getById', () => {
     ).rejects.toThrow(TEAM.ERRORS.NOT_MEMBER);
   });
 
+  /**
+   * Purpose: Validates that NOT_FOUND is thrown when the team does not exist in the workspace
+   */
   it('should throw NOT_FOUND when team does not exist', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue(null);
@@ -103,6 +118,9 @@ describe('teamService.getById', () => {
     ).rejects.toThrow(TEAM.ERRORS.NOT_FOUND);
   });
 
+  /**
+   * Purpose: Validates that a team belonging to a different workspace cannot be accessed
+   */
   it('should throw NOT_FOUND when team belongs to a different workspace', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-other' });
@@ -116,6 +134,9 @@ describe('teamService.getById', () => {
 describe('teamService.create', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  /**
+   * Purpose: Validates that a team is created with a generated slug when not provided
+   */
   it('should create a team with generated slug when slug not provided', async () => {
     mockTeamRepo.findBySlug.mockResolvedValue(null);
     mockTeamRepo.create.mockResolvedValue({ id: 'team-1', name: 'Security Team', slug: 'security-team' });
@@ -126,6 +147,9 @@ describe('teamService.create', () => {
     expect(mockTeamRepo.create).toHaveBeenCalled();
   });
 
+  /**
+   * Purpose: Validates that SLUG_CONFLICT is thrown when the slug already exists in the workspace
+   */
   it('should throw SLUG_CONFLICT when slug already exists in workspace', async () => {
     mockTeamRepo.findBySlug.mockResolvedValue({ id: 'existing-team' });
 
@@ -134,6 +158,9 @@ describe('teamService.create', () => {
     ).rejects.toThrow(TEAM.ERRORS.SLUG_CONFLICT);
   });
 
+  /**
+   * Purpose: Validates that a team can be created with initial member assignments
+   */
   it('should create team with members when memberIds provided', async () => {
     mockTeamRepo.findBySlug.mockResolvedValue(null);
     mockWorkspaceRepo.findMemberUserIds.mockResolvedValue(['user-1', 'user-2']);
@@ -145,6 +172,9 @@ describe('teamService.create', () => {
     expect(mockTeamRepo.setMembers).toHaveBeenCalledWith('team-1', ['user-1', 'user-2'], expect.anything());
   });
 
+  /**
+   * Purpose: Validates that team creation fails when member IDs include non-workspace users
+   */
   it('should throw when memberIds contain users not in workspace', async () => {
     mockTeamRepo.findBySlug.mockResolvedValue(null);
     mockWorkspaceRepo.findMemberUserIds.mockResolvedValue(['user-1']);
@@ -159,6 +189,9 @@ describe('teamService.create', () => {
 describe('teamService.update', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  /**
+   * Purpose: Validates that team metadata can be updated successfully by a member
+   */
   it('should update team metadata successfully', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1', slug: 'old-slug' });
@@ -169,6 +202,9 @@ describe('teamService.update', () => {
     expect(result.name).toBe('Updated Team');
   });
 
+  /**
+   * Purpose: Validates that non-members cannot update team details
+   */
   it('should throw NOT_MEMBER when user is not in workspace', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
 
@@ -177,6 +213,9 @@ describe('teamService.update', () => {
     ).rejects.toThrow(TEAM.ERRORS.NOT_MEMBER);
   });
 
+  /**
+   * Purpose: Validates that updating a nonexistent team throws NOT_FOUND
+   */
   it('should throw NOT_FOUND when team does not exist', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue(null);
@@ -186,6 +225,9 @@ describe('teamService.update', () => {
     ).rejects.toThrow(TEAM.ERRORS.NOT_FOUND);
   });
 
+  /**
+   * Purpose: Validates that SLUG_CONFLICT is thrown when updating to an existing slug
+   */
   it('should throw SLUG_CONFLICT when updating to an existing slug', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1', slug: 'old-slug' });
@@ -196,6 +238,9 @@ describe('teamService.update', () => {
     ).rejects.toThrow(TEAM.ERRORS.SLUG_CONFLICT);
   });
 
+  /**
+   * Purpose: Validates that keeping the same slug does not trigger a conflict check
+   */
   it('should not throw SLUG_CONFLICT when slug remains unchanged', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1', slug: 'same-slug' });
@@ -206,6 +251,9 @@ describe('teamService.update', () => {
     expect(mockTeamRepo.findBySlug).not.toHaveBeenCalled();
   });
 
+  /**
+   * Purpose: Validates that team members can be updated via the update operation
+   */
   it('should update team members when memberIds provided', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1', slug: 'team' });
@@ -222,6 +270,9 @@ describe('teamService.update', () => {
 describe('teamService.softDelete', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  /**
+   * Purpose: Validates that a team can be soft deleted successfully
+   */
   it('should soft delete a team successfully', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1' });
@@ -232,6 +283,9 @@ describe('teamService.softDelete', () => {
     expect(mockTeamRepo.softDelete).toHaveBeenCalledWith('team-1', 'user-1');
   });
 
+  /**
+   * Purpose: Validates that non-members cannot delete teams
+   */
   it('should throw NOT_MEMBER when user is not in workspace', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
 
@@ -240,6 +294,9 @@ describe('teamService.softDelete', () => {
     ).rejects.toThrow(TEAM.ERRORS.NOT_MEMBER);
   });
 
+  /**
+   * Purpose: Validates that soft deleting a nonexistent team throws NOT_FOUND
+   */
   it('should throw NOT_FOUND when team does not exist', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue(null);
@@ -253,6 +310,9 @@ describe('teamService.softDelete', () => {
 describe('teamService.listMembers', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  /**
+   * Purpose: Validates that team members are returned when the user has access
+   */
   it('should return team members when user has access', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1' });
@@ -265,6 +325,9 @@ describe('teamService.listMembers', () => {
     expect(result).toHaveLength(1);
   });
 
+  /**
+   * Purpose: Validates that non-members cannot list team members
+   */
   it('should throw NOT_MEMBER when user is not in workspace', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
 
@@ -273,6 +336,9 @@ describe('teamService.listMembers', () => {
     ).rejects.toThrow(TEAM.ERRORS.NOT_MEMBER);
   });
 
+  /**
+   * Purpose: Validates that listing members of a nonexistent team throws NOT_FOUND
+   */
   it('should throw NOT_FOUND when team does not exist', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue(null);
@@ -286,6 +352,9 @@ describe('teamService.listMembers', () => {
 describe('teamService.addMember', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  /**
+   * Purpose: Validates that a workspace member can be added to a team
+   */
   it('should add a member to a team successfully', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1' });
@@ -297,6 +366,9 @@ describe('teamService.addMember', () => {
     expect(mockTeamRepo.addMember).toHaveBeenCalledWith('team-1', 'user-2', 'contributor');
   });
 
+  /**
+   * Purpose: Validates that non-members cannot add team members
+   */
   it('should throw NOT_MEMBER when actor is not in workspace', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
 
@@ -305,6 +377,9 @@ describe('teamService.addMember', () => {
     ).rejects.toThrow(TEAM.ERRORS.NOT_MEMBER);
   });
 
+  /**
+   * Purpose: Validates that only workspace members can be added to teams
+   */
   it('should throw when target user is not in workspace', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1' });
@@ -315,6 +390,9 @@ describe('teamService.addMember', () => {
     ).rejects.toThrow('Team members must belong to this workspace');
   });
 
+  /**
+   * Purpose: Validates that the default member role is contributor when not specified
+   */
   it('should default role to contributor when not specified', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1' });
@@ -330,6 +408,9 @@ describe('teamService.addMember', () => {
 describe('teamService.removeMember', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  /**
+   * Purpose: Validates that a member can be removed from a team
+   */
   it('should remove a member from a team successfully', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1' });
@@ -339,6 +420,9 @@ describe('teamService.removeMember', () => {
     expect(mockTeamRepo.removeMember).toHaveBeenCalledWith('team-1', 'user-2');
   });
 
+  /**
+   * Purpose: Validates that non-members cannot remove team members
+   */
   it('should throw NOT_MEMBER when actor is not in workspace', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
 
@@ -347,6 +431,9 @@ describe('teamService.removeMember', () => {
     ).rejects.toThrow(TEAM.ERRORS.NOT_MEMBER);
   });
 
+  /**
+   * Purpose: Validates that removing a member from a nonexistent team throws NOT_FOUND
+   */
   it('should throw NOT_FOUND when team does not exist', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockTeamRepo.findById.mockResolvedValue(null);
@@ -358,21 +445,33 @@ describe('teamService.removeMember', () => {
 });
 
 describe('teamService.generateSlug', () => {
+  /**
+   * Purpose: Validates that team names are converted to lowercase slug format with hyphens
+   */
   it('should generate a lowercase slug with hyphens', () => {
     const slug = teamService.generateSlug('Security Team');
     expect(slug).toBe('security-team');
   });
 
+  /**
+   * Purpose: Validates that special characters are stripped from slug generation
+   */
   it('should remove special characters', () => {
     const slug = teamService.generateSlug('DevOps & SRE!');
     expect(slug).toBe('devops-sre');
   });
 
+  /**
+   * Purpose: Validates that multiple consecutive spaces are collapsed to single hyphens
+   */
   it('should collapse multiple hyphens', () => {
     const slug = teamService.generateSlug('A   B   C');
     expect(slug).toBe('a-b-c');
   });
 
+  /**
+   * Purpose: Validates that slugs are truncated to the maximum allowed length
+   */
   it('should truncate to max slug length', () => {
     const longName = 'a'.repeat(300);
     const slug = teamService.generateSlug(longName);

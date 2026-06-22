@@ -1,9 +1,9 @@
 'use client';
 
-import { Card, Button, Flex, Form, Input, Row, Col, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { useSessionsQuery } from '@/modules/profile';
+import { Card, Button, Flex, Form, Input, Row, Col, App, Typography, theme } from 'antd';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { useSessionsQuery, useAuditLogQuery } from '@/modules/profile';
 
 interface SecurityTabProps {
   isPasswordPending: boolean;
@@ -15,6 +15,7 @@ interface SecurityTabProps {
 export function SecurityTab({ isPasswordPending, onPasswordChange, onRevokeSession, onConfirmRevoke }: SecurityTabProps) {
   const { token } = theme.useToken();
   const sessionsQuery = useSessionsQuery();
+  const auditLogQuery = useAuditLogQuery();
 
   return (
     <Flex vertical gap={token.paddingXL}>
@@ -27,30 +28,26 @@ export function SecurityTab({ isPasswordPending, onPasswordChange, onRevokeSessi
       <Card styles={{ body: { padding: 0 } }}>
         <div style={{ padding: `${token.paddingMD}px ${token.paddingLG}px`, borderBottom: `1px solid ${token.colorBorderSecondary}`, fontWeight: token.fontWeightStrong }}>Security audit log</div>
         <Flex vertical>
-          <div style={{ padding: token.paddingLG, textAlign: 'center', color: token.colorTextSecondary }}>No audit log entries</div>
+          {auditLogQuery.isLoading ? (
+            <div style={{ padding: token.paddingLG, textAlign: 'center', color: token.colorTextSecondary }}>Loading audit log...</div>
+          ) : (auditLogQuery.data?.logs ?? []).length === 0 ? (
+            <div style={{ padding: token.paddingLG, textAlign: 'center', color: token.colorTextSecondary }}>No audit log entries</div>
+          ) : (auditLogQuery.data?.logs ?? []).slice(0, 10).map((entry, i, arr) => (
+            <Flex key={entry.id} justify="space-between" align="center" style={{ padding: `${token.paddingSM}px ${token.paddingLG}px`, borderBottom: i < arr.length - 1 ? `1px solid ${token.colorBorderSecondary}` : undefined }}>
+              <Flex align="center" gap={token.marginSM}>
+                <FaIcon icon="fa-clock-rotate-left" style={{ color: token.colorTextSecondary }} />
+                <div>
+                  <Typography.Text strong style={{ fontSize: token.fontSizeSM }}>{entry.action}</Typography.Text>
+                  {entry.details && <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>{entry.details}</Typography.Text>}
+                </div>
+              </Flex>
+              <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{new Date(entry.timestamp).toLocaleString()}</Typography.Text>
+            </Flex>
+          ))}
         </Flex>
       </Card>
 
       <MfaSection />
-
-      <Card title="Security alerts">
-        <Flex vertical gap={token.marginMD}>
-          <Flex gap={token.marginSM}>
-            <FaIcon icon="fa-triangle-exclamation" style={{ color: token.colorWarning, marginTop: 2 }} />
-            <div>
-              <div style={{ fontWeight: token.fontWeightStrong }}>Failed login attempt</div>
-              <div style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}>From 198.51.100.7 · 2 days ago</div>
-            </div>
-          </Flex>
-          <Flex gap={token.marginSM}>
-            <FaIcon icon="fa-circle-info" style={{ color: token.colorInfo, marginTop: 2 }} />
-            <div>
-              <div style={{ fontWeight: token.fontWeightStrong }}>New device sign-in</div>
-              <div style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}>WSL Dev Browser · Today 08:50</div>
-            </div>
-          </Flex>
-        </Flex>
-      </Card>
 
       <PasswordChangeForm isPending={isPasswordPending} onPasswordChange={onPasswordChange} />
     </Flex>
@@ -84,6 +81,7 @@ function SessionList({ sessionsQuery, onRevokeSession, onConfirmRevoke }: { sess
 
 function MfaSection() {
   const { token } = theme.useToken();
+  const { message } = App.useApp();
 
   return (
     <Card title="Multi-factor authentication">
@@ -94,7 +92,7 @@ function MfaSection() {
         </div>
         <StatusPill variant="red">Not set up</StatusPill>
       </Flex>
-      <Button type="primary" block onClick={() => {}}>
+      <Button type="primary" block disabled onClick={() => message.info('MFA setup coming soon')}>
         <FaIcon icon="fa-shield-halved" /> Set up MFA
       </Button>
     </Card>
@@ -120,7 +118,21 @@ function PasswordChangeForm({ isPending, onPasswordChange }: { isPending: boolea
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}>
-            <Form.Item label="Confirm new password" name="confirmPassword" rules={[{ required: true, message: 'Please confirm password' }]}>
+            <Form.Item
+              label="Confirm new password"
+              name="confirmPassword"
+              rules={[
+                { required: true, message: 'Please confirm password' },
+                ({ getFieldValue }) => ({
+                  validator(_, value) {
+                    if (!value || getFieldValue('newPassword') === value) {
+                      return Promise.resolve();
+                    }
+                    return Promise.reject(new Error('Passwords do not match'));
+                  },
+                }),
+              ]}
+            >
               <Input.Password placeholder="Repeat new password" />
             </Form.Item>
           </Col>

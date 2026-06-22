@@ -1,5 +1,7 @@
 import { type NewFinding } from '@drizzle/schema/findings';
 import { logger } from '@/server/lib/logger';
+import { normalizeFilePath } from './path-normalizer';
+import type { ParseResult } from './index';
 
 /**
  * Flawfinder parser — converts Flawfinder output into normalized findings.
@@ -60,7 +62,7 @@ export function parseFlawfinder(
   textContent: string | Buffer,
   scanId: string,
   scanner: string = 'flawfinder'
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const text = typeof textContent === 'string' ? textContent : textContent.toString('utf8');
 
   logger.scan.debug('parseFlawfinder input', { length: text.length, first100: text.substring(0, 100) });
@@ -92,7 +94,7 @@ function parseFlawfinderText(
   text: string,
   scanId: string,
   scanner: string
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const findings: NewFinding[] = [];
   const severityCount: Record<string, number> = {
     critical: 0, high: 0, medium: 0, low: 0, info: 0,
@@ -120,13 +122,10 @@ function parseFlawfinderText(
       scanner,
       rule: rule.trim(),
       severity,
-      filePath: filePath.trim(),
+      filePath: normalizeFilePath(filePath.trim()),
       lineNumber: line,
       message: message.trim(),
       description: `${category}: ${message.trim()}`,
-      status: 'open',
-      createdAt: new Date(),
-      updatedAt: new Date(),
     });
   }
 
@@ -141,7 +140,7 @@ function parseFlawfinderSarif(
   sarif: Record<string, unknown>,
   scanId: string,
   scanner: string
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const findings: NewFinding[] = [];
   const severityCount: Record<string, number> = {
     critical: 0, high: 0, medium: 0, low: 0, info: 0,
@@ -178,14 +177,11 @@ function parseFlawfinderSarif(
       scanner,
       rule: ruleId,
       severity,
-      filePath: filePath,
+      filePath: normalizeFilePath(filePath),
       lineNumber: line,
       message: message,
       description: message,
       codeSnippet: codeSnippet,
-      status: 'open',
-      createdAt: new Date(),
-      updatedAt: new Date(),
     });
   }
 

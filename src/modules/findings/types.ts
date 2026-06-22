@@ -10,6 +10,9 @@ export interface FindingListParams {
   severity?: Severity;
   verdict?: AiVerdict;
   status?: FindingStatus;
+  projectId?: string;
+  repositoryId?: string;
+  scanId?: string;
   sort?: string;
   order?: 'ASC' | 'DESC';
 }
@@ -53,7 +56,7 @@ export interface AssignFindingPayload {
  * ```ts
  * const payload: UpdateFindingStatusPayload = {
  *   findingId: 'f-1',
- *   status: 'accepted',
+ *   status: 'resolved',
  * };
  * ```
  */

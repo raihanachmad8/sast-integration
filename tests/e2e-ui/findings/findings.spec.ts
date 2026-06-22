@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 import { signInAndOpenWorkspace } from '../auth/helpers';
 
 test.describe('Findings Page', () => {
+  /**
+   * Purpose: Verify that the findings page loads without crashing and does not show a server error.
+   */
   test('should render findings page', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     // Wait for the workspace page to fully load before navigating
@@ -13,6 +16,9 @@ test.describe('Findings Page', () => {
     await expect(page.locator('text=Internal Server Error')).toHaveCount(0);
   });
 
+  /**
+   * Purpose: Verify that the findings page shows either a findings table, an empty state, or a scan button.
+   */
   test('should show findings table or empty state', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
@@ -27,6 +33,9 @@ test.describe('Findings Page', () => {
     expect(hasTable > 0 || hasEmptyState > 0 || hasScanButton > 0).toBe(true);
   });
 
+  /**
+   * Purpose: Verify that a severity filter option is visible on the findings page for filtering results.
+   */
   test('should have severity filter options', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
@@ -38,6 +47,9 @@ test.describe('Findings Page', () => {
     await expect(severityFilter.first()).toBeVisible({ timeout: 10000 });
   });
 
+  /**
+   * Purpose: Verify that a status filter option is visible on the findings page for filtering results.
+   */
   test('should have status filter options', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
@@ -64,7 +76,7 @@ test.describe('Findings Page', () => {
       if (route.request().method() === 'PATCH') {
         route.fulfill({
           status: 200,
-          body: JSON.stringify({ success: true, data: { id: 'finding-1', status: 'accepted' } }),
+          body: JSON.stringify({ success: true, data: { id: 'finding-1', status: 'resolved' } }),
         });
       } else {
         route.continue();
@@ -102,7 +114,7 @@ test.describe('Findings Page', () => {
       if (route.request().method() === 'PATCH') {
         route.fulfill({
           status: 200,
-          body: JSON.stringify({ success: true, data: { id: 'finding-1', status: 'false_positive', verdict: 'FP' } }),
+          body: JSON.stringify({ success: true, data: { id: 'finding-1', status: 'resolved', verdict: 'FP' } }),
         });
       } else {
         route.continue();

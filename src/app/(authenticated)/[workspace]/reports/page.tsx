@@ -4,21 +4,28 @@ import { useState, useMemo, useCallback } from 'react';
 import { Button, Modal, App, Typography, Flex, Select, theme } from 'antd';
 import { useReportsQuery, useGenerateReportMutation, useDeleteReportMutation } from '@/modules/reports';
 import { reportsApi } from '@/modules/reports/api';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
-import { ReportPreviewDrawer } from '@/features/reports/ReportPreviewDrawer';
-import { StatusPill } from '@/components/shared/StatusPill';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
+import dynamic from 'next/dynamic';
+
+const ReportPreviewModal = dynamic(
+  () => import('@/features/reports/ReportPreviewModal'),
+  { ssr: false },
+);
+import { StatusPill } from '@/commons/components/StatusPill';
 import { useTableParams } from '@/lib/hooks/useTableParams';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorState } from '@/components/shared/ErrorState';
-import { PermissionGate } from '@/components/shared/PermissionGate';
-import { RadioCardGroup } from '@/components/shared/RadioCardGroup';
-import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorState } from '@/commons/components/ErrorState';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { errorMessage } from '@/lib/api/errors';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import type { ReportRow } from '@/commons/types/reports';
+import { FeatureGate } from '@/commons/components/FeatureGate';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 
 const FORMAT_VARIANT: Record<string, 'teal' | 'blue' | 'amber' | 'red' | 'purple' | 'slate'> = { pdf: 'red', xlsx: 'teal', csv: 'blue' };
 
@@ -73,19 +80,37 @@ function buildColumns(): DataTableColumn<ReportRow>[] {
  * Routes: `/{workspaceSlug}/reports`
  */
 export default function ReportsPage() {
+  const { token } = theme.useToken();
+
+  return (
+    <FeatureGate
+      flag={FEATURE_FLAG.REPORTS}
+      fallback={
+        <Flex vertical gap={token.paddingXL}>
+          <PageHeader title="Reports" description="Generate and download security reports." />
+          <ComingSoonCard
+            icon="fa-file-lines"
+            title="Reports"
+            description="Reports allow you to generate and export security findings."
+            envHint="FEATURE_FLAG_REPORTS"
+          />
+        </Flex>
+      }
+    >
+      <ReportsPageContent />
+    </FeatureGate>
+  );
+}
+
+function ReportsPageContent() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const { confirm } = useConfirm();
   const { workspaceId } = useWorkspace();
 
-  const REPORT_TYPES = [
-    { id: 'verdict', name: 'AI Verdict Summary', icon: 'fa-robot', description: 'AI verification results with confidence scores' },
-    { id: 'findings', name: 'Detailed Findings', icon: 'fa-bug', description: 'Full findings list with severity and remediation' },
-    { id: 'executive', name: 'Executive Summary', icon: 'fa-chart-pie', description: 'High-level metrics for leadership review' },
-    { id: 'compliance', name: 'Compliance Export', icon: 'fa-file-shield', description: 'OWASP/CWE mapping for compliance audits' },
-  ];
+  const REPORT_TYPE = { id: 'findings', name: 'Security Report', icon: 'fa-shield-halved', description: 'Full security audit report with findings, severity, CWE, and remediation guidance' };
 
-  const { params, setPage, setPageSize, setSearch } = useTableParams({
+  const { params, setPagination, setSearch } = useTableParams({
     defaultPageSize: 10,
   });
 
@@ -99,18 +124,15 @@ export default function ReportsPage() {
 
   const [generateOpen, setGenerateOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<string>('pdf');
   const [selectedRange, setSelectedRange] = useState<string>('Last 30 days');
   const [selectedReport, setSelectedReport] = useState<ReportRow | null>(null);
 
   const handleGenerate = () => {
-    if (!selectedType) return;
-    const rt = REPORT_TYPES.find((t) => t.id === selectedType);
     generateMutation.mutate(
-      { type: selectedType, title: rt?.name ?? selectedType, format: selectedFormat, range: selectedRange },
+      { type: REPORT_TYPE.id, title: REPORT_TYPE.name, format: selectedFormat, range: selectedRange },
       {
-        onSuccess: () => { setGenerateOpen(false); setSelectedType(null); message.success('Report generated'); },
+        onSuccess: () => { setGenerateOpen(false); message.success('Report generated'); },
         onError: (err: Error) => message.error(errorMessage(err)),
       },
     );
@@ -195,25 +217,25 @@ export default function ReportsPage() {
         searchPlaceholder="Search reports"
         searchValue={params.search}
         onSearchChange={setSearch}
-        onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+        onChange={(p, ps) => setPagination(p, ps)}
       />
 
       <Modal
         title="Generate report"
         open={generateOpen}
         onOk={handleGenerate}
-        onCancel={() => { setGenerateOpen(false); setSelectedType(null); }}
+        onCancel={() => setGenerateOpen(false)}
         okText="Generate"
-        okButtonProps={{ disabled: !selectedType, loading: generateMutation.isPending }}
+        okButtonProps={{ loading: generateMutation.isPending }}
       >
         <Flex vertical gap={token.paddingMD}>
-          <RadioCardGroup
-            ariaLabel="Report type"
-            columns={2}
-            options={REPORT_TYPES.map((t) => ({ key: t.id, label: t.name, description: t.description, icon: <FaIcon icon={t.icon} /> }))}
-            value={selectedType}
-            onChange={(id) => setSelectedType(id)}
-          />
+          <Flex align="center" gap={token.paddingSM} style={{ padding: token.paddingSM, background: token.colorBgTextHover, borderRadius: token.borderRadiusLG }}>
+            <FaIcon icon={REPORT_TYPE.icon} />
+            <Flex vertical gap={0}>
+              <Typography.Text strong>{REPORT_TYPE.name}</Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{REPORT_TYPE.description}</Typography.Text>
+            </Flex>
+          </Flex>
 
           <Flex gap={token.marginMD}>
             <Flex vertical flex={1} gap={4}>
@@ -228,7 +250,7 @@ export default function ReportsPage() {
         </Flex>
       </Modal>
 
-      <ReportPreviewDrawer
+      <ReportPreviewModal
         open={previewOpen}
         report={selectedReport}
         onClose={() => setPreviewOpen(false)}

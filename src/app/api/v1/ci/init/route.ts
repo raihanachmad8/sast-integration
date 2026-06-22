@@ -47,6 +47,7 @@ import { AppError } from '@/server/http/errors';
 import { randomUUID } from 'node:crypto';
 import { validateBody } from '@/server/http/validate';
 import { ciInitSchema } from '@/commons/schemas/ci.schema';
+import { normalizeRepoName } from '../normalize-repo';
 
 export async function POST(request: NextRequest) {
   const auth = await authenticateCiCd(request);
@@ -73,24 +74,20 @@ export async function POST(request: NextRequest) {
       projectId,
     });
 
-    // Find or auto-create repository
-    let repository = await repositoriesRepository.findByNameAndWorkspace(repoName, workspaceId);
+    // Find or auto-create repository (atomic — handles concurrent requests safely)
+    const repository = await repositoriesRepository.findOrCreate({
+      workspaceId: workspaceId,
+      projectId: projectId,
+      name: normalizeRepoName(repoName, repoUrl),
+      url: repoUrl || `external://${repoName}`,
+      defaultBranch: resolvedBranch,
+      connectionType: ['external'],
+    });
 
-    if (!repository) {
-      repository = await repositoriesRepository.create({
-        workspaceId: workspaceId,
-        projectId: projectId,
-        name: repoName,
-        url: repoUrl || `external://${repoName}`,
-        defaultBranch: resolvedBranch,
-        connectionType: 'external',
-      });
-
-      logger.scan.info('CI/CD init: auto-created external repository', {
-        repositoryId: repository.id,
-        name: repoName,
-      });
-    }
+    logger.scan.info('CI/CD init: repository resolved', {
+      repositoryId: repository.id,
+      name: repoName,
+    });
 
     // Check for existing scan by commit SHA (reuse if not terminal)
     let scan = null;

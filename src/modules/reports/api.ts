@@ -31,4 +31,20 @@ export const reportsApi = {
   async getDownloadUrl(workspaceId: string, reportId: string): Promise<string> {
     return ENDPOINTS.REPORTS.DOWNLOAD(workspaceId, reportId);
   },
+
+  async getPreviewUrl(workspaceId: string, reportId: string): Promise<string> {
+    return ENDPOINTS.REPORTS.PREVIEW(workspaceId, reportId);
+  },
+
+  async fetchPreviewJson<T = unknown>(workspaceId: string, reportId: string): Promise<T> {
+    const url = ENDPOINTS.REPORTS.PREVIEW(workspaceId, reportId);
+    let token = '';
+    try { token = (window as unknown as Record<string, string>).__accessToken ?? ''; } catch { /* noop */ }
+    const res = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`Preview fetch failed: ${res.status}`);
+    const json = (await res.json()) as { data: T };
+    return json.data;
+  },
 };

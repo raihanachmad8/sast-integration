@@ -1,12 +1,21 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Button, Modal, Input, Select, Form, App, Typography, Card, Flex, Alert, theme } from 'antd';
 import { MODAL_WIDTH } from '@/commons/constants/layout';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { SectionLabel } from '@/components/shared/SectionLabel';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { SectionLabel } from '@/commons/components/SectionLabel';
 import { sourceControlApi } from '@/modules/source-control/api';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+import { createZodSync } from '@/lib/utils/zod-sync';
+import { z } from 'zod';
+
+const sourceControlSchema = z.object({
+  baseUrl: z.string().url('Must be a valid URL'),
+  apiUrl: z.string().url('Must be a valid URL'),
+});
+
+const validateSourceControl = createZodSync(sourceControlSchema);
 
 const PROVIDERS = ['GitHub', 'GitLab', 'Gitea'];
 const CONNECTION_MODES: Record<string, { value: string; label: string }[]> = {
@@ -54,7 +63,6 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [testError, setTestError] = useState('');
-  const prevOpenRef = useRef(false);
   const provider = Form.useWatch('provider', form);
   const mode = Form.useWatch('mode', form);
   const modes = CONNECTION_MODES[provider] ?? CONNECTION_MODES.GitHub;
@@ -62,41 +70,34 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
   const isOAuth = mode === 'oauth-app';
   const isPat = mode === 'pat';
 
-  useEffect(() => {
-    if (open && !prevOpenRef.current) {
-      setTesting(false);
-      setTestResult(null);
-      setTestError('');
+  const initialValues = useMemo(() => {
+    const p = providerName || 'GitHub';
+    const existing = existingProvider;
+    const creds = (existing?.credentials ?? {}) as Record<string, unknown>;
 
-      const p = providerName || 'GitHub';
-      const existing = existingProvider;
-      const creds = (existing?.credentials ?? {}) as Record<string, unknown>;
+    const baseUrl = (creds.baseUrl as string) || DEFAULT_URLS[p]?.base || '';
+    const apiUrl = (creds.apiUrl as string) || DEFAULT_URLS[p]?.api || '';
+    const org = (creds.org as string) || existing?.org || '';
 
-      // Non-secret fields: prefer stored value, fall back to default URL
-      const baseUrl = (creds.baseUrl as string) || DEFAULT_URLS[p]?.base || '';
-      const apiUrl = (creds.apiUrl as string) || DEFAULT_URLS[p]?.api || '';
-      const org = (creds.org as string) || existing?.org || '';
+    const modeValue = existing?.modeDetail
+      ? CONNECTION_MODES[p]?.find((m) => m.label.toLowerCase().includes(existing.modeDetail.toLowerCase()))?.value ?? CONNECTION_MODES[p]?.[0]?.value ?? ''
+      : CONNECTION_MODES[p]?.[0]?.value ?? '';
 
-      const modeValue = existing?.modeDetail
-        ? CONNECTION_MODES[p]?.find((m) => m.label.toLowerCase().includes(existing.modeDetail.toLowerCase()))?.value ?? CONNECTION_MODES[p]?.[0]?.value ?? ''
-        : CONNECTION_MODES[p]?.[0]?.value ?? '';
-
-      form.setFieldsValue({
-        provider: p,
-        mode: modeValue,
-        org,
-        baseUrl,
-        apiUrl,
-        appId: (creds.appId as string) || '',
-        appSlug: (creds.appSlug as string) || 'sast-integration',
-        privateKey: '',
-        clientId: (creds.clientId as string) || '',
-        clientSecret: '',
-        token: '',
-      });
-    }
-    prevOpenRef.current = open;
-  }, [open, providerName, existingProvider, form]);
+    return {
+      provider: p,
+      mode: modeValue,
+      org,
+      baseUrl,
+      apiUrl,
+      appId: (creds.appId as string) || '',
+      appSlug: (creds.appSlug as string) || 'sast-integration',
+      privateKey: '',
+      clientId: (creds.clientId as string) || '',
+      clientSecret: '',
+      token: '',
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- provider is read via Form.useWatch and affects default URLs
+  }, [providerName, existingProvider, provider]);
 
   const handleTestConnection = useCallback(async () => {
     if (!workspaceId) return;
@@ -120,7 +121,7 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
           setTestError('No credentials configured. Please fill in the required fields.');
         }
       } else {
-        // For new connections, validate that required fields are filled
+        // For new connections, try to save and test
         const hasRequiredFields = isPat
           ? !!values.token
           : isGithubApp
@@ -133,8 +134,28 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
           setTestResult('error');
           setTestError('Please fill in all required credentials before testing.');
         } else {
-          setTestResult('success');
-          message.success('Credentials look valid. Save to create the connection.');
+          // Try to create the provider first, then test it
+          try {
+            const newProvider = await sourceControlApi.addProvider(workspaceId, {
+              provider: provider.toLowerCase(),
+              name: provider,
+              credentials: values,
+            });
+            const providerId = newProvider?.sourceControl?.id;
+            if (providerId) {
+              const testRes = await sourceControlApi.testProvider(workspaceId, providerId);
+              if (testRes.configured) {
+                setTestResult('success');
+                message.success('Connection test passed');
+              } else {
+                setTestResult('error');
+                setTestError('No credentials configured. Please fill in the required fields.');
+              }
+            }
+          } catch {
+            setTestResult('error');
+            setTestError('Failed to create connection. Please check your credentials.');
+          }
         }
       }
     } catch {
@@ -143,13 +164,15 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
     } finally {
       setTesting(false);
     }
-  }, [workspaceId, existingProvider, form, isPat, isGithubApp, isOAuth, message]);
+  }, [workspaceId, existingProvider, form, isPat, isGithubApp, isOAuth, message, provider]);
 
   return (
     <Modal
       key={open ? 'open' : 'closed'}
       open={open}
+      destroyOnHidden
       onCancel={onCancel}
+      afterClose={() => { setTesting(false); setTestResult(null); setTestError(''); }}
       title={
         <div>
           <Typography.Text strong style={{ fontSize: token.fontSizeXL }}>Configure source control</Typography.Text>
@@ -177,7 +200,7 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
               const values = form.getFieldsValue();
               const { provider: p, mode: m, org, baseUrl, apiUrl, appId, appSlug, privateKey, clientId, clientSecret, token: pat } = values;
               onSave({
-                provider: p,
+                provider: p.toLowerCase(),
                 name: p,
                 credentials: { mode: m, org, baseUrl, apiUrl, appId, appSlug, privateKey, clientId, clientSecret, token: pat },
               });
@@ -188,7 +211,7 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
         </Flex>
       }
     >
-      <Form form={form} layout="vertical" initialValues={{ provider: 'GitHub', mode: 'github-app' }}>
+      <Form form={form} layout="vertical" initialValues={initialValues}>
         <Flex vertical gap={token.paddingXL} style={{ padding: `${token.paddingLG} 0` }}>
           {isConnected && (
             <Card size="small">
@@ -229,7 +252,12 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
             >
               <Input placeholder="e.g., my-org" />
             </Form.Item>
-            <Form.Item label="Base URL" name="baseUrl" style={{ flex: 1 }}>
+            <Form.Item
+              label="Base URL"
+              name="baseUrl"
+              style={{ flex: 1 }}
+              rules={[{ required: true, message: 'Base URL is required' }, validateSourceControl]}
+            >
               <Input />
             </Form.Item>
           </Flex>
@@ -254,7 +282,7 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
           )}
 
           {isPat && (
-            <Form.Item label="Access token" name="token" extra={existingProvider?.credentials?.token ? 'Leave blank to keep existing token.' : undefined}>
+            <Form.Item label="Access token" name="token" rules={[{ required: true, message: 'Access token is required' }]} extra={existingProvider?.credentials?.token ? 'Leave blank to keep existing token.' : undefined}>
               <Input.Password placeholder={existingProvider?.credentials?.token ? '(existing token — paste new value to replace)' : (provider === 'GitHub' ? 'ghp_xxxxxxxxxxxx' : provider === 'GitLab' ? 'glpat-xxxxxxxxxxxx' : 'your-token')} />
             </Form.Item>
           )}

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { ApiResponse } from '@/server/http/response';
 import { authenticate } from '@/server/http/authenticate';
-import { validateBody } from '@/server/http/validate';
+import { validateBody, parsePagination } from '@/server/http/validate';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { teamService } from '@/server/modules/teams/services/team.service';
 import { PERMISSION } from '@/commons/constants/permissions';
@@ -19,9 +19,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!workspace.success) return workspace.response;
 
   try {
-    const data = await teamService.list(workspace.context.workspaceId, auth.context.userId);
-    logger.team.info('listTeams completed');
-    return ApiResponse.success('Teams retrieved', data);
+    const { page, perPage } = parsePagination(request.nextUrl.searchParams);
+    const project = request.nextUrl.searchParams.get('project') ?? undefined;
+    const search = request.nextUrl.searchParams.get('search') ?? undefined;
+
+    const allTeams = await teamService.list(workspace.context.workspaceId, auth.context.userId);
+
+    // Apply filters
+    let filtered = allTeams;
+    if (search) {
+      const q = search.toLowerCase();
+      filtered = filtered.filter((t) => t.name.toLowerCase().includes(q) || (t.description ?? '').toLowerCase().includes(q));
+    }
+    if (project) {
+      filtered = filtered.filter((t) => t.projectIds?.includes(project));
+    }
+
+    const total = filtered.length;
+    const paginated = filtered.slice((page - 1) * perPage, page * perPage);
+    logger.team.info('listTeams completed', { total, search, project });
+    return ApiResponse.paginated('Teams retrieved', paginated, { page, perPage, total, totalPages: Math.ceil(total / perPage) });
   } catch (e) {
     logger.team.error('listTeams failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

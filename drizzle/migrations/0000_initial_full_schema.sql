@@ -57,8 +57,9 @@ CREATE TABLE "workspace_invitations" (
 --> statement-breakpoint
 CREATE TABLE "ai_verifications" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"finding_id" uuid NOT NULL,
-	"model_id" uuid NOT NULL,
+	"finding_id" uuid,
+	"group_id" uuid,
+	"model_id" uuid,
 	"verdict" varchar(20) NOT NULL,
 	"confidence" numeric(3, 2),
 	"explanation" text,
@@ -72,27 +73,15 @@ CREATE TABLE "ai_verifications" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "comments" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"finding_id" uuid NOT NULL,
-	"parent_id" uuid,
-	"content" text NOT NULL,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"created_by" uuid,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	"updated_by" uuid,
-	"deleted_at" timestamp,
-	"deleted_by" uuid
-);
---> statement-breakpoint
 CREATE TABLE "finding_groups" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"project_id" uuid NOT NULL,
+	"project_id" uuid,
+	"repository_id" uuid,
 	"fingerprint" varchar(64) NOT NULL,
 	"title" varchar(500),
+	"status" varchar(20) DEFAULT 'open' NOT NULL,
 	"first_seen_at" timestamp DEFAULT now() NOT NULL,
-	"last_seen_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "finding_groups_fingerprint_unique" UNIQUE("fingerprint")
+	"last_seen_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "finding_history" (
@@ -109,10 +98,8 @@ CREATE TABLE "findings" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"scan_id" uuid NOT NULL,
 	"group_id" uuid,
-	"environment_id" uuid,
-	"cwe_id" varchar(20),
+	"cwe_id" varchar(255),
 	"severity" varchar(20) NOT NULL,
-	"status" varchar(20) DEFAULT 'open' NOT NULL,
 	"file_path" varchar(500),
 	"line_number" integer,
 	"code_snippet" text,
@@ -151,6 +138,10 @@ CREATE TABLE "users" (
 	"password_hash" text NOT NULL,
 	"name" varchar(255) NOT NULL,
 	"avatar_url" text,
+	"username" varchar(50),
+	"bio" text,
+	"timezone" varchar(50),
+	"language" varchar(10),
 	"two_factor_secret" text,
 	"two_factor_confirmed_at" timestamp,
 	"email_verified_at" timestamp,
@@ -220,29 +211,6 @@ CREATE TABLE "teams" (
 	"deleted_by" uuid
 );
 --> statement-breakpoint
-CREATE TABLE "permissions" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"name" varchar(100) NOT NULL,
-	"resource" varchar(50) NOT NULL,
-	"action" varchar(50) NOT NULL,
-	"description" text,
-	CONSTRAINT "permissions_name_unique" UNIQUE("name")
-);
---> statement-breakpoint
-CREATE TABLE "role_permissions" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"role" varchar(20) NOT NULL,
-	"permission_id" uuid NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "user_permissions" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"user_id" uuid NOT NULL,
-	"workspace_id" uuid NOT NULL,
-	"permission_id" uuid NOT NULL,
-	"granted" boolean DEFAULT true NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "environments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"project_id" uuid NOT NULL,
@@ -250,6 +218,22 @@ CREATE TABLE "environments" (
 	"type" varchar(20) NOT NULL,
 	"is_default" boolean DEFAULT false,
 	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "project_api_tokens" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"project_id" uuid NOT NULL,
+	"created_by" uuid NOT NULL,
+	"name" varchar(255) NOT NULL,
+	"token_sha256" varchar(64) NOT NULL,
+	"token_prefix" varchar(20),
+	"permissions" jsonb DEFAULT '["scans:upload"]'::jsonb NOT NULL,
+	"last_used_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"expires_at" timestamp,
+	"revoked_at" timestamp,
+	"revoked_by" uuid,
+	CONSTRAINT "project_api_tokens_token_sha256_unique" UNIQUE("token_sha256")
 );
 --> statement-breakpoint
 CREATE TABLE "project_members" (
@@ -277,9 +261,10 @@ CREATE TABLE "projects" (
 	"language" varchar(50),
 	"avatar_url" text,
 	"description" text,
-	"created_at" timestamp DEFAULT now() NOT NULL,
+	"lead" varchar(255),
+	"created_at" timestamp DEFAULT now(),
 	"created_by" uuid,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now(),
 	"updated_by" uuid,
 	"deleted_at" timestamp,
 	"deleted_by" uuid,
@@ -288,14 +273,16 @@ CREATE TABLE "projects" (
 --> statement-breakpoint
 CREATE TABLE "repositories" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"project_id" uuid NOT NULL,
-	"source_control_id" uuid,
+	"workspace_id" uuid NOT NULL,
+	"project_id" uuid,
+	"external_id" varchar(255),
+	"provider" varchar(20),
 	"name" varchar(255) NOT NULL,
 	"url" varchar(500) NOT NULL,
 	"default_branch" varchar(100) DEFAULT 'main',
+	"connection_type" text[] DEFAULT '{"scm"}' NOT NULL,
+	"import_mode" varchar(20) DEFAULT 'manual',
 	"auto_scan" boolean DEFAULT false,
-	"webhook_id" varchar(255),
-	"webhook_secret" varchar(255),
 	"last_synced_at" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"created_by" uuid,
@@ -305,6 +292,38 @@ CREATE TABLE "repositories" (
 	"deleted_by" uuid
 );
 --> statement-breakpoint
+CREATE TABLE "source_control_imports" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"workspace_id" uuid NOT NULL,
+	"source_control_id" uuid NOT NULL,
+	"source_control_repository_id" uuid NOT NULL,
+	"repository_id" uuid,
+	"webhook_external_id" varchar(255),
+	"webhook_secret" varchar(255),
+	"webhook_status" varchar(20) DEFAULT 'pending',
+	"imported_by" uuid,
+	"imported_at" timestamp,
+	"uninstalled_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "source_control_repositories" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"source_control_id" uuid NOT NULL,
+	"workspace_id" uuid NOT NULL,
+	"external_id" varchar(255),
+	"name" varchar(255) NOT NULL,
+	"full_name" varchar(500) NOT NULL,
+	"url" varchar(500),
+	"default_branch" varchar(100) DEFAULT 'main',
+	"visibility" varchar(20) DEFAULT 'private',
+	"synced_at" timestamp DEFAULT now(),
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"deleted_at" timestamp
+);
+--> statement-breakpoint
 CREATE TABLE "source_controls" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
@@ -312,7 +331,8 @@ CREATE TABLE "source_controls" (
 	"name" varchar(255) NOT NULL,
 	"credentials" jsonb,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"created_by" uuid
+	"created_by" uuid,
+	"last_synced_at" timestamp
 );
 --> statement-breakpoint
 CREATE TABLE "activity_logs" (
@@ -322,6 +342,64 @@ CREATE TABLE "activity_logs" (
 	"type" varchar(50) NOT NULL,
 	"description" text,
 	"metadata" jsonb,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "audit_logs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"workspace_id" uuid NOT NULL,
+	"user_id" uuid,
+	"action" varchar(100) NOT NULL,
+	"resource_type" varchar(50),
+	"resource_id" uuid,
+	"data" jsonb,
+	"ip_address" varchar(45),
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "knowledge_backfill_jobs" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"workspace_id" uuid,
+	"source_id" uuid,
+	"source_type" varchar(50) NOT NULL,
+	"status" varchar(20) DEFAULT 'queued' NOT NULL,
+	"range_start" timestamp NOT NULL,
+	"range_end" timestamp NOT NULL,
+	"cursor_start" timestamp NOT NULL,
+	"window_days" integer DEFAULT 30 NOT NULL,
+	"imported_count" integer DEFAULT 0 NOT NULL,
+	"last_error" text,
+	"started_at" timestamp,
+	"completed_at" timestamp,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "knowledge_entries" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"source_id" uuid NOT NULL,
+	"cwe_id" varchar(20),
+	"title" varchar(500) NOT NULL,
+	"content" text,
+	"severity" varchar(20),
+	"remediation" text,
+	"tags" jsonb,
+	"muted" boolean DEFAULT false,
+	"used_by_ai_count" integer DEFAULT 0,
+	"references" jsonb,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "knowledge_sources" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"workspace_id" uuid,
+	"name" varchar(100) NOT NULL,
+	"type" varchar(50) NOT NULL,
+	"url" varchar(500),
+	"status" varchar(20) DEFAULT 'disconnected',
+	"entry_count" integer DEFAULT 0,
+	"last_synced_at" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -342,43 +420,15 @@ CREATE TABLE "ai_models" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "audit_logs" (
+CREATE TABLE "webhook_deliveries" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"workspace_id" uuid NOT NULL,
-	"user_id" uuid,
-	"action" varchar(100) NOT NULL,
-	"resource_type" varchar(50),
-	"resource_id" uuid,
-	"data" jsonb,
-	"ip_address" varchar(45),
-	"created_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "knowledge_entries" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"source_id" uuid NOT NULL,
-	"cwe_id" varchar(20),
-	"title" varchar(500) NOT NULL,
-	"content" text,
-	"severity" varchar(20),
-	"remediation" text,
-	"tags" jsonb,
-	"muted" boolean DEFAULT false,
-	"used_by_ai_count" integer DEFAULT 0,
-	"references" jsonb,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "knowledge_sources" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"workspace_id" uuid NOT NULL,
-	"name" varchar(100) NOT NULL,
-	"type" varchar(50) NOT NULL,
-	"url" varchar(500),
-	"status" varchar(20) DEFAULT 'disconnected',
-	"entry_count" integer DEFAULT 0,
-	"last_synced_at" timestamp,
+	"webhook_id" uuid NOT NULL,
+	"event" varchar(100) NOT NULL,
+	"status" varchar(20) NOT NULL,
+	"response_status" integer,
+	"request_body" jsonb,
+	"response_body" text,
+	"duration_ms" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -398,13 +448,30 @@ CREATE TABLE "webhooks" (
 	"deleted_by" uuid
 );
 --> statement-breakpoint
-CREATE TABLE "quality_gate_results" (
+CREATE TABLE "commit_statuses" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"scan_id" uuid NOT NULL,
-	"gate_id" uuid NOT NULL,
+	"repository_id" uuid NOT NULL,
+	"commit_sha" varchar(40) NOT NULL,
+	"status" varchar(20) NOT NULL,
+	"context" varchar(100) NOT NULL,
+	"description" text,
+	"target_url" text,
+	"provider" varchar(20) NOT NULL,
+	"external_id" varchar(100),
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "quality_gate_results" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"scan_id" uuid,
+	"gate_id" uuid,
 	"status" varchar(20) NOT NULL,
 	"blocking_findings" integer DEFAULT 0,
 	"pending_findings" integer DEFAULT 0,
+	"new_findings" integer DEFAULT 0,
+	"fixed_findings" integer DEFAULT 0,
 	"evaluated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -421,47 +488,55 @@ CREATE TABLE "quality_gates" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "scan_policies" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"workspace_id" uuid NOT NULL,
-	"name" varchar(255) NOT NULL,
-	"profile" varchar(20) DEFAULT 'standard' NOT NULL,
-	"scanners" jsonb NOT NULL,
-	"ai_verification" varchar(20) DEFAULT 'enabled' NOT NULL,
-	"severity_threshold" varchar(20) DEFAULT 'medium' NOT NULL,
-	"timeout_seconds" integer DEFAULT 300,
-	"max_findings" integer DEFAULT 2000,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "scan_results" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"scan_id" uuid NOT NULL,
 	"scanner" varchar(50) NOT NULL,
-	"raw_output" jsonb,
-	"summary" jsonb,
-	"created_at" timestamp DEFAULT now() NOT NULL
+	"format" varchar(20),
+	"file_key" text,
+	"file_size" integer,
+	"parsed_summary" jsonb,
+	"created_at" timestamp DEFAULT now()
+);
+--> statement-breakpoint
+CREATE TABLE "scan_uploads" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"repository_id" uuid,
+	"project_id" uuid,
+	"scan_id" uuid,
+	"branch" varchar(100),
+	"commit_sha" varchar(40),
+	"uploaded_by" uuid,
+	"source" varchar(30),
+	"metadata" jsonb,
+	"project_api_token_id" uuid,
+	"personal_access_token_id" uuid,
+	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
 CREATE TABLE "scans" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"repository_id" uuid NOT NULL,
-	"policy_id" uuid,
-	"environment_id" uuid,
+	"repository_id" uuid,
 	"commit_sha" varchar(40),
 	"branch" varchar(100),
+	"origin" varchar(30) DEFAULT 'managed' NOT NULL,
+	"trigger_source" varchar(30),
 	"status" varchar(20) DEFAULT 'pending' NOT NULL,
 	"started_at" timestamp,
 	"completed_at" timestamp,
+	"progress_events" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"created_by" uuid
+	"created_by" uuid,
+	"pr_number" integer,
+	"base_branch" varchar(100),
+	"head_branch" varchar(100),
+	"pr_author" varchar(255)
 );
 --> statement-breakpoint
 CREATE TABLE "schedules" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"repository_id" uuid NOT NULL,
-	"policy_id" uuid,
+	"workspace_id" uuid NOT NULL,
+	"repository_id" uuid,
 	"branch" varchar(100),
 	"timezone" varchar(50) DEFAULT 'UTC',
 	"cron_expression" varchar(100) NOT NULL,
@@ -469,7 +544,9 @@ CREATE TABLE "schedules" (
 	"last_run_at" timestamp,
 	"next_run_at" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"created_by" uuid
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_by" uuid,
+	"deleted_at" timestamp
 );
 --> statement-breakpoint
 CREATE TABLE "reports" (
@@ -477,6 +554,7 @@ CREATE TABLE "reports" (
 	"workspace_id" uuid NOT NULL,
 	"type" varchar(50) NOT NULL,
 	"title" varchar(255) NOT NULL,
+	"status" varchar(20) DEFAULT 'generated' NOT NULL,
 	"filters" jsonb,
 	"file_path" varchar(500),
 	"file_size" integer,
@@ -509,17 +587,14 @@ ALTER TABLE "personal_access_tokens" ADD CONSTRAINT "personal_access_tokens_revo
 ALTER TABLE "workspace_invitations" ADD CONSTRAINT "workspace_invitations_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_invitations" ADD CONSTRAINT "workspace_invitations_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_verifications" ADD CONSTRAINT "ai_verifications_finding_id_findings_id_fk" FOREIGN KEY ("finding_id") REFERENCES "public"."findings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "ai_verifications" ADD CONSTRAINT "ai_verifications_model_id_ai_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."ai_models"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "comments" ADD CONSTRAINT "comments_finding_id_findings_id_fk" FOREIGN KEY ("finding_id") REFERENCES "public"."findings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "comments" ADD CONSTRAINT "comments_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "comments" ADD CONSTRAINT "comments_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "comments" ADD CONSTRAINT "comments_deleted_by_users_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_verifications" ADD CONSTRAINT "ai_verifications_group_id_finding_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."finding_groups"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_verifications" ADD CONSTRAINT "ai_verifications_model_id_ai_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."ai_models"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "finding_groups" ADD CONSTRAINT "finding_groups_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "finding_groups" ADD CONSTRAINT "finding_groups_repository_id_repositories_id_fk" FOREIGN KEY ("repository_id") REFERENCES "public"."repositories"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "finding_history" ADD CONSTRAINT "finding_history_finding_id_findings_id_fk" FOREIGN KEY ("finding_id") REFERENCES "public"."findings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "finding_history" ADD CONSTRAINT "finding_history_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "findings" ADD CONSTRAINT "findings_scan_id_scans_id_fk" FOREIGN KEY ("scan_id") REFERENCES "public"."scans"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "findings" ADD CONSTRAINT "findings_group_id_finding_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."finding_groups"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "findings" ADD CONSTRAINT "findings_environment_id_environments_id_fk" FOREIGN KEY ("environment_id") REFERENCES "public"."environments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "findings" ADD CONSTRAINT "findings_assigned_to_users_id_fk" FOREIGN KEY ("assigned_to") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_settings" ADD CONSTRAINT "user_settings_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -535,49 +610,62 @@ ALTER TABLE "teams" ADD CONSTRAINT "teams_workspace_id_workspaces_id_fk" FOREIGN
 ALTER TABLE "teams" ADD CONSTRAINT "teams_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "teams" ADD CONSTRAINT "teams_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "teams" ADD CONSTRAINT "teams_deleted_by_users_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permission_id_permissions_id_fk" FOREIGN KEY ("permission_id") REFERENCES "public"."permissions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "user_permissions" ADD CONSTRAINT "user_permissions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "user_permissions" ADD CONSTRAINT "user_permissions_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "user_permissions" ADD CONSTRAINT "user_permissions_permission_id_permissions_id_fk" FOREIGN KEY ("permission_id") REFERENCES "public"."permissions"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "environments" ADD CONSTRAINT "environments_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_api_tokens" ADD CONSTRAINT "project_api_tokens_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_api_tokens" ADD CONSTRAINT "project_api_tokens_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "project_api_tokens" ADD CONSTRAINT "project_api_tokens_revoked_by_users_id_fk" FOREIGN KEY ("revoked_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_members" ADD CONSTRAINT "project_members_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_members" ADD CONSTRAINT "project_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "project_teams" ADD CONSTRAINT "project_teams_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "projects" ADD CONSTRAINT "projects_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "projects" ADD CONSTRAINT "projects_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "projects" ADD CONSTRAINT "projects_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "projects" ADD CONSTRAINT "projects_deleted_by_users_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "repositories" ADD CONSTRAINT "repositories_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "repositories" ADD CONSTRAINT "repositories_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "repositories" ADD CONSTRAINT "repositories_source_control_id_source_controls_id_fk" FOREIGN KEY ("source_control_id") REFERENCES "public"."source_controls"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "repositories" ADD CONSTRAINT "repositories_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "repositories" ADD CONSTRAINT "repositories_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "repositories" ADD CONSTRAINT "repositories_deleted_by_users_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "source_control_imports" ADD CONSTRAINT "source_control_imports_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "source_control_imports" ADD CONSTRAINT "source_control_imports_source_control_id_source_controls_id_fk" FOREIGN KEY ("source_control_id") REFERENCES "public"."source_controls"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "source_control_imports" ADD CONSTRAINT "source_control_imports_source_control_repository_id_source_control_repositories_id_fk" FOREIGN KEY ("source_control_repository_id") REFERENCES "public"."source_control_repositories"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "source_control_imports" ADD CONSTRAINT "source_control_imports_repository_id_repositories_id_fk" FOREIGN KEY ("repository_id") REFERENCES "public"."repositories"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "source_control_imports" ADD CONSTRAINT "source_control_imports_imported_by_users_id_fk" FOREIGN KEY ("imported_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "source_control_repositories" ADD CONSTRAINT "source_control_repositories_source_control_id_source_controls_id_fk" FOREIGN KEY ("source_control_id") REFERENCES "public"."source_controls"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "source_control_repositories" ADD CONSTRAINT "source_control_repositories_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "source_controls" ADD CONSTRAINT "source_controls_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "source_controls" ADD CONSTRAINT "source_controls_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "activity_logs" ADD CONSTRAINT "activity_logs_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "activity_logs" ADD CONSTRAINT "activity_logs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "ai_models" ADD CONSTRAINT "ai_models_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "knowledge_backfill_jobs" ADD CONSTRAINT "knowledge_backfill_jobs_source_id_knowledge_sources_id_fk" FOREIGN KEY ("source_id") REFERENCES "public"."knowledge_sources"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "knowledge_entries" ADD CONSTRAINT "knowledge_entries_source_id_knowledge_sources_id_fk" FOREIGN KEY ("source_id") REFERENCES "public"."knowledge_sources"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "knowledge_sources" ADD CONSTRAINT "knowledge_sources_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_models" ADD CONSTRAINT "ai_models_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "webhook_deliveries" ADD CONSTRAINT "webhook_deliveries_webhook_id_webhooks_id_fk" FOREIGN KEY ("webhook_id") REFERENCES "public"."webhooks"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "webhooks" ADD CONSTRAINT "webhooks_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "webhooks" ADD CONSTRAINT "webhooks_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "webhooks" ADD CONSTRAINT "webhooks_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "webhooks" ADD CONSTRAINT "webhooks_deleted_by_users_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commit_statuses" ADD CONSTRAINT "commit_statuses_scan_id_scans_id_fk" FOREIGN KEY ("scan_id") REFERENCES "public"."scans"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commit_statuses" ADD CONSTRAINT "commit_statuses_repository_id_repositories_id_fk" FOREIGN KEY ("repository_id") REFERENCES "public"."repositories"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "quality_gate_results" ADD CONSTRAINT "quality_gate_results_scan_id_scans_id_fk" FOREIGN KEY ("scan_id") REFERENCES "public"."scans"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "quality_gate_results" ADD CONSTRAINT "quality_gate_results_gate_id_quality_gates_id_fk" FOREIGN KEY ("gate_id") REFERENCES "public"."quality_gates"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "quality_gates" ADD CONSTRAINT "quality_gates_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scan_policies" ADD CONSTRAINT "scan_policies_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "scan_results" ADD CONSTRAINT "scan_results_scan_id_scans_id_fk" FOREIGN KEY ("scan_id") REFERENCES "public"."scans"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scans" ADD CONSTRAINT "scans_repository_id_repositories_id_fk" FOREIGN KEY ("repository_id") REFERENCES "public"."repositories"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scans" ADD CONSTRAINT "scans_policy_id_scan_policies_id_fk" FOREIGN KEY ("policy_id") REFERENCES "public"."scan_policies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scans" ADD CONSTRAINT "scans_environment_id_environments_id_fk" FOREIGN KEY ("environment_id") REFERENCES "public"."environments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scan_uploads" ADD CONSTRAINT "scan_uploads_scan_id_scans_id_fk" FOREIGN KEY ("scan_id") REFERENCES "public"."scans"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scan_uploads" ADD CONSTRAINT "scan_uploads_project_api_token_id_project_api_tokens_id_fk" FOREIGN KEY ("project_api_token_id") REFERENCES "public"."project_api_tokens"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scan_uploads" ADD CONSTRAINT "scan_uploads_personal_access_token_id_personal_access_tokens_id_fk" FOREIGN KEY ("personal_access_token_id") REFERENCES "public"."personal_access_tokens"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "scans" ADD CONSTRAINT "scans_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "schedules" ADD CONSTRAINT "schedules_repository_id_repositories_id_fk" FOREIGN KEY ("repository_id") REFERENCES "public"."repositories"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "schedules" ADD CONSTRAINT "schedules_policy_id_scan_policies_id_fk" FOREIGN KEY ("policy_id") REFERENCES "public"."scan_policies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedules" ADD CONSTRAINT "schedules_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedules" ADD CONSTRAINT "schedules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reports" ADD CONSTRAINT "reports_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reports" ADD CONSTRAINT "reports_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "storage_files" ADD CONSTRAINT "storage_files_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "storage_files" ADD CONSTRAINT "storage_files_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "storage_files" ADD CONSTRAINT "storage_files_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "finding_groups_repo_fingerprint_idx" ON "finding_groups" USING btree ("repository_id","fingerprint");--> statement-breakpoint
+CREATE UNIQUE INDEX "repositories_workspace_name_idx" ON "repositories" USING btree ("workspace_id","name") WHERE "repositories"."deleted_at" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "source_control_repositories_ctrl_name_idx" ON "source_control_repositories" USING btree ("source_control_id","name");--> statement-breakpoint
+CREATE UNIQUE INDEX "source_control_repositories_ctrl_extid_idx" ON "source_control_repositories" USING btree ("source_control_id","external_id");--> statement-breakpoint
+CREATE INDEX "knowledge_backfill_source_status_idx" ON "knowledge_backfill_jobs" USING btree ("source_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "knowledge_entries_source_cwe_idx" ON "knowledge_entries" USING btree ("source_id","cwe_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "knowledge_sources_global_type_idx" ON "knowledge_sources" USING btree ("type") WHERE "knowledge_sources"."workspace_id" IS NULL;

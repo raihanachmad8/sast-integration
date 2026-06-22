@@ -12,6 +12,7 @@ vi.mock('@/server/modules/scan/repositories/scan.repository', () => ({
     getAiVerdictStats: vi.fn(),
     getScanResults: vi.fn(),
     getFindingsPerScanner: vi.fn(),
+    getNewVsExistingStats: vi.fn(),
     create: vi.fn(),
     updateStatus: vi.fn(),
   },
@@ -51,6 +52,9 @@ describe('scanService', () => {
   });
 
   describe('list', () => {
+    /**
+     * Purpose: Validates that scans are listed with correct field mapping and duration calculation
+     */
     it('should list scans for workspace', async () => {
       const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -84,6 +88,9 @@ describe('scanService', () => {
       expect(result.data[0].durationSeconds).toBe(300);
     });
 
+    /**
+     * Purpose: Validates that access is denied when the user is not a workspace member
+     */
     it('should throw FORBIDDEN when user is not a member', async () => {
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
       vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
@@ -95,6 +102,9 @@ describe('scanService', () => {
   });
 
   describe('getById', () => {
+    /**
+     * Purpose: Validates that a scan is returned correctly when found by ID
+     */
     it('should get scan by ID', async () => {
       const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -112,6 +122,9 @@ describe('scanService', () => {
       expect(result.id).toBe(mockScanId);
     });
 
+    /**
+     * Purpose: Validates that an error is thrown when the scan does not exist
+     */
     it('should return null when scan not found', async () => {
       const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -126,6 +139,9 @@ describe('scanService', () => {
   });
 
   describe('getDetail', () => {
+    /**
+     * Purpose: Validates that scan detail includes repository, findings stats, AI stats, and timeline
+     */
     it('should get scan detail with all fields', async () => {
       const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -152,6 +168,7 @@ describe('scanService', () => {
       vi.mocked(scanRepository.getAiVerdictStats).mockResolvedValue({ truePositives: 8, falsePositives: 0, pending: 2 });
       vi.mocked(scanRepository.getScanResults).mockResolvedValue([]);
       vi.mocked(scanRepository.getFindingsPerScanner).mockResolvedValue([{ scanner: 'semgrep', count: '8' }]);
+      vi.mocked(scanRepository.getNewVsExistingStats).mockResolvedValue({ newFindings: 3, existingFindings: 7 });
 
       const result = await scanService.getDetail(mockScanId, mockWorkspaceId, mockUserId);
 
@@ -167,6 +184,9 @@ describe('scanService', () => {
   });
 
   describe('create', () => {
+    /**
+     * Purpose: Validates that a new scan can be created with repository and branch
+     */
     it('should create a new scan', async () => {
       const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');

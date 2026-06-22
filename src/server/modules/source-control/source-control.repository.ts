@@ -1,6 +1,6 @@
 import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '@/server/db/client';
-import { sourceControls, sourceControlRepositories, sourceControlImports, repositories } from '@drizzle/schema/source-controls';
+import { sourceControls, sourceControlRepositories, sourceControlImports } from '@drizzle/schema/source-controls';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -19,6 +19,11 @@ export interface UpdateSourceControlInput {
 }
 
 export const sourceControlRepository = {
+  /**
+   * List all source control integrations in a workspace.
+   * @param workspaceId - Workspace UUID
+   * @returns Array of source control records
+   */
   async listByWorkspace(workspaceId: string) {
     return db
       .select()
@@ -26,6 +31,12 @@ export const sourceControlRepository = {
       .where(eq(sourceControls.workspaceId, workspaceId));
   },
 
+  /**
+   * Get a source control integration by ID scoped to a workspace.
+   * @param id - Source control UUID
+   * @param workspaceId - Workspace UUID for scoping
+   * @returns Source control record or null if not found
+   */
   async getById(id: string, workspaceId: string) {
     const [control] = await db
       .select()
@@ -47,6 +58,12 @@ export const sourceControlRepository = {
     return control ?? null;
   },
 
+  /**
+   * Create a new source control integration record.
+   * @param data - Source control input data (workspaceId, provider, name, optional credentials, createdBy)
+   * @param tx - Optional transaction context for atomic operations
+   * @returns Created source control record
+   */
   async create(data: CreateSourceControlInput, tx?: Tx) {
     const executor = tx ?? db;
     const [control] = await executor
@@ -62,6 +79,13 @@ export const sourceControlRepository = {
     return control;
   },
 
+  /**
+   * Update a source control integration record.
+   * @param id - Source control UUID
+   * @param data - Fields to update
+   * @param tx - Optional transaction context
+   * @returns Updated source control record or null if not found
+   */
   async update(id: string, data: UpdateSourceControlInput, tx?: Tx) {
     const executor = tx ?? db;
     const [control] = await executor
@@ -72,6 +96,11 @@ export const sourceControlRepository = {
     return control ?? null;
   },
 
+  /**
+   * Delete a source control integration record.
+   * @param id - Source control UUID
+   * @param tx - Optional transaction context
+   */
   async delete(id: string, tx?: Tx) {
     const executor = tx ?? db;
     await executor.delete(sourceControls).where(eq(sourceControls.id, id));

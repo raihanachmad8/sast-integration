@@ -16,3 +16,6 @@ export const LANDING_COLORS = {
   white: { overlay: 'rgba(255,255,255,0.12)', text: 'rgba(255,255,255,0.75)', muted: 'rgba(255,255,255,0.3)' },
   star: '#fbbf24',
 } as const;
+
+/** GitHub repository URL — used across all landing page links. */
+export const GITHUB_REPO_URL = 'https://github.com/raihanachmad8/sast-integration' as const;

@@ -1,8 +1,8 @@
 'use client';
 
-import { LoadingState } from '@/components/shared/LoadingState';
-import { PasswordStrength } from '@/components/shared/PasswordStrength';
-import { Suspense, useEffect, useState } from 'react';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { PasswordStrength } from '@/commons/components/PasswordStrength';
+import { Suspense, useState } from 'react';
 import { Form, Input, Button, Result, Alert, Typography, theme } from 'antd';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -18,19 +18,6 @@ function AcceptInviteFlow() {
   const session = useSessionQuery();
   const { token: antdToken } = theme.useToken();
   const [passwordValue, setPasswordValue] = useState('');
-
-  const tokenCheck = useQuery({
-    queryKey: ['invite-token', token],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/auth/invite?token=${token}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message);
-      return json.data as { email: string; role: string; workspaceId: string };
-    },
-    enabled: !!token,
-    retry: false,
-    staleTime: 0,
-  });
 
   const isLoggedIn = Boolean(session.data?.accessToken);
 
@@ -50,6 +37,24 @@ function AcceptInviteFlow() {
     },
   });
 
+  const tokenCheck = useQuery({
+    queryKey: ['invite-token', token],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/auth/invite?token=${token}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message);
+      return json.data as { email: string; role: string; workspaceId: string };
+    },
+    enabled: !!token,
+    retry: false,
+    staleTime: 0,
+  });
+
+  // Auto-accept invite for logged-in users when token is validated
+  if (tokenCheck.isSuccess && isLoggedIn && token && !acceptLoggedIn.isSuccess && !acceptLoggedIn.isPending) {
+    acceptLoggedIn.mutate(token);
+  }
+
   const acceptNewUser = useMutation({
     mutationFn: async (values: { name: string; password: string; confirmPassword: string }) => {
       const res = await fetch(`${API_BASE}/auth/invite/accept`, {
@@ -65,14 +70,6 @@ function AcceptInviteFlow() {
       router.push(ROUTES.AUTH.SIGNIN);
     },
   });
-
-  useEffect(() => {
-    if (!token || !isLoggedIn || tokenCheck.isLoading || tokenCheck.isPending || acceptLoggedIn.isSuccess) return;
-    if (tokenCheck.error) return;
-    if (tokenCheck.data) {
-      acceptLoggedIn.mutate(token);
-    }
-  }, [token, isLoggedIn, tokenCheck.isLoading, tokenCheck.error, tokenCheck.data, acceptLoggedIn]);
 
   if (!token) {
     return (
@@ -121,7 +118,7 @@ function AcceptInviteFlow() {
     <>
       <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Accept Invitation</Title>
       <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>
-        You've been invited to join as <Text strong>{tokenCheck.data?.role}</Text>. Set up your account to get started.
+        You&apos;ve been invited to join as <Text strong>{(tokenCheck.data as { role?: string })?.role ?? 'member'}</Text>. Set up your account to get started.
       </Text>
 
       {acceptNewUser.error && <Alert title={acceptNewUser.error.message} type="error" showIcon style={{ marginTop: 16 }} />}

@@ -10,48 +10,48 @@ const _api = Api({ baseUrl: clientEnv.apiUrl });
 
 type RawSource = {
   id: string;
-  workspace_id: string;
+  workspaceId: string;
   name: string;
   type: string;
   url: string | null;
   status: KnowledgeSource['status'] | null;
-  entry_count: number | null;
-  last_synced_at: string | null;
-  created_at: string;
+  entryCount: number | null;
+  lastSyncedAt: string | null;
+  createdAt: string;
 };
 
 type RawEntry = {
   id: string;
-  source_id: string;
-  source_name?: string;
-  source_type?: string;
-  cwe_id: string | null;
+  sourceId: string;
+  sourceName?: string;
+  sourceType?: string;
+  cweId: string | null;
   title: string;
   content: string | null;
   severity: string | null;
   remediation: string | null;
   tags: string[] | null;
   muted: boolean | null;
-  used_by_ai_count: number | null;
-  created_at: string;
-  updated_at: string | null;
+  usedByAiCount: number | null;
+  createdAt: string;
+  updatedAt: string | null;
 };
 
 type RawBackfillJob = {
   id: string;
-  source_id: string;
-  workspace_id: string | null;
-  source_type: string;
+  sourceId: string;
+  workspaceId: string | null;
+  sourceType: string;
   status: string;
-  range_start: string;
-  range_end: string;
-  cursor_start: string | null;
-  window_days: number | null;
-  imported_count: number | null;
-  last_error: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  created_at: string | null;
+  rangeStart: string;
+  rangeEnd: string;
+  cursorStart: string | null;
+  windowDays: number | null;
+  importedCount: number | null;
+  lastError: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string | null;
   progress?: number;
 };
 
@@ -65,51 +65,51 @@ type RawEntriesPage = {
 function mapSource(source: RawSource): KnowledgeSource {
   return {
     id: source.id,
-    workspaceId: source.workspace_id,
+    workspaceId: source.workspaceId,
     name: source.name,
     type: source.type,
     url: source.url,
     status: source.status ?? 'disconnected',
-    entryCount: source.entry_count ?? 0,
-    lastSyncedAt: source.last_synced_at,
-    createdAt: source.created_at,
+    entryCount: source.entryCount ?? 0,
+    lastSyncedAt: source.lastSyncedAt,
+    createdAt: source.createdAt,
   };
 }
 
 function mapEntry(entry: RawEntry): KnowledgeEntryRow {
   return {
     id: entry.id,
-    sourceId: entry.source_id,
-    sourceName: entry.source_name,
-    sourceType: entry.source_type,
-    cweId: entry.cwe_id,
+    sourceId: entry.sourceId,
+    sourceName: entry.sourceName,
+    sourceType: entry.sourceType,
+    cweId: entry.cweId,
     title: entry.title,
     content: entry.content,
     severity: entry.severity,
     remediation: entry.remediation,
     tags: Array.isArray(entry.tags) ? entry.tags : [],
     muted: entry.muted ?? false,
-    usedByAiCount: entry.used_by_ai_count ?? 0,
-    createdAt: entry.created_at,
+    usedByAiCount: entry.usedByAiCount ?? 0,
+    createdAt: entry.createdAt,
   };
 }
 
 function mapBackfillJob(job: RawBackfillJob): KnowledgeBackfillJob {
   return {
     id: job.id,
-    sourceId: job.source_id,
-    workspaceId: job.workspace_id ?? undefined,
-    sourceType: job.source_type,
+    sourceId: job.sourceId,
+    workspaceId: job.workspaceId ?? undefined,
+    sourceType: job.sourceType,
     status: job.status as KnowledgeBackfillJob['status'],
-    rangeStart: job.range_start,
-    rangeEnd: job.range_end,
-    cursorStart: job.cursor_start ?? undefined,
-    windowDays: job.window_days ?? undefined,
-    importedCount: job.imported_count ?? 0,
-    lastError: job.last_error ?? undefined,
-    startedAt: job.started_at ?? undefined,
-    completedAt: job.completed_at ?? undefined,
-    createdAt: job.created_at ?? new Date().toISOString(),
+    rangeStart: job.rangeStart,
+    rangeEnd: job.rangeEnd,
+    cursorStart: job.cursorStart ?? undefined,
+    windowDays: job.windowDays ?? undefined,
+    importedCount: job.importedCount ?? 0,
+    lastError: job.lastError ?? undefined,
+    startedAt: job.startedAt ?? undefined,
+    completedAt: job.completedAt ?? undefined,
+    createdAt: job.createdAt ?? new Date().toISOString(),
     progress: job.progress ?? -1,
   };
 }
@@ -127,7 +127,7 @@ export const knowledgeApi = {
    */
   async listSources(workspaceId: string, _params?: ListParams): Promise<PaginatedResponse<KnowledgeSource>> {
     const response = await _api.Get<ApiResponse<RawSource[]>>(ENDPOINTS.KNOWLEDGE_SOURCES.LIST(workspaceId));
-    const sources = response.data.map(mapSource);
+    const sources = Array.isArray(response.data) ? response.data.map(mapSource) : [];
     return {
       data: sources,
       meta: {
@@ -147,14 +147,14 @@ export const knowledgeApi = {
     if (params?.search) queryParams.search = params.search;
     if (params?.source) queryParams.source = params.source;
     if (params?.page) queryParams.page = String(params.page);
-    if (params?.perPage) queryParams.per_page = String(params.perPage);
+    if (params?.perPage) queryParams.perPage = String(params.perPage);
 
     const qs = new URLSearchParams(queryParams).toString();
     const url = ENDPOINTS.KNOWLEDGE_BASE.LIST(workspaceId) + (qs ? `?${qs}` : '');
     const response = await _api.Get<ApiResponse<RawEntriesPage>>(url);
     const pagination = response.meta?.pagination;
     return {
-      data: response.data.data.map(mapEntry),
+      data: Array.isArray(response.data?.data) ? response.data.data.map(mapEntry) : [],
       meta: {
         page: pagination?.page ?? response.data.page,
         perPage: pagination?.perPage ?? response.data.perPage,
@@ -171,12 +171,12 @@ export const knowledgeApi = {
 
   async createEntry(workspaceId: string, data: CreateKnowledgeEntryInput) {
     const { data: result } = await _api.Post<ApiResponse<RawEntry>>(ENDPOINTS.KNOWLEDGE_BASE.LIST(workspaceId), data);
-    return mapEntry(result);
+    return result ? mapEntry(result) : null;
   },
 
   async updateEntry(workspaceId: string, id: string, data: UpdateKnowledgeEntryInput) {
     const { data: result } = await _api.Patch<ApiResponse<RawEntry>>(ENDPOINTS.KNOWLEDGE_BASE.DETAIL(workspaceId, id), data);
-    return mapEntry(result);
+    return result ? mapEntry(result) : null;
   },
 
   async deleteEntry(workspaceId: string, id: string) {
@@ -185,17 +185,17 @@ export const knowledgeApi = {
 
   async muteEntry(workspaceId: string, id: string) {
     const { data: result } = await _api.Patch<ApiResponse<RawEntry>>(ENDPOINTS.KNOWLEDGE_BASE.DETAIL(workspaceId, id), { muted: true });
-    return mapEntry(result);
+    return result ? mapEntry(result) : null;
   },
 
   async createSource(workspaceId: string, data: CreateKnowledgeSourceInput) {
     const { data: result } = await _api.Post<ApiResponse<RawSource>>(ENDPOINTS.KNOWLEDGE_SOURCES.LIST(workspaceId), data);
-    return mapSource(result);
+    return result ? mapSource(result) : null;
   },
 
   async updateSource(workspaceId: string, id: string, data: UpdateKnowledgeSourceInput) {
     const { data: result } = await _api.Patch<ApiResponse<RawSource>>(ENDPOINTS.KNOWLEDGE_SOURCES.DETAIL(workspaceId, id), data);
-    return mapSource(result);
+    return result ? mapSource(result) : null;
   },
 
   async deleteSource(workspaceId: string, id: string) {
@@ -218,11 +218,11 @@ export const knowledgeApi = {
 
   async startBackfill(workspaceId: string, id: string) {
     const { data } = await _api.Post<ApiResponse<RawBackfillJob>>(ENDPOINTS.KNOWLEDGE_SOURCES.BACKFILL(workspaceId, id));
-    return mapBackfillJob(data);
+    return data ? mapBackfillJob(data) : null;
   },
 
   async resumeBackfill(workspaceId: string, id: string) {
     const { data } = await _api.Post<ApiResponse<RawBackfillJob>>(ENDPOINTS.KNOWLEDGE_SOURCES.BACKFILL(workspaceId, id), { resume: true });
-    return mapBackfillJob(data);
+    return data ? mapBackfillJob(data) : null;
   },
 };

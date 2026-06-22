@@ -43,28 +43,27 @@ describe('POST /api/v1/auth/signout', () => {
     expect(setCookie).toContain('refresh_token');
   });
 
-  // Negative
-  it('should return 401 without token', async () => {
+  // Negative — signout is cookie-based, always returns 200
+  it('should return 200 even without token (cookie-based)', async () => {
     const res = await api('/auth/signout', { method: 'POST' });
     const json = await res.json();
 
-    expect(res.status).toBe(401);
-    expect(json.success).toBe(false);
-    expect(json.error.code).toBe('AUTH_ERROR');
+    expect(res.status).toBe(200);
+    expect(json.success).toBe(true);
   });
 
-  it('should return 401 with invalid token', async () => {
+  it('should return 200 with invalid token (cookie-based)', async () => {
     const res = await api('/auth/signout', {
       method: 'POST',
       headers: { Authorization: 'Bearer invalid-token-here' },
     });
     const json = await res.json();
 
-    expect(res.status).toBe(401);
-    expect(json.success).toBe(false);
+    expect(res.status).toBe(200);
+    expect(json.success).toBe(true);
   });
 
-  it('should return 401 after session already invalidated', async () => {
+  it('should return 200 after session already invalidated', async () => {
     const token = await getAccessToken();
 
     // First signout
@@ -73,14 +72,14 @@ describe('POST /api/v1/auth/signout', () => {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    // Second signout with same token — session gone
+    // Second signout with same token — session gone, but still 200
     const res = await api('/auth/signout', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json();
 
-    expect(res.status).toBe(401);
-    expect(json.success).toBe(false);
+    expect(res.status).toBe(200);
+    expect(json.success).toBe(true);
   });
 });

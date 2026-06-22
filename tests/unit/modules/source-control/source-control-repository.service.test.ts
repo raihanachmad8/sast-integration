@@ -40,6 +40,9 @@ describe('sourceControlRepositoryService', () => {
   });
 
   describe('backfillExternalId', () => {
+    /**
+     * Purpose: Validates that the backfill SQL is executed for the connection
+     */
     it('should call execute with SQL to backfill externalId', async () => {
       (db.execute as any).mockResolvedValue(undefined);
 
@@ -50,6 +53,9 @@ describe('sourceControlRepositoryService', () => {
   });
 
   describe('listByConnectionId', () => {
+    /**
+     * Purpose: Validates that repos are returned and backfill is triggered
+     */
     it('should return repos and call backfill', async () => {
       const mockRepos = [
         { id: 'repo-1', name: 'org/repo', externalId: '12345' },
@@ -69,6 +75,9 @@ describe('sourceControlRepositoryService', () => {
   });
 
   describe('upsertMany', () => {
+    /**
+     * Purpose: Validates that new repositories are inserted with their externalId
+     */
     it('should insert new repos with externalId', async () => {
       // Mock empty existing repos
       (db.select as any).mockReturnValue({
@@ -90,6 +99,9 @@ describe('sourceControlRepositoryService', () => {
       expect(db.insert).toHaveBeenCalled();
     });
 
+    /**
+     * Purpose: Validates that existing repos are updated (not duplicated) when externalId matches
+     */
     it('should update existing repos when externalId matches', async () => {
       const existingRepos = [
         { id: 'repo-1', externalId: '12345', name: 'org/old-name', fullName: 'org/old-name', url: 'https://old-url.git' },
@@ -134,6 +146,9 @@ describe('sourceControlRepositoryService', () => {
       expect(db.insert).not.toHaveBeenCalled();
     });
 
+    /**
+     * Purpose: Validates that stale repos with active imports are marked as deleted
+     */
     it('should mark stale repos with imports as [deleted]', async () => {
       const existingRepos = [
         { id: 'repo-1', externalId: '99999', name: 'org/deleted-repo', fullName: 'org/deleted-repo', url: 'https://deleted.git' },
@@ -173,6 +188,9 @@ describe('sourceControlRepositoryService', () => {
       expect(db.update).toHaveBeenCalled();
     });
 
+    /**
+     * Purpose: Validates that stale repos without active imports are soft-deleted
+     */
     it('should hard-delete stale repos without imports', async () => {
       const existingRepos = [
         { id: 'repo-1', externalId: '99999', name: 'org/deleted-repo', fullName: 'org/deleted-repo', url: 'https://deleted.git' },
@@ -199,15 +217,17 @@ describe('sourceControlRepositoryService', () => {
       });
 
       (db.execute as any).mockResolvedValue(undefined); // backfill
-      (db.delete as any).mockReturnValue({
-        where: vi.fn().mockResolvedValue(undefined),
+      (db.update as any).mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue(undefined),
+        }),
       });
 
       // No incoming repos (all are stale)
       await sourceControlRepositoryService.upsertMany('conn-123', 'ws-456', []);
 
-      // Should hard-delete because no import references it
-      expect(db.delete).toHaveBeenCalled();
+      // Should soft-delete (set deletedAt) because no import references it
+      expect(db.update).toHaveBeenCalled();
     });
   });
 });

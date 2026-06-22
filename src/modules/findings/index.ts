@@ -10,6 +10,7 @@
  * ```
  */
 export { findingKeys } from './keys';
+export { findingsApi } from './api';
 export {
   useFindingsQuery,
   useFindingGroupsQuery,

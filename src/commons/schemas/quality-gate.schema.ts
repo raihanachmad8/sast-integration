@@ -2,21 +2,31 @@ import { z } from 'zod';
 
 export const updateQualityGateSchema = z.object({
   workspaceId: z.string().uuid('Invalid workspace ID'),
-  threshold: z.enum(['critical', 'high', 'medium', 'low']).optional(),
-  fail_on_critical: z.boolean().optional(),
-  fail_on_high_tp: z.boolean().optional(),
-  warn_on_pending: z.boolean().optional(),
-  require_human_ack: z.boolean().optional(),
-  pending_behavior: z.enum(['warn', 'fail', 'ignore']).optional(),
+  threshold: z.enum(['critical', 'high', 'medium', 'low'], { message: 'Threshold is required' }).optional(),
+  failOnCritical: z.boolean().optional(),
+  failOnHighTp: z.boolean().optional(),
+  failOnHigh: z.boolean().optional(),
+  failOnMedium: z.boolean().optional(),
+  failOnLow: z.boolean().optional(),
+  failOnPending: z.boolean().optional(),
+  failOnTp: z.boolean().optional(),
+  warnOnPending: z.boolean().optional(),
+  requireHumanAck: z.boolean().optional(),
+  pendingBehavior: z.enum(['warn', 'fail', 'ignore'], { message: 'Pending behavior is required' }).optional(),
 });
 
 export const qualityGateConfigSchema = z.object({
-  fail_on_critical: z.boolean(),
-  fail_on_high_tp: z.boolean(),
-  warn_on_pending: z.boolean(),
-  require_human_ack: z.boolean(),
-  threshold: z.enum(['critical', 'high', 'medium', 'low']),
-  pending_behavior: z.enum(['warn', 'fail', 'ignore']),
+  failOnCritical: z.boolean(),
+  failOnHighTp: z.boolean(),
+  failOnHigh: z.boolean(),
+  failOnMedium: z.boolean(),
+  failOnLow: z.boolean(),
+  failOnPending: z.boolean(),
+  failOnTp: z.boolean(),
+  warnOnPending: z.boolean(),
+  requireHumanAck: z.boolean(),
+  threshold: z.enum(['critical', 'high', 'medium', 'low'], { message: 'Threshold is required' }),
+  pendingBehavior: z.enum(['warn', 'fail', 'ignore'], { message: 'Pending behavior is required' }),
 });
 
 export const evaluateQualityGateSchema = z.object({

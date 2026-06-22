@@ -3,22 +3,25 @@
 import { useState, useMemo } from 'react';
 import { Button, Input, Select, Card, Checkbox, Typography, App, Form, Row, Col, Flex, Dropdown, Grid, theme } from 'antd';
 import { useSessionData } from '@/modules/auth/queries';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { DataTable, makeSource } from '@/components/shared/DataTable';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { DataTable, makeSource } from '@/commons/components/DataTable';
 import { useTableParams } from '@/lib/hooks/useTableParams';
-import { PermissionGate } from '@/components/shared/PermissionGate';
+import { PermissionGate } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { SetupGuideDrawer } from '@/features/source-control/SetupGuideDrawer';
 import { ConfigureProviderModal, ImportRepoModal, SendTestEventModal, SyncResultsModal } from '@/features/source-control/SourceControlModals';
 import { ProviderCard } from '@/features/source-control/ProviderCard';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorState } from '@/components/shared/ErrorState';
-import { useSourceControlProvidersQuery, useSourceControlReposQuery, useDeleteSourceControlMutation, useAddSourceControlProviderMutation, useUpdateSourceControlMutation, useSyncProviderMutation, useImportRepositoryMutation, useUninstallRepositoryMutation } from '@/modules/source-control';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorState } from '@/commons/components/ErrorState';
+import { useSourceControlProvidersQuery, useSourceControlReposQuery, useDeleteSourceControlMutation, useAddSourceControlProviderMutation, useUpdateSourceControlMutation, useSyncProviderMutation, useImportRepositoryMutation, useUninstallRepositoryMutation, useTestSourceControlMutation, useSendSourceControlTestEventMutation } from '@/modules/source-control';
 import { usePrReviewSettingsQuery, useUpdatePrReviewSettingsMutation } from '@/modules/workspace-settings';
 import { errorMessage } from '@/lib/api/errors';
-import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { useFeatureFlags } from '@/lib/hooks/useFeatureFlag';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 
 interface ScmProvider {
   id: string;
@@ -89,6 +92,8 @@ export default function SourceControlPage() {
   const isMobile = !breakpoints.md;
   const session = useSessionData();
   const workspaceId = session.data?.workspace?.id ?? '';
+  const { flags } = useFeatureFlags([FEATURE_FLAG.SOURCE_CONTROL_GITHUB, FEATURE_FLAG.SOURCE_CONTROL_GITLAB, FEATURE_FLAG.SOURCE_CONTROL_GITEA]);
+  const hasScmProvider = flags[FEATURE_FLAG.SOURCE_CONTROL_GITHUB] || flags[FEATURE_FLAG.SOURCE_CONTROL_GITLAB] || flags[FEATURE_FLAG.SOURCE_CONTROL_GITEA];
 
   const sourceControlsQuery = useSourceControlProvidersQuery();
   const deleteSourceControlMutation = useDeleteSourceControlMutation();
@@ -97,10 +102,12 @@ export default function SourceControlPage() {
   const syncProviderMutation = useSyncProviderMutation();
   const importRepositoryMutation = useImportRepositoryMutation();
   const uninstallRepositoryMutation = useUninstallRepositoryMutation();
+  const testProviderMutation = useTestSourceControlMutation();
+  const sendTestEventMutation = useSendSourceControlTestEventMutation();
   const prReviewSettingsQuery = usePrReviewSettingsQuery();
   const updatePrReviewSettingsMutation = useUpdatePrReviewSettingsMutation();
 
-  const { params, setPage, setPageSize, setSearch, setFilter } = useTableParams({
+  const { params, setPagination, setSearch, setFilter } = useTableParams({
     filterKeys: ['status'],
     defaultPageSize: 10,
   });
@@ -149,8 +156,11 @@ export default function SourceControlPage() {
     setConfigureOpen(true);
   };
 
-  const handleTest = (providerName: string) => {
-    message.loading(`Testing ${providerName}...`, 1.5).then(() => message.success(`${providerName} connection is working`));
+  const handleTest = (providerId: string) => {
+    testProviderMutation.mutate(providerId, {
+      onSuccess: () => message.success('Connection test passed'),
+      onError: (err) => message.error(errorMessage(err)),
+    });
   };
 
   const handleSync = (providerId: string) => {
@@ -166,12 +176,14 @@ export default function SourceControlPage() {
   const handleSyncConnected = () => {
     const allProviderIds = providers.map((p) => p.id);
     if (allProviderIds.length === 0) return;
-    syncProviderMutation.mutate(allProviderIds[0], {
-      onSuccess: (results) => {
-        setSyncResults(results);
-        setSyncResultsOpen(true);
-      },
-      onError: (err) => message.error(errorMessage(err)),
+    allProviderIds.forEach((id) => {
+      syncProviderMutation.mutate(id, {
+        onSuccess: (results) => {
+          setSyncResults(results);
+          setSyncResultsOpen(true);
+        },
+        onError: (err) => message.error(errorMessage(err)),
+      });
     });
   };
 
@@ -228,6 +240,20 @@ export default function SourceControlPage() {
     return <ErrorState title="Failed to load source controls" description={errorMessage(sourceControlsQuery.error)} onRetry={() => sourceControlsQuery.refetch()} />;
   }
 
+  if (!hasScmProvider) {
+    return (
+      <Flex vertical gap={token.paddingXL}>
+        <PageHeader title="Source Control" description="Connect SCM providers, sync provider repository catalogs, then import repositories into internal Projects." />
+        <ComingSoonCard
+          icon="fa-plug"
+          title="Source Control"
+          description="Source control integration allows you to connect GitHub, GitLab, or Gitea providers."
+          envHint="FEATURE_FLAG_SOURCE_CONTROL_GITHUB"
+        />
+      </Flex>
+    );
+  }
+
   const connectMenuItems = PROVIDER_MENU_ITEMS.map((item) => ({
     ...item,
     onClick: () => handleConnectProvider(item.key),
@@ -246,23 +272,42 @@ export default function SourceControlPage() {
         description="Connect SCM providers, sync provider repository catalogs, then import repositories into internal Projects."
         actions={
           <PermissionGate permission={PERMISSION.INTEGRATION_MANAGE}>
-            <Flex gap={token.paddingMD}>
-              <Button onClick={handleSyncConnected} icon={<FaIcon icon="fa-rotate" />}>Sync connected</Button>
+            <Flex gap={token.paddingSM}>
+              {providers.length > 0 && (
+                <Button onClick={handleSyncConnected} icon={<FaIcon icon="fa-rotate" />}>Sync connected</Button>
+              )}
               <Dropdown menu={{ items: connectMenuItems }} trigger={['click']}>
-                <Button type="primary" icon={<FaIcon icon="fa-plus" />}>Connect provider</Button>
+                <Button type="primary" size="large" icon={<FaIcon icon="fa-plug" />}>Connect provider</Button>
               </Dropdown>
             </Flex>
           </PermissionGate>
         }
       />
 
-      <Flex wrap gap={token.paddingXL} align="flex-start">
-        {providers.map((provider) => (
-          <div key={provider.id} style={{ flex: '1 1 300px', maxWidth: '100%' }}>
-            <ProviderCard provider={provider} onConfigure={handleConfigure} onTest={handleTest} onSync={handleSync} onDisconnect={handleDisconnect} />
-          </div>
-        ))}
-      </Flex>
+      {providers.length > 0 ? (
+        <Flex wrap gap={token.paddingXL} align="flex-start">
+          {providers.map((provider) => (
+            <div key={provider.id} style={{ flex: '1 1 300px', maxWidth: '100%' }}>
+              <ProviderCard provider={provider} onConfigure={handleConfigure} onTest={handleTest} onSync={handleSync} onDisconnect={handleDisconnect} />
+            </div>
+          ))}
+        </Flex>
+      ) : (
+        <Card styles={{ body: { padding: token.paddingXL * 2 } }}>
+          <Flex vertical align="center" gap={token.paddingLG} style={{ textAlign: 'center' }}>
+            <FaIcon icon="fa-plug" style={{ fontSize: 48, color: token.colorPrimaryBg }} />
+            <Typography.Title level={3} style={{ margin: 0 }}>No providers connected</Typography.Title>
+            <Typography.Text type="secondary" style={{ maxWidth: 480 }}>
+              Connect a Git provider (GitHub, GitLab, or Gitea) to sync repositories and enable automated scanning.
+            </Typography.Text>
+            <Dropdown menu={{ items: connectMenuItems }} trigger={['click']}>
+              <Button type="primary" size="large" icon={<FaIcon icon="fa-plus" />}>
+                Connect your first provider
+              </Button>
+            </Dropdown>
+          </Flex>
+        </Card>
+      )}
 
       <Card styles={{ body: { padding: 0 } }}>
         <Flex vertical style={{ padding: token.paddingXL }} gap={token.paddingSM}>
@@ -282,7 +327,7 @@ export default function SourceControlPage() {
         <DataTable
           source={makeSource(reposQuery.data)}
           columns={[
-            { key: 'repository', header: 'Repository', render: (row) => (
+            { key: 'repository', header: 'Repository', sortable: true, sortValue: (row) => row.fullName, render: (row) => (
               <Flex vertical>
                 <Typography.Text strong>{row.fullName}</Typography.Text>
                 <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{row.visibility}</Typography.Text>
@@ -319,7 +364,7 @@ export default function SourceControlPage() {
             { label: 'Import', icon: <FaIcon icon="fa-download" />, onClick: (row) => handleImport(row.id, row.fullName), show: (row) => !row.imported },
             { label: 'Uninstall', icon: <FaIcon icon="fa-trash" />, variant: 'danger', onClick: (row) => handleUninstall(row.importId, row.fullName), show: (row) => row.imported },
           ]}
-          onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+          onChange={(p, ps) => setPagination(p, ps)}
         />
       </Card>
 
@@ -420,7 +465,7 @@ export default function SourceControlPage() {
         } catch (err) { message.error(errorMessage(err)); }
       }} />
       <ImportRepoModal open={importOpen} repoFullName={selectedRepo} onClose={() => setImportOpen(false)} onSave={() => { importRepositoryMutation.mutate({ providerId: firstProviderId, sourceRepositoryId: selectedRepoSourceControlId }, { onSuccess: () => { message.success(`${selectedRepo} imported`); setImportOpen(false); }, onError: () => message.error('Failed to import repository') }); }} />
-      <SendTestEventModal open={testEventOpen} onClose={() => setTestEventOpen(false)} onSend={(type) => { message.success(`Test ${type} event sent`); }} />
+      <SendTestEventModal open={testEventOpen} onClose={() => setTestEventOpen(false)} onSend={(type) => { sendTestEventMutation.mutate(firstProviderId, { onSuccess: () => message.success(`Test ${type} event sent`), onError: (err) => message.error(errorMessage(err)) }); }} />
       <SyncResultsModal open={syncResultsOpen} results={syncResults} onClose={() => setSyncResultsOpen(false)} />
     </Flex>
   );

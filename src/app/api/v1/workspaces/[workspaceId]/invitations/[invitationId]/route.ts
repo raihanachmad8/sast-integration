@@ -19,7 +19,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     await memberService.revokeInvitation(workspaceId, invitationId);
     logger.member.info('revokeInvitation completed');
-    return ApiResponse.success('Invitation revoked', { invitationId });
+    return ApiResponse.noContent();
   } catch (e) {
     logger.member.error('revokeInvitation failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

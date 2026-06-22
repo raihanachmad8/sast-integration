@@ -9,6 +9,7 @@ export {
   useScanListQuery,
   useScanDetailQuery,
   useScanFindingsQuery,
+  useScannerAvailabilityQuery,
   useTriggerScanMutation,
   useRepositoryBranchesQuery,
 } from './queries';

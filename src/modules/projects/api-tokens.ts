@@ -44,11 +44,11 @@ export const projectApiTokensApi = {
   /**
    * List all API tokens for a project.
    */
-  async list(_workspaceId: string, projectId: string): Promise<{ tokens: ApiToken[] }> {
-    const { data } = await _api.Get<ApiResponse<{ tokens: ApiToken[] }>>(
+  async list(_workspaceId: string, projectId: string): Promise<{ data: ApiToken[] }> {
+    const response = await _api.Get<ApiResponse<ApiToken[]>>(
       ENDPOINTS.PROJECTS.API_TOKENS(_workspaceId, projectId),
     );
-    return data;
+    return { data: response.data ?? [] };
   },
 
   /**

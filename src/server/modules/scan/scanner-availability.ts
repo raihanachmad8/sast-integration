@@ -28,7 +28,6 @@
 
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import path from 'node:path';
 import { logger } from '@/server/lib/logger';
 import { SCANNER_COMMANDS } from './scanners';
 import type { ScannerId } from './constants';
@@ -47,7 +46,6 @@ const WINDOWS_SCANNER_PATHS: Record<string, string[]> = {
     'C:\\Program Files (x86)\\LLVM\\bin\\clang.exe',
   ],
   'gcc': [
-    'C:\\Users\\Rezork\\scoop\\apps\\gcc\\current\\bin\\gcc.exe',
     'C:\\msys64\\mingw64\\bin\\gcc.exe',
     'C:\\mingw64\\bin\\gcc.exe',
   ],

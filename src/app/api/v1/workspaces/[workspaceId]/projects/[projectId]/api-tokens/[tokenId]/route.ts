@@ -20,7 +20,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     await projectService.revokeApiToken(projectId, tokenId, auth.context.userId);
     logger.project.info('revokeApiToken completed');
-    return ApiResponse.success('API token revoked', { id: tokenId });
+    return ApiResponse.noContent();
   } catch (e) {
     logger.project.error('revokeApiToken failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

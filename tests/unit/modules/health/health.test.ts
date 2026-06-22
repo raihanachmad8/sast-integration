@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { GET } from '@/app/api/v1/health/route';
 
 describe('Health API Route', () => {
+  /**
+   * Purpose: Validates that the health endpoint returns a healthy status
+   */
   it('should return healthy status', async () => {
     const response = await GET();
     const data = await response.json();
@@ -11,6 +14,9 @@ describe('Health API Route', () => {
     expect(data.data.status).toBe('healthy');
   });
 
+  /**
+   * Purpose: Validates that the timestamp is a valid ISO date string
+   */
   it('should return valid ISO timestamp', async () => {
     const response = await GET();
     const data = await response.json();
@@ -19,6 +25,9 @@ describe('Health API Route', () => {
     expect(timestamp.getTime()).not.toBeNaN();
   });
 
+  /**
+   * Purpose: Validates that the response contains all required fields
+   */
   it('should return consistent response structure', async () => {
     const response = await GET();
     const data = await response.json();
@@ -30,6 +39,9 @@ describe('Health API Route', () => {
     expect(data.data).toHaveProperty('timestamp');
   });
 
+  /**
+   * Purpose: Validates that the health endpoint is publicly accessible without auth
+   */
   it('should not require authentication', async () => {
     // Health endpoint is public - no auth header needed
     const response = await GET();
@@ -37,6 +49,9 @@ describe('Health API Route', () => {
     expect(response.status).not.toBe(401);
   });
 
+  /**
+   * Purpose: Validates that the OK message is returned in the response
+   */
   it('should return OK message', async () => {
     const response = await GET();
     const data = await response.json();

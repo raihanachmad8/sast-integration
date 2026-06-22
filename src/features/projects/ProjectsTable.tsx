@@ -2,16 +2,16 @@
 
 import { useMemo } from 'react';
 import { Typography, Flex, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { ErrorState } from '@/components/shared/ErrorState';
-import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { ErrorState } from '@/commons/components/ErrorState';
+import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useProjectsQuery } from '@/modules/projects';
 import { useRepositoriesQuery } from '@/modules/repositories';
 import { useTeamsQuery } from '@/modules/teams';
 import { useMembersQuery } from '@/modules/members';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import type { Project } from '@/commons/types';
 
 interface ProjectsTableProps {
@@ -21,7 +21,7 @@ interface ProjectsTableProps {
 export function ProjectsTable({ onView }: ProjectsTableProps) {
   const { token } = theme.useToken();
 
-  const { params, setPage, setPageSize, setSearch, setFilter } = useTableParams({
+  const { params, setPagination, setSearch, setFilter } = useTableParams({
     filterKeys: ['repository', 'team', 'member'],
     defaultPageSize: 10,
   });
@@ -40,9 +40,9 @@ export function ProjectsTable({ onView }: ProjectsTableProps) {
   const teamsQuery = useTeamsQuery({ page: 1, perPage: 200 });
   const membersQuery = useMembersQuery(workspaceId ?? '', { page: 1, perPage: 200 });
 
-  const repoOptions = (reposQuery.data?.data ?? []).map((r) => ({ value: r.name, label: r.name }));
-  const teamOptions = (teamsQuery.data?.data ?? []).map((t) => ({ value: t.name, label: t.name }));
-  const memberOptions = (membersQuery.data?.data ?? []).map((m) => ({ value: m.email, label: `${m.name} (${m.email})` }));
+  const repoOptions = (reposQuery.data?.data ?? []).map((r) => ({ value: r.id, label: r.name }));
+  const teamOptions = (teamsQuery.data?.data ?? []).map((t) => ({ value: t.id, label: t.name }));
+  const memberOptions = (membersQuery.data?.data ?? []).map((m) => ({ value: m.userId, label: `${m.name} (${m.email})` }));
 
   const activeFilters = useMemo(() => {
     const filters = [];
@@ -141,7 +141,7 @@ export function ProjectsTable({ onView }: ProjectsTableProps) {
       onFilterRemove={(key) => setFilter(key, '')}
       actions={actions}
       emptyText="No projects found. Create your first project to organize repositories."
-      onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+      onChange={(p, ps) => setPagination(p, ps)}
     />
   );
 }

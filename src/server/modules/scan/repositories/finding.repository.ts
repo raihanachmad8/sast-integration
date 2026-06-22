@@ -1,14 +1,25 @@
-import { eq, and, or, desc, count, sql, inArray, isNull, type InferInsertModel } from 'drizzle-orm';
+import { eq, and, or, desc, count, sql, inArray, isNull, ilike, type InferInsertModel } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { getOffset } from '@/lib/pagination';
 import { findings, findingGroups, aiVerifications, findingHistory, findingGroupScans } from '@drizzle/schema/findings';
-import { users } from '@drizzle/schema/users';
 import { projects } from '@drizzle/schema/projects';
 import { scans } from '@drizzle/schema/scans';
 import { repositories } from '@drizzle/schema/source-controls';
 import { models } from '@drizzle/schema/integrations';
+import type { ChangedFile } from '@/server/modules/source-control/scm-api.service';
+import { logger } from '@/server/lib/logger';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Strip Docker workspace prefix from absolute file paths.
+ * /workspace/Owner/repo/file.c → file.c
+ * Matches SCM API relative paths for comparison.
+ */
+function stripDockerPrefix(filePath: string): string {
+  const match = filePath.match(/^\/workspace\/[^/]+\/[^/]+\/(.+)$/);
+  return match ? match[1] : filePath;
+}
 
 export const findingRepository = {
   /**
@@ -63,9 +74,9 @@ export const findingRepository = {
     const executor = tx ?? db;
     const offset = getOffset(params.page, params.perPage);
 
-    const conditions = [eq(findingGroups.status, 'open')];
+    const statusFilter = params.status || 'open';
+    const conditions = [eq(findingGroups.status, statusFilter)];
     if (params.severity) conditions.push(eq(findings.severity, params.severity));
-    if (params.status) conditions.push(eq(findingGroups.status, params.status));
     if (params.scanner) conditions.push(eq(findings.scanner, params.scanner));
     if (params.repositoryId) conditions.push(eq(findingGroups.repositoryId, params.repositoryId));
 
@@ -114,13 +125,13 @@ export const findingRepository = {
     const executor = tx ?? db;
     const offset = getOffset(params.page, params.perPage);
 
+    const statusFilter = params.status || 'open';
     const conditions = [];
     if (params.severity) conditions.push(eq(findings.severity, params.severity));
-    if (params.status) conditions.push(eq(findingGroups.status, params.status));
     if (params.scanner) conditions.push(eq(findings.scanner, params.scanner));
     if (params.repositoryId) conditions.push(eq(findingGroups.repositoryId, params.repositoryId));
 
-    const workspaceFilter = and(eq(projects.workspaceId, workspaceId), isNull(projects.deletedAt), eq(findingGroups.status, 'open'));
+    const workspaceFilter = and(eq(projects.workspaceId, workspaceId), isNull(projects.deletedAt), eq(findingGroups.status, statusFilter));
     const whereClause = conditions.length > 0 ? and(workspaceFilter, and(...conditions)) : workspaceFilter;
 
     const data = await executor.select({
@@ -193,7 +204,7 @@ export const findingRepository = {
       };
     });
 
-    const [{ total }] = await executor.select({ total: count() }).from(findings)
+    const [{ total }] = await executor.select({ total: count(sql`DISTINCT ${findingGroups.id}`) }).from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
       .innerJoin(projects, eq(findingGroups.projectId, projects.id))
       .where(whereClause);
@@ -216,11 +227,20 @@ export const findingRepository = {
     const executor = tx ?? db;
     const offset = getOffset(params.page, params.perPage);
 
-    const conditions = [eq(findingGroups.status, 'open')];
+    const statusFilter = params.status || 'open';
+    const conditions = [eq(findingGroups.status, statusFilter)];
     if (params.severity) conditions.push(eq(findings.severity, params.severity));
-    if (params.status) conditions.push(eq(findingGroups.status, params.status));
     if (params.scanner) conditions.push(eq(findings.scanner, params.scanner));
     if (params.repositoryId) conditions.push(eq(scans.repositoryId, params.repositoryId));
+    if (params.search) {
+      const searchCondition = or(
+        ilike(findings.filePath, `%${params.search}%`),
+        ilike(findings.description, `%${params.search}%`),
+        ilike(findings.rule, `%${params.search}%`),
+        ilike(findings.message, `%${params.search}%`),
+      );
+      if (searchCondition) conditions.push(searchCondition);
+    }
 
     const workspaceFilter = eq(projects.workspaceId, workspaceId);
 
@@ -317,17 +337,24 @@ export const findingRepository = {
 
   /**
    * List findings by scan ID.
+   * When onlyNew=true, uses finding_group_scans.is_new (set by code diff comparison).
    */
   async listByScan(scanId: string, params: {
     page: number;
     perPage: number;
     status?: string;
+    onlyNew?: boolean;
   }, tx?: Tx) {
     const executor = tx ?? db;
     const offset = getOffset(params.page, params.perPage);
 
     const conditions = [eq(findings.scanId, scanId)];
     if (params.status) conditions.push(eq(findingGroups.status, params.status));
+
+    // When onlyNew=true, filter to only groups marked as new by code diff
+    if (params.onlyNew) {
+      conditions.push(eq(findingGroupScans.isNew, true));
+    }
 
     const whereClause = and(...conditions);
 
@@ -349,15 +376,10 @@ export const findingRepository = {
       firstSeenAt: findingGroups.firstSeenAt,
       repositoryName: repositories.name,
       isNew: findingGroupScans.isNew,
-      verdict: sql<string | null>`CASE WHEN ${aiVerifications.verdict} = 'true_positive' THEN 'TP' WHEN ${aiVerifications.verdict} = 'false_positive' THEN 'FP' ELSE 'Pending' END`,
-      model: models.name,
-      confidence: aiVerifications.confidence,
     }).from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
       .innerJoin(scans, eq(findings.scanId, scans.id))
       .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
-      .leftJoin(aiVerifications, eq(findings.id, aiVerifications.findingId))
-      .leftJoin(models, eq(aiVerifications.modelId, models.id))
       .leftJoin(findingGroupScans, and(
         eq(findingGroupScans.groupId, findingGroups.id),
         eq(findingGroupScans.scanId, scanId),
@@ -366,11 +388,56 @@ export const findingRepository = {
       .orderBy(desc(findings.createdAt))
       .limit(params.perPage).offset(offset);
 
-    const [{ total }] = await executor.select({ total: count() }).from(findings)
-      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .where(whereClause);
+    // Fetch AI verifications separately to avoid LEFT JOIN duplicate rows
+    const findingIds = data.map((r) => r.id);
+    const aiData = findingIds.length > 0
+      ? await executor.select({
+          findingId: aiVerifications.findingId,
+          verdict: aiVerifications.verdict,
+          confidence: aiVerifications.confidence,
+          modelName: models.name,
+        }).from(aiVerifications)
+          .leftJoin(models, eq(aiVerifications.modelId, models.id))
+          .where(inArray(aiVerifications.findingId, findingIds))
+      : [];
 
-    return { data, total };
+    const aiMap = new Map<string, typeof aiData[number]>();
+    for (const row of aiData) {
+      if (!row.findingId) continue;
+      const existing = aiMap.get(row.findingId);
+      if (!existing) aiMap.set(row.findingId, row);
+    }
+
+    const enrichedData = data.map((row) => {
+      const ai = row.id ? aiMap.get(row.id) : undefined;
+      return {
+        ...row,
+        verdict: ai ? (ai.verdict === 'true_positive' ? 'TP' : ai.verdict === 'false_positive' ? 'FP' : 'Pending') : 'Pending',
+        model: ai?.modelName ?? null,
+        confidence: ai?.confidence ?? null,
+      };
+    });
+
+    const countConditions = [eq(findings.scanId, scanId)];
+    if (params.status) countConditions.push(eq(findingGroups.status, params.status));
+    if (params.onlyNew) {
+      countConditions.push(eq(findingGroupScans.isNew, true));
+    }
+    const countWhere = and(...countConditions);
+
+    const countQuery = executor.select({ total: count(sql`DISTINCT ${findingGroups.id}`) }).from(findings)
+      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id));
+
+    if (params.onlyNew) {
+      countQuery.innerJoin(findingGroupScans, and(
+        eq(findingGroupScans.groupId, findingGroups.id),
+        eq(findingGroupScans.scanId, scanId),
+      ));
+    }
+
+    const [{ total }] = await countQuery.where(countWhere);
+
+    return { data: enrichedData, total };
   },
 
   /**
@@ -407,13 +474,19 @@ export const findingRepository = {
       .returning();
 
     if (group && oldGroup) {
-      await executor.insert(findingHistory).values({
-        findingId: groupId,
-        field: 'group_status',
-        oldValue: oldGroup.status,
-        newValue: status,
-        createdBy: userId,
-      });
+      // Find first finding in this group to link history record (finding_history FK → findings.id)
+      const [firstFinding] = await executor.select({ id: findings.id })
+        .from(findings).where(eq(findings.groupId, groupId)).limit(1);
+      
+      if (firstFinding) {
+        await executor.insert(findingHistory).values({
+          findingId: firstFinding.id,
+          field: 'group_status',
+          oldValue: oldGroup.status,
+          newValue: status,
+          createdBy: userId,
+        });
+      }
     }
 
     return group;
@@ -490,7 +563,7 @@ export const findingRepository = {
 
   /**
    * Batch: find or create multiple finding groups at once.
-   * Also reopens groups with status 'fixed' or 'false_positive'.
+   * Also reopens groups with status 'resolved'.
    * Inserts into finding_group_scans for explicit new/pre-existing tracking.
    */
   async findOrCreateFindingGroups(
@@ -526,9 +599,9 @@ export const findingRepository = {
       .from(findingGroups)
       .where(and(repoCondition, inArray(findingGroups.fingerprint, fingerprints)));
 
-    // Reopen groups that were fixed/false_positive
+    // Reopen groups that were resolved
     const groupsToReopen = groups
-      .filter((g) => g.status === 'fixed' || g.status === 'false_positive')
+      .filter((g) => g.status === 'resolved')
       .map((g) => g.id);
     if (groupsToReopen.length > 0) {
       await executor
@@ -586,11 +659,12 @@ export const findingRepository = {
         id: findingGroups.id,
         fingerprint: findingGroups.fingerprint,
         status: findingGroups.status,
-        scanId: findings.scanId,
+        scanId: sql`MAX(${findings.scanId})`.as('scanId'),
       })
       .from(findingGroups)
       .innerJoin(findings, eq(findings.groupId, findingGroups.id))
-      .where(and(...conditions));
+      .where(and(...conditions))
+      .groupBy(findingGroups.id, findingGroups.fingerprint, findingGroups.status);
   },
 
   /**
@@ -601,7 +675,7 @@ export const findingRepository = {
     const executor = tx ?? db;
     return executor.select({
       severity: findings.severity,
-      count: count(findings.id),
+      count: count(sql`DISTINCT ${findingGroups.id}`),
     }).from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
       .where(and(eq(findingGroups.projectId, projectId), eq(findingGroups.status, 'open')))
@@ -639,10 +713,20 @@ export const findingRepository = {
     const executor = tx ?? db;
     const offset = getOffset(pagination.page, pagination.perPage);
 
+    // Get latest completed scan ID for this branch
+    const latestScanId = executor
+      .select({ id: scans.id })
+      .from(scans)
+      .where(and(
+        eq(scans.repositoryId, repositoryId),
+        eq(scans.branch, branch),
+        eq(scans.status, 'completed'),
+      ))
+      .orderBy(desc(scans.createdAt))
+      .limit(1);
+
     const conditions = [
-      eq(scans.repositoryId, repositoryId),
-      eq(scans.branch, branch),
-      eq(scans.status, 'completed'),
+      eq(findings.scanId, sql`(${latestScanId})`),
       eq(findingGroups.status, 'open'),
     ];
     if (filters.scanner) conditions.push(eq(findings.scanner, filters.scanner));
@@ -668,7 +752,6 @@ export const findingRepository = {
       })
       .from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(scans, eq(findings.scanId, scans.id))
       .where(and(...conditions))
       .orderBy(desc(findings.createdAt))
       .limit(pagination.perPage)
@@ -678,7 +761,6 @@ export const findingRepository = {
       .select({ total: count() })
       .from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(scans, eq(findings.scanId, scans.id))
       .where(and(...conditions));
 
     return { data, total };
@@ -699,27 +781,53 @@ export const findingRepository = {
     const executor = tx ?? db;
     const offset = getOffset(pagination.page, pagination.perPage);
 
+    // Note: repositoryId is enforced via subqueries, not in baseConditions
     const baseConditions = [
-      eq(scans.repositoryId, repositoryId),
       eq(findingGroups.status, 'open'),
     ];
     if (filters.scanner) baseConditions.push(eq(findings.scanner, filters.scanner));
     if (filters.severity) baseConditions.push(eq(findings.severity, filters.severity));
 
-    // Get fingerprints from base branch scans
+    // CI/CD PR scans store PR number in `branch` and actual branch in `head_branch`/`base_branch`
+    // Head: match scans that scanned the head branch content (push scans OR PR scans from this branch)
+    const headBranchMatch = or(eq(scans.branch, headBranch), eq(scans.headBranch, headBranch));
+    // Base: only match push scans on the base branch (PR scans scan HEAD content, not BASE)
+    const baseBranchMatch = eq(scans.branch, baseBranch);
+
+    // Get latest completed scan ID for each branch to avoid counting across multiple scans
+    const latestHeadScanId = executor
+      .select({ id: scans.id })
+      .from(scans)
+      .where(and(
+        eq(scans.repositoryId, repositoryId),
+        headBranchMatch,
+        eq(scans.status, 'completed'),
+      ))
+      .orderBy(desc(scans.createdAt))
+      .limit(1);
+
+    const latestBaseScanId = executor
+      .select({ id: scans.id })
+      .from(scans)
+      .where(and(
+        eq(scans.repositoryId, repositoryId),
+        baseBranchMatch,
+        eq(scans.status, 'completed'),
+      ))
+      .orderBy(desc(scans.createdAt))
+      .limit(1);
+
+    // Get fingerprints from base branch (latest scan only)
     const baseFingerprints = executor
       .select({ fingerprint: findingGroups.fingerprint })
       .from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(scans, eq(findings.scanId, scans.id))
       .where(and(
-        eq(scans.repositoryId, repositoryId),
-        eq(scans.branch, baseBranch),
-        eq(scans.status, 'completed'),
+        eq(findings.scanId, sql`(${latestBaseScanId})`),
         eq(findingGroups.status, 'open'),
       ));
 
-    // Get findings on head branch whose fingerprints are NOT on base
+    // Get findings on head branch (latest scan only) whose fingerprints are NOT on base
     const data = await executor
       .select({
         id: findings.id,
@@ -737,16 +845,11 @@ export const findingRepository = {
         scanner: findings.scanner,
         message: findings.message,
         createdAt: findings.createdAt,
-        aiVerdict: aiVerifications.verdict,
-        confidence: aiVerifications.confidence,
       })
       .from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(scans, eq(findings.scanId, scans.id))
-      .leftJoin(aiVerifications, eq(findings.id, aiVerifications.findingId))
       .where(and(
-        eq(scans.branch, headBranch),
-        eq(scans.status, 'completed'),
+        eq(findings.scanId, sql`(${latestHeadScanId})`),
         ...baseConditions,
         sql`${findingGroups.fingerprint} NOT IN (${baseFingerprints})`,
       ))
@@ -754,20 +857,47 @@ export const findingRepository = {
       .limit(pagination.perPage)
       .offset(offset);
 
+    // Fetch AI data separately to avoid LEFT JOIN duplicate rows
+    const findingIds = data.map((r) => r.id);
+    const aiData = findingIds.length > 0
+      ? await executor.select({
+          findingId: aiVerifications.findingId,
+          verdict: aiVerifications.verdict,
+          confidence: aiVerifications.confidence,
+          modelName: models.name,
+        }).from(aiVerifications)
+          .leftJoin(models, eq(aiVerifications.modelId, models.id))
+          .where(inArray(aiVerifications.findingId, findingIds))
+      : [];
+
+    const aiMap = new Map<string, typeof aiData[number]>();
+    for (const row of aiData) {
+      if (!row.findingId) continue;
+      const existing = aiMap.get(row.findingId);
+      if (!existing) aiMap.set(row.findingId, row);
+    }
+
+    const enrichedData = data.map((row) => {
+      const ai = row.id ? aiMap.get(row.id) : undefined;
+      return {
+        ...row,
+        aiVerdict: ai?.verdict ?? null,
+        confidence: ai?.confidence ?? null,
+      };
+    });
+
     // Count unique groups (not finding rows — prevents N×M inflation)
     const [{ total }] = await executor
       .select({ total: count(sql`DISTINCT ${findingGroups.id}`) })
       .from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(scans, eq(findings.scanId, scans.id))
       .where(and(
-        eq(scans.branch, headBranch),
-        eq(scans.status, 'completed'),
+        eq(findings.scanId, sql`(${latestHeadScanId})`),
         ...baseConditions,
         sql`${findingGroups.fingerprint} NOT IN (${baseFingerprints})`,
       ));
 
-    return { data, total };
+    return { data: enrichedData, total };
   },
 
   /**
@@ -785,27 +915,53 @@ export const findingRepository = {
     const executor = tx ?? db;
     const offset = getOffset(pagination.page, pagination.perPage);
 
+    // Note: repositoryId is enforced via subqueries, not in baseConditions
     const baseConditions = [
-      eq(scans.repositoryId, repositoryId),
       eq(findingGroups.status, 'open'),
     ];
     if (filters.scanner) baseConditions.push(eq(findings.scanner, filters.scanner));
     if (filters.severity) baseConditions.push(eq(findings.severity, filters.severity));
 
-    // Get fingerprints from head branch scans
+    // CI/CD PR scans store PR number in `branch` and actual branch in `head_branch`/`base_branch`
+    // Head: match scans that scanned the head branch content (push scans OR PR scans from this branch)
+    const headBranchMatch = or(eq(scans.branch, headBranch), eq(scans.headBranch, headBranch));
+    // Base: only match push scans on the base branch (PR scans scan HEAD content, not BASE)
+    const baseBranchMatch = eq(scans.branch, baseBranch);
+
+    // Get latest completed scan ID for each branch to avoid counting across multiple scans
+    const latestHeadScanId = executor
+      .select({ id: scans.id })
+      .from(scans)
+      .where(and(
+        eq(scans.repositoryId, repositoryId),
+        headBranchMatch,
+        eq(scans.status, 'completed'),
+      ))
+      .orderBy(desc(scans.createdAt))
+      .limit(1);
+
+    const latestBaseScanId = executor
+      .select({ id: scans.id })
+      .from(scans)
+      .where(and(
+        eq(scans.repositoryId, repositoryId),
+        baseBranchMatch,
+        eq(scans.status, 'completed'),
+      ))
+      .orderBy(desc(scans.createdAt))
+      .limit(1);
+
+    // Get fingerprints from head branch (latest scan only)
     const headFingerprints = executor
       .select({ fingerprint: findingGroups.fingerprint })
       .from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(scans, eq(findings.scanId, scans.id))
       .where(and(
-        eq(scans.repositoryId, repositoryId),
-        eq(scans.branch, headBranch),
-        eq(scans.status, 'completed'),
+        eq(findings.scanId, sql`(${latestHeadScanId})`),
         eq(findingGroups.status, 'open'),
       ));
 
-    // Get findings on base branch whose fingerprints are NOT on head
+    // Get findings on base branch (latest scan only) whose fingerprints are NOT on head
     const data = await executor
       .select({
         id: findings.id,
@@ -826,10 +982,8 @@ export const findingRepository = {
       })
       .from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(scans, eq(findings.scanId, scans.id))
       .where(and(
-        eq(scans.branch, baseBranch),
-        eq(scans.status, 'completed'),
+        eq(findings.scanId, sql`(${latestBaseScanId})`),
         ...baseConditions,
         sql`${findingGroups.fingerprint} NOT IN (${headFingerprints})`,
       ))
@@ -842,14 +996,305 @@ export const findingRepository = {
       .select({ total: count(sql`DISTINCT ${findingGroups.id}`) })
       .from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(scans, eq(findings.scanId, scans.id))
       .where(and(
-        eq(scans.branch, baseBranch),
-        eq(scans.status, 'completed'),
+        eq(findings.scanId, sql`(${latestBaseScanId})`),
         ...baseConditions,
         sql`${findingGroups.fingerprint} NOT IN (${headFingerprints})`,
       ));
 
     return { data, total };
+  },
+
+  /**
+   * Find fixed findings by comparing two scans on the SAME branch.
+   * Used for inline comment resolve: find fingerprints that were in previousScan
+   * but are NOT in currentScan.
+   *
+   * @param repositoryId - Repository UUID
+   * @param branch - Branch name (head branch of PR)
+   * @param currentScanId - Current scan UUID (latest)
+   * @param previousScanId - Previous scan UUID
+   * @returns Array of fingerprints that were fixed (in previous but not in current)
+   */
+  async diffFixedFindingsByBranch(
+    repositoryId: string,
+    branch: string,
+    currentScanId: string,
+    previousScanId: string,
+    tx?: Tx,
+  ): Promise<string[]> {
+    const executor = tx ?? db;
+
+    // Get fingerprints from current scan
+    const currentFingerprints = executor
+      .select({ fingerprint: findingGroups.fingerprint })
+      .from(findings)
+      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+      .where(and(
+        eq(findings.scanId, currentScanId),
+        eq(findingGroups.status, 'open'),
+      ));
+
+    // Find groups that were in previous scan but NOT in current scan
+    const fixedGroups = await executor
+      .select({ fingerprint: findingGroups.fingerprint })
+      .from(findings)
+      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+      .where(and(
+        eq(findings.scanId, previousScanId),
+        eq(findingGroups.status, 'open'),
+        sql`${findingGroups.fingerprint} NOT IN (${currentFingerprints})`,
+      ));
+
+    // Deduplicate by fingerprint
+    const fingerprints = [...new Set(fixedGroups.map((g) => g.fingerprint))];
+    return fingerprints;
+  },
+
+  /**
+   * Get the previous scan ID for a branch (scan before the given scanId).
+   */
+  async getPreviousScanId(
+    repositoryId: string,
+    branch: string,
+    currentScanId: string,
+    tx?: Tx,
+  ): Promise<string | null> {
+    const executor = tx ?? db;
+
+    const branchMatch = or(eq(scans.branch, branch), eq(scans.headBranch, branch));
+
+    const [previousScan] = await executor
+      .select({ id: scans.id })
+      .from(scans)
+      .where(and(
+        eq(scans.repositoryId, repositoryId),
+        branchMatch,
+        eq(scans.status, 'completed'),
+        sql`${scans.id} != ${currentScanId}`,
+      ))
+      .orderBy(desc(scans.createdAt))
+      .limit(1);
+
+    return previousScan?.id ?? null;
+  },
+
+  /**
+   * Count distinct finding groups on a branch (for computing persistent/pre-existing findings).
+   */
+  async countGroupsByBranch(
+    repositoryId: string,
+    branch: string,
+    tx?: Tx,
+  ): Promise<number> {
+    const executor = tx ?? db;
+
+    // Match push scans on this branch (same logic as diffNewFindings base/head queries)
+    const branchMatch = or(eq(scans.branch, branch), eq(scans.headBranch, branch));
+
+    // Get latest completed scan ID for this branch
+    const latestScanId = executor
+      .select({ id: scans.id })
+      .from(scans)
+      .where(and(
+        eq(scans.repositoryId, repositoryId),
+        branchMatch,
+        eq(scans.status, 'completed'),
+      ))
+      .orderBy(desc(scans.createdAt))
+      .limit(1);
+
+    const [{ total }] = await executor
+      .select({ total: count(sql`DISTINCT ${findingGroups.id}`) })
+      .from(findings)
+      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+      .where(and(
+        eq(findings.scanId, sql`(${latestScanId})`),
+        eq(findingGroups.status, 'open'),
+      ));
+
+    return Number(total) || 0;
+  },
+
+  /**
+   * Find new findings by comparing scan findings against code diff (git diff).
+   * A finding is "new" if it's on a file and line that was changed in the PR.
+   *
+   * @param scanId - Scan UUID (head branch scan)
+   * @param changedFiles - Files changed in the PR with line-level diff info
+   * @returns Findings that are on changed lines (NEW findings)
+   */
+  async diffNewFindingsByCodeDiff(
+    scanId: string,
+    changedFiles: ChangedFile[],
+    tx?: Tx,
+  ) {
+    const executor = tx ?? db;
+
+    if (changedFiles.length === 0) {
+      logger.scan.info('diffNewFindingsByCodeDiff: no changed files, returning empty', { scanId });
+      return { data: [], total: 0 };
+    }
+
+    // Build a map of normalizedFilePath → Set<changedLine> for fast lookup
+    const changedLinesMap = new Map<string, Set<number>>();
+    for (const file of changedFiles) {
+      changedLinesMap.set(stripDockerPrefix(file.filePath), new Set(file.changedLines));
+    }
+
+    logger.scan.info('diffNewFindingsByCodeDiff: changedLinesMap built', {
+      scanId,
+      totalFiles: changedFiles.length,
+      normalizedPaths: Array.from(changedLinesMap.keys()).slice(0, 10),
+    });
+
+    // Get all findings for this scan
+    const allFindings = await executor
+      .select({
+        id: findings.id,
+        scanId: findings.scanId,
+        groupId: findings.groupId,
+        fingerprint: findingGroups.fingerprint,
+        cweId: findings.cweId,
+        severity: findings.severity,
+        groupStatus: findingGroups.status,
+        filePath: findings.filePath,
+        lineNumber: findings.lineNumber,
+        codeSnippet: findings.codeSnippet,
+        description: findings.description,
+        rule: findings.rule,
+        scanner: findings.scanner,
+        message: findings.message,
+        createdAt: findings.createdAt,
+      })
+      .from(findings)
+      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+      .where(and(
+        eq(findings.scanId, scanId),
+        eq(findingGroups.status, 'open'),
+      ));
+
+    // Filter: only include findings on changed lines (normalize paths for comparison)
+    const newFindings = allFindings.filter((f) => {
+      if (!f.filePath || !f.lineNumber) return false;
+      const changedLines = changedLinesMap.get(stripDockerPrefix(f.filePath));
+      if (!changedLines) return false;
+      return changedLines.has(f.lineNumber);
+    });
+
+    logger.scan.info('diffNewFindingsByCodeDiff: filtering results', {
+      scanId,
+      totalFindings: allFindings.length,
+      matchedFindings: newFindings.length,
+      sampleFilePaths: allFindings.slice(0, 5).map(f => f.filePath),
+      sampleNormalized: allFindings.slice(0, 5).map(f => stripDockerPrefix(f.filePath ?? '')),
+    });
+
+    // Fetch AI data separately
+    const findingIds = newFindings.map((r) => r.id);
+    const aiData = findingIds.length > 0
+      ? await executor.select({
+          findingId: aiVerifications.findingId,
+          verdict: aiVerifications.verdict,
+          confidence: aiVerifications.confidence,
+          modelName: models.name,
+        }).from(aiVerifications)
+          .leftJoin(models, eq(aiVerifications.modelId, models.id))
+          .where(inArray(aiVerifications.findingId, findingIds))
+      : [];
+
+    const aiMap = new Map<string, typeof aiData[number]>();
+    for (const row of aiData) {
+      if (!row.findingId) continue;
+      const existing = aiMap.get(row.findingId);
+      if (!existing) aiMap.set(row.findingId, row);
+    }
+
+    const enrichedData = newFindings.map((row) => {
+      const ai = row.id ? aiMap.get(row.id) : undefined;
+      return {
+        ...row,
+        aiVerdict: ai?.verdict ?? null,
+        confidence: ai?.confidence ?? null,
+      };
+    });
+
+    return { data: enrichedData, total: enrichedData.length };
+  },
+
+  /**
+   * Update finding_group_scans.isNew flags based on code diff comparison.
+   * Sets isNew=true for findings on changed lines, false for unchanged.
+   */
+  async updateIsNewByCodeDiff(
+    scanId: string,
+    changedFiles: ChangedFile[],
+    tx?: Tx,
+  ): Promise<void> {
+    const executor = tx ?? db;
+
+    if (changedFiles.length === 0) {
+      // No diff info — mark all as not new
+      await executor
+        .update(findingGroupScans)
+        .set({ isNew: false })
+        .where(eq(findingGroupScans.scanId, scanId));
+      return;
+    }
+
+    // Build a map of normalizedFilePath → Set<changedLine>
+    const changedLinesMap = new Map<string, Set<number>>();
+    for (const file of changedFiles) {
+      changedLinesMap.set(stripDockerPrefix(file.filePath), new Set(file.changedLines));
+    }
+
+    // Get all groups for this scan with their finding file/line info
+    const groups = await executor
+      .select({
+        groupId: findingGroupScans.groupId,
+        filePath: findings.filePath,
+        lineNumber: findings.lineNumber,
+      })
+      .from(findingGroupScans)
+      .innerJoin(findings, and(
+        eq(findings.groupId, findingGroupScans.groupId),
+        eq(findings.scanId, findingGroupScans.scanId),
+      ))
+      .where(eq(findingGroupScans.scanId, scanId));
+
+    // Deduplicate by groupId (a group may have multiple findings)
+    const groupIsNew = new Map<string, boolean>();
+    for (const g of groups) {
+      if (groupIsNew.has(g.groupId)) continue; // already determined
+      if (!g.filePath || !g.lineNumber) {
+        groupIsNew.set(g.groupId, false);
+        continue;
+      }
+      const changedLines = changedLinesMap.get(stripDockerPrefix(g.filePath));
+      groupIsNew.set(g.groupId, changedLines ? changedLines.has(g.lineNumber) : false);
+    }
+
+    // Update each group's isNew flag
+    let newCount = 0;
+    let preExistingCount = 0;
+    for (const [groupId, isNew] of groupIsNew) {
+      if (isNew) newCount++;
+      else preExistingCount++;
+
+      await executor
+        .update(findingGroupScans)
+        .set({ isNew })
+        .where(and(
+          eq(findingGroupScans.scanId, scanId),
+          eq(findingGroupScans.groupId, groupId),
+        ));
+    }
+
+    logger.scan.info('updateIsNewByCodeDiff: completed', {
+      scanId,
+      totalGroups: groupIsNew.size,
+      newGroups: newCount,
+      preExistingGroups: preExistingCount,
+    });
   },
 };

@@ -27,3 +27,19 @@ export interface ProjectFormInput {
   /** Array of repository IDs to attach. */
   repositoryIds: string[];
 }
+
+/**
+ * A member of a project (direct or team-based).
+ */
+export interface ProjectMember {
+  /** User ID. */
+  userId: string;
+  /** User display name. */
+  name: string;
+  /** User email. */
+  email: string;
+  /** Role in the project (admin, contributor, viewer). */
+  role: string;
+  /** Optional avatar URL. */
+  avatarUrl?: string;
+}

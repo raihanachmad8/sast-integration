@@ -64,7 +64,7 @@ describe('POST /api/v1/auth/invite/accept', () => {
   it('should return 422 when invitation token is missing', async () => {
     const res = await api('/auth/invite/accept', {
       method: 'POST',
-      body: JSON.stringify({ password: 'password123', name: 'Test' }),
+      body: JSON.stringify({ password: 'password123', confirmPassword: 'password123', name: 'Test' }),
     });
     expect(res.status).toBe(422);
   });
@@ -75,7 +75,7 @@ describe('POST /api/v1/auth/invite/accept', () => {
   it('should return 410 when invitation token is invalid or expired', async () => {
     const res = await api('/auth/invite/accept', {
       method: 'POST',
-      body: JSON.stringify({ token: 'invalid-token', password: 'password123', name: 'Test' }),
+      body: JSON.stringify({ token: 'invalid-token', password: 'password123', confirmPassword: 'password123', name: 'Test' }),
     });
     expect(res.status).toBe(410);
   });
@@ -129,7 +129,7 @@ describe('POST /api/v1/auth/reset-password', () => {
   it('should return 422 when reset token is missing', async () => {
     const res = await api('/auth/reset-password', {
       method: 'POST',
-      body: JSON.stringify({ password: 'newpass123' }),
+      body: JSON.stringify({ password: 'newpass123', confirmPassword: 'newpass123' }),
     });
     expect(res.status).toBe(422);
   });
@@ -140,7 +140,7 @@ describe('POST /api/v1/auth/reset-password', () => {
   it('should return 410 when reset token is invalid or expired', async () => {
     const res = await api('/auth/reset-password', {
       method: 'POST',
-      body: JSON.stringify({ token: 'invalid', password: 'newpass123' }),
+      body: JSON.stringify({ token: 'invalid', password: 'newpass123', confirmPassword: 'newpass123' }),
     });
     expect(res.status).toBe(410);
   });
@@ -151,7 +151,7 @@ describe('POST /api/v1/auth/reset-password', () => {
   it('should return 422 when new password is too short during reset', async () => {
     const res = await api('/auth/reset-password', {
       method: 'POST',
-      body: JSON.stringify({ token: 'some-token', password: '123' }),
+      body: JSON.stringify({ token: 'some-token', password: '123', confirmPassword: '123' }),
     });
     expect(res.status).toBe(422);
   });

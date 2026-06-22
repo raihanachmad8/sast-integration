@@ -88,6 +88,9 @@ describe('authService.signin', () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Purpose: Validates that valid credentials return tokens and user data
+   */
   it('should return access token, refresh token, and user data when credentials are valid', async () => {
     mockRepo.findUserByEmail.mockResolvedValue({
       id: 'user-1',
@@ -126,6 +129,9 @@ describe('authService.signin', () => {
     expect(result.user.emailVerified).toBe(true);
   });
 
+  /**
+   * Purpose: Validates that nonexistent email returns INVALID_CREDENTIALS error
+   */
   it('should throw INVALID_CREDENTIALS when the email does not exist', async () => {
     mockRepo.findUserByEmail.mockResolvedValue(null);
 
@@ -134,6 +140,9 @@ describe('authService.signin', () => {
     ).rejects.toThrow(AUTH.ERRORS.INVALID_CREDENTIALS);
   });
 
+  /**
+   * Purpose: Validates that wrong password returns INVALID_CREDENTIALS error
+   */
   it('should throw INVALID_CREDENTIALS when the password is incorrect', async () => {
     mockRepo.findUserByEmail.mockResolvedValue({
       id: 'user-1',
@@ -157,6 +166,9 @@ describe('authService.signin', () => {
     ).rejects.toThrow(AUTH.ERRORS.INVALID_CREDENTIALS);
   });
 
+  /**
+   * Purpose: Validates that IP and User Agent metadata are saved to the session
+   */
   it('should pass IP address and User Agent to session creation when provided during signin', async () => {
     mockRepo.findUserByEmail.mockResolvedValue({
       id: 'user-1',
@@ -208,6 +220,9 @@ describe('authService.signup', () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Purpose: Validates that signup is blocked in single workspace mode
+   */
   it('should throw REGISTRATION_DISABLED when WORKSPACE_MODE is single', async () => {
     const { env } = await import('@/server/env');
     (env as { WORKSPACE_MODE: string }).WORKSPACE_MODE = 'single';
@@ -235,6 +250,9 @@ describe('authService.signup', () => {
     ).rejects.toThrow(AUTH.ERRORS.EMAIL_EXISTS);
   });
 
+  /**
+   * Purpose: Validates that a verification email is sent after successful registration
+   */
   it('should call sendVerificationEmail after successfully creating a new user in MULTIPLE mode', async () => {
     mockRepo.findUserByEmail.mockResolvedValue(null);
     mockRepo.createUser.mockResolvedValue({
@@ -269,6 +287,9 @@ describe('authService.signup', () => {
  * More complex scenarios (invalid session, etc.) can be added later.
  */
 describe('authService.signout', () => {
+  /**
+   * Purpose: Validates that signout deletes the correct session
+   */
   it('should call deleteSession with the correct session ID', async () => {
     mockRepo.deleteSession.mockResolvedValue(undefined);
 
@@ -286,6 +307,9 @@ describe('authService.refresh', () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Purpose: Validates that refresh token rotation generates a new token ID
+   */
   it('should rotate refresh token and update currentRefreshTokenId on successful refresh', async () => {
     const sessionId = 'session-123';
     const oldRefreshTokenId = 'old-refresh-id';
@@ -319,6 +343,9 @@ describe('authService.refresh', () => {
     expect(calledWithId).not.toBe(oldRefreshTokenId);
   });
 
+  /**
+   * Purpose: Validates that stolen refresh tokens cause session revocation
+   */
   it('should revoke the session and throw when refresh token reuse is detected', async () => {
     const sessionId = 'session-123';
     const currentRefreshTokenId = 'current-id-789';
@@ -339,6 +366,9 @@ describe('authService.refresh', () => {
     expect(mockRepo.updateSessionRefreshToken).not.toHaveBeenCalled();
   });
 
+  /**
+   * Purpose: Validates backward compatibility when currentRefreshTokenId is null
+   */
   it('should still work (first rotation after migration) when currentRefreshTokenId is null', async () => {
     const sessionId = 'session-123';
 
@@ -358,6 +388,9 @@ describe('authService.refresh', () => {
     expect(mockRepo.updateSessionRefreshToken).toHaveBeenCalled();
   });
 
+  /**
+   * Purpose: Validates that each refresh produces a unique token ID
+   */
   it('should generate a new refreshTokenId different from the previous one on every refresh', async () => {
     const sessionId = 'session-123';
     const oldId = 'old-id';

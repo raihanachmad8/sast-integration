@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { App } from 'antd';
 import { useSessionData } from '@/modules/auth/queries';
-import { useFindingsQuery, useUpdateFindingMutation, useRunAiVerificationMutation } from '@/modules/findings';
+import { useFindingsQuery, useUpdateFindingMutation, useRunAiVerificationMutation, useBulkUpdateFindingsMutation, findingsApi } from '@/modules/findings';
 import { useMembersQuery } from '@/modules/members';
+import { useProjectsQuery } from '@/modules/projects';
+import { useRepositoriesQuery } from '@/modules/repositories';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import type { Finding } from '@/commons/types';
 import type { FindingListParams } from '@/modules/findings/types';
@@ -14,12 +16,15 @@ import type { FindingListParams } from '@/modules/findings/types';
 export function useFindingsPageState() {
   const { message } = App.useApp();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const session = useSessionData();
   const workspaceSlug = session.data?.workspace?.slug ?? '';
 
-  const { params, setPage, setPageSize, setSearch, setFilter } = useTableParams({
-    filterKeys: ['severity', 'verdict', 'status'],
+  const scanIdFromUrl = searchParams.get('scanId') || undefined;
+
+  const { params, setPagination, setSearch, setFilter } = useTableParams({
+    filterKeys: ['severity', 'verdict', 'status', 'project', 'repository'],
     defaultPageSize: 10,
   });
 
@@ -30,12 +35,18 @@ export function useFindingsPageState() {
     severity: (params.filters.severity || undefined) as FindingListParams['severity'],
     verdict: (params.filters.verdict || undefined) as FindingListParams['verdict'],
     status: (params.filters.status || undefined) as FindingListParams['status'],
+    projectId: params.filters.project || undefined,
+    repositoryId: params.filters.repository || undefined,
+    scanId: scanIdFromUrl,
   };
 
   const findingsQuery = useFindingsQuery(tableParams);
   const membersQuery = useMembersQuery(session.data?.workspace?.id ?? '');
+  const projectsQuery = useProjectsQuery({ page: 1, perPage: 200 });
+  const repositoriesQuery = useRepositoriesQuery({ page: 1, perPage: 200 });
   const updateStatusMutation = useUpdateFindingMutation();
   const verifyMutation = useRunAiVerificationMutation();
+  const bulkUpdateMutation = useBulkUpdateFindingsMutation();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selected, setSelected] = useState<Finding | null>(null);
@@ -45,15 +56,18 @@ export function useFindingsPageState() {
 
   const findings = useMemo(() => {
     const raw = (findingsQuery.data?.data ?? []) as unknown as Array<{
-      id: string; scanId: string; groupId: string; cweId: string | null;
-      severity: string; status: string; filePath: string | null; lineNumber: number | null;
+      id: string; scanId: string; groupId: string; projectId: string; cweId: string | null;
+      severity: string; groupStatus: string; filePath: string | null; lineNumber: number | null;
       description: string | null; rule: string; scanner: string; message: string | null;
       assignedTo: string | null; createdAt: string;
       repositoryName: string | null; verdict: string | null; model: string | null; confidence: number | null;
       explanation: string | null; fixSuggestion: string | null; codeSnippet: string | null;
+      matchDetail: string | null; likelyCwe: string[] | null;
+      dataFlow: string | null; taintSource: string | null;
     }>;
     return raw.map((f) => ({
       id: f.id,
+      projectId: f.projectId ?? undefined,
       rule: f.rule ?? '',
       repo: f.repositoryName ?? '',
       file: f.filePath ?? '',
@@ -64,18 +78,24 @@ export function useFindingsPageState() {
       confidence: f.confidence ?? null,
       model: f.model ?? '',
       assignee: f.assignedTo ?? null,
-      status: (f.status ?? 'open') as Finding['status'],
+      status: (f.groupStatus ?? 'open') as Finding['status'],
       cwe: f.cweId ?? '',
       lineNumber: f.lineNumber ?? undefined,
       message: f.message ?? undefined,
       codeSnippet: f.codeSnippet ?? undefined,
       explanation: f.explanation ?? undefined,
       fixSuggestion: f.fixSuggestion ?? undefined,
+      matchDetail: f.matchDetail ?? undefined,
+      likelyCwe: f.likelyCwe ?? undefined,
+      dataFlow: f.dataFlow ?? undefined,
+      taintSource: f.taintSource ?? undefined,
     }));
   }, [findingsQuery.data]);
   const totalCount = findingsQuery.data?.meta?.total ?? 0;
   const members = useMemo(() => (membersQuery.data?.data ?? []) as unknown as Array<{ userId: string; name: string; email: string }>, [membersQuery.data]);
   const MEMBER_OPTIONS = useMemo(() => members.map((m) => ({ value: m.userId, label: `${m.name} (${m.email})` })), [members]);
+  const PROJECT_OPTIONS = useMemo(() => (projectsQuery.data?.data ?? []).map((p) => ({ value: p.id, label: p.name })), [projectsQuery.data]);
+  const REPOSITORY_OPTIONS = useMemo(() => (repositoriesQuery.data?.data ?? []).map((r) => ({ value: r.id, label: r.name })), [repositoriesQuery.data]);
 
   const handleRunAiVerification = useCallback(() => {
     const pending = findings.filter((f) => f.verdict === 'Pending');
@@ -83,27 +103,18 @@ export function useFindingsPageState() {
       message.info('No pending findings on this page');
       return;
     }
-    let completed = 0;
-    pending.forEach((f) => {
-      verifyMutation.mutate([f.id], {
-        onSuccess: () => {
-          completed++;
-          if (completed === pending.length) {
-            message.success(`AI verification completed for ${pending.length} finding(s)`);
-            findingsQuery.refetch();
-          }
-        },
-      });
+    verifyMutation.mutate(pending.map((f) => f.id), {
+      onSuccess: () => {
+        message.success(`AI verification queued for ${pending.length} finding(s)`);
+        findingsQuery.refetch();
+      },
     });
   }, [findings, verifyMutation, message, findingsQuery]);
 
   const assignMutation = useMutation({
     mutationFn: async ({ id, assignedTo }: { id: string; assignedTo: string | null }) => {
       if (!session.data?.workspace?.id) throw new Error('No workspace');
-      const result = await import('@/modules/findings/api').then((m) =>
-        m.findingsApi.update(session.data!.workspace!.id, id, { assignedTo })
-      );
-      return result;
+      return findingsApi.update(session.data!.workspace!.id, id, { assignedTo });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['findings'] });
@@ -115,23 +126,27 @@ export function useFindingsPageState() {
     setDrawerOpen(true);
   }, []);
 
-  const handleAcceptVerdict = useCallback((id: string) => {
-    updateStatusMutation.mutate({ id, payload: { status: 'accepted' } }, {
+  const handleDismiss = useCallback((id: string) => {
+    updateStatusMutation.mutate({ id, payload: { status: 'dismissed' } }, {
       onSuccess: () => {
-        setSelected((prev) => prev && prev.id === id ? { ...prev, status: 'accepted' as const } : prev);
-        message.success('AI verdict accepted');
+        setSelected((prev) => prev && prev.id === id ? { ...prev, status: 'dismissed' as const } : prev);
+        message.success('Finding dismissed');
         findingsQuery.refetch();
       },
     });
   }, [updateStatusMutation, message, findingsQuery]);
 
   const handleOverrideVerdict = useCallback((id: string, verdict: 'TP' | 'FP') => {
-    const status = verdict === 'FP' ? 'false_positive' : 'open';
-    updateStatusMutation.mutate({ id, payload: { status, verdict } }, {
+    const status = verdict === 'FP' ? 'resolved' : 'open';
+    updateStatusMutation.mutate({ id, payload: { verdict } }, {
       onSuccess: () => {
-        setSelected((prev) => prev && prev.id === id ? { ...prev, verdict, confidence: 85 } : prev);
-        message.success(`Verdict overridden to ${verdict}`);
-        findingsQuery.refetch();
+        updateStatusMutation.mutate({ id, payload: { status } }, {
+          onSuccess: () => {
+            setSelected((prev) => prev && prev.id === id ? { ...prev, verdict, status: status as Finding['status'], confidence: 85 } : prev);
+            message.success(`Verdict overridden to ${verdict}`);
+            findingsQuery.refetch();
+          },
+        });
       },
     });
   }, [updateStatusMutation, message, findingsQuery]);
@@ -163,33 +178,21 @@ export function useFindingsPageState() {
     });
   }, [assignMutation, message, findingsQuery]);
 
-  const handleBulkAccept = useCallback((ids: string[]) => {
-    let completed = 0;
-    ids.forEach((id) => {
-      updateStatusMutation.mutate({ id, payload: { status: 'accepted' } }, {
-        onSuccess: () => {
-          completed++;
-          if (completed === ids.length) {
-            message.success(`${ids.length} finding(s) accepted`);
-            findingsQuery.refetch();
-          }
-        },
-      });
+  const handleBulkDismiss = useCallback((ids: string[]) => {
+    bulkUpdateMutation.mutate({ ids, payload: { status: 'dismissed' } }, {
+      onSuccess: () => {
+        message.success(`${ids.length} finding(s) dismissed`);
+        findingsQuery.refetch();
+      },
     });
-  }, [updateStatusMutation, message, findingsQuery]);
+  }, [bulkUpdateMutation, message, findingsQuery]);
 
   const handleBulkReverify = useCallback((ids: string[]) => {
-    let completed = 0;
-    ids.forEach((id) => {
-      verifyMutation.mutate([id], {
-        onSuccess: () => {
-          completed++;
-          if (completed === ids.length) {
-            message.info(`${ids.length} finding(s) queued for re-verification`);
-            findingsQuery.refetch();
-          }
-        },
-      });
+    verifyMutation.mutate(ids, {
+      onSuccess: () => {
+        message.info(`${ids.length} finding(s) queued for re-verification`);
+        findingsQuery.refetch();
+      },
     });
   }, [verifyMutation, message, findingsQuery]);
 
@@ -218,9 +221,8 @@ export function useFindingsPageState() {
   }, [bulkAssignIds, bulkAssignee, assignMutation, members, message, findingsQuery]);
 
   const handleTableChange = useCallback((page: number, perPage: number) => {
-    setPage(page);
-    setPageSize(perPage);
-  }, [setPage, setPageSize]);
+    setPagination(page, perPage);
+  }, [setPagination]);
 
   const handleTableSearch = useCallback((search: string) => {
     setSearch(search);
@@ -236,6 +238,8 @@ export function useFindingsPageState() {
     totalCount,
     members,
     MEMBER_OPTIONS,
+    PROJECT_OPTIONS,
+    REPOSITORY_OPTIONS,
     tableParams,
     drawerOpen,
     setDrawerOpen,
@@ -247,12 +251,12 @@ export function useFindingsPageState() {
     setBulkAssignee,
     handleRunAiVerification,
     handleReview,
-    handleAcceptVerdict,
+    handleDismiss,
     handleOverrideVerdict,
     handleReverify,
     handleOpenFullPage,
     handleAssign,
-    handleBulkAccept,
+    handleBulkDismiss,
     handleBulkReverify,
     handleBulkAssign,
     handleBulkAssignConfirm,

@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, asc, inArray } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { aiVerifications } from '@drizzle/schema/findings';
 import { models } from '@drizzle/schema/integrations';
@@ -8,12 +8,10 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export const aiVerificationRepository = {
   /**
    * Create an AI verification record.
-   * @param data - Verification insert data
-   * @param tx - Optional transaction context
-   * @returns Created verification record
    */
   async create(data: {
     findingId: string;
+    groupId?: string;
     modelId?: string;
     verdict: string;
     confidence?: string;
@@ -33,9 +31,6 @@ export const aiVerificationRepository = {
 
   /**
    * List all AI verifications for a finding.
-   * @param findingId - Finding UUID
-   * @param tx - Optional transaction context
-   * @returns Array of verification records ordered by creation date
    */
   async listByFinding(findingId: string, tx?: Tx) {
     const executor = tx ?? db;
@@ -45,9 +40,7 @@ export const aiVerificationRepository = {
   },
 
   /**
-   * Get the primary AI model (highest priority with 'primary' role).
-   * @param tx - Optional transaction context
-   * @returns Primary model record or null
+   * Get the primary AI model.
    */
   async getPrimaryModel(tx?: Tx) {
     const executor = tx ?? db;
@@ -60,9 +53,6 @@ export const aiVerificationRepository = {
 
   /**
    * Get an AI model by ID.
-   * @param modelId - Model UUID
-   * @param tx - Optional transaction context
-   * @returns Model record or null
    */
   async getModelById(modelId: string, tx?: Tx) {
     const executor = tx ?? db;
@@ -73,10 +63,24 @@ export const aiVerificationRepository = {
   },
 
   /**
+   * Get all fallback models ordered by priority.
+   */
+  async getFallbackModels(excludeModelId: string | null, tx?: Tx) {
+    const executor = tx ?? db;
+    if (excludeModelId) {
+      return executor.select().from(models)
+        .where(and(
+          eq(models.role, 'fallback'),
+        ))
+        .orderBy(asc(models.priority));
+    }
+    return executor.select().from(models)
+      .where(eq(models.role, 'fallback'))
+      .orderBy(asc(models.priority));
+  },
+
+  /**
    * Get the latest AI verification for a finding.
-   * @param findingId - Finding UUID
-   * @param tx - Optional transaction context
-   * @returns Latest verification record or null
    */
   async getLatestByFinding(findingId: string, tx?: Tx) {
     const executor = tx ?? db;
@@ -85,5 +89,45 @@ export const aiVerificationRepository = {
       .orderBy(desc(aiVerifications.createdAt))
       .limit(1);
     return verification ?? null;
+  },
+
+  /**
+   * Get the latest AI verification for a finding group.
+   * Used to skip re-verification if group already has a verified verdict.
+   */
+  async getLatestByGroup(groupId: string, tx?: Tx) {
+    const executor = tx ?? db;
+    const [verification] = await executor.select().from(aiVerifications)
+      .where(eq(aiVerifications.groupId, groupId))
+      .orderBy(desc(aiVerifications.createdAt))
+      .limit(1);
+    return verification ?? null;
+  },
+
+  /**
+   * Check if a finding group has any AI verification.
+   * Returns true if at least one verification exists for the group.
+   */
+  async hasVerification(groupId: string, tx?: Tx): Promise<boolean> {
+    const executor = tx ?? db;
+    const [result] = await executor.select({ id: aiVerifications.id })
+      .from(aiVerifications)
+      .where(eq(aiVerifications.groupId, groupId))
+      .limit(1);
+    return !!result;
+  },
+
+  /**
+   * Batch check which groups have AI verification.
+   * Returns array of group IDs that have at least one verification.
+   */
+  async hasVerificationBatch(groupIds: string[], tx?: Tx): Promise<string[]> {
+    if (groupIds.length === 0) return [];
+    const executor = tx ?? db;
+    const results = await executor.select({ groupId: aiVerifications.groupId })
+      .from(aiVerifications)
+      .where(inArray(aiVerifications.groupId, groupIds))
+      .groupBy(aiVerifications.groupId);
+    return results.map((r) => r.groupId).filter((id): id is string => id !== null);
   },
 };

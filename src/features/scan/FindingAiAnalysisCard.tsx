@@ -1,11 +1,11 @@
 'use client';
 
 import { Typography, Flex, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { STATUS_TOKENS } from '@/commons/constants/tokens';
 import type { AiRichAnalysis } from './types';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { StatusTag } from '@/components/shared/StatusTag';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { StatusTag } from '@/commons/components/StatusTag';
 
 const { Text, Paragraph } = Typography;
 
@@ -59,6 +59,17 @@ export function FindingAiAnalysisCard({ modelName, analysis }: FindingAiAnalysis
               </Text>
               <Paragraph style={{ margin: `${token.marginXXS}px 0 0`, fontSize: token.fontSize, lineHeight: '1.6' }}>
                 {analysis.explanation}
+              </Paragraph>
+            </div>
+          )}
+
+          {analysis.matchDetail && (
+            <div>
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Match Detail
+              </Text>
+              <Paragraph style={{ margin: `${token.marginXXS}px 0 0`, fontSize: token.fontSize, lineHeight: '1.6' }}>
+                {analysis.matchDetail}
               </Paragraph>
             </div>
           )}

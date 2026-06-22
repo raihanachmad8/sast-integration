@@ -1,9 +1,9 @@
-import { eq, and, isNull, inArray } from 'drizzle-orm';
+import { eq, and, or, isNull, inArray, sql } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { projects, projectMembers, projectTeams } from '@drizzle/schema/projects';
 import { repositories } from '@drizzle/schema/source-controls';
 import { users } from '@drizzle/schema/users';
-import { teams } from '@drizzle/schema/teams';
+import { teams, teamMembers } from '@drizzle/schema/teams';
 import { REPOSITORY_CONNECTION_TYPES, type RepositoryConnectionType } from '../constants';
 
 import { sourceControlImports, sourceControls } from '@drizzle/schema/source-controls';
@@ -154,13 +154,23 @@ export const projectRepository = {
   },
 
   /** List all repositories across all projects in a workspace (discovered + imported) */
-  async listRepositoriesByWorkspace(workspaceId: string, filterMode?: 'imported' | 'manual') {
+  async listRepositoriesByWorkspace(workspaceId: string, filterMode?: 'imported' | 'manual', accessibleProjectIds?: string[]) {
     const conditions = [
       eq(repositories.workspaceId, workspaceId),
       isNull(repositories.deletedAt),
     ];
     if (filterMode) {
       conditions.push(eq(repositories.importMode, filterMode));
+    }
+
+    // Project-scoped filter: null projectId repos visible to all, others only if in accessibleProjectIds
+    if (accessibleProjectIds) {
+      conditions.push(
+        or(
+          isNull(repositories.projectId),
+          inArray(repositories.projectId, accessibleProjectIds),
+        )!,
+      );
     }
 
     return db
@@ -177,6 +187,9 @@ export const projectRepository = {
         providerName: sourceControls.name,
         createdAt: repositories.createdAt,
         lastSyncedAt: repositories.lastSyncedAt,
+        scanCount: sql<number>`(SELECT COUNT(*)::int FROM scans WHERE repository_id = ${repositories.id})`,
+        findingCount: sql<number>`(SELECT COUNT(*)::int FROM findings f JOIN scans s ON f.scan_id = s.id WHERE s.repository_id = ${repositories.id})`,
+        lastScan: sql<Date | null>`(SELECT MAX(created_at) FROM scans WHERE repository_id = ${repositories.id})`,
       })
       .from(repositories)
       .leftJoin(projects, eq(projects.id, repositories.projectId))
@@ -193,7 +206,7 @@ export const projectRepository = {
       name: string;
       url: string;
       defaultBranch?: string;
-      connectionType: RepositoryConnectionType;
+      connectionType: string[];
     },
     createdBy: string
   ) {
@@ -224,7 +237,7 @@ export const projectRepository = {
       .where(and(
         eq(repositories.projectId, projectId),
         eq(repositories.url, url),
-        eq(repositories.connectionType, REPOSITORY_CONNECTION_TYPES.EXTERNAL),
+        sql`${repositories.connectionType} @> ARRAY['external']::text[]`,
         isNull(repositories.deletedAt)
       ))
       .limit(1);
@@ -389,6 +402,99 @@ export const projectRepository = {
       map.set(row.projectId, list);
     }
     return map;
+  },
+
+  /**
+   * Get all projectIds a user can access in a workspace.
+   * Owner and manager see everything (returns null).
+   * Reviewer and member see only projects they're direct members of or via team assignment.
+   * @returns Array of projectIds, or null if user has full access (owner/manager).
+   */
+  async getAccessibleProjectIds(workspaceId: string, userId: string, role?: string): Promise<string[] | null> {
+    // Owner and manager can see all projects
+    if (role === 'owner' || role === 'manager') return null;
+
+    // Direct project membership
+    const directRows = await db
+      .select({ projectId: projectMembers.projectId })
+      .from(projectMembers)
+      .innerJoin(projects, eq(projects.id, projectMembers.projectId))
+      .where(and(
+        eq(projects.workspaceId, workspaceId),
+        eq(projectMembers.userId, userId),
+        isNull(projects.deletedAt),
+      ));
+
+    // Team-based project membership
+    const teamRows = await db
+      .select({ projectId: projectTeams.projectId })
+      .from(projectTeams)
+      .innerJoin(projects, eq(projects.id, projectTeams.projectId))
+      .innerJoin(teamMembers, eq(teamMembers.teamId, projectTeams.teamId))
+      .where(and(
+        eq(projects.workspaceId, workspaceId),
+        eq(teamMembers.userId, userId),
+        isNull(projects.deletedAt),
+      ));
+
+    const ids = new Set<string>();
+    for (const r of directRows) ids.add(r.projectId);
+    for (const r of teamRows) ids.add(r.projectId);
+    return [...ids];
+  },
+
+  /**
+   * Get all members of a project (direct + team-based).
+   * @returns Array of { userId, name, email, role, avatarUrl } for all accessible members.
+   */
+  async getProjectMembers(projectId: string, workspaceId: string) {
+    const directMembers = await db
+      .select({
+        userId: users.id,
+        name: users.name,
+        email: users.email,
+        avatarUrl: users.avatarUrl,
+        role: projectMembers.role,
+      })
+      .from(projectMembers)
+      .innerJoin(users, eq(users.id, projectMembers.userId))
+      .innerJoin(projects, eq(projects.id, projectMembers.projectId))
+      .where(and(
+        eq(projectMembers.projectId, projectId),
+        eq(projects.workspaceId, workspaceId),
+      ));
+
+    const teamMemberRows = await db
+      .select({
+        userId: users.id,
+        name: users.name,
+        email: users.email,
+        avatarUrl: users.avatarUrl,
+        role: teamMembers.role,
+      })
+      .from(teamMembers)
+      .innerJoin(users, eq(users.id, teamMembers.userId))
+      .innerJoin(projectTeams, eq(projectTeams.teamId, teamMembers.teamId))
+      .innerJoin(projects, eq(projects.id, projectTeams.projectId))
+      .where(and(
+        eq(projectTeams.projectId, projectId),
+        eq(projects.workspaceId, workspaceId),
+      ));
+
+    // Deduplicate: direct membership takes precedence
+    const seen = new Set<string>();
+    const result: typeof directMembers = [];
+    for (const m of directMembers) {
+      seen.add(m.userId);
+      result.push(m);
+    }
+    for (const m of teamMemberRows) {
+      if (!seen.has(m.userId)) {
+        seen.add(m.userId);
+        result.push(m);
+      }
+    }
+    return result;
   },
 
   /** Batch: list repository names for multiple projects (display purposes) */

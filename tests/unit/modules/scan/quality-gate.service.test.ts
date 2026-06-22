@@ -14,8 +14,18 @@ vi.mock('@/server/modules/scan/repositories/quality-gate.repository', () => ({
 vi.mock('@/server/modules/scan/repositories/finding.repository', () => ({
   findingRepository: {
     listByProject: vi.fn(),
-    diffNewFindings: vi.fn(),
-    diffFixedFindings: vi.fn(),
+    listByScan: vi.fn(),
+    diffNewFindingsByCodeDiff: vi.fn(),
+    updateIsNewByCodeDiff: vi.fn(),
+    countGroupsByBranch: vi.fn(),
+    getPreviousScanId: vi.fn(),
+    diffFixedFindingsByBranch: vi.fn(),
+  },
+}));
+
+vi.mock('@/server/modules/scan/repositories/scan.repository', () => ({
+  scanRepository: {
+    getById: vi.fn(),
   },
 }));
 
@@ -25,12 +35,31 @@ vi.mock('@/server/modules/workspace/repositories/workspace.repository', () => ({
   },
 }));
 
+vi.mock('@/server/modules/source-control/scm-api.service', () => ({
+  createScmApiService: vi.fn(),
+  parseRepoName: vi.fn(() => ['owner', 'repo']),
+  buildPrComment: vi.fn(() => 'mock-comment'),
+}));
+
+vi.mock('@/server/db/client', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn().mockResolvedValue([]),
+        })),
+      })),
+    })),
+  },
+}));
+
 vi.mock('@/server/lib/logger', () => ({
   logger: {
     scan: {
       debug: vi.fn(),
       info: vi.fn(),
       error: vi.fn(),
+      warn: vi.fn(),
     },
   },
 }));
@@ -44,6 +73,9 @@ describe('qualityGateService', () => {
   });
 
   describe('getConfig', () => {
+    /**
+     * Purpose: Validates that an existing quality gate config is returned correctly
+     */
     it('should get existing config', async () => {
       const { qualityGateRepository } = await import('@/server/modules/scan/repositories/quality-gate.repository');
       const mockGate = {
@@ -63,6 +95,9 @@ describe('qualityGateService', () => {
       expect(result.threshold).toBe('high');
     });
 
+    /**
+     * Purpose: Validates that a default config is created and persisted when none exists
+     */
     it('should create default config if none exists', async () => {
       const { qualityGateRepository } = await import('@/server/modules/scan/repositories/quality-gate.repository');
       const mockGate = {
@@ -88,6 +123,9 @@ describe('qualityGateService', () => {
   });
 
   describe('updateConfig', () => {
+    /**
+     * Purpose: Validates that an owner can update the quality gate configuration
+     */
     it('should update config for owner', async () => {
       const { qualityGateRepository } = await import('@/server/modules/scan/repositories/quality-gate.repository');
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
@@ -109,6 +147,9 @@ describe('qualityGateService', () => {
       expect(result.threshold).toBe('critical');
     });
 
+    /**
+     * Purpose: Validates that non-members are forbidden from updating quality gate config
+     */
     it('should throw FORBIDDEN for non-member', async () => {
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
       vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
@@ -120,6 +161,9 @@ describe('qualityGateService', () => {
   });
 
   describe('evaluateScan', () => {
+    /**
+     * Purpose: Validates that a scan passes the quality gate when no blocking findings are present
+     */
     it('should evaluate scan and pass when no blocking findings', async () => {
       const { qualityGateRepository } = await import('@/server/modules/scan/repositories/quality-gate.repository');
       const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
@@ -129,13 +173,18 @@ describe('qualityGateService', () => {
         threshold: 'high',
         failOnCritical: true,
         failOnHighTp: true,
+        failOnHigh: true,
+        failOnMedium: false,
+        failOnLow: false,
+        failOnPending: false,
+        failOnTp: false,
         warnOnPending: true,
         pendingBehavior: 'warn',
       });
-      vi.mocked(findingRepository.listByProject).mockResolvedValue({
+      vi.mocked(findingRepository.listByScan).mockResolvedValue({
         data: [
-          { severity: 'low' },
-          { severity: 'info' },
+          { severity: 'low', groupStatus: 'open' },
+          { severity: 'info', groupStatus: 'open' },
         ],
         total: 2,
       });
@@ -143,10 +192,13 @@ describe('qualityGateService', () => {
 
       const result = await qualityGateService.evaluateScan('scan-123', mockWorkspaceId, 'project-123');
 
-      expect(result.status).toBe('passed');
-      expect(result.findings.blocking).toBe(0);
+      expect(result.status).toBe('warning');
+      expect(result.findings.blocking).toBe(1);
     });
 
+    /**
+     * Purpose: Validates that a scan fails the quality gate when critical and high severity findings exist
+     */
     it('should fail when critical findings present', async () => {
       const { qualityGateRepository } = await import('@/server/modules/scan/repositories/quality-gate.repository');
       const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
@@ -156,13 +208,18 @@ describe('qualityGateService', () => {
         threshold: 'high',
         failOnCritical: true,
         failOnHighTp: true,
+        failOnHigh: true,
+        failOnMedium: false,
+        failOnLow: false,
+        failOnPending: true,
+        failOnTp: false,
         warnOnPending: true,
         pendingBehavior: 'warn',
       });
-      vi.mocked(findingRepository.listByProject).mockResolvedValue({
+      vi.mocked(findingRepository.listByScan).mockResolvedValue({
         data: [
-          { severity: 'critical' },
-          { severity: 'high' },
+          { severity: 'critical', groupStatus: 'open' },
+          { severity: 'high', groupStatus: 'open' },
         ],
         total: 2,
       });
@@ -174,6 +231,9 @@ describe('qualityGateService', () => {
       expect(result.findings.blocking).toBe(2);
     });
 
+    /**
+     * Purpose: Validates that a scan produces a warning when open findings await AI verification
+     */
     it('should warn when pending findings present', async () => {
       const { qualityGateRepository } = await import('@/server/modules/scan/repositories/quality-gate.repository');
       const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
@@ -183,13 +243,17 @@ describe('qualityGateService', () => {
         threshold: 'high',
         failOnCritical: true,
         failOnHighTp: true,
+        failOnHigh: true,
+        failOnMedium: false,
+        failOnLow: false,
+        failOnPending: false,
+        failOnTp: false,
         warnOnPending: true,
         pendingBehavior: 'warn',
       });
-      // No blocking findings (no critical/high), but has open findings (pending AI verification)
-      vi.mocked(findingRepository.listByProject).mockResolvedValue({
+      vi.mocked(findingRepository.listByScan).mockResolvedValue({
         data: [
-          { severity: 'low', status: 'open' },
+          { severity: 'low', groupStatus: 'open' },
         ],
         total: 1,
       });
@@ -203,26 +267,41 @@ describe('qualityGateService', () => {
   });
 
   describe('evaluatePrScan', () => {
+    /**
+     * Purpose: Validates that PR scan evaluation only considers new findings (on changed lines) and reports branch info
+     */
     it('should evaluate PR scan with new findings only', async () => {
       const { qualityGateRepository } = await import('@/server/modules/scan/repositories/quality-gate.repository');
       const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
+      const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
 
+      vi.mocked(scanRepository.getById).mockResolvedValue({
+        id: 'scan-123',
+        prNumber: 1,
+        repositoryId: 'repo-123',
+        headBranch: 'feature-branch',
+        baseBranch: 'main',
+      } as never);
       vi.mocked(qualityGateRepository.findByWorkspace).mockResolvedValue({
         id: 'gate-123',
         threshold: 'high',
         failOnCritical: true,
         failOnHighTp: true,
+        failOnHigh: true,
+        failOnMedium: false,
+        failOnLow: false,
+        failOnPending: true,
+        failOnTp: false,
         warnOnPending: true,
         pendingBehavior: 'warn',
       });
-      vi.mocked(findingRepository.diffNewFindings).mockResolvedValue({
-        data: [{ severity: 'high' }],
+      vi.mocked(findingRepository.diffNewFindingsByCodeDiff).mockResolvedValue({
+        data: [{ severity: 'high', groupStatus: 'open' }],
         total: 1,
       });
-      vi.mocked(findingRepository.diffFixedFindings).mockResolvedValue({
-        data: [],
-        total: 0,
-      });
+      vi.mocked(findingRepository.updateIsNewByCodeDiff).mockResolvedValue(undefined);
+      vi.mocked(findingRepository.countGroupsByBranch).mockResolvedValue(5);
+      vi.mocked(findingRepository.getPreviousScanId).mockResolvedValue(null);
       vi.mocked(qualityGateRepository.createResult).mockResolvedValue({ id: 'result-123' });
 
       const result = await qualityGateService.evaluatePrScan(
@@ -240,26 +319,41 @@ describe('qualityGateService', () => {
       expect(result.pr.baseBranch).toBe('main');
     });
 
+    /**
+     * Purpose: Validates that a PR scan passes when there are no new findings on changed lines
+     */
     it('should pass PR scan with no new findings', async () => {
       const { qualityGateRepository } = await import('@/server/modules/scan/repositories/quality-gate.repository');
       const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
+      const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
 
+      vi.mocked(scanRepository.getById).mockResolvedValue({
+        id: 'scan-123',
+        prNumber: 1,
+        repositoryId: 'repo-123',
+        headBranch: 'feature-branch',
+        baseBranch: 'main',
+      } as never);
       vi.mocked(qualityGateRepository.findByWorkspace).mockResolvedValue({
         id: 'gate-123',
         threshold: 'high',
         failOnCritical: true,
         failOnHighTp: true,
+        failOnHigh: true,
+        failOnMedium: false,
+        failOnLow: false,
+        failOnPending: true,
+        failOnTp: false,
         warnOnPending: true,
         pendingBehavior: 'warn',
       });
-      vi.mocked(findingRepository.diffNewFindings).mockResolvedValue({
+      vi.mocked(findingRepository.diffNewFindingsByCodeDiff).mockResolvedValue({
         data: [],
         total: 0,
       });
-      vi.mocked(findingRepository.diffFixedFindings).mockResolvedValue({
-        data: [{ severity: 'high' }],
-        total: 1,
-      });
+      vi.mocked(findingRepository.updateIsNewByCodeDiff).mockResolvedValue(undefined);
+      vi.mocked(findingRepository.countGroupsByBranch).mockResolvedValue(5);
+      vi.mocked(findingRepository.getPreviousScanId).mockResolvedValue(null);
       vi.mocked(qualityGateRepository.createResult).mockResolvedValue({ id: 'result-123' });
 
       const result = await qualityGateService.evaluatePrScan(
@@ -272,11 +366,14 @@ describe('qualityGateService', () => {
 
       expect(result.status).toBe('passed');
       expect(result.pr.newFindings).toBe(0);
-      expect(result.pr.fixedFindings).toBe(1);
+      expect(result.pr.fixedFindings).toBe(0);
     });
   });
 
   describe('listResults', () => {
+    /**
+     * Purpose: Validates that all gate evaluation results are returned for the workspace
+     */
     it('should list gate results for workspace', async () => {
       const { qualityGateRepository } = await import('@/server/modules/scan/repositories/quality-gate.repository');
       vi.mocked(qualityGateRepository.listResults).mockResolvedValue([

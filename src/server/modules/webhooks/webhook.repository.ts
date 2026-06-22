@@ -23,6 +23,12 @@ export interface UpdateWebhookInput {
 }
 
 export const webhookRepository = {
+  /**
+   * Create a new webhook record.
+   * @param data - Webhook input data (workspaceId, name, url, events, secret, createdBy)
+   * @param tx - Optional transaction context for atomic operations
+   * @returns Created webhook record
+   */
   async create(data: CreateWebhookInput, tx?: Tx) {
     const executor = tx ?? db;
 
@@ -43,6 +49,11 @@ export const webhookRepository = {
     return webhook;
   },
 
+  /**
+   * Find a non-deleted webhook by ID.
+   * @param id - Webhook UUID
+   * @returns Webhook record or null if not found
+   */
   async findById(id: string) {
     const [webhook] = await db
       .select()
@@ -53,6 +64,11 @@ export const webhookRepository = {
     return webhook ?? null;
   },
 
+  /**
+   * List all non-deleted webhooks in a workspace.
+   * @param workspaceId - Workspace UUID
+   * @returns Array of webhook records
+   */
   async listByWorkspace(workspaceId: string) {
     return db
       .select()
@@ -65,6 +81,14 @@ export const webhookRepository = {
       );
   },
 
+  /**
+   * Update a webhook record.
+   * @param id - Webhook UUID
+   * @param data - Fields to update
+   * @param updatedBy - User UUID of the updater
+   * @param tx - Optional transaction context
+   * @returns Updated webhook record or null if not found
+   */
   async update(id: string, data: UpdateWebhookInput, updatedBy: string, tx?: Tx) {
     const executor = tx ?? db;
 
@@ -85,6 +109,12 @@ export const webhookRepository = {
     return updated ?? null;
   },
 
+  /**
+   * Soft-delete a webhook by setting deletedAt timestamp.
+   * @param id - Webhook UUID
+   * @param deletedBy - User UUID of the deleter
+   * @param tx - Optional transaction context
+   */
   async softDelete(id: string, deletedBy: string, tx?: Tx) {
     const executor = tx ?? db;
 
@@ -99,6 +129,11 @@ export const webhookRepository = {
       .where(eq(webhooks.id, id));
   },
 
+  /**
+   * Log a webhook delivery attempt.
+   * @param data - Delivery data (webhookId, event, status, optional response details and duration)
+   * @returns Created delivery record
+   */
   async logDelivery(data: { webhookId: string; event: string; status: string; responseStatus?: number; requestBody?: unknown; responseBody?: string; durationMs?: number }) {
     const [delivery] = await db
       .insert(webhookDeliveries)
@@ -115,6 +150,12 @@ export const webhookRepository = {
     return delivery;
   },
 
+  /**
+   * List delivery records for a webhook, ordered by most recent first.
+   * @param webhookId - Webhook UUID
+   * @param limit - Maximum number of records to return (default: 50)
+   * @returns Array of delivery records
+   */
   async listDeliveries(webhookId: string, limit = 50) {
     return db
       .select()

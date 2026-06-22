@@ -1,12 +1,18 @@
 'use client';
 
 import { Button, Flex, theme } from 'antd';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorState } from '@/components/shared/ErrorState';
-import { FindingsTable, FindingDetailDrawer } from '@/features/findings';
-import { PermissionGate } from '@/components/shared/PermissionGate';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorState } from '@/commons/components/ErrorState';
+import dynamic from 'next/dynamic';
+import { FindingsTable } from '@/features/findings';
+
+const FindingDetailDrawer = dynamic(
+  () => import('@/features/findings/FindingDetailDrawer').then((m) => m.FindingDetailDrawer),
+  { ssr: false },
+);
+import { PermissionGate } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { useFindingsPageState } from './useFindingsPageState';
 import { BulkAssignModal } from './BulkAssignModal';
@@ -25,6 +31,8 @@ export default function FindingsPage() {
     totalCount,
     members,
     MEMBER_OPTIONS,
+    PROJECT_OPTIONS,
+    REPOSITORY_OPTIONS,
     tableParams,
     drawerOpen,
     setDrawerOpen,
@@ -36,12 +44,12 @@ export default function FindingsPage() {
     setBulkAssignee,
     handleRunAiVerification,
     handleReview,
-    handleAcceptVerdict,
+    handleDismiss,
     handleOverrideVerdict,
     handleReverify,
     handleOpenFullPage,
     handleAssign,
-    handleBulkAccept,
+    handleBulkDismiss,
     handleBulkReverify,
     handleBulkAssign,
     handleBulkAssignConfirm,
@@ -79,15 +87,24 @@ export default function FindingsPage() {
         page={tableParams.page}
         pageSize={tableParams.perPage}
         search={tableParams.search}
-        filterValues={tableParams as unknown as Record<string, string>}
+        filterValues={{
+          ...(tableParams.severity ? { severity: tableParams.severity } : {}),
+          ...(tableParams.verdict ? { verdict: tableParams.verdict } : {}),
+          ...(tableParams.status ? { status: tableParams.status } : {}),
+          ...(tableParams.projectId ? { project: tableParams.projectId } : {}),
+          ...(tableParams.repositoryId ? { repository: tableParams.repositoryId } : {}),
+        }}
         onPageChange={handleTableChange}
         onSearchChange={handleTableSearch}
         onFilterChange={handleTableFilter}
         onReview={handleReview}
-        onAcceptVerdict={handleBulkAccept}
+        onDismiss={handleBulkDismiss}
         onReverify={handleBulkReverify}
         onAssign={handleBulkAssign}
         onAssignRow={handleReview}
+        members={members.map((m) => ({ userId: m.userId, name: m.name, email: m.email }))}
+        projectOptions={PROJECT_OPTIONS}
+        repositoryOptions={REPOSITORY_OPTIONS}
       />
 
       <FindingDetailDrawer
@@ -95,12 +112,11 @@ export default function FindingsPage() {
         onClose={() => { setDrawerOpen(false); setSelected(null); }}
         finding={selected}
         members={members.map((m) => ({ userId: m.userId, name: m.name, email: m.email, initials: m.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase(), color: token.colorTextSecondary }))}
-        onAcceptVerdict={handleAcceptVerdict}
+        onDismiss={handleDismiss}
         onOverrideVerdict={handleOverrideVerdict}
         onReverify={handleReverify}
         onOpenFullPage={handleOpenFullPage}
         onAssign={handleAssign}
-        onAddComment={() => {}}
       />
 
       <BulkAssignModal

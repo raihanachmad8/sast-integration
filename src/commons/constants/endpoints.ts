@@ -51,6 +51,7 @@ export const ENDPOINTS = {
   PROJECTS: {
     LIST: (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/projects`,
     DETAIL: (workspaceId: string, projectId: string) => `/api/v1/workspaces/${workspaceId}/projects/${projectId}`,
+    MEMBERS: (workspaceId: string, projectId: string) => `/api/v1/workspaces/${workspaceId}/projects/${projectId}/members`,
     API_TOKENS: (workspaceId: string, projectId: string) => `/api/v1/workspaces/${workspaceId}/projects/${projectId}/api-tokens`,
     API_TOKEN: (workspaceId: string, projectId: string, tokenId: string) => `/api/v1/workspaces/${workspaceId}/projects/${projectId}/api-tokens/${tokenId}`,
   },
@@ -134,6 +135,11 @@ export const ENDPOINTS = {
     TOGGLE: (workspaceId: string, scheduleId: string) => `/api/v1/workspaces/${workspaceId}/schedules/${scheduleId}/toggle`,
   },
 
+  // ── Workspace Settings ────────────────────────────────
+  WORKSPACE_SETTINGS: {
+    VERIFICATION: (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/settings/verification`,
+  },
+
   // ── Source Controls ───────────────────────────────────
   SOURCE_CONTROLS: {
     LIST: (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/source-controls`,
@@ -169,11 +175,17 @@ export const ENDPOINTS = {
     RULES: (scannerId: string) => `/api/v1/scanner-engines/${scannerId}/rules`,
   },
 
+  // ── Scanners (availability) ───────────────────────────
+  SCANNERS: {
+    AVAILABILITY: (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/scanners`,
+  },
+
   // ── Reports ───────────────────────────────────────────
   REPORTS: {
     LIST: (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/reports`,
     DETAIL: (workspaceId: string, reportId: string) => `/api/v1/workspaces/${workspaceId}/reports/${reportId}`,
     DOWNLOAD: (workspaceId: string, reportId: string) => `/api/v1/workspaces/${workspaceId}/reports/${reportId}/download`,
+    PREVIEW: (workspaceId: string, reportId: string) => `/api/v1/workspaces/${workspaceId}/reports/${reportId}/preview`,
   },
 
   // ── Dashboard ─────────────────────────────────────────

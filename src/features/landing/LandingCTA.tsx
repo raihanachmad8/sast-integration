@@ -4,7 +4,7 @@ import { Button, Typography, Flex, Space, theme } from 'antd';
 import Link from 'next/link';
 import { ArrowRightOutlined, GithubOutlined, CheckCircleFilled } from '@ant-design/icons';
 import { ROUTES } from '@/commons/constants';
-import { LANDING_COLORS } from '@/commons/constants/landing';
+import { LANDING_COLORS, GITHUB_REPO_URL } from '@/commons/constants/landing';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -152,7 +152,7 @@ export function LandingCTA() {
             </Button>
           </Link>
           <a
-            href="https://github.com"
+            href={GITHUB_REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
           >

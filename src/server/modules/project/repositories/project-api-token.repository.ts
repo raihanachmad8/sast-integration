@@ -87,12 +87,12 @@ export const projectApiTokenRepository = {
     return token ?? null;
   },
 
-  /** List all tokens (active + revoked) for a project */
+  /** List active (non-revoked) tokens for a project */
   async listByProject(projectId: string) {
     return db
       .select()
       .from(projectApiTokens)
-      .where(eq(projectApiTokens.projectId, projectId))
+      .where(and(eq(projectApiTokens.projectId, projectId), isNull(projectApiTokens.revokedAt)))
       .orderBy(projectApiTokens.createdAt);
   },
 

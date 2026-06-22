@@ -31,11 +31,8 @@ export const ENTITY_COLORS = {
   },
   findingStatus: {
     open: { color: '#dc2626', bg: '#fef2f2' },
-    accepted: { color: '#16a34a', bg: '#f0fdf4' },
-    needs_review: { color: '#d97706', bg: '#fffbeb' },
-    triaged: { color: '#3b82f6', bg: '#eff6ff' },
-    fixed: { color: '#6b7280', bg: '#f9fafb' },
-    false_positive: { color: '#6b7280', bg: '#f9fafb' },
+    dismissed: { color: '#0d9488', bg: '#f0fdfa' },
+    resolved: { color: '#16a34a', bg: '#f0fdf4' },
   },
   scanner: {
     Semgrep: { color: '#0f766e', bg: '#f0fdfa' },
@@ -90,7 +87,6 @@ export const ENTITY_COLORS = {
 
 // ─── Types ─────────────────────────────────────────────────────────
 
-export type Severity = keyof typeof ENTITY_COLORS.severity;
 export type Verdict = keyof typeof ENTITY_COLORS.verdict;
 export type FindingStatus = keyof typeof ENTITY_COLORS.findingStatus;
 export type Scanner = keyof typeof ENTITY_COLORS.scanner;

@@ -96,6 +96,18 @@ export type FindingExtended = FindingRow & {
   model: string;
   /** AI confidence score (0–100). */
   confidence: number | null;
+  /** AI explanation / reasoning. */
+  explanation: string | null;
+  /** Data flow path from source to sink. */
+  dataFlow: string | null;
+  /** Taint source description. */
+  taintSource: string | null;
+  /** What the scanner found and why it flagged this. */
+  matchDetail: string | null;
+  /** Likely CWE identifiers predicted by AI. */
+  likelyCwe: string[] | null;
+  /** AI-suggested fix. */
+  fixSuggestion: string | null;
 };
 
 /**
@@ -178,6 +190,8 @@ export type FindingHistory = {
  *   explanation: 'The query builder uses string interpolation...',
  *   dataFlow: 'request.query.search → queryBuilder.where(search)',
  *   taintSource: 'HTTP request query parameter',
+ *   matchDetail: 'SQL query built with unsanitized user input',
+ *   likelyCwe: ['CWE-89'],
  *   fixSuggestion: 'Use parameterized queries or prepared statements.',
  *   latencyMs: 1250,
  *   createdAt: '2026-06-04T06:06:00Z',
@@ -201,6 +215,10 @@ export type AiVerification = {
   dataFlow: string | null;
   /** Taint source description. */
   taintSource: string | null;
+  /** What the scanner found and why it flagged this. */
+  matchDetail: string | null;
+  /** Likely CWE identifiers predicted by the model. */
+  likelyCwe: string[] | null;
   /** Fix suggestion. */
   fixSuggestion: string | null;
   /** Verification latency in milliseconds. */
@@ -208,3 +226,30 @@ export type AiVerification = {
   /** ISO 8601 creation timestamp. */
   createdAt: string;
 };
+
+/**
+ * AI model response — parsed output from LLM verification.
+ * Used as return type for callAiModel and parseAiResponse.
+ */
+export type AiModelResponse = {
+  /** Verdict: true_positive or false_positive. */
+  verdict: string;
+  /** Confidence score (0–1). */
+  confidence: number;
+  /** Detailed explanation of the verdict. */
+  explanation: string;
+  /** How tainted data flows from source to sink. */
+  dataFlow?: string;
+  /** Untrusted input origin. */
+  taintSource?: string;
+  /** What the scanner found and why it flagged this. */
+  matchDetail?: string;
+  /** Likely CWE identifiers. */
+  likelyCwe?: string[];
+  /** Suggested code fix if true positive. */
+  fixSuggestion?: string;
+  /** Raw AI response text for debugging. */
+  rawResponse?: string;
+};
+
+

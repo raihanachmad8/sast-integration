@@ -10,7 +10,12 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Role = typeof ROLE[keyof typeof ROLE];
 
 export const workspaceRepository = {
-  /** List all workspaces for a user with their role */
+  /**
+   * List all non-deleted workspaces for a user with their role.
+   *
+   * @param userId - User UUID
+   * @returns Array of workspace records with role and joinedAt
+   */
   async listByUser(userId: string) {
     return db
       .select({
@@ -28,7 +33,12 @@ export const workspaceRepository = {
       .where(and(eq(workspaceMembers.userId, userId), isNull(workspaces.deletedAt)));
   },
 
-  /** Find workspace by ID */
+  /**
+   * Find a non-deleted workspace by ID.
+   *
+   * @param id - Workspace UUID
+   * @returns Workspace record, or null if not found
+   */
   async findById(id: string) {
     const [ws] = await db.select().from(workspaces).where(and(eq(workspaces.id, id), isNull(workspaces.deletedAt))).limit(1);
     return ws ?? null;
@@ -52,7 +62,13 @@ export const workspaceRepository = {
     return ws ?? null;
   },
 
-  /** Get user's role in a workspace */
+  /**
+   * Get a user's role in a workspace.
+   *
+   * @param workspaceId - Workspace UUID
+   * @param userId - User UUID
+   * @returns Role string, or null if not a member
+   */
   async getMemberRole(workspaceId: string, userId: string) {
     const [member] = await db.select({ role: workspaceMembers.role })
       .from(workspaceMembers)
@@ -62,7 +78,13 @@ export const workspaceRepository = {
     return member?.role ?? null;
   },
 
-  /** Create workspace + return record */
+  /**
+   * Insert a new workspace record.
+   *
+   * @param data - Workspace creation data (name, slug, type, description, createdBy)
+   * @param tx - Optional database transaction
+   * @returns Created workspace record
+   */
   async create(data: { name: string; slug: string; type?: 'personal' | 'organization'; description?: string; createdBy: string }, tx?: Tx) {
     const executor = tx ?? db;
     const [ws] = await executor.insert(workspaces).values({
@@ -76,7 +98,14 @@ export const workspaceRepository = {
     return ws;
   },
 
-  /** Add member to workspace */
+  /**
+   * Add a member to a workspace.
+   *
+   * @param workspaceId - Workspace UUID
+   * @param userId - User UUID to add as a member
+   * @param role - Role to assign (owner, manager, reviewer, member)
+   * @param tx - Optional database transaction
+   */
   async addMember(workspaceId: string, userId: string, role: Role, tx?: Tx) {
     const executor = tx ?? db;
     await executor.insert(workspaceMembers).values({ workspaceId, userId, role });

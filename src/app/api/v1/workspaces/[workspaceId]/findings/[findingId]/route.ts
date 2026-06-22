@@ -7,8 +7,32 @@ import { validateBody } from '@/server/http/validate';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { findingService } from '@/server/modules/scan';
+import { db } from '@/server/db/client';
+import { findings } from '@drizzle/schema/findings';
+import { scans } from '@drizzle/schema/scans';
+import { repositories } from '@drizzle/schema/source-controls';
+import { eq } from 'drizzle-orm';
+import { qualityGateService } from '@/server/modules/scan/services/quality-gate.service';
+import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
+import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string; findingId: string }> };
+
+/**
+ * Verify a finding belongs to the given workspace via scan → repository chain.
+ * Returns the workspaceId if found, null otherwise.
+ */
+async function getFindingWorkspaceId(findingId: string): Promise<string | null> {
+  const [result] = await db
+    .select({ workspaceId: repositories.workspaceId })
+    .from(findings)
+    .innerJoin(scans, eq(findings.scanId, scans.id))
+    .innerJoin(repositories, eq(scans.repositoryId, repositories.id))
+    .where(eq(findings.id, findingId))
+    .limit(1);
+  return result?.workspaceId ?? null;
+}
 
 /**
  * GET /api/v1/workspaces/:workspaceId/findings/:findingId
@@ -26,6 +50,13 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     if (!finding) {
       return ApiResponse.error('Finding not found', 'NOT_FOUND', undefined, 404);
     }
+    
+    // IDOR check: verify the finding belongs to the workspace
+    const findingWorkspace = await getFindingWorkspaceId(findingId);
+    if (!findingWorkspace || findingWorkspace !== workspaceId) {
+      return ApiResponse.error('Finding not found', 'NOT_FOUND', undefined, 404);
+    }
+    
     return ApiResponse.success('Finding retrieved', finding);
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
@@ -35,12 +66,13 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
 const updateFindingSchema = z.object({
   status: z.string().optional(),
+  verdict: z.string().optional(),
   assignedTo: z.string().optional(),
 });
 
 /**
  * PATCH /api/v1/workspaces/:workspaceId/findings/:findingId
- * Update finding status or assignment.
+ * Update finding status, verdict, or assignment.
  */
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const auth = await authenticate(request);
@@ -53,15 +85,53 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const validation = await validateBody(request, updateFindingSchema);
     if (!validation.success) return validation.response;
-    const { status, assignedTo } = validation.data;
+    const { status, verdict, assignedTo } = validation.data;
+
+    // IDOR check: verify the finding belongs to the workspace before update
+    const findingWorkspace = await getFindingWorkspaceId(findingId);
+    if (!findingWorkspace || findingWorkspace !== workspaceId) {
+      return ApiResponse.error('Finding not found', 'NOT_FOUND', undefined, 404);
+    }
 
     let result;
-    if (status) {
+    if (verdict) {
+      result = await findingService.updateVerdict(findingId, verdict, userId);
+
+      // Re-evaluate QG for the scan this finding belongs to (non-blocking)
+      findingRepository.findById(findingId).then(async (f) => {
+        if (!f?.scanId) return;
+        try {
+          const scan = await scanRepository.getById(f.scanId);
+          if (scan?.prNumber && scan?.baseBranch && scan?.headBranch && scan?.repositoryId) {
+            // repostPrComment internally calls evaluatePrScan — no need to call it separately
+            await qualityGateService.repostPrComment(scan.id, workspaceId);
+            logger.scan.info('PATCH verdict: QG re-evaluated and PR comment reposted', { scanId: scan.id });
+          }
+        } catch (err) {
+          logger.scan.warn('PATCH verdict: QG re-evaluation failed', { error: (err as Error).message });
+        }
+      }).catch(() => {});
+    } else if (status) {
       result = await findingService.updateStatus(findingId, status, userId);
+
+      // Re-evaluate QG for the scan this finding belongs to (non-blocking)
+      findingRepository.findById(findingId).then(async (f) => {
+        if (!f?.scanId) return;
+        try {
+          const scan = await scanRepository.getById(f.scanId);
+          if (scan?.prNumber && scan?.baseBranch && scan?.headBranch && scan?.repositoryId) {
+            // repostPrComment internally calls evaluatePrScan — no need to call it separately
+            await qualityGateService.repostPrComment(scan.id, workspaceId);
+            logger.scan.info('PATCH status: QG re-evaluated and PR comment reposted', { scanId: scan.id, status });
+          }
+        } catch (err) {
+          logger.scan.warn('PATCH status: QG re-evaluation failed', { error: (err as Error).message });
+        }
+      }).catch(() => {});
     } else if (assignedTo !== undefined) {
       result = await findingService.assign(findingId, assignedTo);
     } else {
-      return ApiResponse.error('Either status or assignedTo is required', 'VALIDATION_ERROR', undefined, 400);
+      return ApiResponse.error('One of status, verdict, or assignedTo is required', 'VALIDATION_ERROR', undefined, 400);
     }
 
     return ApiResponse.success('Finding updated', result);

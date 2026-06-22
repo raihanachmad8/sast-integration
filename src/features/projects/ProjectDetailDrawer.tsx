@@ -2,14 +2,14 @@
 
 import { App, Button, Drawer, Flex, Typography, theme } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { LAYOUT } from '@/commons/constants/layout';
-import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
 import { useDeleteProjectMutation } from '@/modules/projects';
 import { errorMessage } from '@/lib/api/errors';
 import type { Project } from '@/commons/types';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { EmptyState } from '@/components/shared/EmptyState';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { EmptyState } from '@/commons/components/EmptyState';
 
 interface ProjectDetailDrawerProps {
   open: boolean;

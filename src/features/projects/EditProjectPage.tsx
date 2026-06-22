@@ -2,10 +2,10 @@
 
 import { Typography, Flex, theme } from 'antd';
 import { useProjectQuery } from '@/modules/projects';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { PageHeader } from '@/commons/components/PageHeader';
 import { ProjectForm, ProjectApiTokens } from '@/features/projects';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorState } from '@/components/shared/ErrorState';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorState } from '@/commons/components/ErrorState';
 import { errorMessage } from '@/lib/api/errors';
 
 export function EditProjectPage({ projectId }: { projectId: string }) {

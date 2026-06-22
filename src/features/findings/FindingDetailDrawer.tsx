@@ -1,15 +1,15 @@
 'use client';
 
+import React from 'react';
 import { Drawer, Typography, Flex, theme } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
-import { CodeBlock } from '@/components/shared/CodeBlock';
-import { AiAnalysisCard } from '@/components/shared/AiAnalysisCard';
-import { MemberSelect } from '@/components/shared/MemberSelect';
-import { StatusTag } from '@/components/shared/StatusTag';
-import { EmptyState } from '@/components/shared/EmptyState';
+import { CodeBlock } from '@/commons/components/CodeBlock';
+import { AiAnalysisCard } from '@/commons/components/AiAnalysisCard';
+import { MemberSelect } from '@/commons/components/MemberSelect';
+import { StatusTag } from '@/commons/components/StatusTag';
+import { EmptyState } from '@/commons/components/EmptyState';
 import { ScannerOutputSection } from './ScannerOutputSection';
 import { FindingActions } from './FindingActions';
-import { FindingComments } from './FindingComments';
 import type { Finding } from '@/commons/types';
 
 const { Title, Text } = Typography;
@@ -19,25 +19,23 @@ interface FindingDetailDrawerProps {
   onClose: () => void;
   finding: Finding | null;
   members?: Array<{ userId: string; name: string; email: string; initials: string; color: string }>;
-  onAcceptVerdict?: (id: string) => void;
+  onDismiss?: (id: string) => void;
   onOverrideVerdict?: (id: string, newVerdict: 'TP' | 'FP') => void;
   onReverify?: (id: string, model: string) => void;
   onOpenFullPage?: (id: string) => void;
   onAssign?: (findingId: string, assignee: string | null) => void;
-  onAddComment?: (findingId: string, text: string) => void;
 }
 
-export function FindingDetailDrawer({
+export const FindingDetailDrawer = React.memo(function FindingDetailDrawer({
   open,
   onClose,
   finding,
   members = [],
-  onAcceptVerdict,
+  onDismiss,
   onOverrideVerdict,
   onReverify,
   onOpenFullPage,
   onAssign,
-  onAddComment,
 }: FindingDetailDrawerProps) {
   const { token } = theme.useToken();
 
@@ -48,6 +46,21 @@ export function FindingDetailDrawer({
       </Drawer>
     );
   }
+
+  const normalizedFinding: Finding = {
+    ...finding,
+    repo: finding.repo || (finding as unknown as Record<string, unknown>).repositoryName as string || (finding as unknown as Record<string, unknown>).repository as string || '',
+    cwe: finding.cwe || (finding as unknown as Record<string, unknown>).cweId as string || '',
+    assignee: finding.assignee ?? (finding as unknown as Record<string, unknown>).assignedTo as string | null ?? null,
+  };
+
+  const sectionTitleStyle = {
+    fontSize: token.fontSizeSM,
+    fontWeight: token.fontWeightStrong,
+    color: token.colorTextSecondary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.06em',
+  };
 
   return (
     <Drawer
@@ -61,6 +74,7 @@ export function FindingDetailDrawer({
               </Text>
             )}
             <StatusTag type="severity" value={finding.severity} />
+            <StatusTag type="findingStatus" value={finding.status} />
           </Flex>
           <Title level={2} style={{ margin: 0 }}>{finding.rule}</Title>
           <Flex gap={token.marginXS} align="center">
@@ -82,13 +96,14 @@ export function FindingDetailDrawer({
     >
       <Flex vertical gap={token.paddingXL} style={{ padding: `${token.paddingXL}px` }}>
 
-        <ScannerOutputSection finding={finding} />
+        {/* Scanner output */}
+        <ScannerOutputSection finding={normalizedFinding} />
 
         {/* Source Code — only show if we have a code snippet */}
         {finding.codeSnippet && (
           <Flex vertical gap={token.marginSM}>
             <Flex justify="space-between" align="center">
-              <Text style={{ fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, color: token.colorTextSecondary, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Source code</Text>
+              <Text style={sectionTitleStyle}>Source code</Text>
               {finding.file && (
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
                   {finding.file}{finding.lineNumber != null ? `:${finding.lineNumber}` : ''}
@@ -112,35 +127,62 @@ export function FindingDetailDrawer({
         {/* AI Analysis — only show if AI verification has run */}
         {finding.verdict && finding.verdict !== 'Pending' && (
           <AiAnalysisCard
+            model={finding.model}
             verdict={finding.verdict}
-            reasoning={(finding as unknown as { explanation?: string }).explanation ?? 'Analysis pending.'}
-            cwe={finding.cwe}
-            remediation={(finding as unknown as { fixSuggestion?: string }).fixSuggestion ?? 'Remediation pending.'}
+            reasoning={finding.explanation ?? 'Analysis pending.'}
+            cwe={normalizedFinding.cwe}
+            matchDetail={finding.matchDetail}
+            likelyCwe={finding.likelyCwe}
+            dataFlow={finding.dataFlow}
+            taintSource={finding.taintSource}
+            remediation={finding.fixSuggestion ?? 'Remediation pending.'}
             knowledgeUses={0}
           />
         )}
 
         {/* Assignee */}
         <Flex vertical gap={token.marginSM}>
-          <Text style={{ fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, color: token.colorTextSecondary, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Assignee</Text>
+          <Text style={sectionTitleStyle}>Assignee</Text>
           <MemberSelect
-            members={members.map((m) => ({ name: m.name, initials: m.initials, color: m.color }))}
-            value={finding.assignee ?? null}
-            onChange={(name) => { if (name) onAssign?.(finding.id, name); }}
+            members={members.map((m) => ({ userId: m.userId, name: m.name, initials: m.initials, color: m.color }))}
+            value={normalizedFinding.assignee ?? null}
+            onChange={(userId) => { if (userId) onAssign?.(normalizedFinding.id, userId); }}
             placeholder="Assign to reviewer"
           />
         </Flex>
 
+        {/* Actions */}
         <FindingActions
-          finding={finding}
-          onAcceptVerdict={onAcceptVerdict}
+          finding={normalizedFinding}
+          onDismiss={onDismiss}
           onOverrideVerdict={onOverrideVerdict}
           onReverify={onReverify}
           onOpenFullPage={onOpenFullPage}
         />
 
-        <FindingComments findingId={finding.id} onAddComment={onAddComment} />
+        {/* Details */}
+        <Flex vertical gap={token.marginSM}>
+          <Text style={sectionTitleStyle}>Details</Text>
+          <Flex vertical gap={token.marginSM}>
+            <Flex justify="space-between" align="center">
+              <Text type="secondary">Scanner</Text>
+              <StatusTag type="scanner" value={finding.scanner} />
+            </Flex>
+            <Flex justify="space-between" align="center">
+              <Text type="secondary">CWE</Text>
+              <Text strong style={{ fontSize: token.fontSizeSM }}>{normalizedFinding.cwe}</Text>
+            </Flex>
+            <Flex justify="space-between" align="center">
+              <Text type="secondary">Repository</Text>
+              <Text strong style={{ fontSize: token.fontSizeSM }}>{normalizedFinding.repo}</Text>
+            </Flex>
+            <Flex justify="space-between" align="center">
+              <Text type="secondary">Status</Text>
+              <StatusTag type="findingStatus" value={finding.status} />
+            </Flex>
+          </Flex>
+        </Flex>
       </Flex>
     </Drawer>
   );
-}
+});

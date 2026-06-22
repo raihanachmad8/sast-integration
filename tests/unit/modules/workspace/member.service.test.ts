@@ -40,6 +40,9 @@ const { memberService } = await import('@/server/modules/workspace/services/memb
 describe('memberService.changeRole', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  /**
+   * Purpose: Validates that a member's role can be updated by an authorized actor
+   */
   it('should successfully update a member role when the actor has permission', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.MEMBER);
     mockRepo.updateMemberRole.mockResolvedValue({ role: ROLE.REVIEWER });
@@ -49,18 +52,27 @@ describe('memberService.changeRole', () => {
     expect(mockRepo.updateMemberRole).toHaveBeenCalledWith('ws-1', 'target-user', ROLE.REVIEWER);
   });
 
+  /**
+   * Purpose: Validates that a user cannot change their own role
+   */
   it('should throw CANNOT_CHANGE_OWN_ROLE when trying to change their own role', async () => {
     await expect(
       memberService.changeRole('ws-1', 'actor', ROLE.REVIEWER, 'actor')
     ).rejects.toThrow(WORKSPACE.ERRORS.CANNOT_CHANGE_OWN_ROLE);
   });
 
+  /**
+   * Purpose: Validates that the Owner role cannot be assigned to any member
+   */
   it('should throw CANNOT_ASSIGN_OWNER when trying to assign the Owner role', async () => {
     await expect(
       memberService.changeRole('ws-1', 'target', ROLE.OWNER, 'actor')
     ).rejects.toThrow(WORKSPACE.ERRORS.CANNOT_ASSIGN_OWNER);
   });
 
+  /**
+   * Purpose: Validates that the existing Owner's role cannot be changed
+   */
   it('should throw CANNOT_CHANGE_OWNER_ROLE when trying to change an existing Owner role', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.OWNER);
 
@@ -69,6 +81,9 @@ describe('memberService.changeRole', () => {
     ).rejects.toThrow(WORKSPACE.ERRORS.CANNOT_CHANGE_OWNER_ROLE);
   });
 
+  /**
+   * Purpose: Validates that changing the role of a non-member throws MEMBER_NOT_FOUND
+   */
   it('should throw MEMBER_NOT_FOUND when the target user is not a member of the workspace', async () => {
     mockRepo.getMemberRole.mockResolvedValue(null);
 
@@ -89,6 +104,9 @@ describe('memberService.changeRole', () => {
 describe('memberService.removeMember', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  /**
+   * Purpose: Validates that an authorized actor can remove a workspace member
+   */
   it('should successfully remove a member when performed by an authorized actor', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.MEMBER);
 
@@ -97,12 +115,18 @@ describe('memberService.removeMember', () => {
     expect(mockRepo.removeMember).toHaveBeenCalledWith('ws-1', 'target');
   });
 
+  /**
+   * Purpose: Validates that a user cannot remove themselves from a workspace
+   */
   it('should throw CANNOT_REMOVE_SELF when trying to remove their own membership', async () => {
     await expect(
       memberService.removeMember('ws-1', 'actor', 'actor')
     ).rejects.toThrow(WORKSPACE.ERRORS.CANNOT_REMOVE_SELF);
   });
 
+  /**
+   * Purpose: Validates that the workspace Owner cannot be removed
+   */
   it('should throw CANNOT_REMOVE_OWNER when trying to remove the workspace Owner', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.OWNER);
 
@@ -111,6 +135,9 @@ describe('memberService.removeMember', () => {
     ).rejects.toThrow(WORKSPACE.ERRORS.CANNOT_REMOVE_OWNER);
   });
 
+  /**
+   * Purpose: Validates that removing a non-member throws MEMBER_NOT_FOUND
+   */
   it('should throw MEMBER_NOT_FOUND when trying to remove a user who is not a member', async () => {
     mockRepo.getMemberRole.mockResolvedValue(null);
 
@@ -130,6 +157,9 @@ describe('memberService.removeMember', () => {
 describe('memberService.revokeInvitation', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  /**
+   * Purpose: Validates that a workspace invitation can be revoked successfully
+   */
   it('should successfully revoke an invitation that belongs to the workspace', async () => {
     mockRepo.findInvitation.mockResolvedValue({ id: 'inv-1', workspaceId: 'ws-1' });
 
@@ -138,6 +168,9 @@ describe('memberService.revokeInvitation', () => {
     expect(mockRepo.revokeInvitation).toHaveBeenCalledWith('inv-1');
   });
 
+  /**
+   * Purpose: Validates that revoking a nonexistent invitation throws INVITATION_NOT_FOUND
+   */
   it('should throw INVITATION_NOT_FOUND when the invitation does not exist', async () => {
     mockRepo.findInvitation.mockResolvedValue(null);
 
@@ -146,6 +179,9 @@ describe('memberService.revokeInvitation', () => {
     ).rejects.toThrow(WORKSPACE.ERRORS.INVITATION_NOT_FOUND);
   });
 
+  /**
+   * Purpose: Validates that revoking an invitation from a different workspace throws INVITATION_NOT_FOUND
+   */
   it('should throw INVITATION_NOT_FOUND when the invitation belongs to a different workspace', async () => {
     mockRepo.findInvitation.mockResolvedValue({ id: 'inv-1', workspaceId: 'ws-other' });
 

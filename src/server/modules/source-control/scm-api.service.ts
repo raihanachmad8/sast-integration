@@ -58,6 +58,17 @@ export interface InlineReviewComment {
 }
 
 /**
+ * A file changed in a PR, with the specific line numbers that were modified.
+ * Used to determine if a finding is "new" (on a changed line) vs "pre-existing" (unchanged).
+ */
+export interface ChangedFile {
+  /** File path relative to repo root (e.g. "src/main.c") */
+  filePath: string;
+  /** Line numbers in the NEW version of the file that were added or modified */
+  changedLines: number[];
+}
+
+/**
  * Provider-agnostic SCM API service interface.
  * Each provider (Gitea, GitHub, GitLab) implements this interface.
  */
@@ -93,7 +104,7 @@ export interface ScmApiService {
   ): Promise<{ created: number; updated: number }>;
 
   /**
-   * Resolve (close) inline review comments for fixed findings.
+   * Resolve (close) inline review comments for resolved findings.
    * Comments whose fingerprint is in the input list are resolved/collapsed.
    * @returns Count of resolved and failed comments.
    */
@@ -131,6 +142,16 @@ export interface ScmApiService {
       scanner: string;
     }>,
   ): Promise<{ updated: number; failed: number }>;
+
+  /**
+   * Get the list of files changed in a PR, with line-level diff info.
+   * Used to determine which findings are "new" (on changed lines) vs "pre-existing".
+   */
+  getPrChangedFiles(
+    owner: string,
+    repo: string,
+    prNumber: number,
+  ): Promise<ChangedFile[]>;
 }
 
 /**
@@ -156,44 +177,13 @@ export function parseRepoName(repoName: string): [string, string] {
 // ─── Shared Helpers ─────────────────────────────────────────────
 
 /**
- * Get severity icon emoji.
- */
-export function severityIcon(severity: string): string {
-  if (severity === 'critical') return '🔴';
-  if (severity === 'high') return '🟠';
-  if (severity === 'medium') return '🟡';
-  return '⚪';
-}
-
-/**
- * Format file path and line number for display.
- */
-export function formatFileLocation(filePath: string | null, lineNumber: number | null): string {
-  if (!filePath) return 'N/A';
-  if (lineNumber) return `${filePath}:${lineNumber}`;
-  return filePath;
-}
-
-/**
- * Detect code language from file path.
- */
-export function codeLanguage(filePath: string | null): string {
-  if (!filePath) return 'text';
-  if (filePath.match(/\.(c|h|cpp|hpp)$/)) return 'c';
-  if (filePath.match(/\.(js|jsx)$/)) return 'javascript';
-  if (filePath.match(/\.(ts|tsx)$/)) return 'typescript';
-  if (filePath.match(/\.py$/)) return 'python';
-  return 'text';
-}
-
-/**
  * Build a formatted PR comment with scan results.
  * This is provider-agnostic Markdown generation.
  *
  * @param scanId - Scan UUID
  * @param gateStatus - Quality gate status
  * @param newFindings - Number of new findings
- * @param fixedFindings - Number of fixed findings
+ * @param fixedFindings - Number of resolved findings
  * @param blockingFindings - Number of blocking findings
  * @param findings - Array of new finding details (with AI verdict)
  * @param appBaseUrl - Base URL for app links (e.g., http://localhost:3000)
@@ -237,7 +227,7 @@ export function buildPrComment(
   comment += `|---------|---------------|\n`;
   comment += `| Total | ${newFindings + persistentFindings} |\n`;
   comment += `| New | ${newFindings} |\n`;
-  comment += `| Fixed | ${fixedFindings} |\n`;
+  comment += `| Resolved | ${fixedFindings} |\n`;
   comment += `| Pre-existing | ${persistentFindings} |\n`;
   comment += `\n| AI Verification | Count |\n`;
   comment += `|-----------------|-------|\n`;
@@ -251,45 +241,6 @@ export function buildPrComment(
   comment += `\n---\n*Powered by SAST Integration • Scan: \`${scanId.substring(0, 8)}\` • ${new Date().toISOString().split('T')[0]}*\n`;
 
   return comment;
-}
-
-/**
- * Build a single finding block with code snippet and AI verdict.
- */
-function buildFindingBlock(f: PrCommentFinding, appBaseUrl: string): string {
-  const sevIcon = severityIcon(f.severity);
-  const displayPath = normalizeDisplayPath(f.filePath || '');
-  const file = formatFileLocation(displayPath, f.lineNumber);
-  const aiBadge = getAiBadge(f.aiVerdict, f.confidence);
-  const link = `${appBaseUrl}/workspace/finding/${f.findingId}`;
-
-  let block = `**\`${file}\` — ${sevIcon} ${f.severity.toUpperCase()} — ${f.rule || 'N/A'}**\n\n`;
-  block += `| | |\n|---|---|\n`;
-  block += `| Scanner | ${f.scanner || 'N/A'} |\n`;
-  block += `| AI Verdict | ${aiBadge} |\n`;
-  block += `| Message | ${f.message || 'No description'} |\n`;
-
-  if (f.codeSnippet) {
-    // Limit code snippet to 8 lines and detect language
-    const lines = f.codeSnippet.split('\n').slice(0, 8);
-    const lang = codeLanguage(f.filePath);
-    block += `| Code | \`\`\`${lang}\n${lines.join('\n')}\n\`\`\` |\n`;
-  }
-
-  block += `| Action | [✅ TP](${link}?action=tp) [❌ FP](${link}?action=fp) [📝 Review](${link}) |\n\n`;
-  return block;
-}
-
-/**
- * Get AI verdict badge with confidence.
- */
-function getAiBadge(verdict: string | null, confidence: string | null): string {
-  if (!verdict || verdict === 'pending') return '⏳ Pending';
-  const parsed = confidence ? parseFloat(confidence) : NaN;
-  const conf = !isNaN(parsed) ? ` (${Math.round(parsed > 1 ? parsed : parsed * 100)}%)` : '';
-  if (verdict === 'true_positive') return `✅ TP${conf}`;
-  if (verdict === 'false_positive') return `❌ FP${conf}`;
-  return '⏳ Pending';
 }
 
 /**
@@ -338,6 +289,55 @@ export function buildInlineReviewComment(
 export function extractFingerprintFromMarker(body: string): string | null {
   const match = body.match(/<!--\s*sast-integration:inline-review:([a-f0-9-]+)\s*-->/);
   return match?.[1] ?? null;
+}
+
+/**
+ * Parse a unified diff patch string to extract changed line numbers in the NEW file.
+ * Handles multi-hunk patches.
+ *
+ * @example
+ * parsePatchToChangedLines("@@ -10,6 +10,8 @@\n context\n+added\n-removed\n") // [11, 12]
+ */
+export function parsePatchToChangedLines(patch: string): number[] {
+  const lines = patch.split('\n');
+  const changedLines: number[] = [];
+  let currentNewLine = 0;
+
+  for (const line of lines) {
+    // Parse hunk header: @@ -oldStart,oldCount +newStart,newCount @@
+    const hunkMatch = line.match(/^@@\s+-\d+(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/);
+    if (hunkMatch) {
+      currentNewLine = parseInt(hunkMatch[1], 10);
+      continue;
+    }
+
+    // Skip file header
+    if (line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++')) {
+      continue;
+    }
+
+    // Context line (no change)
+    if (line.startsWith(' ')) {
+      currentNewLine++;
+      continue;
+    }
+
+    // Added line (new file line)
+    if (line.startsWith('+')) {
+      changedLines.push(currentNewLine);
+      currentNewLine++;
+      continue;
+    }
+
+    // Removed line (old file only, doesn't increment new line counter)
+    if (line.startsWith('-')) {
+      continue;
+    }
+
+    // Unknown line type — skip
+  }
+
+  return changedLines;
 }
 
 /**

@@ -1,6 +1,5 @@
 import { logger } from '@/server/lib/logger';
 import { scanRepository } from './repositories/scan.repository';
-import { findingRepository } from './repositories/finding.repository';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 import { AppError } from '@/server/http/errors';
 import { SCAN } from './constants';
@@ -45,7 +44,7 @@ function toScanRow(row: Awaited<ReturnType<typeof scanRepository.listByWorkspace
     ai: aiDisplay,
     origin: (row.origin ?? 'managed') as 'managed' | 'external_upload',
     provider: null,
-    connectionType: 'scm' as const,
+    connectionType: (Array.isArray(row.connectionType) ? row.connectionType : row.connectionType ? [row.connectionType as string] : ['scm']) as string[],
     startedAt: row.startedAt?.toISOString(),
     completedAt: row.completedAt?.toISOString(),
     durationSeconds,
@@ -60,7 +59,7 @@ export const scanService = {
    * @returns Paginated scan list with total count
    * @throws {AppError} If the user is not a workspace member
    */
-  async list(workspaceId: string, params: { page: number; perPage: number; search?: string; filters?: { status?: string; stage?: string; origin?: string } }, userId: string) {
+  async list(workspaceId: string, params: { page: number; perPage: number; search?: string; filters?: { status?: string; stage?: string; origin?: string }; accessibleProjectIds?: string[] }, userId: string) {
     logger.scan.debug('list', { workspaceId, page: params.page });
     try {
       const role = await workspaceRepository.getMemberRole(workspaceId, userId);
@@ -118,13 +117,14 @@ export const scanService = {
       if (!scan) throw new AppError(SCAN.ERRORS.NOT_FOUND, 404, SCAN.ERRORS.NOT_FOUND_CODE);
 
       // Parallelize independent queries
-      const [repo, findingsStats, aiStats, aiVerdictStats, scanResults, findingsPerScanner] = await Promise.all([
+      const [repo, findingsStats, , aiVerdictStats, scanResults, findingsPerScanner, newVsExistingStats] = await Promise.all([
         scan.repositoryId ? scanRepository.getRepositoryById(scan.repositoryId!) : Promise.resolve(null),
         scanRepository.getFindingsStats(scanId),
         scanRepository.getAiStats(scanId),
         scanRepository.getAiVerdictStats(scanId),
         scanRepository.getScanResults(scanId),
         scanId ? scanRepository.getFindingsPerScanner(scanId) : Promise.resolve([]),
+        scanRepository.getNewVsExistingStats(scanId),
       ]);
       const findingsCountByScanner = new Map(findingsPerScanner.map((r) => [r.scanner, Number(r.count)]));
 
@@ -215,6 +215,8 @@ export const scanService = {
           error: undefined,
         })),
         totalFindings: Number(findingsStats.total) || 0,
+        newFindings: Number(newVsExistingStats?.newCount) || 0,
+        existingFindings: Number(newVsExistingStats?.existingCount) || 0,
         severityBreakdown: {
           critical: Number(findingsStats.critical) || 0,
           high: Number(findingsStats.high) || 0,

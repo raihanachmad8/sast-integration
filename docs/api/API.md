@@ -5,49 +5,71 @@ Response Format: `{ success: boolean, message: string, data: T | null, meta: { r
 
 ---
 
-## Authentication
+## Module Documentation
 
-### POST /auth/signup
-Register a new user account.
-
-**Auth:** None (rate-limited by IP)
-
-**Request Body:**
-```json
-{
-  "email": "user@example.com",
-  "password": "Str0ng!Pass",
-  "name": "John Doe"
-}
-```
-
-**Responses:**
-| Code | Description |
-|------|-------------|
-| 200 | Account created (also returned for duplicate email — neutral response) |
-| 403 | Registration disabled (single workspace mode) |
-| 422 | Validation error (password strength, invalid email) |
-| 429 | Rate limited |
-
-**Response Data:**
-```json
-{ "id": "uuid", "email": "user@example.com", "name": "John Doe" }
-```
+| Module | File | Description |
+|--------|------|-------------|
+| Auth | [auth.md](./auth.md) | Authentication, sessions, invitations |
+| Workspace | [workspace.md](./workspace.md) | Workspace management |
+| Findings | [findings.md](./findings.md) | Finding management, verification, comments |
+| Scans | [scans.md](./scans.md) | Scan execution and results |
+| Projects | [projects.md](./projects.md) | Project management |
+| Repositories | [repositories.md](./repositories.md) | Repository management |
+| Teams | [teams.md](./teams.md) | Team management |
+| Members | [members.md](./members.md) | Member management |
+| Source Controls | [source-controls.md](./source-controls.md) | SCM provider integrations |
+| Knowledge Base | [knowledge-base.md](./knowledge-base.md) | Knowledge entries and sources |
+| AI Models | [ai-models.md](./ai-models.md) | AI model management |
+| Webhooks | [webhooks.md](./webhooks.md) | Webhook configuration |
+| Schedules | [schedules.md](./schedules.md) | Scheduled scan management |
+| Reports | [reports.md](./reports.md) | Report generation |
+| Dashboard | [dashboard.md](./dashboard.md) | Dashboard statistics |
+| Settings | [settings.md](./settings.md) | Verification and PR review settings |
+| Scanner Engines | [scanner-engines.md](./scanner-engines.md) | Scanner engine configuration |
+| Notifications | [notifications.md](./notifications.md) | Notification system |
+| Audit Logs | [audit-logs.md](./audit-logs.md) | Audit trail |
+| Activity Logs | [activity-logs.md](./activity-logs.md) | Activity tracking |
+| Profile | [profile.md](./profile.md) | User profile management |
 
 ---
 
-### POST /auth/signin
-Authenticate and create a session.
+## Common Status Codes
 
-**Auth:** None (rate-limited by email)
+| Code | Meaning |
+|------|---------|
+| 200 | Success |
+| 201 | Created |
+| 204 | No Content (deletion success) |
+| 400 | Bad Request / Validation error |
+| 401 | Unauthorized (no token, invalid token, invalid session) |
+| 403 | Forbidden (missing permissions, wrong role) |
+| 404 | Not Found |
+| 409 | Conflict (duplicate) |
+| 410 | Gone (expired/used invitation) |
+| 422 | Validation failure (field-level errors) |
+| 429 | Rate limited |
+| 500 | Internal Server Error |
 
-**Request Body:**
-```json
-{
-  "email": "user@example.com",
-  "password": "Str0ng!Pass"
-}
-```
+## Permission Matrix
+
+| Resource | View (Member) | Manage (Manager+) | Owner Only |
+|----------|--------------|-------------------|------------|
+| Workspace | All members | — | Update, Delete |
+| Members | All members | Invite, Revoke | Change role |
+| Teams | All members | Create, Update | Delete |
+| Projects | All members | Create, Update | Delete |
+| Repositories | All members | Import, Remove, Attach policy | — |
+| Scans | All members | Run, Trigger | — |
+| Findings | All members | Triage, Override AI | — |
+| Reports | All members | Export | — |
+| Schedules | All members | CRUD | — |
+| Webhooks | All members | CRUD | — |
+| Source Controls | All members | Manage | — |
+| Knowledge Base | All members | Manage | — |
+| AI Models | All members | Manage | — |
+| Audit Log | — | — | All members |
+
+---
 
 **Responses:**
 | Code | Description |
@@ -603,60 +625,6 @@ OAuth callback handler. Redirects back to app.
 
 ---
 
-## Scan Profiles
-
-### GET /workspaces/:id/scan-profiles
-List profiles. Member+
-
-### POST /workspaces/:id/scan-profiles
-Create profile. Manager+
-
-**Request Body:**
-```json
-{
-  "name": "Standard Scan",
-  "profile": "standard",
-  "scanners": ["semgrep", "gitleaks"],
-  "aiVerification": true,
-  "severityThreshold": "medium",
-  "timeoutSeconds": 300,
-  "maxFindings": 2000
-}
-```
-
-**Profiles:** `standard`, `strict`, `custom`
-**Scanners:** Configured in `SUPPORTED_SCANNERS` constant
-
-### GET /workspaces/:id/scan-profiles/:profileId
-Get profile. Member+
-
-### PUT /workspaces/:id/scan-profiles/:profileId
-Update profile. Manager+
-
-### DELETE /workspaces/:id/scan-profiles/:profileId
-Delete profile. Manager+
-
----
-
-## Scan Policies
-
-### GET /workspaces/:id/scan-policies
-List policies. Member+
-
-### POST /workspaces/:id/scan-policies
-Create policy. Manager+
-
-### GET /workspaces/:id/scan-policies/:policyId
-Get policy. Member+
-
-### PUT /workspaces/:id/scan-policies/:policyId
-Update policy. Manager+
-
-### DELETE /workspaces/:id/scan-policies/:policyId
-Delete policy. Manager+
-
----
-
 ## Schedules
 
 ### GET /workspaces/:id/schedules
@@ -1020,19 +988,6 @@ Get rules for a specific scanner.
 
 ---
 
-## Scan Profiles (Standalone)
-
-### GET /scan-profiles/:profileId
-Get profile.
-
-### PUT /scan-profiles/:profileId
-Update profile.
-
-### DELETE /scan-profiles/:profileId
-Delete profile.
-
----
-
 ## Scan Upload (CI)
 
 ### POST /projects/:projectId/scans/upload
@@ -1144,56 +1099,236 @@ List recent quality gate evaluation results.
 
 ---
 
-## Retention
+## Findings — Comments
 
-### POST /retention/cleanup?workspaceId=xxx&dryRun=true
-Trigger 30-day raw scan file retention cleanup.
+### GET /workspaces/:workspaceId/findings/:findingId/comments
+List comments for a finding.
 
-**Auth:** Bearer token (user session, not project API token)
-**Required Role:** Owner or Manager
+**Auth:** Bearer token
+**Required Role:** Member+
 
-### GET /retention/cleanup?workspaceId=xxx
-Alias for dry-run.
+**Response Data:**
+```json
+[
+  {
+    "id": "uuid",
+    "findingId": "uuid",
+    "content": "This looks like a true positive",
+    "createdAt": "2026-06-15T10:00:00Z",
+    "updatedAt": "2026-06-15T10:00:00Z",
+    "createdByName": "John Doe",
+    "createdByEmail": "john@example.com"
+  }
+]
+```
 
 ---
 
-## Common Status Codes
+### POST /workspaces/:workspaceId/findings/:findingId/comments
+Add a comment to a finding.
 
-| Code | Meaning |
-|------|---------|
-| 200 | Success |
-| 201 | Created |
-| 204 | No Content (deletion success) |
-| 400 | Bad Request / Validation error |
-| 401 | Unauthorized (no token, invalid token, invalid session) |
-| 403 | Forbidden (missing permissions, wrong role) |
-| 404 | Not Found |
-| 409 | Conflict (duplicate) |
-| 410 | Gone (expired/used invitation) |
-| 422 | Validation failure (field-level errors) |
-| 429 | Rate limited |
-| 500 | Internal Server Error |
+**Auth:** Bearer token
+**Required Role:** Member+
 
-## Permission Matrix
+**Request Body:**
+```json
+{
+  "content": "This looks like a true positive because the input is not validated"
+}
+```
 
-| Resource | View (Member) | Manage (Manager+) | Owner Only |
-|----------|--------------|-------------------|------------|
-| Workspace | All members | — | Update, Delete |
-| Members | All members | Invite, Revoke | Change role |
-| Teams | All members | Create, Update | Delete |
-| Projects | All members | Create, Update | Delete |
-| Repositories | All members | Import, Remove, Attach policy | — |
-| Scans | All members | Run, Trigger | — |
-| Findings | All members | Triage, Override AI | — |
-| Reports | All members | Export | — |
-| Scan Profiles | All members | CRUD | — |
-| Scan Policies | All members | CRUD | — |
-| Schedules | All members | CRUD | — |
-| Webhooks | All members | CRUD | — |
-| Source Controls | All members | Manage | — |
-| Knowledge Base | All members | Manage | — |
-| AI Models | All members | Manage | — |
-| Audit Log | — | — | All members |
+**Response Data:**
+```json
+{
+  "id": "uuid",
+  "findingId": "uuid",
+  "content": "This looks like a true positive because the input is not validated",
+  "createdAt": "2026-06-15T10:00:00Z"
+}
+```
+
+---
+
+## Settings — Verification
+
+### GET /workspaces/:workspaceId/settings/verification
+Get verification settings for a workspace.
+
+**Auth:** Bearer token
+**Required Role:** Owner or Manager
+
+**Response Data:**
+```json
+{
+  "attachKnowledge": true,
+  "requireConfidence": true,
+  "allowFallback": true,
+  "confidenceThreshold": "90",
+  "timeout": "90",
+  "cweMismatch": "warn"
+}
+```
+
+---
+
+### PUT /workspaces/:workspaceId/settings/verification
+Update verification settings for a workspace.
+
+**Auth:** Bearer token
+**Required Role:** Owner or Manager
+
+**Request Body:**
+```json
+{
+  "attachKnowledge": true,
+  "requireConfidence": true,
+  "allowFallback": false,
+  "confidenceThreshold": "95",
+  "timeout": "120",
+  "cweMismatch": "fail"
+}
+```
+
+**Response Data:**
+```json
+{
+  "attachKnowledge": true,
+  "requireConfidence": true,
+  "allowFallback": false,
+  "confidenceThreshold": "95",
+  "timeout": "120",
+  "cweMismatch": "fail"
+}
+```
+
+---
+
+## Notifications
+
+### GET /notifications
+List notifications for the current user.
+
+**Auth:** Bearer token
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| limit | number | 20 | Max items (1-200) |
+| offset | number | 0 | Pagination offset |
+
+**Response Data:**
+```json
+[
+  {
+    "id": "uuid",
+    "workspaceId": "uuid",
+    "userId": "uuid",
+    "type": "scan_completed",
+    "description": "Scan completed for repository backend-api",
+    "metadata": {},
+    "createdAt": "2026-06-15T10:00:00Z"
+  }
+]
+```
+
+---
+
+### GET /notifications/unread-count
+Get unread notification count for the current user.
+
+**Auth:** Bearer token
+
+**Response Data:**
+```json
+{
+  "count": 5
+}
+```
+
+---
+
+## Audit & Activity Logs
+
+### GET /audit-logs
+List audit logs for workspaces the user has access to.
+
+**Auth:** Bearer token
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| limit | number | 50 | Max items (1-200) |
+| offset | number | 0 | Pagination offset |
+
+**Response Data:**
+```json
+[
+  {
+    "id": "uuid",
+    "workspaceId": "uuid",
+    "userId": "uuid",
+    "action": "member.invited",
+    "resourceType": "member",
+    "resourceId": "uuid",
+    "data": {},
+    "ipAddress": "192.168.1.1",
+    "createdAt": "2026-06-15T10:00:00Z"
+  }
+]
+```
+
+---
+
+### GET /activity-logs
+List activity logs for workspaces the user has access to.
+
+**Auth:** Bearer token
+
+**Query Parameters:**
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| limit | number | 50 | Max items (1-200) |
+| offset | number | 0 | Pagination offset |
+
+**Response Data:**
+```json
+[
+  {
+    "id": "uuid",
+    "workspaceId": "uuid",
+    "userId": "uuid",
+    "type": "scan.completed",
+    "description": "Scan completed for repository backend-api",
+    "metadata": {},
+    "createdAt": "2026-06-15T10:00:00Z"
+  }
+]
+```
+
+---
+
+## Scanner Engines — Rules
+
+### GET /scanner-engines/:scannerId/rules
+List available rules for a scanner engine.
+
+**Auth:** Bearer token
+
+**Path Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| scannerId | string | Scanner ID (semgrep, gitleaks, flawfinder, cppcheck, clang-tidy, gcc-fanalyzer) |
+
+**Response Data:**
+```json
+[
+  {
+    "name": "p/default",
+    "description": "Default ruleset for common vulnerabilities",
+    "enabled": true
+  }
+]
+```
 
 ---
 

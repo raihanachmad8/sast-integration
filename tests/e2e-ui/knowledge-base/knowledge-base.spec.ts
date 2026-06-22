@@ -9,6 +9,9 @@ import { signInAndOpenWorkspace } from '../auth/helpers';
  * and a detail drawer for viewing individual entries.
  */
 test.describe('Knowledge Base Page', () => {
+  /**
+   * Purpose: Verify that the knowledge base page loads without crashing and does not show a server error.
+   */
   test('should render knowledge base page', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
@@ -19,6 +22,9 @@ test.describe('Knowledge Base Page', () => {
     await expect(page.locator('text=Internal Server Error')).toHaveCount(0);
   });
 
+  /**
+   * Purpose: Verify that the knowledge base page shows content, cards, an empty state, or an add button.
+   */
   test('should show knowledge base content or empty state', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');

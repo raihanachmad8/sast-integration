@@ -1,13 +1,14 @@
 'use client';
 
 import { Drawer, Tabs, Typography, Descriptions, Statistic, Progress, Space, Card, Button, Flex, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
+import React from 'react';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { FindingItem } from './FindingItem';
 import { ScanTimeline } from './ScanTimeline';
-import type { ScanDetail, Finding } from './types';
-import { StatusTag } from '@/components/shared/StatusTag';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { EmptyState } from '@/components/shared/EmptyState';
+import type { ScanDetail, ScanFinding } from './types';
+import { StatusTag } from '@/commons/components/StatusTag';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { EmptyState } from '@/commons/components/EmptyState';
 
 const { Text } = Typography;
 
@@ -20,7 +21,7 @@ interface ScanDetailDrawerProps {
   /** Scan detail data. */
   scan: ScanDetail | null;
   /** Findings for this scan. */
-  findings?: Finding[];
+  findings?: ScanFinding[];
   /** Findings query for loading state. */
   scanFindingsQuery?: { isLoading: boolean };
   /** Callback to view findings in full page. */
@@ -42,7 +43,7 @@ function formatDuration(seconds: number): string {
 /**
  * Drawer showing detailed scan information with tabs for overview, findings, and timeline.
  */
-export function ScanDetailDrawer({
+export const ScanDetailDrawer = React.memo(function ScanDetailDrawer({
   open,
   onClose,
   scan,
@@ -102,7 +103,7 @@ export function ScanDetailDrawer({
       <Flex vertical gap={token.paddingLG}>
         {/* Status Header */}
         <Flex align="center" gap={token.marginMD} wrap="wrap">
-          <StatusTag type="scanStatus" value={scan.status === 'completed' ? 'Completed' : scan.status === 'failed' ? 'Failed' : scan.status === 'processing' ? 'Running' : 'Pending'} />
+          <StatusTag type="scanStatus" value={scan.status === 'completed' ? 'Completed' : scan.status === 'failed' ? 'Failed' : scan.status === 'processing' || scan.status === 'running' ? 'Running' : 'Pending'} />
           <StatusPill variant={scan.origin === 'managed' ? 'purple' : 'slate'}>
             <FaIcon icon={scan.origin === 'managed' ? 'fa-robot' : 'fa-cloud-arrow-up'} />{' '}
             {scan.origin === 'managed' ? 'Managed' : 'External Upload'}
@@ -120,10 +121,10 @@ export function ScanDetailDrawer({
             <Statistic title="Total Findings" value={scan.totalFindings} />
           </Card>
           <Card size="small">
-            <Statistic title="Critical" value={scan.severityBreakdown.critical} styles={{ value: { color: token.colorError } }} />
+            <Statistic title="New" value={scan.newFindings} styles={{ value: { color: token.colorWarning } }} />
           </Card>
           <Card size="small">
-            <Statistic title="High" value={scan.severityBreakdown.high} styles={{ value: { color: token.colorWarning } }} />
+            <Statistic title="Pre-existing" value={scan.existingFindings} styles={{ value: { color: token.colorTextSecondary } }} />
           </Card>
           <Card size="small">
             <Statistic title="AI Verified" value={scan.aiStats?.verified ?? 0} styles={{ value: { color: token.colorSuccess } }} />
@@ -295,4 +296,4 @@ export function ScanDetailDrawer({
       </Flex>
     </Drawer>
   );
-}
+});

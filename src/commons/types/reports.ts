@@ -79,6 +79,16 @@ export type QualityGate = {
   failOnCritical: boolean;
   /** Fail scan if high-severity true positives exist. */
   failOnHighTp: boolean;
+  /** Fail scan if high-severity findings exist. */
+  failOnHigh: boolean;
+  /** Fail scan if medium-severity findings exist. */
+  failOnMedium: boolean;
+  /** Fail scan if low-severity findings exist. */
+  failOnLow: boolean;
+  /** Fail scan if new findings are pending review. */
+  failOnPending: boolean;
+  /** Fail scan if AI verified as true positive. */
+  failOnTp: boolean;
   /** Warn if findings are still pending AI verification. */
   warnOnPending: boolean;
   /** Require human acknowledgment before passing. */

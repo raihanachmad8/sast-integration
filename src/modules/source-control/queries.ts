@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { sourceControlApi } from './api';
 import { sourceControlKeys } from './keys';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { STALE } from '@/commons/constants/query';
 import type { ListParams } from '@/commons/types/pagination';
 import type { UpdateSourceControlInput } from '@/commons/schemas/source-control.schema';
@@ -29,7 +29,7 @@ export function useSourceControlReposQuery(providerId: string, params?: ListPara
   const { workspaceId } = useWorkspace();
   return useQuery({
     queryKey: sourceControlKeys.repos(providerId, params),
-    queryFn: () => sourceControlApi.listRepos(workspaceId!, providerId),
+    queryFn: () => sourceControlApi.listRepos(workspaceId!, providerId, params ? { page: params.page, perPage: params.perPage, search: params.search } : undefined),
     enabled: !!workspaceId && !!providerId,
     staleTime: STALE.DEFAULT,
     placeholderData: keepPreviousData,
@@ -43,8 +43,10 @@ export function useAddSourceControlProviderMutation() {
   const queryClient = useQueryClient();
   const { workspaceId } = useWorkspace();
   return useMutation({
-    mutationFn: (payload: { provider: string; name: string; credentials?: Record<string, unknown> }) =>
-      sourceControlApi.addProvider(workspaceId!, payload),
+    mutationFn: (payload: { provider: string; name: string; credentials?: Record<string, unknown> }) => {
+      if (!workspaceId) throw new Error('No workspace selected');
+      return sourceControlApi.addProvider(workspaceId, payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: sourceControlKeys.providers() });
     },
@@ -59,9 +61,11 @@ export function useSyncProviderMutation() {
   const queryClient = useQueryClient();
   const { workspaceId } = useWorkspace();
   return useMutation({
-    mutationFn: (providerId: string) =>
-      sourceControlApi.syncProvider(workspaceId!, providerId),
-    onSuccess: (_data, providerId) => {
+    mutationFn: (providerId: string) => {
+      if (!workspaceId) throw new Error('No workspace selected');
+      return sourceControlApi.syncProvider(workspaceId, providerId);
+    },
+    onSuccess: (_data, _providerId) => {
       queryClient.invalidateQueries({ queryKey: sourceControlKeys.allRepos() });
     },
   });
@@ -71,8 +75,10 @@ export function useUpdateSourceControlMutation() {
   const queryClient = useQueryClient();
   const { workspaceId } = useWorkspace();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateSourceControlInput }) =>
-      sourceControlApi.updateProvider(workspaceId!, id, data),
+    mutationFn: ({ id, data }: { id: string; data: UpdateSourceControlInput }) => {
+      if (!workspaceId) throw new Error('No workspace selected');
+      return sourceControlApi.updateProvider(workspaceId, id, data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: sourceControlKeys.providers() });
     },
@@ -82,7 +88,10 @@ export function useUpdateSourceControlMutation() {
 export function useTestSourceControlMutation() {
   const { workspaceId } = useWorkspace();
   return useMutation({
-    mutationFn: (id: string) => sourceControlApi.testProvider(workspaceId!, id),
+    mutationFn: (id: string) => {
+      if (!workspaceId) throw new Error('No workspace selected');
+      return sourceControlApi.testProvider(workspaceId, id);
+    },
   });
 }
 
@@ -90,8 +99,10 @@ export function useImportRepositoryMutation() {
   const queryClient = useQueryClient();
   const { workspaceId } = useWorkspace();
   return useMutation({
-    mutationFn: ({ providerId, sourceRepositoryId, projectId }: { providerId: string; sourceRepositoryId: string; projectId?: string }) =>
-      sourceControlApi.importRepository(workspaceId!, providerId, sourceRepositoryId, projectId),
+    mutationFn: ({ providerId, sourceRepositoryId, projectId }: { providerId: string; sourceRepositoryId: string; projectId?: string }) => {
+      if (!workspaceId) throw new Error('No workspace selected');
+      return sourceControlApi.importRepository(workspaceId, providerId, sourceRepositoryId, projectId);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: sourceControlKeys.allRepos() });
     },
@@ -102,7 +113,10 @@ export function useUninstallRepositoryMutation() {
   const queryClient = useQueryClient();
   const { workspaceId } = useWorkspace();
   return useMutation({
-    mutationFn: (importId: string) => sourceControlApi.uninstallRepository(workspaceId!, importId),
+    mutationFn: (importId: string) => {
+      if (!workspaceId) throw new Error('No workspace selected');
+      return sourceControlApi.uninstallRepository(workspaceId, importId);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: sourceControlKeys.allRepos() });
     },
@@ -112,7 +126,10 @@ export function useUninstallRepositoryMutation() {
 export function useSendSourceControlTestEventMutation() {
   const { workspaceId } = useWorkspace();
   return useMutation({
-    mutationFn: (id: string) => sourceControlApi.sendTestEvent(workspaceId!, id),
+    mutationFn: (id: string) => {
+      if (!workspaceId) throw new Error('No workspace selected');
+      return sourceControlApi.sendTestEvent(workspaceId, id);
+    },
   });
 }
 
@@ -120,7 +137,10 @@ export function useDeleteSourceControlMutation() {
   const queryClient = useQueryClient();
   const { workspaceId } = useWorkspace();
   return useMutation({
-    mutationFn: (id: string) => sourceControlApi.deleteProvider(workspaceId!, id),
+    mutationFn: (id: string) => {
+      if (!workspaceId) throw new Error('No workspace selected');
+      return sourceControlApi.deleteProvider(workspaceId, id);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: sourceControlKeys.providers() });
     },

@@ -46,7 +46,7 @@ export async function requirePermission(
 
   const rolePerms = ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS] ?? [];
   if (!rolePerms.includes(permission as PermissionKey)) {
-    return { success: false, response: ApiResponse.error(WORKSPACE.ERRORS.NOT_OWNER, WORKSPACE.ERROR_CODE, undefined, 403) };
+    return { success: false, response: ApiResponse.error(`Insufficient permissions: "${permission}" required`, WORKSPACE.ERROR_CODE, undefined, 403) };
   }
 
   return { success: true, context: { workspaceId, role } };

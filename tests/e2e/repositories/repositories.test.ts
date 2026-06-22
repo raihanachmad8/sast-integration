@@ -1,37 +1,31 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { api, signin } from '../../helpers/setup';
 
-const API_BASE = 'http://localhost:3000';
-const WORKSPACE_ID = '506416af-1f67-4ae9-906a-e84b20948a72';
+let token: string;
+let WORKSPACE_ID: string;
 
-const TEST_USER = {
-  email: 'owner@sast.local',
-  password: 'ChangeMe123!',
-};
-
-async function getAccessToken(): Promise<string> {
-  const res = await fetch(`${API_BASE}/api/v1/auth/signin`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(TEST_USER),
-  });
+beforeAll(async () => {
+  const session = await signin();
+  token = session.accessToken;
+  const res = await api('/workspaces', { headers: { Authorization: `Bearer ${token}` } });
   const json = await res.json();
-  return json.data.accessToken;
-}
+  WORKSPACE_ID = json.data?.[0]?.id ?? '';
+});
 
 describe('GET /api/v1/workspaces/:wid/repositories', () => {
-  let token: string;
-
-  beforeAll(async () => {
-    token = await getAccessToken();
-  });
-
+  /**
+   * Purpose: Ensure the repositories list endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/workspaces/${WORKSPACE_ID}/repositories`);
+    const res = await api(`/workspaces/${WORKSPACE_ID}/repositories`);
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that authenticated users can list repositories for their workspace.
+   */
   it('should list repositories for workspace', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/workspaces/${WORKSPACE_ID}/repositories`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/repositories`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status).toBe(200);
@@ -43,14 +37,11 @@ describe('GET /api/v1/workspaces/:wid/repositories', () => {
 });
 
 describe('PATCH /api/v1/workspaces/:wid/repositories/:repoId', () => {
-  let token: string;
-
-  beforeAll(async () => {
-    token = await getAccessToken();
-  });
-
+  /**
+   * Purpose: Ensure the repository update endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/workspaces/${WORKSPACE_ID}/repositories/nonexistent`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/repositories/nonexistent`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'updated' }),
@@ -58,8 +49,11 @@ describe('PATCH /api/v1/workspaces/:wid/repositories/:repoId', () => {
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that updating a non-existent repository returns 404 Not Found.
+   */
   it('should return 404 for nonexistent repository', async () => {
-    const res = await fetch(`${API_BASE}/api/v1/workspaces/${WORKSPACE_ID}/repositories/00000000-0000-0000-0000-000000000000`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/repositories/00000000-0000-0000-0000-000000000000`, {
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${token}`,

@@ -9,8 +9,8 @@ export const createSourceControlSchema = z.object({
 });
 
 export const updateSourceControlSchema = z.object({
-  provider: z.enum(PROVIDERS).optional(),
-  name: z.string().min(1).max(255).optional(),
+  provider: z.enum(PROVIDERS, { message: 'Provider must be one of: github, gitlab, gitea, bitbucket, azure-devops' }).optional(),
+  name: z.string().min(1, 'Name is required').max(255).optional(),
   credentials: z.record(z.string(), z.unknown()).optional(),
 });
 

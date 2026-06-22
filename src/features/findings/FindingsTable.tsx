@@ -2,11 +2,11 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { Checkbox, Button, Typography, Avatar, Flex, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { DataTable, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
-import { StatusTag } from '@/components/shared/StatusTag';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { DataTable, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
+import { StatusTag } from '@/commons/components/StatusTag';
 import type { Finding } from '@/commons/types';
-import { PermissionGate } from '@/components/shared/PermissionGate';
+import { PermissionGate } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
 
 const { Text } = Typography;
@@ -22,12 +22,14 @@ interface FindingsTableProps {
   onPageChange: (page: number, pageSize: number) => void;
   onSearchChange: (search: string) => void;
   onFilterChange: (key: string, value: string) => void;
-  error?: string | null;
   onReview: (row: Finding) => void;
-  onAcceptVerdict?: (ids: string[]) => void;
+  onDismiss?: (ids: string[]) => void;
   onReverify?: (ids: string[]) => void;
   onAssign?: (ids: string[]) => void;
   onAssignRow?: (row: Finding) => void;
+  members?: Array<{ userId: string; name: string; email: string }>;
+  projectOptions?: Array<{ value: string; label: string }>;
+  repositoryOptions?: Array<{ value: string; label: string }>;
 }
 
 const SEVERITY_OPTIONS = [
@@ -45,17 +47,24 @@ const VERDICT_OPTIONS = [
 
 const STATUS_OPTIONS = [
   { value: 'open', label: 'Open' },
-  { value: 'accepted', label: 'Accepted' },
-  { value: 'needs_review', label: 'Needs review' },
-  { value: 'fixed', label: 'Fixed' },
+  { value: 'dismissed', label: 'Dismissed' },
+  { value: 'resolved', label: 'Resolved' },
 ];
 
-export function FindingsTable({ rows, isLoading, total, page, pageSize, search, filterValues, onPageChange, onSearchChange, onFilterChange, error, onReview, onAcceptVerdict, onReverify, onAssign, onAssignRow }: FindingsTableProps) {
+export function FindingsTable({ rows, isLoading, total, page, pageSize, search, filterValues, onPageChange, onSearchChange, onFilterChange, onReview, onDismiss, onReverify, onAssign, onAssignRow, members, projectOptions = [], repositoryOptions = [] }: FindingsTableProps) {
   const { token } = theme.useToken();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const activeFilters = useMemo(() => {
     const result = [];
+    if (filterValues.project) {
+      const opt = projectOptions.find((o) => o.value === filterValues.project);
+      result.push({ key: 'project', label: 'Project', value: opt?.label ?? filterValues.project });
+    }
+    if (filterValues.repository) {
+      const opt = repositoryOptions.find((o) => o.value === filterValues.repository);
+      result.push({ key: 'repository', label: 'Repository', value: opt?.label ?? filterValues.repository });
+    }
     if (filterValues.severity) {
       const opt = SEVERITY_OPTIONS.find((o) => o.value === filterValues.severity);
       result.push({ key: 'severity', label: 'Severity', value: opt?.label ?? filterValues.severity });
@@ -69,9 +78,15 @@ export function FindingsTable({ rows, isLoading, total, page, pageSize, search, 
       result.push({ key: 'status', label: 'Status', value: opt?.label ?? filterValues.status });
     }
     return result;
-  }, [filterValues.severity, filterValues.verdict, filterValues.status]);
+  }, [filterValues.project, filterValues.repository, filterValues.severity, filterValues.verdict, filterValues.status, projectOptions, repositoryOptions]);
 
   const allVisibleSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id));
+
+  const memberMap = useMemo(() => {
+    const map = new Map<string, { name: string; email: string }>();
+    members?.forEach((m) => map.set(m.userId, { name: m.name, email: m.email }));
+    return map;
+  }, [members]);
 
   const handleSelectAll = useCallback((checked: boolean) => {
     const next = new Set(selectedIds);
@@ -113,17 +128,23 @@ export function FindingsTable({ rows, isLoading, total, page, pageSize, search, 
     {
       key: 'severity',
       header: 'Severity',
+      sortable: true,
+      sortValue: (row) => { const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 }; return order[row.severity as keyof typeof order] ?? 5; },
       render: (row) => <StatusTag type="severity" value={row.severity} />,
     },
     {
       key: 'scanner',
       header: 'Scanner',
+      sortable: true,
+      sortValue: (row) => row.scanner,
       render: (row) => <StatusTag type="scanner" value={row.scanner} />,
       hideOnMobile: true,
     },
     {
       key: 'verdict',
       header: 'AI verdict',
+      sortable: true,
+      sortValue: (row) => { const order = { TP: 0, Pending: 1, FP: 2 }; return order[row.verdict as keyof typeof order] ?? 3; },
       render: (row) => (
         <Flex vertical gap={token.marginXXS}>
           <StatusTag type="verdict" value={row.verdict} />
@@ -135,28 +156,33 @@ export function FindingsTable({ rows, isLoading, total, page, pageSize, search, 
     {
       key: 'assignee',
       header: 'Assignee',
-      render: (row) => (
-        row.assignee ? (
-          <Button
-            size="small"
-            onClick={() => onAssignRow?.(row)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: token.marginXXS }}
-          >
-            <Avatar size={20} style={{ background: token.colorText, fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong }}>
-              {(row.assignee ?? '').split(' ').map((n) => n[0]).join('').slice(0, 2)}
-            </Avatar>
-            {(row.assignee ?? '').split(' ')[0]}
-          </Button>
-        ) : (
-          <Button
-            size="small"
-            onClick={() => onAssignRow?.(row)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: token.marginXXS, borderStyle: 'dashed' }}
-          >
-            <FaIcon icon="fa-user-plus" style={{ fontSize: token.fontSizeSM }} /> Assign
-          </Button>
-        )
-      ),
+      render: (row) => {
+        const member = row.assignee ? memberMap.get(row.assignee) : undefined;
+        const displayName = member?.name ?? row.assignee ?? '';
+        const initials = displayName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+        return (
+          row.assignee ? (
+            <Button
+              size="small"
+              onClick={() => onAssignRow?.(row)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: token.marginXXS }}
+            >
+              <Avatar size={20} style={{ background: token.colorText, fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong }}>
+                {initials}
+              </Avatar>
+              {displayName.split(' ')[0]}
+            </Button>
+          ) : (
+            <Button
+              size="small"
+              onClick={() => onAssignRow?.(row)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: token.marginXXS, borderStyle: 'dashed' }}
+            >
+              <FaIcon icon="fa-user-plus" style={{ fontSize: token.fontSizeSM }} /> Assign
+            </Button>
+          )
+        );
+      },
       hideOnMobile: true,
     },
     {
@@ -178,8 +204,8 @@ export function FindingsTable({ rows, isLoading, total, page, pageSize, search, 
     <Flex align="center" gap={token.marginXS} style={{ padding: `${token.paddingXXS}px ${token.paddingMD}px`, borderBottom: `1px solid ${token.colorBorderSecondary}`, background: token.colorBgLayout, minHeight: 38 }}>
       <Text type="secondary" strong style={{ fontSize: token.fontSizeSM }}>{selectedIds.size} selected</Text>
       <PermissionGate permission={PERMISSION.FINDING_TRIAGE}>
-        <Button type="primary" size="small" onClick={() => { onAcceptVerdict?.([...selectedIds]); setSelectedIds(new Set()); }}>
-          <FaIcon icon="fa-check" /> Accept
+        <Button type="primary" size="small" onClick={() => { onDismiss?.([...selectedIds]); setSelectedIds(new Set()); }}>
+          <FaIcon icon="fa-check" /> Dismiss
         </Button>
       </PermissionGate>
       <PermissionGate permission={PERMISSION.SCAN_RUN}>
@@ -195,15 +221,6 @@ export function FindingsTable({ rows, isLoading, total, page, pageSize, search, 
     </Flex>
   ) : null;
 
-  if (error) {
-    return (
-      <div style={{ padding: token.paddingLG, textAlign: 'center', color: token.colorError }}>
-        <FaIcon icon="fa-triangle-exclamation" style={{ fontSize: 24, marginBottom: 8 }} />
-        <div>{error}</div>
-      </div>
-    );
-  }
-
   return (
     <>
       {bulkBar}
@@ -217,6 +234,8 @@ export function FindingsTable({ rows, isLoading, total, page, pageSize, search, 
         searchValue={search}
         onSearchChange={onSearchChange}
         filters={[
+          { key: 'project', label: 'Project', placeholder: 'All projects', options: projectOptions, searchable: true },
+          { key: 'repository', label: 'Repository', placeholder: 'All repositories', options: repositoryOptions, searchable: true },
           { key: 'severity', label: 'Severity', placeholder: 'All severities', options: SEVERITY_OPTIONS },
           { key: 'verdict', label: 'Verdict', placeholder: 'All verdicts', options: VERDICT_OPTIONS },
           { key: 'status', label: 'Status', placeholder: 'All statuses', options: STATUS_OPTIONS },

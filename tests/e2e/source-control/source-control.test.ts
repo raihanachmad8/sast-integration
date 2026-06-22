@@ -8,61 +8,50 @@
  * - Syncing repos from provider
  * - Security: tokens/clientSecrets never exposed to frontend
  */
-import { describe, it, expect } from 'vitest';
-import { api } from '../../helpers/setup';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { api, signin } from '../../helpers/setup';
 
-// Use owner user (admin is rate limited)
-const TEST_USER = {
-  email: 'owner@sast.local',
-  password: 'ChangeMe123!',
-};
+let token: string;
+let WORKSPACE_ID: string;
 
-async function getAccessToken() {
-  const res = await api('/auth/signin', {
-    method: 'POST',
-    body: JSON.stringify({ email: TEST_USER.email, password: TEST_USER.password }),
-  });
+beforeAll(async () => {
+  const session = await signin();
+  token = session.accessToken;
+  const res = await api('/workspaces', { headers: { Authorization: `Bearer ${token}` } });
   const json = await res.json();
-  return json.data.accessToken;
-}
+  WORKSPACE_ID = json.data?.[0]?.id ?? '';
+});
 
-async function getFirstWorkspaceId(token: string) {
-  const res = await api('/workspaces', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const json = await res.json();
-  return json.data[0]?.id;
-}
-
-async function getSourceControls(token: string, wsId: string) {
+async function getSourceControls(authToken: string, wsId: string) {
   const res = await api(`/workspaces/${wsId}/source-controls`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${authToken}` },
   });
   return res.json();
 }
 
 describe('GET /api/v1/workspaces/:wid/source-controls', () => {
+  /**
+   * Purpose: Ensure the source controls list endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/test/source-controls');
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that authenticated users can list source controls for their workspace.
+   */
   it('should list source controls for workspace', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
-    const result = await getSourceControls(token, wsId);
+    const result = await getSourceControls(token, WORKSPACE_ID);
     expect(result.success).toBe(true);
     expect(Array.isArray(result.data)).toBe(true);
   });
 
+  /**
+   * Purpose: Verify that sensitive credential fields (token, clientSecret, refreshToken) are masked in responses.
+   */
   it('should sanitize credentials in response', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
-    const result = await getSourceControls(token, wsId);
+    const result = await getSourceControls(token, WORKSPACE_ID);
     if (result.data.length === 0) return;
 
     const sc = result.data[0];
@@ -94,21 +83,23 @@ describe('GET /api/v1/workspaces/:wid/source-controls', () => {
 });
 
 describe('GET /api/v1/workspaces/:wid/source-controls/:id', () => {
+  /**
+   * Purpose: Ensure the source control detail endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/test/source-controls/test');
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that source control details include sanitized credentials.
+   */
   it('should get source control detail with sanitized credentials', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
-    const listResult = await getSourceControls(token, wsId);
+    const listResult = await getSourceControls(token, WORKSPACE_ID);
     if (listResult.data.length === 0) return;
 
     const scId = listResult.data[0].id;
-    const res = await api(`/workspaces/${wsId}/source-controls/${scId}`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/source-controls/${scId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const result = await res.json();
@@ -123,16 +114,15 @@ describe('GET /api/v1/workspaces/:wid/source-controls/:id', () => {
     }
   });
 
+  /**
+   * Purpose: Verify that the lastSyncedAt field is present in source control details.
+   */
   it('should return lastSyncedAt field', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
-    const listResult = await getSourceControls(token, wsId);
+    const listResult = await getSourceControls(token, WORKSPACE_ID);
     if (listResult.data.length === 0) return;
 
     const scId = listResult.data[0].id;
-    const res = await api(`/workspaces/${wsId}/source-controls/${scId}`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/source-controls/${scId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const result = await res.json();
@@ -143,21 +133,23 @@ describe('GET /api/v1/workspaces/:wid/source-controls/:id', () => {
 });
 
 describe('GET /api/v1/workspaces/:wid/source-controls/:id/repos', () => {
+  /**
+   * Purpose: Ensure the repos endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/test/source-controls/test/repos');
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify that discovered repos include the externalId field for provider mapping.
+   */
   it('should list discovered repos with externalId', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
-    const listResult = await getSourceControls(token, wsId);
+    const listResult = await getSourceControls(token, WORKSPACE_ID);
     if (listResult.data.length === 0) return;
 
     const scId = listResult.data[0].id;
-    const res = await api(`/workspaces/${wsId}/source-controls/${scId}/repos`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/source-controls/${scId}/repos`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const result = await res.json();
@@ -173,13 +165,12 @@ describe('GET /api/v1/workspaces/:wid/source-controls/:id/repos', () => {
     }
   });
 
+  /**
+   * Purpose: Verify that a non-existent connection ID returns an empty list or appropriate error.
+   */
   it('should return empty array when no repos discovered', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
     // Use a non-existent connection ID
-    const res = await api(`/workspaces/${wsId}/source-controls/00000000-0000-0000-0000-000000000000/repos`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/source-controls/00000000-0000-0000-0000-000000000000/repos`, {
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -189,6 +180,9 @@ describe('GET /api/v1/workspaces/:wid/source-controls/:id/repos', () => {
 });
 
 describe('POST /api/v1/workspaces/:wid/source-controls/:id/sync', () => {
+  /**
+   * Purpose: Ensure the sync endpoint rejects unauthenticated requests with 401.
+   */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/test/source-controls/test/sync', {
       method: 'POST',
@@ -196,16 +190,15 @@ describe('POST /api/v1/workspaces/:wid/source-controls/:id/sync', () => {
     expect(res.status).toBe(401);
   });
 
+  /**
+   * Purpose: Verify the sync route exists and does not return 404, even when the provider token is expired.
+   */
   it('should return error when token expired (expected behavior)', async () => {
-    const token = await getAccessToken();
-    const wsId = await getFirstWorkspaceId(token);
-    if (!wsId) return;
-
-    const listResult = await getSourceControls(token, wsId);
+    const listResult = await getSourceControls(token, WORKSPACE_ID);
     if (listResult.data.length === 0) return;
 
     const scId = listResult.data[0].id;
-    const res = await api(`/workspaces/${wsId}/source-controls/${scId}/sync`, {
+    const res = await api(`/workspaces/${WORKSPACE_ID}/source-controls/${scId}/sync`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });

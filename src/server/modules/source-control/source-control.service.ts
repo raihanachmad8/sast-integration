@@ -1,7 +1,7 @@
 import { createPrivateKey, createSign } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '@/server/db/client';
-import { repositories, sourceControls } from '@drizzle/schema/source-controls';
+import { sourceControls } from '@drizzle/schema/source-controls';
 import { sourceControlRepository } from './source-control.repository';
 import { createSourceControlSchema, updateSourceControlSchema } from '@/commons/schemas';
 import { AppError } from '@/server/http/errors';
@@ -463,6 +463,7 @@ async function discoverGitLabRepositories(credentials: CredentialMap, token: str
 
 async function discoverGiteaRepositories(sourceControlId: string, credentials: CredentialMap, token: string): Promise<DiscoveredRepository[]> {
   const apiUrl = normalizeBaseUrl(stringValue(credentials.apiUrl) || stringValue(credentials.baseUrl));
+  const baseUrl = normalizeBaseUrl(stringValue(credentials.baseUrl));
   if (!apiUrl) return [];
 
   try {

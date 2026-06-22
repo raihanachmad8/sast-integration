@@ -3,6 +3,13 @@ import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
 
 export const notificationsService = {
+  /**
+   * List all notifications for a user, ordered by creation date descending.
+   *
+   * @param userId - User UUID to fetch notifications for
+   * @returns Array of notification records
+   * @throws {AppError} If the database query fails (500)
+   */
   async list(userId: string) {
     logger.notifications.info('list', { userId });
     try {
@@ -15,6 +22,13 @@ export const notificationsService = {
     }
   },
 
+  /**
+   * Get the count of unread notifications for a user.
+   *
+   * @param userId - User UUID to count unread notifications for
+   * @returns Number of unread notifications
+   * @throws {AppError} If the database query fails (500)
+   */
   async getUnreadCount(userId: string) {
     logger.notifications.info('getUnreadCount', { userId });
     try {

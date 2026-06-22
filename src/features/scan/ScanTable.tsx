@@ -2,10 +2,10 @@
 
 import { useMemo, useCallback } from 'react';
 import { Typography, Flex, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { DataTable, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { StatusTag } from '@/components/shared/StatusTag';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { DataTable, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { StatusTag } from '@/commons/components/StatusTag';
 import type { ScanRow } from './types';
 
 interface ScanTableProps {
@@ -163,7 +163,7 @@ export function ScanTable({
       sortable: true,
       sortValue: (row) => row.findings,
       render: (row) => {
-        const isTerminal = row.status === 'Completed' || row.status === 'Failed';
+        const isTerminal = row.status === 'completed' || row.status === 'failed';
         if (!isTerminal && row.findings === 0) {
           return <Typography.Text type="secondary">—</Typography.Text>;
         }
@@ -194,13 +194,13 @@ export function ScanTable({
     {
       label: 'Retry',
       icon: <FaIcon icon="fa-rotate-right" />,
-      show: (row) => row.status === 'Failed',
+      show: (row) => row.status === 'failed',
       onClick: (row) => onRetry?.(row),
     },
     {
       label: 'View findings',
       icon: <FaIcon icon="fa-eye" />,
-      show: (row) => row.status !== 'Failed',
+      show: (row) => row.status !== 'failed',
       onClick: (row) => onViewFindings?.(row),
     },
   ];

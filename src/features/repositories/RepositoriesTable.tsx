@@ -1,12 +1,16 @@
 'use client';
 
-import { useMemo } from 'react';
-import { Button, Typography, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { DataTable, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
-import { StatusPill } from '@/components/shared/StatusPill';
+import { useMemo, useState, useCallback } from 'react';
+import { Button, Select, Space, Typography, theme } from 'antd';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { DataTable, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
+import { StatusPill } from '@/commons/components/StatusPill';
 import { useTableParams } from '@/lib/hooks/useTableParams';
-import { useRepositoriesQuery } from '@/modules/repositories';
+import { useRepositoriesQuery, useUpdateRepositoryMutation } from '@/modules/repositories';
+import { useProjectsQuery } from '@/modules/projects/queries';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+import { useQueryClient } from '@tanstack/react-query';
+import { repositoryKeys } from '@/modules/repositories/keys';
 import type { Repository } from '@/commons/types';
 
 interface RepositoriesTableProps {
@@ -40,8 +44,12 @@ const PROVIDER_VARIANT: Record<string, 'blue' | 'teal' | 'purple' | 'slate'> = {
 
 export function RepositoriesTable({ onRowClick, onAssignProject }: RepositoriesTableProps) {
   const { token } = theme.useToken();
+  const { workspaceId } = useWorkspace();
+  const queryClient = useQueryClient();
+  const updateMutation = useUpdateRepositoryMutation();
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
 
-  const { params, setPage, setPageSize, setSearch, setFilter } = useTableParams({
+  const { params, setPagination, setSearch, setFilter } = useTableParams({
     filterKeys: ['status', 'provider', 'project'],
     defaultPageSize: 10,
   });
@@ -53,22 +61,28 @@ export function RepositoriesTable({ onRowClick, onAssignProject }: RepositoriesT
     status: params.filters.status || undefined,
     provider: params.filters.provider || undefined,
     project: params.filters.project || undefined,
-    imported: true,
   });
+
+  const projectsQuery = useProjectsQuery({ page: 1, perPage: 200 });
+  const projectOptions = useMemo(() =>
+    (projectsQuery.data?.data ?? []).map((p: { id: string; name: string }) => ({ value: p.id, label: p.name })),
+    [projectsQuery.data?.data]
+  );
 
   const rows = useMemo(() => (query.data?.data ?? []).map((r: Record<string, unknown>) => ({
     id: r.id as string,
     name: r.name as string,
     url: r.url as string,
-    branch: (r.default_branch as string) ?? '',
+    branch: (r.defaultBranch as string) ?? '',
     status: 'active' as const,
-    project: (r.project_name as string) ?? '',
+    projectId: (r.projectId as string) ?? null,
+    project: (r.projectName as string) ?? '',
     policyName: null,
-    connectionType: ((r.connection_type as string) ?? 'scm') as 'scm' | 'external',
+    connectionType: (Array.isArray(r.connectionType) ? r.connectionType : r.connectionType ? [r.connectionType as string] : ['scm']) as string[],
     provider: (r.provider as 'github' | 'gitlab' | 'gitea') ?? null,
-    findings: 0,
-    scans: 0,
-    lastScan: null,
+    findings: (r.findingCount as number) ?? 0,
+    scans: (r.scanCount as number) ?? 0,
+    lastScan: r.lastScan ? new Date(r.lastScan as string).toISOString() : null,
   } satisfies Repository)), [query.data?.data]);
 
   const activeFilters = useMemo(() => {
@@ -86,6 +100,19 @@ export function RepositoriesTable({ onRowClick, onAssignProject }: RepositoriesT
     }
     return filters;
   }, [params.filters.status, params.filters.provider, params.filters.project]);
+
+  const handleAssignProject = useCallback((repoId: string, projectId: string | null) => {
+    if (!workspaceId) return;
+    updateMutation.mutate(
+      { id: repoId, data: { projectId: projectId ?? undefined } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: repositoryKeys.all });
+          setEditingProjectId(null);
+        },
+      },
+    );
+  }, [workspaceId, updateMutation, queryClient]);
 
   const columns: DataTableColumn<Repository>[] = [
     {
@@ -107,9 +134,46 @@ export function RepositoriesTable({ onRowClick, onAssignProject }: RepositoriesT
     {
       key: 'project',
       header: 'Project',
-      render: (row) => row.project
-        ? <Typography.Text style={{ fontSize: token.fontSize, color: token.colorText }}>{row.project}</Typography.Text>
-        : <Typography.Text style={{ fontSize: token.fontSize, color: token.colorTextSecondary }}>—</Typography.Text>,
+      render: (row) => {
+        const isEditing = editingProjectId === row.id;
+        if (isEditing) {
+          return (
+            <Select
+              autoFocus
+              size="small"
+              style={{ width: 180 }}
+              placeholder="Select project..."
+              options={projectOptions}
+              value={row.projectId ?? undefined}
+              onChange={(val) => handleAssignProject(row.id, val)}
+              onBlur={() => setEditingProjectId(null)}
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+              }
+            />
+          );
+        }
+        return row.project ? (
+          <Button
+            type="link"
+            size="small"
+            onClick={(e) => { e.stopPropagation(); setEditingProjectId(row.id); }}
+            style={{ padding: 0, height: 'auto', fontSize: token.fontSize, textAlign: 'left' }}
+          >
+            {row.project}
+          </Button>
+        ) : (
+          <Button
+            type="link"
+            size="small"
+            onClick={(e) => { e.stopPropagation(); setEditingProjectId(row.id); }}
+            style={{ padding: '0 4px', height: 'auto', fontSize: token.fontSize, color: token.colorTextSecondary, borderStyle: 'dashed', borderWidth: 1, borderColor: token.colorBorderSecondary }}
+          >
+            <FaIcon icon="fa-folder-plus" style={{ marginRight: 4 }} /> Assign
+          </Button>
+        );
+      },
       hideOnMobile: true,
     },
     {
@@ -118,6 +182,21 @@ export function RepositoriesTable({ onRowClick, onAssignProject }: RepositoriesT
       render: (row) => row.provider
         ? <StatusPill variant={PROVIDER_VARIANT[row.provider] ?? 'slate'}>{row.provider}</StatusPill>
         : <Typography.Text style={{ fontSize: token.fontSize, color: token.colorTextSecondary }}>—</Typography.Text>,
+      hideOnMobile: true,
+    },
+    {
+      key: 'connectionType',
+      header: 'Type',
+      render: (row) => (
+        <Space size={[4, 4]} wrap>
+          {row.connectionType?.includes('scm') && (
+            <StatusPill variant="blue">SCM</StatusPill>
+          )}
+          {row.connectionType?.includes('external') && (
+            <StatusPill variant="amber">Upload</StatusPill>
+          )}
+        </Space>
+      ),
       hideOnMobile: true,
     },
     {
@@ -165,12 +244,6 @@ export function RepositoriesTable({ onRowClick, onAssignProject }: RepositoriesT
       icon: <FaIcon icon="fa-eye" />,
       onClick: (row) => onRowClick(row),
     },
-    ...(onAssignProject ? [{
-      label: 'Assign Project',
-      icon: <FaIcon icon="fa-folder-plus" />,
-      onClick: (row: Repository) => onAssignProject(row),
-      show: (row: Repository) => !row.project,
-    }] : []),
   ];
 
   return (
@@ -186,7 +259,7 @@ export function RepositoriesTable({ onRowClick, onAssignProject }: RepositoriesT
       filters={[
         { key: 'status', label: 'Status', placeholder: 'All statuses', options: STATUS_OPTIONS },
         { key: 'provider', label: 'Provider', placeholder: 'All providers', options: PROVIDER_OPTIONS },
-        { key: 'project', label: 'Project', placeholder: 'All projects', options: [], searchable: true },
+        { key: 'project', label: 'Project', placeholder: 'All projects', options: projectOptions, searchable: true },
       ]}
       filterValues={params.filters}
       onFilterChange={setFilter}
@@ -194,7 +267,7 @@ export function RepositoriesTable({ onRowClick, onAssignProject }: RepositoriesT
       onFilterRemove={(key) => setFilter(key, '')}
       actions={actions}
       emptyText="No repositories found. Try a different search term or filter."
-      onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+      onChange={(p, ps) => setPagination(p, ps)}
     />
   );
 }

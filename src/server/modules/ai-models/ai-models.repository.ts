@@ -28,6 +28,12 @@ export interface UpdateAiModelInput {
 }
 
 export const aiModelsRepository = {
+  /**
+   * Create a new AI model configuration record.
+   * @param data - Model input data (workspaceId, name, provider, baseUrl, optional fields)
+   * @param tx - Optional transaction context for atomic operations
+   * @returns Created model record
+   */
   async create(data: CreateAiModelInput, tx?: Tx) {
     const executor = tx ?? db;
 
@@ -49,6 +55,12 @@ export const aiModelsRepository = {
     return model;
   },
 
+  /**
+   * Find an AI model by ID, optionally scoped to a workspace.
+   * @param id - Model UUID
+   * @param workspaceId - Optional workspace UUID for scoping
+   * @returns Model record or null if not found
+   */
   async findById(id: string, workspaceId?: string) {
     const conditions = [eq(models.id, id)];
     if (workspaceId) conditions.push(eq(models.workspaceId, workspaceId));
@@ -61,6 +73,11 @@ export const aiModelsRepository = {
     return model ?? null;
   },
 
+  /**
+   * List all AI model configurations in a workspace, ordered by priority ascending.
+   * @param workspaceId - Workspace UUID
+   * @returns Array of model records
+   */
   async findByWorkspace(workspaceId: string) {
     return db
       .select()
@@ -69,6 +86,14 @@ export const aiModelsRepository = {
       .orderBy(asc(models.priority));
   },
 
+  /**
+   * Update an AI model configuration record.
+   * @param id - Model UUID
+   * @param workspaceId - Workspace UUID for scoping
+   * @param data - Fields to update
+   * @param tx - Optional transaction context
+   * @returns Updated model record or null if not found
+   */
   async update(id: string, workspaceId: string, data: UpdateAiModelInput, tx?: Tx) {
     const executor = tx ?? db;
 
@@ -91,6 +116,12 @@ export const aiModelsRepository = {
     return updated ?? null;
   },
 
+  /**
+   * Delete an AI model configuration record.
+   * @param id - Model UUID
+   * @param workspaceId - Workspace UUID for scoping
+   * @param tx - Optional transaction context
+   */
   async delete(id: string, workspaceId: string, tx?: Tx) {
     const executor = tx ?? db;
 

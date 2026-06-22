@@ -4,20 +4,27 @@ import { useState } from 'react';
 import { App, Button, Flex, theme } from 'antd';
 import { useRouter } from 'next/navigation';
 import { useSessionData } from '@/modules/auth/queries';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { LoadingState } from '@/components/shared/LoadingState';
-import {
-  ScanTable,
-  ScanDetailDrawer,
-  NewScanModal,
-} from '@/features/scan';
-import type { ScanRow, Finding } from '@/features/scan/types';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorState } from '@/commons/components/ErrorState';
+import dynamic from 'next/dynamic';
+import { ScanTable, NewScanModal } from '@/features/scan';
+
+const ScanDetailDrawer = dynamic(
+  () => import('@/features/scan/ScanDetailDrawer').then((m) => m.ScanDetailDrawer),
+  { ssr: false },
+);
+const CICDSetupModal = dynamic(
+  () => import('@/features/scan/CICDSetupModal').then((m) => m.CICDSetupModal),
+  { ssr: false },
+);
+import type { ScanRow, ScanFinding } from '@/features/scan/types';
 import type { ScanDetail, TimelineEvent } from '@/commons/types';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { useTableParams } from '@/lib/hooks/useTableParams';
-import { useScanListQuery, useScanDetailQuery, useScanFindingsQuery, useTriggerScanMutation } from '@/modules/scan';
+import { useScanListQuery, useScanDetailQuery, useScanFindingsQuery, useTriggerScanMutation, scanApi } from '@/modules/scan';
 import { useRepositoriesQuery } from '@/modules/repositories';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
 
 /**
  * Scan management page for the current workspace.
@@ -32,7 +39,7 @@ export default function ScanPage() {
   const { token } = theme.useToken();
   const { workspaceId } = useWorkspace();
 
-  const { params, setPage, setPageSize, setSearch, setFilter } = useTableParams({
+  const { params, setPagination, setSearch, setFilter } = useTableParams({
     filterKeys: ['status', 'stage', 'origin'],
     defaultPageSize: 10,
   });
@@ -55,12 +62,13 @@ export default function ScanPage() {
     name: r.name,
     branch: r.defaultBranch ?? 'main',
     provider: r.provider ?? null,
-    connectionType: (r.connectionType ?? 'scm') as 'scm' | 'external',
+    connectionType: (Array.isArray(r.connectionType) ? r.connectionType : r.connectionType ? [r.connectionType as string] : ['scm']) as string[],
   }));
 
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
   const [selectedScan, setSelectedScan] = useState<ScanRow | null>(null);
   const [newScanOpen, setNewScanOpen] = useState(false);
+  const [cicdModalOpen, setCicdModalOpen] = useState(false);
 
   // Fetch real detail data when a scan is selected
   const scanDetailQuery = useScanDetailQuery(selectedScan?.id ?? '');
@@ -74,15 +82,24 @@ export default function ScanPage() {
     setDetailDrawerOpen(true);
   };
 
-  const handleRetry = (row: ScanRow) => {
-    // Find the repository ID from repoOptions by matching name
-    const repo = repoOptions.find((r) => r.name === row.repository);
+  const handleRetry = async (row: ScanRow) => {
+    const repo = repoOptions.find((r) => r.name.toLowerCase() === row.repository.toLowerCase());
     if (!repo) {
       message.error('Could not find repository to retry');
       return;
     }
+
+    // Fetch scan detail to get original scanners
+    let scanners = ['semgrep', 'gitleaks'];
+    try {
+      const detail = await scanApi.getDetail(workspaceId!, row.id);
+      if (detail?.scannerResults?.length) {
+        scanners = [...new Set(detail.scannerResults.map((r) => r.scanner).filter(Boolean))];
+      }
+    } catch { /* fallback to default */ }
+
     triggerScanMutation.mutate(
-      { repositoryId: repo.id, branch: row.repoSub, scanners: ['semgrep', 'gitleaks'] },
+      { repositoryId: repo.id, branch: row.repoSub, scanners },
       {
         onSuccess: () => message.success(`Retrying ${row.repository} scan...`),
         onError: () => message.error('Failed to retry scan'),
@@ -110,15 +127,24 @@ export default function ScanPage() {
     return <LoadingState text="Loading scans..." fullHeight />;
   }
 
+  if (scansQuery.isError) {
+    return <ErrorState title="Failed to load scans" description="An error occurred while loading scans." onRetry={() => scansQuery.refetch()} />;
+  }
+
   return (
     <Flex vertical gap={token.paddingXL}>
       <PageHeader
         title="Scans"
         description="Queue status, scan progress, retry path, and finding navigation."
         actions={
-          <Button type="primary" onClick={() => setNewScanOpen(true)}>
-            <FaIcon icon="fa-play" /> New scan
-          </Button>
+          <Flex gap={token.paddingSM}>
+            <Button onClick={() => setCicdModalOpen(true)}>
+              <FaIcon icon="fa-link" /> CI/CD Setup
+            </Button>
+            <Button type="primary" onClick={() => setNewScanOpen(true)}>
+              <FaIcon icon="fa-play" /> New scan
+            </Button>
+          </Flex>
         }
       />
 
@@ -127,7 +153,7 @@ export default function ScanPage() {
         totalCount={scansQuery.data?.meta.total ?? 0}
         page={params.page}
         pageSize={params.perPage}
-        onPaginationChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+        onPaginationChange={(p, ps) => setPagination(p, ps)}
         search={params.search}
         onSearchChange={setSearch}
         statusFilter={params.filters.status ?? ''}
@@ -160,23 +186,41 @@ export default function ScanPage() {
           startedAt: new Date().toISOString(),
           scannerResults: [],
           totalFindings: selectedScan.findings,
-          severityBreakdown: { critical: selectedScan.critical, high: 0, medium: 0, low: 0, info: 0 },
+          newFindings: selectedScan.findings,
+          existingFindings: 0,
+          severityBreakdown: (() => {
+            const remaining = Math.max(0, selectedScan.findings - selectedScan.critical);
+            const perBucket = Math.floor(remaining / 4);
+            const extra = remaining % 4;
+            return {
+              critical: selectedScan.critical,
+              high: perBucket + (extra > 0 ? 1 : 0),
+              medium: perBucket + (extra > 1 ? 1 : 0),
+              low: perBucket + (extra > 2 ? 1 : 0),
+              info: perBucket,
+            };
+          })(),
           timeline: [],
         } : null)}
-        findings={scanFindings.map((f) => ({
-          id: f.id,
-          scanner: f.scanner ?? '',
-          rule: f.rule ?? '',
-          severity: (f.severity ?? 'low') as Finding['severity'],
-          filePath: f.file ?? f.filePath ?? '',
-          lineNumber: f.lineNumber ?? 0,
-          message: f.message ?? '',
-          cwe: f.cwe ?? undefined,
-          status: (f.status ?? 'open') as Finding['status'],
-          aiVerdict: (f.verdict ?? 'pending') as Finding['aiVerdict'],
-          confidence: f.confidence ?? undefined,
-          codeSnippet: f.codeSnippet ?? undefined,
-        }))}
+        findings={scanFindings.map((f) => {
+          const finding = f as typeof f & { isNew?: boolean };
+          return {
+            id: finding.id,
+            scanner: finding.scanner ?? '',
+            rule: finding.rule ?? '',
+            severity: (finding.severity ?? 'low') as ScanFinding['severity'],
+            filePath: finding.file ?? finding.filePath ?? '',
+            lineNumber: finding.lineNumber ?? 0,
+            message: finding.message ?? '',
+            cwe: finding.cwe ?? undefined,
+            status: (finding.status ?? 'open') as ScanFinding['status'],
+            aiVerdict: (finding.verdict ?? 'pending') as ScanFinding['aiVerdict'],
+            confidence: finding.confidence ?? undefined,
+            codeSnippet: finding.codeSnippet ?? undefined,
+            firstSeenAt: finding.firstSeenAt ?? finding.createdAt ?? '',
+            isNew: finding.isNew ?? true,
+          };
+        })}
         scanFindingsQuery={scanFindingsQuery}
         onViewFindings={() => { setDetailDrawerOpen(false); handleViewFindings(); }}
         onRetry={() => { setDetailDrawerOpen(false); if (selectedScan) handleRetry(selectedScan); }}
@@ -187,6 +231,13 @@ export default function ScanPage() {
         onClose={() => setNewScanOpen(false)}
         onConfirm={handleNewScan}
         repositories={repoOptions}
+      />
+
+      <CICDSetupModal
+        open={cicdModalOpen}
+        onClose={() => setCicdModalOpen(false)}
+        repository={repoOptions[0] ? { id: repoOptions[0].id, name: repoOptions[0].name, provider: repoOptions[0].provider } : null}
+        workspaceSlug={workspaceSlug}
       />
     </Flex>
   );

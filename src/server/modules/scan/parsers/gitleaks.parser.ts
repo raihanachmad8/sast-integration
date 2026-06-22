@@ -73,7 +73,7 @@ export function parseGitleaks(
     const text = typeof jsonContent === 'string' ? jsonContent : jsonContent.toString('utf8');
     report = JSON.parse(text);
   } catch {
-    return { findings: [], summary: {} };
+    return { findings: [], summary: { critical: 0, high: 0, medium: 0, low: 0, info: 0 } };
   }
 
   const findings: NewFinding[] = [];
@@ -90,7 +90,7 @@ export function parseGitleaks(
   }
 
   for (const r of results) {
-    const severity = 'high'; // Secrets are usually high/critical
+    const severity = mapGitleaksSeverity(r.Severity);
     severityCount[severity]++;
 
     findings.push({
@@ -107,4 +107,14 @@ export function parseGitleaks(
   }
 
   return { findings, summary: severityCount };
+}
+
+function mapGitleaksSeverity(sev: string | undefined): 'critical' | 'high' | 'medium' | 'low' | 'info' {
+  if (!sev) return 'high';
+  const s = sev.toUpperCase();
+  if (s === 'CRITICAL') return 'critical';
+  if (s === 'HIGH') return 'high';
+  if (s === 'MEDIUM' || s === 'WARNING') return 'medium';
+  if (s === 'LOW' || s === 'INFO') return 'low';
+  return 'high';
 }

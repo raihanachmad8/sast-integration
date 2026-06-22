@@ -11,7 +11,14 @@ import { parseCppcheck } from './cppcheck.parser';
 import { parseGitleaks } from './gitleaks.parser';
 import { parseFlawfinder } from './flawfinder.parser';
 import { parseClangTidy } from './clang-tidy.parser';
+import { normalizeFilePath } from './path-normalizer';
 import { type NewFinding } from '@drizzle/schema/findings';
+
+/** Check if a string looks like a UUID (not a human-readable rule name). */
+function isUuid(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
 
 export interface ParseResult {
   findings: NewFinding[];
@@ -58,13 +65,17 @@ function parseSarif(content: string | Buffer, scanId: string, scanner: string): 
         const rule = ruleMap.get(r.ruleId ?? '') as Record<string, unknown> | undefined;
         const defaultConfig = rule?.defaultConfiguration as { level?: string } | undefined;
         const level = r.level ?? defaultConfig?.level ?? 'warning';
-        const severity = (level === 'error' ? 'high' : level === 'warning' ? 'medium' : level === 'note' ? 'low' : 'low') as keyof typeof summary;
+        const severity = mapSarifLevelToSeverity(level);
         if (severity in summary) summary[severity]++;
 
         // Extract file path and line
         const loc = r.locations?.[0]?.physicalLocation;
         const filePath = loc?.artifactLocation?.uri;
         const lineNumber = loc?.region?.startLine;
+
+        // Extract code snippet from region.snippet.text (SARIF standard)
+        const snippetObj = loc?.region?.snippet as Record<string, unknown> | undefined;
+        const codeSnippet = (snippetObj?.text as string) ?? null;
 
         // Extract CWE from rule.tags or relationships
         let cweId: string | null = null;
@@ -91,20 +102,20 @@ function parseSarif(content: string | Buffer, scanId: string, scanner: string): 
         findings.push({
           scanId,
           scanner,
-          rule: (rule?.name as string) ?? r.ruleId ?? 'unknown',
+          rule: (rule?.name as string) ?? (isUuid(r.ruleId) ? (r.message?.text?.slice(0, 80) || 'unknown') : (r.ruleId ?? 'unknown')),
           severity,
-          filePath,
+          filePath: normalizeFilePath(filePath),
           lineNumber,
           message: r.message?.text || '',
           description: r.message?.text || '',
+          codeSnippet,
           cweId,
-          status: 'open',
         });
       }
     }
     return { findings, summary };
   } catch {
-    return { findings: [], summary: {} };
+    return { findings: [], summary: { critical: 0, high: 0, medium: 0, low: 0, info: 0 } };
   }
 }
 
@@ -148,7 +159,19 @@ export function parseScanResult(
     return parseGCCFanalyzer(content, scanId, 'gcc-fanalyzer');
   }
 
-  return { findings: [], summary: {} };
+  return { findings: [], summary: { critical: 0, high: 0, medium: 0, low: 0, info: 0 } };
+}
+
+// ─── Helpers ───────────────────────────────────────────────────
+
+/**
+ * Map SARIF level to severity.
+ */
+function mapSarifLevelToSeverity(level: string | undefined): 'critical' | 'high' | 'medium' | 'low' | 'info' {
+  if (level === 'error') return 'high';
+  if (level === 'warning') return 'medium';
+  if (level === 'note') return 'low';
+  return 'low';
 }
 
 export { parseSemgrep, parseCppcheck, parseGitleaks, parseFlawfinder, parseClangTidy, parseGCCFanalyzer };

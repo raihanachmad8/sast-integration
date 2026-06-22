@@ -18,7 +18,7 @@ export const PROVIDERS = [
     label: 'Ollama',
     icon: 'fa-server',
     defaultBaseUrl: 'http://localhost:11434',
-    defaultModels: ['llama3.2:3b', 'llama3.1:8b', 'llama3.1:70b', 'codellama:13b', 'mistral:7b', 'qwen2.5:7b'],
+    defaultModels: [],
   },
   {
     value: 'groq',

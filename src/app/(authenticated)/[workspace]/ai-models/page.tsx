@@ -2,23 +2,26 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { Button, App, Typography, Flex, theme, Tag } from 'antd';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 
 import { EditModelModal, AddModelModal } from '@/features/model/ModelModals';
 import { FallbackChainCard } from '@/features/model/FallbackChainCard';
 import { VerificationSettingsCard } from '@/features/model/VerificationSettingsCard';
 import { useTableParams } from '@/lib/hooks/useTableParams';
-import { useAiModelsQuery, useCreateAiModelMutation, useUpdateAiModelMutation, useDeleteAiModelMutation, useTestAiModelMutation, aiModelKeys } from '@/modules/ai-models';
+import { useAiModelsQuery, useCreateAiModelMutation, useUpdateAiModelMutation, useDeleteAiModelMutation, useTestAiModelMutation } from '@/modules/ai-models';
 import type { CreateAiModelInput } from '@/commons/schemas/ai-model.schema';
-import { PermissionGate } from '@/components/shared/PermissionGate';
+import { PermissionGate } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorState } from '@/components/shared/ErrorState';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorState } from '@/commons/components/ErrorState';
 import { errorMessage } from '@/lib/api/errors';
 import type { AiModelRow } from '@/commons/types/ai-models';
-import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { FeatureGate } from '@/commons/components/FeatureGate';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 
 const PROVIDER_ICONS: Record<string, string> = {
   openai: 'fa-brands fa-openai',
@@ -76,11 +79,34 @@ function buildColumns(token: ReturnType<typeof theme.useToken>['token']): DataTa
 }
 
 export default function AiModelsPage() {
+  const { token } = theme.useToken();
+
+  return (
+    <FeatureGate
+      flag={FEATURE_FLAG.AI_MODELS}
+      fallback={
+        <Flex vertical gap={token.paddingXL}>
+          <PageHeader title="AI Models" description="Manage AI models for vulnerability analysis and false positive reduction." />
+          <ComingSoonCard
+            icon="fa-robot"
+            title="AI Models"
+            description="AI models allow you to configure LLM providers for vulnerability analysis."
+            envHint="FEATURE_FLAG_AI_MODELS"
+          />
+        </Flex>
+      }
+    >
+      <AiModelsPageContent />
+    </FeatureGate>
+  );
+}
+
+function AiModelsPageContent() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const { confirm } = useConfirm();
 
-  const { params, setPage, setPageSize, setSearch } = useTableParams({
+  const { params, setPagination, setSearch } = useTableParams({
     defaultPageSize: 10,
   });
 
@@ -180,10 +206,11 @@ export default function AiModelsPage() {
     const modelA = models[index];
     const modelB = models[index - 1];
     if (!modelA || !modelB) return;
+    // Swap priorities AND roles to keep them in sync
     Promise.all([
-      updateMutation.mutateAsync({ id: modelA.id, data: { priority: modelB.priority } }),
-      updateMutation.mutateAsync({ id: modelB.id, data: { priority: modelA.priority } }),
-    ]);
+      updateMutation.mutateAsync({ id: modelA.id, data: { priority: modelB.priority, role: index === 1 ? 'primary' : 'fallback' } as Partial<CreateAiModelInput> }),
+      updateMutation.mutateAsync({ id: modelB.id, data: { priority: modelA.priority, role: 'fallback' } as Partial<CreateAiModelInput> }),
+    ]).then(() => modelsQuery.refetch());
   };
 
   const moveDown = (index: number) => {
@@ -191,23 +218,32 @@ export default function AiModelsPage() {
     const modelA = models[index];
     const modelB = models[index + 1];
     if (!modelA || !modelB) return;
+    // Swap priorities AND roles to keep them in sync
     Promise.all([
-      updateMutation.mutateAsync({ id: modelA.id, data: { priority: modelB.priority } }),
-      updateMutation.mutateAsync({ id: modelB.id, data: { priority: modelA.priority } }),
-    ]);
+      updateMutation.mutateAsync({ id: modelA.id, data: { priority: modelB.priority, role: 'fallback' } as Partial<CreateAiModelInput> }),
+      updateMutation.mutateAsync({ id: modelB.id, data: { priority: modelA.priority, role: index === 0 ? 'primary' : 'fallback' } as Partial<CreateAiModelInput> }),
+    ]).then(() => modelsQuery.refetch());
   };
 
   const setActive = (modelId: string) => {
     const currentPrimary = models.find((m) => m.role === 'primary');
+    const targetModel = models.find((m) => m.id === modelId);
+    if (!targetModel) return;
+
+    // Set target as primary with lowest priority
     const mutations: Promise<unknown>[] = [
-      updateMutation.mutateAsync({ id: modelId, data: { role: 'primary' } as Partial<CreateAiModelInput> }),
+      updateMutation.mutateAsync({ id: modelId, data: { role: 'primary', priority: 1 } as Partial<CreateAiModelInput> }),
     ];
+
+    // Demote old primary to fallback with higher priority
     if (currentPrimary && currentPrimary.id !== modelId) {
       mutations.push(
-        updateMutation.mutateAsync({ id: currentPrimary.id, data: { role: 'fallback' } as Partial<CreateAiModelInput> }),
+        updateMutation.mutateAsync({ id: currentPrimary.id, data: { role: 'fallback', priority: targetModel.priority } as Partial<CreateAiModelInput> }),
       );
     }
+
     Promise.all(mutations).then(() => {
+      modelsQuery.refetch();
       message.success('Active model updated');
     });
   };
@@ -256,7 +292,7 @@ export default function AiModelsPage() {
         searchPlaceholder="Search models"
         searchValue={params.search}
         onSearchChange={setSearch}
-        onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+        onChange={(p, ps) => setPagination(p, ps)}
       />
 
       <VerificationSettingsCard />

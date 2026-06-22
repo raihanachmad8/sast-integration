@@ -126,7 +126,7 @@ function parseCppcheckXml(
       scanner,
       rule: String(id),
       severity,
-      filePath: filePath,
+      filePath: normalizeFilePath(filePath),
       lineNumber: isNaN(line as number) ? null : line,
       message: String(msg),
       description: String(msg),

@@ -1,5 +1,8 @@
 import { type NewFinding } from '@drizzle/schema/findings';
 import { logger } from '@/server/lib/logger';
+import { normalizeFilePath } from './path-normalizer';
+import type { Severity } from '@/commons/types/domain';
+import type { ParseResult } from './index';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -17,8 +20,8 @@ interface GCCFanalyzerDiagnostic {
 
 // Matches: /path/file.c:42:12: warning: message [CWE-XXX] [-Wcheck-name]
 // Or: /path/file.c:42:12: warning: message [-Wcheck-name]
-// The CWE tag is optional and may appear before the check name
-const DIAG_RE = /^(.+?):(\d+):(\d+):\s+(warning|error):\s+(.+?)\s+\[(-W[^\]]+)\]\s*$/;
+// Or: /path/file.c:42:12: warning: message (without [-W...] suffix)
+const DIAG_RE = /^(.+?):(\d+):(\d+):\s+(warning|error):\s+(.+?)(?:\s+\[(-W[^\]]+)\])?\s*$/;
 
 // Matches CWE from message: [CWE-476]
 const CWE_RE = /\[CWE-(\d+)\]/;
@@ -89,7 +92,7 @@ export function parseGCCFanalyzer(
   content: string | Buffer,
   scanId: string,
   scanner: string = 'gcc-fanalyzer',
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const text = typeof content === 'string' ? content : content.toString('utf8');
 
   logger.scan.debug('parseGCCFanalyzer', { length: text.length });
@@ -110,7 +113,7 @@ export function parseGCCFanalyzer(
 
     // Skip system header warnings (not from user code)
     // Match patterns like: /usr/include/..., /usr/lib/..., <built-in>, <scratch space>
-    if (file.startsWith('<') || file.includes('/usr/include/') || file.includes('/usr/lib/') || file.includes('\\include\\') || file.includes('\\lib\\')) continue;
+    if (file.startsWith('<') || file.includes('/usr/include/') || file.includes('/usr/lib/') || file.startsWith('\\include\\') || file.startsWith('\\lib\\') || /^[A-Z]:\\(Program Files|msys64|LLVM)\\/.test(file)) continue;
 
     // Extract CWE from message if present
     const cweMatch = message.match(CWE_RE);
@@ -168,16 +171,15 @@ function createFinding(diag: GCCFanalyzerDiagnostic, scanId: string, scanner: st
     scanner,
     rule: diag.ruleId,
     severity,
-    filePath: diag.file,
+    filePath: normalizeFilePath(diag.file),
     lineNumber: diag.line,
     message: diag.message,
     description,
     cweId: diag.cwe ?? null,
-    status: 'open',
   };
 }
 
-function mapSeverity(ruleId: string, cwe?: string): string {
+function mapSeverity(ruleId: string, cwe?: string): Severity {
   // CWE-based severity
   if (cwe) {
     if (['CWE-416', 'CWE-476', 'CWE-78', 'CWE-120', 'CWE-125'].includes(cwe)) return 'high';

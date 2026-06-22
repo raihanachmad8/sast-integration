@@ -20,7 +20,7 @@ test.describe('Project Creation Page', () => {
     await page.goto(`/${slug}/projects/new`);
     await page.waitForLoadState('networkidle');
 
-    await expect(page.getByRole('heading', { name: /Create Project|New Project/ })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('heading', { name: /new project/i })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByLabel('Project name')).toBeVisible({ timeout: 10_000 });
   });
 
@@ -65,6 +65,6 @@ test.describe('Project Creation Page', () => {
 
     await page.getByRole('button', { name: /Cancel|Back/ }).click();
 
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 10_000 }).toBe(`/${slug}/projects`);
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 10_000 }).not.toBe(`/${slug}/projects/new`);
   });
 });

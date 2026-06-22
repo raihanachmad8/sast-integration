@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 import { signInAndOpenWorkspace } from '../auth/helpers';
 
 test.describe('Finding Detail Page', () => {
+  /**
+   * Purpose: Verify that clicking a finding row navigates to the finding detail page without a server error.
+   */
   test('should render finding detail page', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');

@@ -1,61 +1,74 @@
 /**
  * Feature flags — env-var based.
  *
- * Each flag maps to a FEATURE_FLAG_* env var.
+ * Each flag maps to a FEATURE_FLAG_* env var (server-side) and
+ * NEXT_PUBLIC_FEATURE_FLAG_* env var (client-side).
  * Set to "true" to enable, "false" or unset to disable.
  *
- * @example
- * ```bash
- * # Enable features in .env
- * FEATURE_FLAG_ARENA=true
- * FEATURE_FLAG_WEBHOOKS=false
- * ```
+ * **Client-side:** Use `<FeatureGate>` component or `useFeatureFlag()` hook.
+ * **Server-side:** Use `resolveFeatureFlag()` for route-level gating.
  *
  * @example
  * ```tsx
- * // Check if a feature is enabled
+ * // Client-side gating (recommended for UI)
+ * import { FeatureGate } from '@/commons/components/FeatureGate';
+ * import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+ *
+ * <FeatureGate flag={FEATURE_FLAG.TEAMS} fallback={<ComingSoon />}>
+ *   <TeamsPage />
+ * </FeatureGate>
+ * ```
+ *
+ * @example
+ * ```ts
+ * // Server-side gating (for API routes or middleware)
  * import { resolveFeatureFlag, FEATURE_FLAG } from '@/commons/constants/feature-flags';
  *
- * if (resolveFeatureFlag(FEATURE_FLAG.AI_VERIFICATION)) {
- *   // AI verification is enabled
- * }
- *
- * // Get all flags at once
- * import { resolveAllFeatureFlags } from '@/commons/constants/feature-flags';
- *
- * const flags = resolveAllFeatureFlags();
- * if (flags[FEATURE_FLAG.TEAMS]) {
- *   // Teams feature is enabled
+ * if (!resolveFeatureFlag(FEATURE_FLAG.SCHEDULES)) {
+ *   return NextResponse.json({ error: 'Feature disabled' }, { status: 404 });
  * }
  * ```
  */
 
 export const FEATURE_FLAG = {
-  // Core features
+  // Core features — server-side flags for scan behavior, no dedicated page
+  /** Controls whether managed scanning (SCM checkout + scanner run) is available. Server-side only. */
   SCAN_MANAGED: 'scan.managed',
+  /** Controls whether external CI upload endpoints are available. Server-side only. */
   SCAN_EXTERNAL_UPLOAD: 'scan.external_upload',
+  /** Controls whether AI verification of findings is enabled. Server-side only. */
   AI_VERIFICATION: 'ai.verification',
+  /** Controls quality gate pass/fail evaluation. Has dedicated page. */
   QUALITY_GATES: 'quality.gates',
 
-  // Workspace features
+  // Workspace features — has dedicated pages with FeatureGate
   TEAMS: 'teams',
   PROJECTS: 'projects',
   KNOWLEDGE_BASE: 'knowledge_base',
   SCHEDULES: 'schedules',
 
   // Integrations
+  /** Controls GitHub SCM provider availability. Server-side + nav gating (OR with other SCM flags). */
   SOURCE_CONTROL_GITHUB: 'integration.github',
+  /** Controls GitLab SCM provider availability. Server-side + nav gating (OR with other SCM flags). */
   SOURCE_CONTROL_GITLAB: 'integration.gitlab',
+  /** Controls Gitea SCM provider availability. Server-side + nav gating (OR with other SCM flags). */
   SOURCE_CONTROL_GITEA: 'integration.gitea',
+  /** Controls outgoing webhook configuration page. Has dedicated page. */
   WEBHOOKS: 'webhooks',
 
   // Analysis
+  /** Controls scan policy configuration. Server-side only — no dedicated page yet. */
   SCAN_PROFILES: 'scan_policies',
+  /** Controls scanner engine management page. Has dedicated page. */
   SCANNER_ENGINES: 'scanner_engines',
+  /** Controls AI model configuration page. Has dedicated page. */
   AI_MODELS: 'models',
 
   // Reports
+  /** Controls report generation and viewing. Has dedicated page. */
   REPORTS: 'reports',
+  /** Controls arena (AI comparison) feature. Has dedicated page. */
   ARENA: 'arena',
 } as const;
 
@@ -96,11 +109,11 @@ export const FEATURE_FLAG_DEFAULTS: Record<FeatureFlagKey, boolean> = {
   [FEATURE_FLAG.TEAMS]: true,
   [FEATURE_FLAG.PROJECTS]: true,
   [FEATURE_FLAG.KNOWLEDGE_BASE]: true,
-  [FEATURE_FLAG.SCHEDULES]: true,
+  [FEATURE_FLAG.SCHEDULES]: false,
   [FEATURE_FLAG.SOURCE_CONTROL_GITHUB]: true,
   [FEATURE_FLAG.SOURCE_CONTROL_GITLAB]: true,
   [FEATURE_FLAG.SOURCE_CONTROL_GITEA]: true,
-  [FEATURE_FLAG.WEBHOOKS]: true,
+  [FEATURE_FLAG.WEBHOOKS]: false,
   [FEATURE_FLAG.SCAN_PROFILES]: true,
   [FEATURE_FLAG.SCANNER_ENGINES]: true,
   [FEATURE_FLAG.AI_MODELS]: true,
@@ -109,8 +122,14 @@ export const FEATURE_FLAG_DEFAULTS: Record<FeatureFlagKey, boolean> = {
 };
 
 /**
- * Resolve a feature flag value from environment variables.
+ * Resolve a feature flag value from environment variables (server-side).
  * Falls back to hardcoded default if env var is not set.
+ *
+ * Use this for server-side route gating, middleware, or SSR logic.
+ * For client-side UI gating, prefer `<FeatureGate>` or `useFeatureFlag()`.
+ *
+ * @param flag - Feature flag key to resolve
+ * @returns Whether the flag is enabled
  */
 export function resolveFeatureFlag(flag: FeatureFlagKey): boolean {
   const envVar = FLAG_ENV_MAP[flag];

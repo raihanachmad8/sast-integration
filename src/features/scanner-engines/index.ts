@@ -1,1 +1,1 @@
-export { RulesDrawer, ScannerSettingsModal } from './ScannerModals';
+export { RulesDrawer } from './ScannerModals';

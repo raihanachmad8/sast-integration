@@ -1,4 +1,4 @@
-import { QueryProvider } from '@/components/providers/QueryProvider';
+import { QueryProvider } from '@/commons/providers/QueryProvider';
 import { AuthWrapper } from './auth-wrapper';
 
 export default function UnauthenticatedLayout({ children }: { children: React.ReactNode }) {

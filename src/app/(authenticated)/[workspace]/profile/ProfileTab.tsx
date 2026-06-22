@@ -2,7 +2,16 @@
 
 import { useEffect } from 'react';
 import { Card, Avatar, Button, Flex, Form, Input, Row, Col, Select, Typography, Upload, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { createZodSync } from '@/lib/utils/zod-sync';
+import { z } from 'zod';
+
+const profileSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters'),
+  username: z.string().min(3, 'Username must be at least 3 characters').regex(/^[a-zA-Z0-9_]+$/, 'Username must be alphanumeric'),
+});
+
+const validateProfile = createZodSync(profileSchema);
 
 const { Text } = Typography;
 
@@ -73,10 +82,10 @@ export function ProfileTab({ name, email, role, initials, avatarUrl, username, b
         <Form form={profileForm} layout="vertical" onFinish={onSave}>
           <Row gutter={[token.marginMD, 0]}>
             <Col xs={24} sm={12}>
-              <Form.Item label="Full name" name="name"><Input /></Form.Item>
+              <Form.Item label="Full name" name="name" rules={[validateProfile]}><Input /></Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item label="Username" name="username"><Input /></Form.Item>
+              <Form.Item label="Username" name="username" rules={[validateProfile]}><Input /></Form.Item>
             </Col>
             <Col xs={24} sm={12}>
               <Form.Item label="Email" name="email"><Input disabled /></Form.Item>

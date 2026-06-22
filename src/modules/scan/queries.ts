@@ -1,10 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { scanApi, type ScannerAvailability } from './api';
 import { scanKeys } from './keys';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { STALE } from '@/commons/constants/query';
 import type { TriggerScanPayload } from './types';
 import type { ListParams } from '@/commons/types/pagination';
@@ -16,7 +15,8 @@ const FINDINGS_POLL_INTERVAL = 5_000;
 
 /** Check if a scan status is still in-progress (needs polling). */
 function isActiveStatus(status?: string): boolean {
-  return status === 'queued' || status === 'processing' || status === 'running' || status === 'parsing';
+  const s = status?.toLowerCase();
+  return s === 'queued' || s === 'processing' || s === 'running' || s === 'parsing';
 }
 
 /**
@@ -99,7 +99,7 @@ export function useScannerAvailabilityQuery() {
     queryKey: scanKeys.availability(),
     queryFn: () => scanApi.getAvailability(workspaceId!),
     enabled: !!workspaceId,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: STALE.DEFAULT,
   });
 }
 

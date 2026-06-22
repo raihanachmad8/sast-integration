@@ -2,10 +2,10 @@
 
 import { useMemo } from 'react';
 import { Typography, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { IdentityCell } from '@/components/shared/IdentityCell';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { IdentityCell } from '@/commons/components/IdentityCell';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { formatDate } from '@/lib/utils/formatDate';
 import { roleLabel } from '@/lib/utils/roleLabel';
 import { useTableParams } from '@/lib/hooks/useTableParams';
@@ -30,7 +30,7 @@ export function InvitationsTable({ workspaceId, onRevoke, tabId }: InvitationsTa
   const canManage = isAtLeast('manager');
   const { token } = theme.useToken();
 
-  const { params, setPage, setPageSize, setSearch, setFilter } = useTableParams({
+  const { params, setPagination, setSearch, setFilter } = useTableParams({
     filterKeys: ['status'],
     defaultPageSize: 10,
   });
@@ -132,7 +132,7 @@ export function InvitationsTable({ workspaceId, onRevoke, tabId }: InvitationsTa
         onFilterRemove={(key) => setFilter(key, '')}
         actions={actions.length > 0 ? actions : undefined}
         emptyText="No pending invitations. Invitations waiting for acceptance will appear here."
-        onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+        onChange={(p, ps) => setPagination(p, ps)}
       />
     </div>
   );

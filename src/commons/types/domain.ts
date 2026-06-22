@@ -18,7 +18,7 @@ export type Severity = "critical" | "high" | "medium" | "low" | "info";
 export type AiVerdict = "TP" | "FP" | "Pending";
 
 /** Finding triage status — used by findings, reports */
-export type FindingStatus = "open" | "accepted" | "needs_review" | "fixed" | "triaged" | "false_positive";
+export type FindingStatus = "open" | "dismissed" | "resolved";
 
 /** Scan execution status — used by scan list, dashboard */
 export type ScanStatus = "queued" | "running" | "processing" | "parsing" | "completed" | "failed";
@@ -56,11 +56,13 @@ export type ReportType =
  *
  * @remarks
  * - `confidence` is `number | null` (0–100 or null for unverified). Display formatting ("94%", "—") is a UI concern.
- * - `status` uses consistent lowercase with underscores: `'open' | 'accepted' | 'needs_review' | 'fixed'`
+ * - `status` uses consistent lowercase with underscores: `'open' | 'dismissed' | 'resolved'`
  * - Rich fields (`aiAnalysis`, `sourceCode`, `comments`) are optional — list views don't need them.
  */
 export interface Finding {
   id: string;
+  /** Project ID this finding belongs to (via finding_groups). */
+  projectId?: string;
   rule: string;
   repo: string;
   file: string;
@@ -77,14 +79,20 @@ export interface Finding {
   // Rich fields (for detail drawer) — optional
   aiAnalysis?: AiAnalysis;
   sourceCode?: SourceCodeLine[] | string;
-  comments?: FindingComment[];
-  // Scan-specific fields (optional, used by scan detail)
   lineNumber?: number;
   message?: string;
   codeSnippet?: string;
   cweIds?: string[];
   dataFlow?: string;
   taintSource?: string;
+  matchDetail?: string;
+  likelyCwe?: string[];
+  fixSuggestion?: string;
+  explanation?: string;
+  /** When this finding group was first seen (ISO 8601). */
+  firstSeenAt?: string;
+  /** When this finding record was created (ISO 8601). */
+  createdAt?: string;
 }
 
 export interface AiAnalysis {
@@ -98,14 +106,6 @@ export interface SourceCodeLine {
   line: number;
   content: string;
   highlighted: boolean;
-}
-
-export interface FindingComment {
-  id: string;
-  author: string;
-  avatar: string;
-  time: string;
-  text: string;
 }
 
 /** Scanner evidence item for detail view */
@@ -127,6 +127,7 @@ export interface Team {
   description: string;
   memberCount: number;
   projects: string[];
+  projectIds?: string[];
   createdAt: string;
 }
 
@@ -151,9 +152,10 @@ export interface Repository {
   url: string;
   branch: string;
   status: "active" | "inactive" | "error";
+  projectId?: string | null;
   project: string | null;
   policyName: string | null;
-  connectionType: "scm" | "external";
+  connectionType: string[];
   provider: ScmProvider | null;
   findings: number;
   scans: number;
@@ -179,6 +181,9 @@ export interface Project {
   repositories: string[];
   teams: string[];
   members: string[];
+  repositoryIds?: string[];
+  teamIds?: string[];
+  memberIds?: string[];
   memberNames?: string[];
   teamNames?: string[];
   automation: string[];
@@ -195,14 +200,14 @@ export interface ScanRow {
   id: string;
   repository: string;
   repoSub: string;
-  status: "Queued" | "Running" | "Processing" | "Parsing" | "Completed" | "Failed";
+  status: "queued" | "running" | "processing" | "parsing" | "completed" | "failed";
   stage: string;
   findings: number;
   critical: number;
   ai: string;
   origin: "managed" | "external_upload";
   provider: ScmProvider | null;
-  connectionType: "scm" | "external";
+  connectionType: string[];
   startedAt?: string;
   completedAt?: string;
   durationSeconds?: number;
@@ -215,12 +220,14 @@ export interface ScanDetail {
   branch: string;
   commitSha: string;
   origin: "managed" | "external_upload";
-  status: "queued" | "processing" | "completed" | "failed";
+  status: "queued" | "running" | "processing" | "completed" | "failed";
   startedAt: string;
   completedAt?: string;
   durationSeconds?: number;
   scannerResults: ScannerResult[];
   totalFindings: number;
+  newFindings: number;
+  existingFindings: number;
   severityBreakdown: {
     critical: number;
     high: number;
@@ -280,7 +287,7 @@ export interface ScanRepository {
   name: string;
   branch: string;
   provider: ScmProvider | null;
-  connectionType: "scm" | "external";
+  connectionType: string[];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -433,11 +440,8 @@ export const SEVERITY_VARIANT: Record<string, string> = {
 /** Finding status → StatusPill variant */
 export const FINDING_STATUS_VARIANT: Record<FindingStatus, string> = {
   open: "red",
-  accepted: "teal",
-  needs_review: "amber",
-  fixed: "slate",
-  triaged: "blue",
-  false_positive: "green",
+  dismissed: "teal",
+  resolved: "green",
 };
 
 /** AI verdict → StatusPill variant */
@@ -449,12 +453,10 @@ export const VERDICT_VARIANT: Record<AiVerdict, string> = {
 
 /** Scan status → StatusPill variant */
 export const SCAN_STATUS_VARIANT: Record<string, string> = {
-  Running: "blue",
-  Completed: "teal",
-  Failed: "red",
-  Queued: "slate",
   queued: "slate",
   running: "blue",
+  processing: "amber",
+  parsing: "blue",
   completed: "teal",
   failed: "red",
 };

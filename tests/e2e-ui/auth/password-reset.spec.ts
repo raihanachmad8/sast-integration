@@ -68,25 +68,41 @@ test.describe('Password Reset Flow', () => {
 
     await page.goto(AUTH_PATHS.resetPassword);
 
-    await expect(page.getByRole('alert').filter({ hasText: 'Invalid reset link' })).toBeVisible();
+    // Page shows Result component with "Invalid reset link" when no token
+    await expect(page.getByText('Invalid reset link')).toBeVisible();
     expect(warnings).toEqual([]);
   });
 
+  /**
+   * Purpose: Verify that a valid reset token loads the reset password form, and submitting new passwords
+   * triggers a success state with a link back to the sign-in page.
+   */
   test('should reset password with token and navigate back to signin', async ({ page }) => {
-    await page.route('**/api/v1/auth/reset-password', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, message: 'Password reset successful', data: null }),
-      });
+    await page.route('**/api/v1/auth/reset-password*', async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, message: 'Reset token is valid', data: { expiresAt: new Date(Date.now() + 3600000).toISOString() } }),
+        });
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, message: 'Password reset successful', data: null }),
+        });
+      }
     });
 
-    await gotoAuthPage(page, `${AUTH_PATHS.resetPassword}?token=test-token`, 'Reset password');
+    await page.goto(`${AUTH_PATHS.resetPassword}?token=test-token`);
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Reset password' })).toBeVisible({ timeout: 10_000 });
     await page.getByPlaceholder('Minimum 8 characters').fill('new-password');
     await page.getByPlaceholder('Repeat your password').fill('new-password');
     await page.getByRole('button', { name: 'Reset password' }).click();
 
-    await expect(page.getByText('Password reset')).toBeVisible();
+    await expect(page.getByText('Password reset')).toBeVisible({ timeout: 10_000 });
     await page.getByRole('link', { name: 'Sign in' }).click();
     await expect(page).toHaveURL(AUTH_PATHS.signin);
   });

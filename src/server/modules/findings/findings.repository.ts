@@ -17,6 +17,12 @@ interface BulkUpdatePayload {
 }
 
 export const findingsRepository = {
+  /**
+   * List findings across a workspace with pagination and optional filters.
+   * @param workspaceId - Workspace UUID
+   * @param params - Pagination and filter parameters (page, pageSize, status, severity, projectId)
+   * @returns Paginated findings data with total count, page, and pageSize
+   */
   async listByWorkspace(workspaceId: string, params: ListByWorkspaceParams) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
@@ -28,7 +34,7 @@ export const findingsRepository = {
     ];
 
     if (params.status) {
-      conditions.push(eq(findings.status, params.status));
+      conditions.push(eq(findingGroups.status, params.status));
     }
     if (params.severity) {
       conditions.push(eq(findings.severity, params.severity));
@@ -65,6 +71,12 @@ export const findingsRepository = {
     };
   },
 
+  /**
+   * Get a single finding by ID scoped to a workspace.
+   * @param id - Finding UUID
+   * @param workspaceId - Workspace UUID for scoping
+   * @returns Finding record joined with group and project data, or null if not found
+   */
   async getById(id: string, workspaceId: string) {
     const [result] = await db
       .select()
@@ -83,16 +95,28 @@ export const findingsRepository = {
     return result ?? null;
   },
 
+  /**
+   * Update a finding's status.
+   * @param id - Finding UUID
+   * @param status - New status value
+   * @returns Updated finding record or null if not found
+   */
   async updateStatus(id: string, status: string) {
     const [updated] = await db
       .update(findings)
-      .set({ status, updatedAt: new Date() })
+      .set({ updatedAt: new Date() })
       .where(eq(findings.id, id))
       .returning();
 
     return updated ?? null;
   },
 
+  /**
+   * Assign or unassign a finding.
+   * @param id - Finding UUID
+   * @param assigneeId - User UUID to assign, or null to unassign
+   * @returns Updated finding record or null if not found
+   */
   async assign(id: string, assigneeId: string | null) {
     const [updated] = await db
       .update(findings)
@@ -103,6 +127,12 @@ export const findingsRepository = {
     return updated ?? null;
   },
 
+  /**
+   * Bulk update multiple findings by IDs.
+   * @param ids - Array of finding UUIDs to update
+   * @param payload - Fields to update (status, assignedTo)
+   * @returns Array of updated finding records
+   */
   async bulkUpdate(ids: string[], payload: BulkUpdatePayload) {
     if (ids.length === 0) return [];
 

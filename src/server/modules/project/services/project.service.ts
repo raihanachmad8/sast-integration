@@ -13,6 +13,11 @@ import type { ProjectFormInput as CreateProjectInput, ProjectUpdateInput as Upda
 export const projectService = {
   /**
    * List all projects belonging to a workspace.
+   *
+   * @param workspaceId - Workspace UUID to scope the query
+   * @param userId - User UUID requesting the list
+   * @returns Array of projects with member, team, and repository summaries
+   * @throws {AppError} 403 - User is not a member of the workspace
    */
   async list(workspaceId: string, userId: string) {
     logger.project.info('list', { workspaceId });
@@ -43,6 +48,7 @@ export const projectService = {
       memberNames: memberNamesMap.get(p.id) ?? [],
       teamNames: teamNamesMap.get(p.id) ?? [],
       repositories: repoNamesMap.get(p.id) ?? [],
+      repositoryIds: repoIdsMap.get(p.id) ?? [],
       automation: [] as string[],
     }));
 
@@ -52,6 +58,12 @@ export const projectService = {
 
   /**
    * Get a single project by ID.
+   *
+   * @param projectId - Project UUID
+   * @param userId - User UUID requesting the project
+   * @returns Project record with members, teams, and repositories
+   * @throws {AppError} 404 - Project not found
+   * @throws {AppError} 403 - User is not a member of the workspace
    */
   async getById(projectId: string, userId: string) {
     logger.project.info('getById', { projectId });
@@ -75,12 +87,21 @@ export const projectService = {
       projectRepository.listRepositoryNames(projectId),
     ]);
 
+    // Get repository IDs for filtering
+    const repositoryIds = await projectRepository.listRepositoryIds(projectId);
+
     logger.project.info('getById completed', { projectId });
-    return { ...project, members, teams, memberNames, teamNames, repositories: repositoryNames, automation: [] as string[] };
+    return { ...project, members, teams, memberNames, teamNames, repositories: repositoryNames, repositoryIds, automation: [] as string[] };
   },
 
   /**
    * Create a new project inside a workspace.
+   *
+   * @param input - Project creation data (name, slug, description, etc.)
+   * @param workspaceId - Workspace UUID to create the project in
+   * @param userId - User UUID of the creator
+   * @returns Created project record
+   * @throws {AppError} 409 - Slug already exists in this workspace
    */
   async create(input: CreateProjectInput, workspaceId: string, userId: string) {
     logger.project.info('create', { workspaceId, name: input.name });
@@ -115,6 +136,14 @@ export const projectService = {
 
   /**
    * Update project metadata.
+   *
+   * @param projectId - Project UUID to update
+   * @param input - Partial update data (name, slug, description, etc.)
+   * @param userId - User UUID performing the update
+   * @returns Updated project record
+   * @throws {AppError} 404 - Project not found
+   * @throws {AppError} 403 - User is not a member of the workspace
+   * @throws {AppError} 409 - Slug already exists in this workspace
    */
   async update(projectId: string, input: UpdateProjectInput, userId: string) {
     logger.project.info('update', { projectId });
@@ -160,6 +189,12 @@ export const projectService = {
 
   /**
    * Soft delete a project.
+   *
+   * @param projectId - Project UUID to soft-delete
+   * @param userId - User UUID performing the deletion
+   * @returns Soft-deleted project record
+   * @throws {AppError} 404 - Project not found
+   * @throws {AppError} 403 - User is not a member of the workspace
    */
   async softDelete(projectId: string, userId: string) {
     logger.project.info('softDelete', { projectId });
@@ -182,6 +217,12 @@ export const projectService = {
 
   /**
    * List repositories attached to this project.
+   *
+   * @param projectId - Project UUID
+   * @param userId - User UUID requesting the list
+   * @returns Array of repository records attached to the project
+   * @throws {AppError} 404 - Project not found
+   * @throws {AppError} 403 - User is not a member of the workspace
    */
   async listRepositories(projectId: string, userId: string) {
     logger.project.info('listRepositories', { projectId });
@@ -205,9 +246,9 @@ export const projectService = {
   /**
    * List all repositories across all projects in a workspace.
    */
-  async listRepositoriesByWorkspace(workspaceId: string) {
+  async listRepositoriesByWorkspace(workspaceId: string, accessibleProjectIds?: string[]) {
     logger.project.info('listRepositoriesByWorkspace', { workspaceId });
-    const rows = await projectRepository.listRepositoriesByWorkspace(workspaceId);
+    const rows = await projectRepository.listRepositoriesByWorkspace(workspaceId, undefined, accessibleProjectIds);
     const result = rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -216,7 +257,7 @@ export const projectService = {
       status: 'active' as const,
       project: row.projectName,
       policyName: null,
-      connectionType: row.connectionType as 'scm' | 'external',
+      connectionType: (Array.isArray(row.connectionType) ? row.connectionType : row.connectionType ? [row.connectionType as string] : ['scm']) as string[],
       provider: null,
       findings: 0,
       scans: 0,
@@ -235,7 +276,7 @@ export const projectService = {
       name: string;
       url: string;
       defaultBranch?: string;
-      connectionType: RepositoryConnectionType;
+      connectionType: string[];
       sourceControlId?: string;
     },
     userId: string

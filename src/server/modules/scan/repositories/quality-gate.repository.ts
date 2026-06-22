@@ -31,6 +31,11 @@ export const qualityGateRepository = {
     threshold?: string;
     failOnCritical?: boolean;
     failOnHighTp?: boolean;
+    failOnHigh?: boolean;
+    failOnMedium?: boolean;
+    failOnLow?: boolean;
+    failOnPending?: boolean;
+    failOnTp?: boolean;
     warnOnPending?: boolean;
     requireHumanAck?: boolean;
     pendingBehavior?: string;
@@ -60,9 +65,25 @@ export const qualityGateRepository = {
     pendingFindings?: number;
     newFindings?: number;
     fixedFindings?: number;
+    persistentFindings?: number;
   }, tx?: Tx) {
     const executor = tx ?? db;
-    const [result] = await executor.insert(qualityGateResults).values(data).returning();
+    const [result] = await executor.insert(qualityGateResults)
+      .values(data)
+      .onConflictDoUpdate({
+        target: qualityGateResults.scanId,
+        set: {
+          gateId: data.gateId,
+          status: data.status,
+          blockingFindings: data.blockingFindings,
+          pendingFindings: data.pendingFindings,
+          newFindings: data.newFindings,
+          fixedFindings: data.fixedFindings,
+          persistentFindings: data.persistentFindings,
+          evaluatedAt: new Date(),
+        },
+      })
+      .returning();
     return result;
   },
 

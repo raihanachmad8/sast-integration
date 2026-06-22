@@ -1,19 +1,18 @@
 'use client';
 
-import { Button, Modal, Select, Form, App, Typography, Card, Flex, theme } from 'antd';
+import { Button, Modal, Select, Form, Typography, Card, Flex, theme } from 'antd';
 import { MODAL_WIDTH } from '@/commons/constants/layout';
 import { ConfigureModal as ConfigureProviderModal } from './ConfigureModal';
 
 interface ImportRepoModalProps { open: boolean; repoFullName: string; onClose: () => void; onSave: () => void; }
 
 export function ImportRepoModal({ open, repoFullName, onClose, onSave }: ImportRepoModalProps) {
-  const { message } = App.useApp();
-
   return (
     <Modal
       title={`Import ${repoFullName}`}
       open={open}
-      onOk={() => { onSave(); onClose(); message.success(`${repoFullName} imported`); }}
+      destroyOnHidden
+      onOk={() => { onSave(); }}
       onCancel={onClose}
       okText="Import"
       width={MODAL_WIDTH.SM}
@@ -42,7 +41,7 @@ export function SendTestEventModal({ open, onClose, onSend }: SendTestEventModal
   const { token } = theme.useToken();
 
   return (
-    <Modal title="Send test event" open={open} onOk={() => form.validateFields().then((v) => { onSend(v.eventType); onClose(); })} onCancel={onClose} okText="Send" width={MODAL_WIDTH.SM}>
+    <Modal title="Send test event" open={open} destroyOnHidden onOk={() => form.validateFields().then((v) => { onSend(v.eventType); onClose(); })} onCancel={onClose} okText="Send" width={MODAL_WIDTH.SM}>
       <Form form={form} layout="vertical" initialValues={{ eventType: 'push' }}>
         <Flex vertical gap={token.paddingMD} style={{ padding: `${token.paddingSM} 0` }}>
           <Form.Item label="Event type" name="eventType"><Select style={{ width: '100%' }} options={[{ value: 'push', label: 'Push event' }, { value: 'pull_request', label: 'Pull request event' }]} /></Form.Item>
@@ -63,7 +62,7 @@ interface SyncResultsModalProps { open: boolean; results: { provider: string; re
 export function SyncResultsModal({ open, results, onClose }: SyncResultsModalProps) {
   const { token } = theme.useToken();
   return (
-    <Modal title="Sync complete" open={open} onCancel={onClose} footer={[<Button key="close" onClick={onClose}>Close</Button>]} width={MODAL_WIDTH.SM}>
+    <Modal title="Sync complete" open={open} destroyOnHidden onCancel={onClose} footer={[<Button key="close" onClick={onClose}>Close</Button>]} width={MODAL_WIDTH.SM}>
       {results ? (
         <Card size="small" style={{ background: token.colorTealBg, border: `1px solid ${token.colorTealAccent}` }}>
           <Typography.Text strong style={{ color: token.colorTealAccent }}>{results.provider} synced</Typography.Text>

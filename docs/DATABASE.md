@@ -12,7 +12,7 @@
 - **Primary Keys:** `uuid` with `gen_random_uuid()` default
 - **Timestamps:** All tables use `created_at` / `updated_at` where applicable
 - **Soft Deletes:** Most domain entities use `deleted_at` / `deleted_by`
-- **Total Tables:** 41
+- **Total Tables:** 44
 
 ---
 
@@ -41,12 +41,15 @@
 │              │     ┌────────┴─────────┐
 │              │     │   repositories   │
 │              │     │ source_controls  │
+│              │     │ source_control_repositories│
+│              │     │ source_control_imports│
 │              │     └────────┬─────────┘
 │              │              │
-│              │     ┌────────┴─────────┐     ┌──────────────────┐
-│              │     │     scans        │────<│  scan_profiles   │
-│              │     │ scan_results     │     └──────────────────┘
+│              │     ┌────────┴─────────┐
+│              │     │     scans        │
+│              │     │ scan_results     │
 │              │     │ scan_uploads     │
+│              │     │ commit_statuses  │
 │              │     │ quality_gates    │
 │              │     │ quality_gate_results│
 │              │     │   schedules      │
@@ -67,6 +70,7 @@
 │              │
 │              │     ┌──────────────────┐
 │              │────<│    webhooks      │
+│              │────<│ webhook_deliveries│
 │              │────<│   audit_logs     │
 │              │────<│ activity_logs    │
 │              │────<│ knowledge_sources│
@@ -293,7 +297,7 @@
 | project_id | uuid | NOT NULL | FK → projects.id (CASCADE) | |
 | created_by | uuid | NOT NULL | FK → users.id | |
 | name | varchar(255) | NOT NULL | | Human-readable label |
-| token_hash | text | NOT NULL, UNIQUE | | bcrypt hash — never store plaintext |
+| token_sha256 | varchar(64) | NOT NULL, UNIQUE | | SHA-256 hash for O(1) token matching |
 | token_prefix | varchar(20) | nullable | | First 8-12 chars for identification (e.g. `sast_p_abc123..`) |
 | permissions | jsonb | NOT NULL | ['scans:upload'] | Array of permission strings |
 | last_used_at | timestamp | nullable | | |
@@ -319,55 +323,76 @@
 | credentials | jsonb | nullable | | Encrypted OAuth tokens / app credentials |
 | created_at | timestamp | NOT NULL | now() | |
 | created_by | uuid | nullable | FK → users.id | |
+| last_synced_at | timestamp | nullable | | Last successful sync time |
 
 #### `repositories`
 
 | Column | Type | Nullable | Default | Notes |
 |--------|------|----------|---------|-------|
 | id | uuid | PK | gen_random_uuid() | |
-| project_id | uuid | NOT NULL | FK → projects.id | |
-| source_control_id | uuid | nullable | FK → source_controls.id | null for external repos |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| project_id | uuid | nullable | FK → projects.id | |
+| external_id | varchar(255) | nullable | | Provider's stable repo ID |
+| provider | varchar(20) | nullable | | e.g. `'gitea'`, `'github'` |
 | name | varchar(255) | NOT NULL | | |
 | url | varchar(500) | NOT NULL | | Repository URL |
 | default_branch | varchar(100) | | 'main' | |
-| connection_type | varchar(20) | NOT NULL | 'scm' | `'scm'` or `'external'` (CHECK constraint) |
+| connection_type | varchar(20) | NOT NULL | 'scm' | `'scm'` or `'external'` |
+| import_mode | varchar(20) | | 'manual' | `'manual'` or `'auto'` |
 | auto_scan | boolean | | false | |
-| current_profile_id | uuid | nullable | | Active scan profile for this repo |
-| webhook_id | varchar(255) | nullable | | SCM webhook ID |
-| webhook_secret | varchar(255) | nullable | | For HMAC verification |
 | last_synced_at | timestamp | nullable | | |
 | created_at | timestamp | NOT NULL | now() | |
 | created_by | uuid | nullable | FK → users.id | |
 | updated_at | timestamp | NOT NULL | now() | |
 | updated_by | uuid | nullable | FK → users.id | |
 | deleted_at | timestamp | nullable | | Soft delete |
-| deleted_by | uuid | nullable | | |
-
-**Constraints:** CHECK (connection_type IN ('scm', 'external'))
+| deleted_by | uuid | nullable | FK → users.id | |
 
 **Connection types:**
 - `scm` — Connected via GitHub App / GitLab / Gitea. Platform can checkout and run managed scans.
 - `external` — No SCM connection. Only supports direct upload of pre-generated results from CI.
 
----
+#### `source_control_repositories`
 
-### 6. Scans & Results
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| source_control_id | uuid | NOT NULL | FK → source_controls.id (CASCADE) | |
+| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| external_id | varchar(255) | nullable | | Provider's stable repo ID |
+| name | varchar(255) | NOT NULL | | Repository name |
+| full_name | varchar(500) | NOT NULL | | Full repo path (e.g. `org/repo`) |
+| url | varchar(500) | nullable | | Repository URL |
+| default_branch | varchar(100) | | 'main' | |
+| visibility | varchar(20) | | 'private' | `'public'` or `'private'` |
+| synced_at | timestamp | | now() | Last successful sync |
+| created_at | timestamp | NOT NULL | now() | |
+| updated_at | timestamp | NOT NULL | now() | |
+| deleted_at | timestamp | nullable | | Soft delete |
 
-#### `scan_profiles`
+**Constraints:** UNIQUE(source_control_id, name), UNIQUE(source_control_id, external_id)
+
+#### `source_control_imports`
 
 | Column | Type | Nullable | Default | Notes |
 |--------|------|----------|---------|-------|
 | id | uuid | PK | gen_random_uuid() | |
 | workspace_id | uuid | NOT NULL | FK → workspaces.id | |
-| name | varchar(255) | NOT NULL | | Profile display name |
-| profile | varchar(20) | NOT NULL | 'standard' | Profile type |
-| scanners | jsonb | NOT NULL | | Array of scanner names, e.g. `["semgrep", "gitleaks"]` |
-| ai_verification | varchar(20) | NOT NULL | 'enabled' | `'enabled'` or `'disabled'` |
-| severity_threshold | varchar(20) | NOT NULL | 'medium' | Minimum severity to report |
-| timeout_seconds | integer | | 300 | Per-scanner timeout |
-| max_findings | integer | | 2000 | Cap per scan |
+| source_control_id | uuid | NOT NULL | FK → source_controls.id | |
+| source_control_repository_id | uuid | NOT NULL | FK → source_control_repositories.id | |
+| repository_id | uuid | nullable | FK → repositories.id | Internal project repo |
+| webhook_external_id | varchar(255) | nullable | | SCM webhook ID |
+| webhook_secret | varchar(255) | nullable | | For HMAC verification |
+| webhook_status | varchar(20) | | 'pending' | Webhook registration status |
+| imported_by | uuid | nullable | FK → users.id | |
+| imported_at | timestamp | nullable | | When import completed |
+| uninstalled_at | timestamp | nullable | | When integration was removed |
 | created_at | timestamp | NOT NULL | now() | |
 | updated_at | timestamp | NOT NULL | now() | |
+
+---
+
+### 6. Scans & Results
 
 #### `scans`
 
@@ -375,21 +400,24 @@
 |--------|------|----------|---------|-------|
 | id | uuid | PK | gen_random_uuid() | |
 | repository_id | uuid | nullable | | null for external uploads before repo resolution |
-| profile_id | uuid | nullable | FK → scan_profiles.id | |
-| environment_id | uuid | nullable | | |
 | commit_sha | varchar(40) | nullable | | Git commit SHA |
 | branch | varchar(100) | nullable | | |
-| origin | varchar(30) | NOT NULL | 'managed' | `'managed'` or `'external_upload'` |
+| origin | varchar(30) | NOT NULL | 'managed' | `'managed'` or `'external'` |
 | trigger_source | varchar(30) | nullable | | `'manual'` / `'schedule'` / `'webhook'` / `'ci'` |
 | status | varchar(20) | NOT NULL | 'pending' | `'pending'` / `'running'` / `'completed'` / `'failed'` |
 | started_at | timestamp | nullable | | |
 | completed_at | timestamp | nullable | | |
+| progress_events | jsonb | NOT NULL | '[]' | Array of ProgressEvent objects |
 | created_at | timestamp | NOT NULL | now() | |
 | created_by | uuid | nullable | FK → users.id | |
+| pr_number | integer | nullable | | PR number for PR analysis scans |
+| base_branch | varchar(100) | nullable | | PR base branch |
+| head_branch | varchar(100) | nullable | | PR head branch |
+| pr_author | varchar(255) | nullable | | PR author username |
 
 **Scan origins:**
 - `managed` — Platform clones repo, runs scanners, uploads results.
-- `external_upload` — CI pipeline pushes pre-generated results via API.
+- `external` — CI pipeline pushes pre-generated results via API.
 
 #### `scan_results`
 
@@ -423,6 +451,23 @@
 
 **Purpose:** Bridge between external CI uploads and internal Scan model. Tracks who uploaded, how, and which token was used.
 
+#### `commit_statuses`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| scan_id | uuid | NOT NULL | FK → scans.id | |
+| repository_id | uuid | NOT NULL | FK → repositories.id | |
+| commit_sha | varchar(40) | NOT NULL | | Git commit SHA |
+| status | varchar(20) | NOT NULL | | `'pending'` / `'success'` / `'failure'` / `'error'` |
+| context | varchar(100) | NOT NULL | | e.g. `'sast-integration/gate'` |
+| description | text | nullable | | Status description |
+| target_url | text | nullable | | Link to details |
+| provider | varchar(20) | NOT NULL | | `'gitea'` / `'github'` |
+| external_id | varchar(100) | nullable | | ID from provider API |
+| created_at | timestamp | NOT NULL | now() | |
+| updated_at | timestamp | NOT NULL | now() | |
+
 #### `quality_gates`
 
 | Column | Type | Nullable | Default | Notes |
@@ -448,6 +493,8 @@
 | status | varchar(20) | NOT NULL | | `'pass'` / `'fail'` / `'warn'` |
 | blocking_findings | integer | | 0 | |
 | pending_findings | integer | | 0 | |
+| new_findings | integer | | 0 | PR context: findings new in this PR |
+| fixed_findings | integer | | 0 | PR context: findings fixed in this PR |
 | evaluated_at | timestamp | NOT NULL | now() | |
 
 #### `schedules`
@@ -457,7 +504,6 @@
 | id | uuid | PK | gen_random_uuid() | |
 | workspace_id | uuid | NOT NULL | FK → workspaces.id | |
 | repository_id | uuid | nullable | | |
-| profile_id | uuid | nullable | FK → scan_profiles.id | |
 | branch | varchar(100) | nullable | | |
 | timezone | varchar(50) | | 'UTC' | |
 | cron_expression | varchar(100) | NOT NULL | | Standard cron syntax |
@@ -478,11 +524,14 @@
 | Column | Type | Nullable | Default | Notes |
 |--------|------|----------|---------|-------|
 | id | uuid | PK | gen_random_uuid() | |
-| project_id | uuid | NOT NULL | FK → projects.id | |
-| fingerprint | varchar(64) | NOT NULL, UNIQUE | | SHA-256 hash of (rule + file + line + message) |
+| project_id | uuid | nullable | FK → projects.id | |
+| repository_id | uuid | nullable | FK → repositories.id | |
+| fingerprint | varchar(64) | NOT NULL | | SHA-256 hash of (rule + file + line + message) |
 | title | varchar(500) | nullable | | Human-readable title |
 | first_seen_at | timestamp | NOT NULL | now() | |
 | last_seen_at | timestamp | NOT NULL | now() | Updated on each access |
+
+**Constraints:** UNIQUE(repository_id, fingerprint) via uniqueIndex
 
 **Purpose:** Deduplication. Same logical vulnerability across scans/branches shares one group.
 
@@ -493,10 +542,10 @@
 | id | uuid | PK | gen_random_uuid() | |
 | scan_id | uuid | NOT NULL | FK → scans.id | |
 | group_id | uuid | nullable | FK → finding_groups.id | |
-| environment_id | uuid | nullable | FK → environments.id | |
 | cwe_id | varchar(20) | nullable | | e.g. `"CWE-89"` |
 | severity | varchar(20) | NOT NULL | | `'critical'` / `'high'` / `'medium'` / `'low'` / `'info'` |
 | status | varchar(20) | NOT NULL | 'open' | `'open'` / `'fixed'` / `'false_positive'` / `'ignored'` |
+| active | boolean | NOT NULL | true | Whether finding is currently active |
 | file_path | varchar(500) | nullable | | Relative path from repo root |
 | line_number | integer | nullable | | |
 | code_snippet | text | nullable | | Source code context |
@@ -595,6 +644,20 @@
 | deleted_at | timestamp | nullable | | Soft delete |
 | deleted_by | uuid | nullable | FK → users.id | |
 
+#### `webhook_deliveries`
+
+| Column | Type | Nullable | Default | Notes |
+|--------|------|----------|---------|-------|
+| id | uuid | PK | gen_random_uuid() | |
+| webhook_id | uuid | NOT NULL | FK → webhooks.id (CASCADE) | |
+| event | varchar(100) | NOT NULL | | Event type delivered |
+| status | varchar(20) | NOT NULL | | Delivery status |
+| response_status | integer | nullable | | HTTP response code |
+| request_body | jsonb | nullable | | Outgoing payload |
+| response_body | text | nullable | | Response from target |
+| duration_ms | integer | nullable | | Delivery duration |
+| created_at | timestamp | NOT NULL | now() | |
+
 #### `audit_logs`
 
 | Column | Type | Nullable | Default | Notes |
@@ -626,7 +689,7 @@
 | Column | Type | Nullable | Default | Notes |
 |--------|------|----------|---------|-------|
 | id | uuid | PK | gen_random_uuid() | |
-| workspace_id | uuid | NOT NULL | FK → workspaces.id | |
+| workspace_id | uuid | nullable | FK → workspaces.id | null = global knowledge |
 | name | varchar(100) | NOT NULL | | |
 | type | varchar(50) | NOT NULL | | Source type (e.g. `"nvd"`, `"manual"`) |
 | url | varchar(500) | nullable | | Source URL |
@@ -689,6 +752,7 @@
 | workspace_id | uuid | NOT NULL | FK → workspaces.id | |
 | type | varchar(50) | NOT NULL | | Report type |
 | title | varchar(255) | NOT NULL | | |
+| status | varchar(20) | NOT NULL | 'generated' | Report generation status |
 | filters | jsonb | nullable | | Applied filter criteria |
 | file_path | varchar(500) | nullable | | Generated file location |
 | file_size | integer | nullable | | Bytes |
@@ -778,16 +842,18 @@ workspaces ──< teams ──< team_members >── users
 workspaces ──< projects ──< project_members >── users
 projects ──< environments
 projects ──< repositories ──< scans ──< scan_results
+source_controls ──< source_control_repositories
+source_controls ──< source_control_imports
 workspaces ──< schedules ──< repositories
+scans ──< commit_statuses >── repositories
 projects ──< finding_groups ──< findings
 scans ──< findings
 findings ──< ai_verifications >── ai_models
 findings ──< comments
 findings ──< finding_history
-workspaces ──< scan_profiles ──< scans
 workspaces ──< quality_gates ──< quality_gate_results >── scans
 workspaces ──< ai_models
-workspaces ──< webhooks
+workspaces ──< webhooks ──< webhook_deliveries
 workspaces ──< knowledge_sources ──< knowledge_entries
 workspaces ──< reports
 workspaces ──< storage_files
@@ -808,7 +874,7 @@ workspaces ──< storage_files
 | Foreign keys | `{table}_id` | `workspace_id`, `user_id` |
 | Timestamps | `created_at` / `updated_at` | Standard |
 | Soft deletes | `deleted_at` / `deleted_by` | Domain entities |
-| Drizzle exports | `camelCase` | `scanProfiles`, `workspaceMembers` |
+| Drizzle exports | `camelCase` | `workspaceMembers`, `projectApiTokens` |
 
 ---
 

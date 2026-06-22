@@ -1,1 +1,1 @@
-export { GateResultsTable } from './GateResultsTable';
+export { GateConfigTable, GateConfigTable as GateResultsTable } from './GateResultsTable';

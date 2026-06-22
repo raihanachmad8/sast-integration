@@ -2,21 +2,24 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { Button, App, Flex, Typography, theme } from 'antd';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/components/shared/DataTable';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { EditScheduleModal, AddScheduleModal } from '@/features/schedules/ScheduleModals';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useSchedulesQuery, useCreateScheduleMutation, useUpdateScheduleMutation, useDeleteScheduleMutation, useToggleScheduleMutation } from '@/modules/schedules';
 import type { CreateScheduleInput, UpdateScheduleInput } from '@/commons/schemas/schedule.schema';
-import { PermissionGate } from '@/components/shared/PermissionGate';
+import { PermissionGate } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorBanner } from '@/components/shared/ErrorBanner';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorBanner } from '@/commons/components/ErrorBanner';
 import { errorMessage } from '@/lib/api/errors';
-import { useConfirm } from '@/components/shared/ConfirmDialog';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
 import type { ScheduleRow } from '@/commons/types/schedules';
-import { StatusPill } from '@/components/shared/StatusPill';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { FeatureGate } from '@/commons/components/FeatureGate';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 
 function buildColumns(token: ReturnType<typeof theme.useToken>['token']): DataTableColumn<ScheduleRow>[] {
   const RUN_ICON: Record<string, { icon: string; color: string }> = {
@@ -76,11 +79,34 @@ function buildColumns(token: ReturnType<typeof theme.useToken>['token']): DataTa
 }
 
 export default function SchedulesPage() {
+  const { token } = theme.useToken();
+
+  return (
+    <FeatureGate
+      flag={FEATURE_FLAG.SCHEDULES}
+      fallback={
+        <Flex vertical gap={token.paddingXL}>
+          <PageHeader title="Schedules" description="Manage recurring scan schedules for repositories." />
+          <ComingSoonCard
+            icon="fa-calendar-days"
+            title="Schedules"
+            description="Scheduled scans allow you to automate recurring security scans."
+            envHint="FEATURE_FLAG_SCHEDULES"
+          />
+        </Flex>
+      }
+    >
+      <SchedulesPageContent />
+    </FeatureGate>
+  );
+}
+
+function SchedulesPageContent() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const { confirm } = useConfirm();
 
-  const { params, setPage, setPageSize, setSearch } = useTableParams({
+  const { params, setPagination, setSearch } = useTableParams({
     defaultPageSize: 10,
   });
 
@@ -148,7 +174,7 @@ export default function SchedulesPage() {
         searchPlaceholder="Search schedules"
         searchValue={params.search}
         onSearchChange={setSearch}
-        onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+        onChange={(p, ps) => setPagination(p, ps)}
       />
       <EditScheduleModal open={editOpen} schedule={selectedSchedule ? { id: selectedSchedule.id, repo: selectedSchedule.repositoryName, branch: selectedSchedule.branch, frequency: selectedSchedule.cronExpression, cron: selectedSchedule.cronExpression, timezone: selectedSchedule.timezone, policy: '', nextRun: selectedSchedule.nextRunAt ?? '', lastRuns: [], status: selectedSchedule.active ? 'active' : 'paused' } : null} onClose={() => setEditOpen(false)} onSave={handleSaveEdit} />
       <AddScheduleModal open={addOpen} onClose={() => setAddOpen(false)} onSave={handleCreate} />

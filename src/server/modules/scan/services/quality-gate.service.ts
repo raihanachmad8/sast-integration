@@ -1,7 +1,15 @@
 import { logger } from '@/server/lib/logger';
 import { qualityGateRepository } from '../repositories/quality-gate.repository';
 import { findingRepository } from '../repositories/finding.repository';
+import { scanRepository } from '../repositories/scan.repository';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { createScmApiService, parseRepoName, buildPrComment } from '@/server/modules/source-control/scm-api.service';
+import type { ChangedFile } from '@/server/modules/source-control/scm-api.service';
+import { repositories } from '@drizzle/schema/source-controls';
+import { sourceControls } from '@drizzle/schema/source-controls';
+import { workspaces } from '@drizzle/schema/workspaces';
+import { db } from '@/server/db/client';
+import { eq } from 'drizzle-orm';
 import { AppError } from '@/server/http/errors';
 import { SCAN } from '../constants';
 
@@ -24,6 +32,11 @@ export const qualityGateService = {
           threshold: 'high',
           failOnCritical: true,
           failOnHighTp: true,
+          failOnHigh: true,
+          failOnMedium: false,
+          failOnLow: false,
+          failOnPending: true,
+          failOnTp: false,
           warnOnPending: true,
           requireHumanAck: false,
           pendingBehavior: 'warn',
@@ -50,6 +63,11 @@ export const qualityGateService = {
     threshold?: string;
     failOnCritical?: boolean;
     failOnHighTp?: boolean;
+    failOnHigh?: boolean;
+    failOnMedium?: boolean;
+    failOnLow?: boolean;
+    failOnPending?: boolean;
+    failOnTp?: boolean;
     warnOnPending?: boolean;
     requireHumanAck?: boolean;
     pendingBehavior?: string;
@@ -88,36 +106,50 @@ export const qualityGateService = {
     try {
       const gate = await this.getConfig(workspaceId);
 
-      const findings = await findingRepository.listByProject(projectId, {
+      const findings = await findingRepository.listByScan(scanId, {
         page: 1,
         perPage: 1000,
       });
 
       const blockingFindings = countBlockingFindings(findings.data, gate);
-      const pendingFindings = countPendingFindings(findings.data);
+      const openFindings = findings.data.filter((f) => (f.groupStatus ?? 'open') === 'open');
+      const tpFindings = findings.data.filter((f) => f.verdict === 'TP');
 
       let status: 'passed' | 'failed' | 'warning' = 'passed';
 
       if (gate.failOnCritical && blockingFindings.critical > 0) {
         status = 'failed';
-      } else if (gate.failOnHighTp && blockingFindings.high > 0) {
+      }
+      if (gate.failOnHigh && blockingFindings.high > 0) {
+        status = 'failed';
+      }
+      if (gate.failOnMedium && blockingFindings.medium > 0) {
+        status = 'failed';
+      }
+      if (gate.failOnLow && blockingFindings.low > 0) {
         status = 'failed';
       }
 
-      if (gate.warnOnPending && pendingFindings > 0) {
-        if (status === 'passed') {
-          status = gate.pendingBehavior === 'fail' ? 'failed' : 'warning';
-        }
+      if (gate.failOnPending && openFindings.length > 0 && status === 'passed') {
+        status = 'failed';
       }
 
-      const totalBlocking = blockingFindings.critical + blockingFindings.high;
+      if (gate.failOnTp && tpFindings.length > 0 && status === 'passed') {
+        status = 'failed';
+      }
+
+      if (status === 'passed' && gate.warnOnPending && openFindings.length > 0) {
+        status = 'warning';
+      }
+
+      const totalBlocking = blockingFindings.critical + blockingFindings.high + blockingFindings.medium + blockingFindings.low;
 
       const result = await qualityGateRepository.createResult({
         scanId,
         gateId: gate.id,
         status,
         blockingFindings: totalBlocking,
-        pendingFindings,
+        pendingFindings: openFindings.length,
       });
 
       const evaluation = {
@@ -126,17 +158,23 @@ export const qualityGateService = {
           threshold: gate.threshold,
           failOnCritical: gate.failOnCritical,
           failOnHighTp: gate.failOnHighTp,
+          failOnHigh: gate.failOnHigh,
+          failOnMedium: gate.failOnMedium,
+          failOnLow: gate.failOnLow,
+          failOnPending: gate.failOnPending,
+          failOnTp: gate.failOnTp,
           warnOnPending: gate.warnOnPending,
         },
         findings: {
-          total: findings.data.length,
+          total: findings.total,
           blocking: totalBlocking,
-          pending: pendingFindings,
+          pending: openFindings.length,
         },
+        newFindingsData: [],
         result,
       };
 
-      logger.scan.info('evaluateScan completed', { scanId, workspaceId, status });
+      logger.scan.info('evaluateScan completed', { scanId, workspaceId, status, totalFindings: findings.total });
       return evaluation;
     } catch (error) {
       logger.scan.error('evaluateScan failed', { error, scanId, workspaceId });
@@ -145,8 +183,8 @@ export const qualityGateService = {
   },
 
   /**
-   * Evaluate a PR scan against quality gate — only counts NEW findings (not on base branch).
-   * This is the SonarQube-like PR analysis flow.
+   * Evaluate a PR scan against quality gate — uses git diff to determine new findings.
+   * A finding is "new" if it's on a file and line that was changed in the PR.
    *
    * @param scanId - Scan UUID to evaluate (head branch)
    * @param workspaceId - Workspace UUID for gate config lookup
@@ -167,51 +205,111 @@ export const qualityGateService = {
     try {
       const gate = await this.getConfig(workspaceId);
 
-      // Get new findings (on head but not on base)
-      const newFindings = await findingRepository.diffNewFindings(
-        repositoryId,
-        headBranch,
-        baseBranch,
-        {},
-        { page: 1, perPage: 1000 },
-      );
+      // Look up scan record for PR number
+      const scan = await scanRepository.getById(scanId);
 
-      // Get fixed findings (on base but not on head)
-      const fixedFindings = await findingRepository.diffFixedFindings(
-        repositoryId,
-        headBranch,
-        baseBranch,
-        {},
-        { page: 1, perPage: 1000 },
-      );
+      // Get SCM credentials for git diff
+      let changedFiles: ChangedFile[] = [];
+      if (scan?.prNumber && scan?.repositoryId) {
+        try {
+          const [repo] = await db.select().from(repositories).where(eq(repositories.id, scan.repositoryId)).limit(1);
+          const [sc] = await db.select().from(sourceControls).where(eq(sourceControls.workspaceId, workspaceId)).limit(1);
+
+          if (repo && sc?.credentials) {
+            const creds = sc.credentials as { baseUrl?: string; token?: string };
+            if (creds.baseUrl && creds.token) {
+              const scm = createScmApiService(sc.provider || 'gitea', {
+                baseUrl: creds.baseUrl, token: creds.token,
+                sourceControlId: sc.id,
+              });
+              const [owner, repoName] = parseRepoName(repo.name);
+              changedFiles = await scm.getPrChangedFiles(owner, repoName, scan.prNumber);
+            }
+          }
+        } catch (err) {
+          logger.scan.warn('evaluatePrScan: failed to get git diff, falling back to empty', { error: (err as Error).message });
+        }
+      }
+
+      logger.scan.info('evaluatePrScan: changedFiles from SCM', {
+        scanId,
+        changedFilesCount: changedFiles.length,
+        samplePaths: changedFiles.slice(0, 5).map(f => ({ path: f.filePath, lines: f.changedLines.length })),
+      });
+
+      // Get new findings using code diff (findings on changed lines)
+      const newFindings = await findingRepository.diffNewFindingsByCodeDiff(scanId, changedFiles);
+
+      logger.scan.info('evaluatePrScan: code diff result', {
+        scanId,
+        newFindingsCount: newFindings.total,
+        changedFilesCount: changedFiles.length,
+      });
+
+      // Update finding_group_scans.isNew based on code diff
+      await findingRepository.updateIsNewByCodeDiff(scanId, changedFiles);
+
+      // Get fixed findings: compare against previous scan on same branch (if exists)
+      let fixedFindingsTotal = 0;
+      let fixedFingerprints: string[] = [];
+      try {
+        const previousScanId = await findingRepository.getPreviousScanId(repositoryId, headBranch, scanId);
+        if (previousScanId) {
+          fixedFingerprints = await findingRepository.diffFixedFindingsByBranch(
+            repositoryId, headBranch, scanId, previousScanId,
+          );
+          fixedFindingsTotal = fixedFingerprints.length;
+        }
+      } catch (err) {
+        logger.scan.warn('evaluatePrScan: failed to get fixed findings', { error: (err as Error).message });
+      }
 
       const blockingFindings = countBlockingFindings(newFindings.data, gate);
-      const pendingFindings = countPendingFindings(newFindings.data);
+      const openFindings = newFindings.data.filter((f) => (f.groupStatus ?? 'open') === 'open');
+      const tpFindings = newFindings.data.filter((f) => f.aiVerdict === 'true_positive');
 
       let status: 'passed' | 'failed' | 'warning' = 'passed';
 
       if (gate.failOnCritical && blockingFindings.critical > 0) {
         status = 'failed';
-      } else if (gate.failOnHighTp && blockingFindings.high > 0) {
+      }
+      if (gate.failOnHigh && blockingFindings.high > 0) {
+        status = 'failed';
+      }
+      if (gate.failOnMedium && blockingFindings.medium > 0) {
+        status = 'failed';
+      }
+      if (gate.failOnLow && blockingFindings.low > 0) {
         status = 'failed';
       }
 
-      if (gate.warnOnPending && pendingFindings > 0) {
-        if (status === 'passed') {
-          status = gate.pendingBehavior === 'fail' ? 'failed' : 'warning';
-        }
+      if (gate.failOnPending && openFindings.length > 0 && status === 'passed') {
+        status = 'failed';
       }
 
-      const totalBlocking = blockingFindings.critical + blockingFindings.high;
+      if (gate.failOnTp && tpFindings.length > 0 && status === 'passed') {
+        status = 'failed';
+      }
+
+      if (status === 'passed' && gate.warnOnPending && openFindings.length > 0) {
+        status = 'warning';
+      }
+
+      const totalBlocking = blockingFindings.critical + blockingFindings.high + blockingFindings.medium + blockingFindings.low;
+
+      // Compute persistent (pre-existing) findings: total on head - new
+      const totalHeadGroups = await findingRepository.countGroupsByBranch(repositoryId, headBranch);
+      const persistentFindings = Math.max(0, totalHeadGroups - newFindings.total);
 
       const result = await qualityGateRepository.createResult({
         scanId,
         gateId: gate.id,
         status,
         blockingFindings: totalBlocking,
-        pendingFindings,
+        pendingFindings: openFindings.length,
         newFindings: newFindings.total,
-        fixedFindings: fixedFindings.total,
+        fixedFindings: fixedFindingsTotal,
+        persistentFindings,
       });
 
       const evaluation = {
@@ -220,23 +318,32 @@ export const qualityGateService = {
           threshold: gate.threshold,
           failOnCritical: gate.failOnCritical,
           failOnHighTp: gate.failOnHighTp,
+          failOnHigh: gate.failOnHigh,
+          failOnMedium: gate.failOnMedium,
+          failOnLow: gate.failOnLow,
+          failOnPending: gate.failOnPending,
+          failOnTp: gate.failOnTp,
           warnOnPending: gate.warnOnPending,
         },
         findings: {
-          total: newFindings.data.length,
+          total: newFindings.total,
           blocking: totalBlocking,
-          pending: pendingFindings,
+          pending: openFindings.length,
         },
         pr: {
           newFindings: newFindings.total,
-          fixedFindings: fixedFindings.total,
+          fixedFindings: fixedFindingsTotal,
           headBranch,
           baseBranch,
         },
+        newFindingsData: newFindings.data,
+        fixedFindingsData: [],
+        fixedFingerprints,
+        changedFiles,
         result,
       };
 
-      logger.scan.info('evaluatePrScan completed', { scanId, workspaceId, status, newFindings: newFindings.total, fixedFindings: fixedFindings.total });
+      logger.scan.info('evaluatePrScan completed', { scanId, workspaceId, status, newFindings: newFindings.total, fixedFindings: fixedFindingsTotal, changedFiles: changedFiles.length });
 
       return evaluation;
     } catch (error) {
@@ -263,6 +370,79 @@ export const qualityGateService = {
       throw error;
     }
   },
+
+  /**
+   * Re-post the PR summary comment after QG re-evaluation.
+   * Called when verdict changes or AI review completes to keep the PR comment up to date.
+   */
+  async repostPrComment(scanId: string, workspaceId: string) {
+    try {
+      const scan = await scanRepository.getById(scanId);
+      if (!scan?.prNumber || !scan?.headBranch || !scan?.baseBranch || !scan?.repositoryId) return;
+
+      const [repo] = await db.select().from(repositories).where(eq(repositories.id, scan.repositoryId)).limit(1);
+      if (!repo) return;
+
+      const [sc] = await db.select().from(sourceControls).where(eq(sourceControls.workspaceId, workspaceId)).limit(1);
+      if (!sc?.credentials) return;
+
+      const creds = sc.credentials as { baseUrl?: string; token?: string; clientId?: string; clientSecret?: string; refreshToken?: string };
+      if (!creds.baseUrl || !creds.token) return;
+
+      const scm = createScmApiService(sc.provider || 'gitea', {
+        baseUrl: creds.baseUrl, token: creds.token,
+        clientId: creds.clientId, clientSecret: creds.clientSecret, refreshToken: creds.refreshToken,
+        sourceControlId: sc.id,
+      });
+      const [owner, repoName] = parseRepoName(repo.name);
+
+      const [ws] = await db.select({ slug: workspaces.slug }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+      const workspaceSlug = ws?.slug ?? 'workspace';
+
+      const gateResult = await this.evaluatePrScan(scanId, workspaceId, scan.repositoryId, scan.headBranch, scan.baseBranch);
+
+      // Reuse newFindingsData from evaluatePrScan (already computed via code diff)
+      const diffData = (gateResult as { newFindingsData?: unknown[] }).newFindingsData ?? [];
+
+      logger.scan.info('repostPrComment: diffData from evaluatePrScan', {
+        scanId,
+        diffDataLength: Array.isArray(diffData) ? diffData.length : 'N/A',
+        gateStatus: gateResult.status,
+      });
+
+      const newFindings = diffData.map((f) => {
+        const rec = f as Record<string, unknown>;
+        return {
+          severity: (rec.severity as string) ?? 'medium',
+          filePath: rec.filePath as string,
+          lineNumber: rec.lineNumber as number,
+          rule: rec.rule as string,
+          message: rec.message as string,
+          scanner: rec.scanner as string,
+          codeSnippet: rec.codeSnippet as string ?? null,
+          aiVerdict: rec.aiVerdict as string ?? null,
+          confidence: String(rec.confidence ?? ''),
+          findingId: (rec.id ?? rec.findingId) as string,
+          fingerprint: rec.fingerprint as string,
+        };
+      });
+
+      const gateDb = await qualityGateRepository.getResultByScanId(scanId);
+      const gateStatus = gateDb?.status ?? gateResult.status;
+      const newCount = gateDb?.newFindings ?? gateResult.pr?.newFindings ?? newFindings.length;
+      const fixedCount = gateDb?.fixedFindings ?? gateResult.pr?.fixedFindings ?? 0;
+      const blockingCount = gateDb?.blockingFindings ?? gateResult.findings.blocking;
+      const persistentCount = gateDb?.persistentFindings ?? 0;
+
+      const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const commentBody = buildPrComment(scanId, gateStatus, newCount, fixedCount, blockingCount, newFindings, appBaseUrl, persistentCount, workspaceSlug);
+
+      await scm.postOrUpdatePrComment(owner, repoName, scan.prNumber, scanId, commentBody);
+      logger.scan.info('repostPrComment: PR comment updated', { scanId, prNumber: scan.prNumber, status: gateStatus });
+    } catch (err) {
+      logger.scan.warn('repostPrComment failed (non-critical)', { scanId, error: (err as Error).message });
+    }
+  },
 };
 
 /**
@@ -274,33 +454,15 @@ export const qualityGateService = {
  */
 function countBlockingFindings(
   findings: Array<{ severity: string }>,
-  gate: { threshold: string },
+  _gate: { threshold: string },
 ) {
-  const thresholdMap: Record<string, string[]> = {
-    critical: ['critical'],
-    high: ['critical', 'high'],
-    medium: ['critical', 'high', 'medium'],
-    low: ['critical', 'high', 'medium', 'low'],
-  };
-
-  const blockingSeverities = thresholdMap[gate.threshold] || ['critical'];
-
   const counts = { critical: 0, high: 0, medium: 0, low: 0 };
   for (const f of findings) {
-    if (blockingSeverities.includes(f.severity)) {
+    if (f.severity in counts) {
       counts[f.severity as keyof typeof counts]++;
     }
   }
-
   return counts;
 }
 
-/**
- * Count findings that are pending AI verification.
- *
- * @param findings - Array of finding records with status
- * @returns Number of open/pending findings
- */
-function countPendingFindings(findings: Array<{ status: string }>) {
-  return findings.filter((f) => f.status === 'open').length;
-}
+

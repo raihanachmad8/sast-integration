@@ -4,17 +4,18 @@ import { useState } from 'react';
 import { Alert, App, Button, Input, Modal, Typography, Form, Flex, theme } from 'antd';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { DataTable, type DataTableColumn } from '@/components/shared/DataTable';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { DataTable, type DataTableColumn } from '@/commons/components/DataTable';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useApiTokensQuery, useCreateApiTokenMutation, useRevokeApiTokenMutation } from '@/modules/projects/api-token-queries';
 import { createApiTokenSchema, type CreateApiTokenInput } from '@/commons/schemas';
 import type { ApiToken } from '@/modules/projects/api-tokens';
+import { errorMessage } from '@/lib/api/errors';
 import { formatDate } from '@/lib/utils/formatDate';
-import { useConfirm } from '@/components/shared/ConfirmDialog';
-import { StatusPill } from '@/components/shared/StatusPill';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { StatusPill } from '@/commons/components/StatusPill';
 
 interface ProjectApiTokensProps {
   projectId: string;
@@ -40,9 +41,9 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
     defaultValues: { name: '' },
   });
 
-  const tokens = (tokensQuery.data?.tokens ?? []).filter((t) => !t.revokedAt);
+  const tokens = tokensQuery.data?.data ?? [];
 
-  const { params, setPage, setPageSize, setSearch, paginated: pagedTokens, filtered: filteredTokens } = useTableParams({
+  const { params, setPagination, setSearch, filtered, paginated } = useTableParams({
     data: tokens,
     searchField: 'name',
     defaultPageSize: 10,
@@ -57,7 +58,7 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
           reset();
           setCreateModalOpen(false);
         },
-        onError: () => {},
+        onError: (err) => message.error(errorMessage(err)),
       },
     );
   };
@@ -71,7 +72,7 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
       cancelText: 'Cancel',
       onOk: () => revokeMutation.mutate(t.id, {
         onSuccess: () => message.success(`Token "${t.name}" revoked`),
-        onError: () => {},
+        onError: (err) => message.error(errorMessage(err)),
       }),
     });
   };
@@ -88,6 +89,8 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
     {
       key: 'name',
       header: 'Name',
+      sortable: true,
+      sortValue: (t) => t.name,
       render: (t) => (
         <div>
           <Typography.Text strong>{t.name}</Typography.Text>
@@ -145,7 +148,7 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
         </div>
       ) : (
         <DataTable
-          source={{ data: pagedTokens ?? [], meta: { page: params.page, pageSize: params.perPage, total: filteredTokens?.length ?? 0 } }}
+          source={{ data: paginated ?? [], meta: { page: params.page, pageSize: params.perPage, total: filtered?.length ?? 0 } }}
           columns={columns}
           rowKey={(t) => t.id}
           actions={actions}
@@ -155,7 +158,7 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
           searchPlaceholder="Search tokens..."
           searchValue={params.search}
           onSearchChange={setSearch}
-          onChange={(p, ps) => { setPage(p); setPageSize(ps); }}
+          onChange={(p, ps) => setPagination(p, ps)}
           emptyText="No API tokens"
         />
       )}

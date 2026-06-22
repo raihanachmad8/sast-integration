@@ -8,6 +8,11 @@ export interface UpsertQualityGateConfigInput {
   threshold: string;
   failOnCritical: boolean;
   failOnHighTp: boolean;
+  failOnHigh: boolean;
+  failOnMedium: boolean;
+  failOnLow: boolean;
+  failOnPending: boolean;
+  failOnTp: boolean;
   warnOnPending: boolean;
   requireHumanAck: boolean;
   pendingBehavior: string;
@@ -36,6 +41,11 @@ export const qualityGatesRepository = {
           threshold: data.threshold,
           failOnCritical: data.failOnCritical,
           failOnHighTp: data.failOnHighTp,
+          failOnHigh: data.failOnHigh,
+          failOnMedium: data.failOnMedium,
+          failOnLow: data.failOnLow,
+          failOnPending: data.failOnPending,
+          failOnTp: data.failOnTp,
           warnOnPending: data.warnOnPending,
           requireHumanAck: data.requireHumanAck,
           pendingBehavior: data.pendingBehavior,
@@ -54,6 +64,11 @@ export const qualityGatesRepository = {
         threshold: data.threshold,
         failOnCritical: data.failOnCritical,
         failOnHighTp: data.failOnHighTp,
+        failOnHigh: data.failOnHigh,
+        failOnMedium: data.failOnMedium,
+        failOnLow: data.failOnLow,
+        failOnPending: data.failOnPending,
+        failOnTp: data.failOnTp,
         warnOnPending: data.warnOnPending,
         requireHumanAck: data.requireHumanAck,
         pendingBehavior: data.pendingBehavior,

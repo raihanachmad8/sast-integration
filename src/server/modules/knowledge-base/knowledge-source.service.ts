@@ -1,4 +1,4 @@
-import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
 import { knowledgeBaseRepository } from './knowledge-base.repository';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
@@ -38,10 +38,7 @@ export const knowledgeSourceService = {
    */
   async createSource(workspaceId: string, input: unknown, userId: string) {
     logger.knowledge.info('createSource', { workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
     const data = createKnowledgeSourceSchema.parse(input);
     const source = await knowledgeBaseRepository.insertSource({
       workspaceId: workspaceId,
@@ -60,10 +57,7 @@ export const knowledgeSourceService = {
    */
   async updateSource(sourceId: string, workspaceId: string, input: unknown, userId: string) {
     logger.knowledge.info('updateSource', { sourceId, workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
     await this.getSourceById(sourceId, workspaceId);
     const data = updateKnowledgeSourceSchema.parse(input);
     const source = await knowledgeBaseRepository.updateSource(sourceId, data);
@@ -78,10 +72,7 @@ export const knowledgeSourceService = {
    */
   async deleteSource(sourceId: string, workspaceId: string, userId: string) {
     logger.knowledge.info('deleteSource', { sourceId, workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
     await this.getSourceById(sourceId, workspaceId);
     await knowledgeBaseRepository.deleteSourceWithEntries(sourceId);
     logger.knowledge.info('deleteSource completed', { sourceId });

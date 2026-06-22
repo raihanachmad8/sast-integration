@@ -70,6 +70,7 @@ import { AppError } from '@/server/http/errors';
 import { getStorageDriver } from '@/server/modules/storage/storage.service';
 import { enqueue } from '@/server/modules/queue/queue.service';
 import { repositoriesRepository } from '@/server/modules/repositories/repositories.repository';
+import { normalizeRepoName } from '@/app/api/v1/ci/normalize-repo';
 
 export interface UploadScanResultInput {
   projectId: string;
@@ -122,9 +123,11 @@ export const scanUploadService = {
 
     // Auto-register repository if it doesn't exist
     const projectId = input.projectId;
-    let repositoryId = input.projectId;
+    let repositoryId: string;
     const existingRepo = await repositoriesRepository.getById(input.projectId, input.workspaceId);
-    if (!existingRepo && input.repositoryUrl) {
+    if (existingRepo) {
+      repositoryId = existingRepo.id;
+    } else if (input.repositoryUrl) {
       // Try to find by URL first (dedup)
       const byUrl = await repositoriesRepository.findByUrl(input.repositoryUrl, input.workspaceId);
       if (byUrl) {
@@ -132,14 +135,15 @@ export const scanUploadService = {
         logger.scan.info('uploadScanResults: matched existing repository by URL', { repositoryId, url: input.repositoryUrl });
       } else {
         // Auto-create external repository
-        const name = input.repositoryName || input.repositoryUrl.split('/').pop()?.replace('.git', '') || 'external-repo';
+        const rawName = input.repositoryName || input.repositoryUrl.split('/').pop()?.replace('.git', '') || 'external-repo';
+        const name = input.repositoryUrl ? normalizeRepoName(rawName, input.repositoryUrl) : rawName;
         const newRepo = await repositoriesRepository.create({
           workspaceId: input.workspaceId,
           projectId: input.projectId,
           name,
           url: input.repositoryUrl,
           defaultBranch: input.branch || 'main',
-          connectionType: 'external',
+          connectionType: ['external'],
           createdBy: input.uploadedBy,
         });
         repositoryId = newRepo.id;
@@ -154,7 +158,7 @@ export const scanUploadService = {
     }
 
     const scan = await scanRepository.create({
-      repositoryId: repositoryId,
+      repositoryId: repositoryId!,
       branch: input.branch,
       origin: 'external_upload',
       status: 'processing',
@@ -195,7 +199,7 @@ export const scanUploadService = {
     }
 
     await scanRepository.createScanUpload({
-      repositoryId: repositoryId,
+      repositoryId: repositoryId!,
       projectId: projectId,
       scanId: scan.id,
       branch: input.branch,
@@ -206,7 +210,10 @@ export const scanUploadService = {
       personalAccessTokenId: input.personalAccessTokenId,
     });
 
-    await scanRepository.updateStatus(scan.id, 'completed');
+    // Only mark completed for synchronous parsing; async jobs will complete the scan
+    if (!useAsyncParsing) {
+      await scanRepository.updateStatus(scan.id, 'completed');
+    }
 
     logger.scan.info('uploadScanResults completed', { scanId: scan.id, findingsCount: totalFindings });
     return { scanId: scan.id, findingsCount: totalFindings };

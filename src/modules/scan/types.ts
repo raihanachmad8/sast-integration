@@ -74,7 +74,7 @@ export interface ScanDetailData {
   /** Scan origin type. */
   origin: 'managed' | 'external_upload';
   /** Scan status. */
-  status: 'queued' | 'processing' | 'completed' | 'failed';
+  status: 'queued' | 'running' | 'processing' | 'completed' | 'failed';
   /** ISO 8601 timestamp when scan started. */
   startedAt: string;
   /** ISO 8601 timestamp when scan completed. */
@@ -91,6 +91,10 @@ export interface ScanDetailData {
   }>;
   /** Total findings count. */
   totalFindings: number;
+  /** Findings first seen in this scan. */
+  newFindings: number;
+  /** Findings that existed before this scan. */
+  existingFindings: number;
   /** Breakdown by severity. */
   severityBreakdown: Record<Severity, number>;
   /** AI verification statistics. */

@@ -2,7 +2,7 @@
 
 import { Input, Modal, Select, Form, Card, Flex, Typography, theme } from 'antd';
 import { ROLE } from '@/commons/constants/permissions';
-import { ErrorBanner } from '@/components/shared/ErrorBanner';
+import { ErrorBanner } from '@/commons/components/ErrorBanner';
 import { ASSIGNABLE_ROLES, ROLE_HELP, roleLabel, formatFieldLabel } from '@/lib/utils/roleLabel';
 import { errorMessage, fieldErrors, fieldErrorMessage } from '@/lib/api/errors';
 import { createZodSync } from '@/lib/utils/zod-sync';
@@ -56,6 +56,7 @@ export function InviteMemberModal({ open, onConfirm, onCancel, isLoading, error 
     <Modal
       title="Invite member"
       open={open}
+      destroyOnHidden
       onCancel={handleCancel}
       onOk={() => form.validateFields().then((values) => onConfirm(values))}
       confirmLoading={isLoading}

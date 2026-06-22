@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const projectFormSchema = z.object({
   name: z.string().min(1, 'Project name is required').max(100),
-  slug: z.string().min(1).max(100).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).optional(),
+  slug: z.string().min(1, 'Slug is required').max(100).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens').optional(),
   description: z.string().max(500).optional().default(''),
   lead: z.string().max(100).optional().default(''),
   platform: z.string().max(50).optional(),
@@ -14,8 +14,8 @@ export const projectFormSchema = z.object({
 });
 
 export const projectUpdateSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  slug: z.string().min(1).max(100).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).optional(),
+  name: z.string().min(1, 'Project name is required').max(100).optional(),
+  slug: z.string().min(1, 'Slug is required').max(100).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens').optional(),
   description: z.string().max(500).optional(),
   lead: z.string().max(100).optional(),
   platform: z.string().max(50).optional(),

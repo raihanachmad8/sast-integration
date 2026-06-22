@@ -5,12 +5,14 @@ import { projectRepository } from '@/server/modules/project/repositories/project
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { AppError } from '@/server/http/errors';
+import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
 /**
  * GET /api/v1/workspaces/:workspaceId/repositories
- * List repositories with project and provider info.
+ * List repositories scoped to user's accessible projects.
+ * Repos with null projectId are visible to all workspace members.
  * ?imported=true — only repos imported from source control.
  * ?imported=false — only manually connected repos.
  * No param — all repos.
@@ -25,7 +27,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
     const imported = request.nextUrl.searchParams.get('imported');
     const filterMode = imported === 'true' ? 'imported' : imported === 'false' ? 'manual' : undefined;
-    const rows = await projectRepository.listRepositoriesByWorkspace(workspaceId, filterMode);
+
+    const role = await workspaceRepository.getMemberRole(workspaceId, auth.context.userId);
+    const accessibleProjectIds = await projectRepository.getAccessibleProjectIds(workspaceId, auth.context.userId, role ?? undefined);
+    const rows = await projectRepository.listRepositoriesByWorkspace(workspaceId, filterMode, accessibleProjectIds ?? undefined);
 
     return ApiResponse.paginated('Repositories retrieved', rows, {
       page: 1,

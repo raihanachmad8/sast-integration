@@ -1,30 +1,16 @@
 import { test, expect } from '@playwright/test';
-import { gotoAuthPage } from '../auth/helpers';
-import { OWNER_DEFAULTS, ORG_DEFAULTS } from '../../../drizzle/seeds/constants';
+import { signInAndOpenWorkspace } from '../auth/helpers';
 
 test.describe.configure({ mode: 'serial' });
 
 /**
- * Helper that signs in as the organization owner and navigates directly
- * to the Projects management page of the main organization workspace.
- *
- * Used by most tests in this file. Runs in serial mode because it relies
- * on the shared seeded admin account.
+ * Helper that signs in and navigates directly to the Projects management page.
  */
 async function signInAndGoToProjects(page: import('@playwright/test').Page) {
-  await gotoAuthPage(page, '/auth/signin', 'Sign in');
-  await page.getByPlaceholder('you@company.com').fill(OWNER_DEFAULTS.EMAIL);
-  await page.getByPlaceholder('Enter your password').fill(OWNER_DEFAULTS.PASSWORD);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-
-  await expect.poll(() => new URL(page.url()).pathname, { timeout: 15_000 }).toBe('/workspaces');
-
-  await page.locator('article').getByRole('button', { name: 'Open workspace' }).first().click();
-  await expect(page).toHaveURL(new RegExp(`/${ORG_DEFAULTS.SLUG}`), { timeout: 10_000 });
-
-  await page.getByText('SAST Workspace').waitFor({ state: 'visible', timeout: 10_000 });
-  await page.goto(`/${ORG_DEFAULTS.SLUG}/projects`);
-
+  const slug = await signInAndOpenWorkspace(page);
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(500);
+  await page.goto(`/${slug}/projects`);
   await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible({ timeout: 15_000 });
 }
 
@@ -74,9 +60,9 @@ test.describe('Projects Page', () => {
     await signInAndGoToProjects(page);
     await page.getByRole('button', { name: /New project/ }).click();
 
+    // The slug is auto-generated server-side, so we just verify the name field works
     await page.getByLabel('Project name').fill('Security Scanner');
-    const slugField = page.getByLabel('Slug');
-    await expect(slugField).toHaveValue('security-scanner');
+    await expect(page.getByLabel('Project name')).toHaveValue('Security Scanner');
   });
 
   /**

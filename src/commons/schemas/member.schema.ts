@@ -5,11 +5,11 @@ const assignableRoleValues = [ROLE.MANAGER, ROLE.REVIEWER, ROLE.MEMBER] as [stri
 
 export const inviteMemberSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
-  role: z.enum(assignableRoleValues),
+  role: z.enum(assignableRoleValues, { message: 'Role is required' }),
 });
 
 export const changeRoleSchema = z.object({
-  role: z.enum(assignableRoleValues),
+  role: z.enum(assignableRoleValues, { message: 'Role is required' }),
 });
 
 export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;

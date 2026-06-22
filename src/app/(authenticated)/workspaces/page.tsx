@@ -17,8 +17,8 @@ import { authKeys } from '@/modules/auth/keys';
 import { WORKSPACE } from '@/server/modules/workspace/constants';
 import { clientEnv } from '@/config/client-env';
 import { ROUTES } from '@/commons/constants';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { LoadingState } from '@/components/shared/LoadingState';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
 import { WorkspaceCard, InvitationCard, EmptyWorkspaceState } from '@/features/workspace';
 
 const { Title, Text } = Typography;

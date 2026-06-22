@@ -5,7 +5,7 @@ import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/w
 import { PERMISSION } from '@/commons/constants/permissions';
 import { AppError } from '@/server/http/errors';
 import { projectService } from '@/server/modules/project/services/project.service';
-import { validateBody } from '@/server/http/validate';
+import { validateBody, parsePagination } from '@/server/http/validate';
 import { createApiTokenSchema } from '@/commons/schemas';
 import { logger } from '@/server/lib/logger';
 
@@ -20,9 +20,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!workspace.success) return workspace.response;
 
   try {
-    const tokens = await projectService.listApiTokens(projectId, auth.context.userId);
-    logger.project.info('listApiTokens completed');
-    return ApiResponse.success('API tokens retrieved', { tokens });
+    const { page, perPage } = parsePagination(request.nextUrl.searchParams);
+    const allTokens = await projectService.listApiTokens(projectId, auth.context.userId);
+
+    const total = allTokens.length;
+    const paginated = allTokens.slice((page - 1) * perPage, page * perPage);
+    logger.project.info('listApiTokens completed', { total });
+    return ApiResponse.paginated('API tokens retrieved', paginated, { page, perPage, total, totalPages: Math.ceil(total / perPage) });
   } catch (e) {
     logger.project.error('listApiTokens failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
@@ -46,7 +50,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const result = await projectService.createApiToken(projectId, auth.context.userId, validation.data);
     logger.project.info('createApiToken completed');
-    return ApiResponse.success('API token created', result);
+    return ApiResponse.created('API token created', result);
   } catch (e) {
     logger.project.error('createApiToken failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

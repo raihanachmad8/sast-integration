@@ -223,7 +223,8 @@ export function Api({ baseUrl }: TApi): IApiClient {
         setAccessToken('');
 
         if (typeof window !== 'undefined') {
-          window.location.href = '/auth/signin';
+          const redirect = encodeURIComponent(window.location.pathname + window.location.search);
+          window.location.href = `/auth/signin?redirect=${redirect}`;
         }
 
         return Promise.reject(refreshError);

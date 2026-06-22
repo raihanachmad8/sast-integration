@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Modal, Input, Select, Form, App, theme, Flex, Typography, Tooltip } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
 import { MODAL_WIDTH } from '@/commons/constants/layout';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { PROVIDERS, ROLE_OPTIONS, PROFILE_TYPE_OPTIONS } from './providers';
 import { createAiModelSchema } from '@/commons/schemas/ai-model.schema';
 import { createZodSync } from '@/lib/utils/zod-sync';
@@ -33,10 +33,13 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
   }, [providerConfig, fetchedModels]);
 
   const handleFetchModels = useCallback(async (url?: string) => {
-    const baseUrl = url ?? form.getFieldValue('baseUrl');
+    let baseUrl = url ?? form.getFieldValue('baseUrl');
     if (!baseUrl) {
       message.warning('Enter a Base URL first');
       return;
+    }
+    if (!/^https?:\/\//i.test(baseUrl)) {
+      baseUrl = `http://${baseUrl}`;
     }
     const modelsUrl = baseUrl.endsWith('/v1') ? `${baseUrl}/models` : `${baseUrl}/v1/models`;
     setFetchingModels(true);
@@ -68,16 +71,17 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
     }
   };
 
-  // Auto-fetch when modal opens with openai-compatible provider
-  useEffect(() => {
-    if (open && selectedProvider === 'openai-compatible') {
-      const url = form.getFieldValue('baseUrl');
-      if (url) handleFetchModels(url);
-    }
-  }, [open]);
-
   const handleSave = () => {
     form.validateFields().then((values) => {
+      // Ensure baseUrl is populated from provider default if empty
+      if (!values.baseUrl) {
+        const config = PROVIDERS.find(p => p.value === values.provider);
+        if (config?.defaultBaseUrl) values.baseUrl = config.defaultBaseUrl;
+      }
+      // Ensure baseUrl has a protocol prefix
+      if (values.baseUrl && !/^https?:\/\//i.test(values.baseUrl)) {
+        values.baseUrl = `http://${values.baseUrl}`;
+      }
       onSave(values);
       onClose();
       form.resetFields();
@@ -94,6 +98,7 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
       onCancel={onClose}
       okText="Add"
       width={MODAL_WIDTH.MD}
+      afterOpenChange={(visible) => { if (visible && selectedProvider === 'openai-compatible') { const url = form.getFieldValue('baseUrl'); if (url) handleFetchModels(url); } }}
     >
       <Form form={form} layout="vertical" initialValues={{ name: '', provider: 'openai-compatible', baseUrl: '', role: 'fallback' }}>
         <Flex vertical gap={token.paddingMD} style={{ padding: `${token.paddingSM} 0` }}>

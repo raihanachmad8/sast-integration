@@ -1,5 +1,5 @@
 import { aiModelsRepository } from './ai-models.repository';
-import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
 import { createAiModelSchema, updateAiModelSchema } from '@/commons/schemas';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
@@ -16,10 +16,7 @@ export const aiModelsService = {
    */
   async createModel(workspaceId: string, input: unknown, userId: string) {
     logger.model.info('createModel', { workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
     const data = createAiModelSchema.parse(input);
 
     const result = await aiModelsRepository.create({
@@ -65,10 +62,7 @@ export const aiModelsService = {
    */
   async updateModel(id: string, workspaceId: string, input: unknown, userId: string) {
     logger.model.info('updateModel', { id, workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
     const data = updateAiModelSchema.parse(input);
 
     const updated = await aiModelsRepository.update(id, workspaceId, {
@@ -78,8 +72,8 @@ export const aiModelsService = {
       ...(data.apiKey !== undefined && { apiKeyEncrypted: data.apiKey }),
       ...(data.role !== undefined && { role: data.role }),
       ...(data.priority !== undefined && { priority: data.priority }),
-      ...(data.promptPreset !== undefined && { prompt_preset: data.promptPreset }),
-      ...(data.customSystemPrompt !== undefined && { custom_system_prompt: data.customSystemPrompt }),
+      ...(data.promptPreset !== undefined && { promptPreset: data.promptPreset }),
+      ...(data.customSystemPrompt !== undefined && { customSystemPrompt: data.customSystemPrompt }),
     });
     if (!updated) {
       throw new AppError('AI model not found', 404, 'NOT_FOUND');
@@ -93,10 +87,7 @@ export const aiModelsService = {
    */
   async deleteModel(id: string, workspaceId: string, userId: string) {
     logger.model.info('deleteModel', { id, workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
     const model = await aiModelsRepository.findById(id, workspaceId);
     if (!model) {
       throw new AppError('AI model not found', 404, 'NOT_FOUND');

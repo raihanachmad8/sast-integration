@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 import { signInAndOpenWorkspace } from '../auth/helpers';
 
 test.describe('Scan Page', () => {
+  /**
+   * Purpose: Verify that the scan page loads without crashing and does not show a server error.
+   */
   test('should render scan page', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
@@ -12,6 +15,9 @@ test.describe('Scan Page', () => {
     await expect(page.locator('text=Internal Server Error')).toHaveCount(0);
   });
 
+  /**
+   * Purpose: Verify that the scan page shows either a scan table, an empty state, or a scan button.
+   */
   test('should show scan table or empty state', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
@@ -26,6 +32,9 @@ test.describe('Scan Page', () => {
     expect(hasTable > 0 || hasEmptyState > 0 || hasScanButton > 0).toBe(true);
   });
 
+  /**
+   * Purpose: Verify that a scan trigger button (Scan, New Scan, or Run Scan) is visible on the page.
+   */
   test('should have scan trigger button', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');

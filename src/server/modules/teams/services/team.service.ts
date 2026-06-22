@@ -14,6 +14,11 @@ export const teamService = {
   /**
    * List all teams belonging to a workspace.
    * Any workspace member can view teams.
+   *
+   * @param workspaceId - Workspace UUID to scope the query
+   * @param userId - User UUID requesting the list
+   * @returns Array of teams with member and project summaries
+   * @throws {AppError} 403 - User is not a member of the workspace
    */
   async list(workspaceId: string, userId: string) {
     logger.team.info('list', { workspaceId });
@@ -28,6 +33,13 @@ export const teamService = {
 
   /**
    * Get a single team by ID.
+   *
+   * @param workspaceId - Workspace UUID for scope validation
+   * @param teamId - Team UUID
+   * @param userId - User UUID requesting the team
+   * @returns Team record
+   * @throws {AppError} 403 - User is not a member of the workspace
+   * @throws {AppError} 404 - Team not found or not in this workspace
    */
   async getById(workspaceId: string, teamId: string, userId: string) {
     logger.team.info('getById', { workspaceId, teamId });
@@ -48,6 +60,13 @@ export const teamService = {
   /**
    * Create a new team inside a workspace.
    * Only workspace Owner/Manager can create teams.
+   *
+   * @param workspaceId - Workspace UUID to create the team in
+   * @param input - Team creation data (name, slug, description, memberIds)
+   * @param userId - User UUID of the creator
+   * @returns Created team record
+   * @throws {AppError} 409 - Slug already exists in this workspace
+   * @throws {AppError} 400 - Team members must belong to this workspace
    */
   async create(workspaceId: string, input: CreateTeamInput, userId: string) {
     logger.team.info('create', { workspaceId, name: input.name });

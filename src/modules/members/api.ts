@@ -1,6 +1,7 @@
 import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
 import { Api } from '@/lib/api/client';
+import { extractPaginated } from '@/lib/api/pagination';
 import type { ApiResponse } from '@/commons/types/api';
 import type { ListParams, PaginatedResponse } from '@/commons/types/pagination';
 
@@ -78,17 +79,8 @@ export interface Invitation {
  * ```
  */
 export async function listMembers(workspaceId: string, params?: ListParams): Promise<PaginatedResponse<Member>> {
-  const response = await _api.Get<ApiResponse<Member[]>>(ENDPOINTS.WORKSPACES.MEMBERS(workspaceId), params);
-  const pagination = response.meta?.pagination;
-  return {
-    data: response.data ?? [],
-    meta: {
-      page: pagination?.page ?? 1,
-      perPage: pagination?.perPage ?? 10,
-      total: pagination?.total ?? 0,
-      lastPage: pagination?.totalPages ?? 1,
-    },
-  };
+  const response = await _api.Get<ApiResponse<PaginatedResponse<Member>>>(ENDPOINTS.WORKSPACES.MEMBERS(workspaceId), params);
+  return extractPaginated(response);
 }
 
 /**
@@ -132,17 +124,8 @@ export async function removeMember(workspaceId: string, userId: string): Promise
  * ```
  */
 export async function listInvitations(workspaceId: string, params?: ListParams): Promise<PaginatedResponse<Invitation>> {
-  const response = await _api.Get<ApiResponse<Invitation[]>>(ENDPOINTS.WORKSPACES.INVITATIONS(workspaceId), params);
-  const pagination = response.meta?.pagination;
-  return {
-    data: response.data ?? [],
-    meta: {
-      page: pagination?.page ?? 1,
-      perPage: pagination?.perPage ?? 10,
-      total: pagination?.total ?? 0,
-      lastPage: pagination?.totalPages ?? 1,
-    },
-  };
+  const response = await _api.Get<ApiResponse<PaginatedResponse<Invitation>>>(ENDPOINTS.WORKSPACES.INVITATIONS(workspaceId), params);
+  return extractPaginated(response);
 }
 
 /**

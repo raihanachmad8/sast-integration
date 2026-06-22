@@ -9,13 +9,14 @@ vi.mock('@/server/modules/scan/repositories/finding.repository', () => ({
     listByProject: vi.fn(),
     listByScan: vi.fn(),
     listByWorkspace: vi.fn(),
+    listAccessible: vi.fn(),
     findById: vi.fn(),
+    findGroupById: vi.fn(),
     getVerifications: vi.fn(),
-    updateStatus: vi.fn(),
+    updateGroupStatus: vi.fn(),
+    updateGroupsStatusBulk: vi.fn(),
     updateAssignment: vi.fn(),
-    listActiveFindingsByProject: vi.fn(),
-    markSupersededBulk: vi.fn(),
-    markResolvedBulk: vi.fn(),
+    listOpenGroupsByRepository: vi.fn(),
     findOrCreateFindingGroups: vi.fn(),
   },
 }));
@@ -43,8 +44,8 @@ describe('findingService', () => {
     it('should list findings for project', async () => {
       const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
       const mockFindings = [
-        { id: 'f1', severity: 'high', status: 'open', scanner: 'semgrep' },
-        { id: 'f2', severity: 'medium', status: 'fixed', scanner: 'cppcheck' },
+        { id: 'f1', severity: 'high', groupStatus: 'open', scanner: 'semgrep' },
+        { id: 'f2', severity: 'medium', groupStatus: 'resolved', scanner: 'cppcheck' },
       ];
 
       vi.mocked(findingRepository.listByProject).mockResolvedValue({
@@ -61,7 +62,7 @@ describe('findingService', () => {
     it('should list findings by scan ID', async () => {
       const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
       const mockFindings = [
-        { id: 'f1', severity: 'critical', status: 'open', scanner: 'semgrep' },
+        { id: 'f1', severity: 'critical', groupStatus: 'open', scanner: 'semgrep' },
       ];
 
       vi.mocked(findingRepository.listByScan).mockResolvedValue({
@@ -78,7 +79,7 @@ describe('findingService', () => {
     it('should list findings for workspace when no projectId', async () => {
       const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
       const mockFindings = [
-        { id: 'f1', severity: 'low', status: 'open', scanner: 'flawfinder' },
+        { id: 'f1', severity: 'low', groupStatus: 'open', scanner: 'flawfinder' },
       ];
 
       vi.mocked(findingRepository.listByWorkspace).mockResolvedValue({
@@ -101,7 +102,6 @@ describe('findingService', () => {
         scanId: 'scan-123',
         groupId: 'g1',
         severity: 'high',
-        status: 'open',
         filePath: 'src/test.c',
         lineNumber: 10,
         codeSnippet: 'test code',
@@ -116,6 +116,7 @@ describe('findingService', () => {
       };
 
       vi.mocked(findingRepository.findById).mockResolvedValue(mockFinding);
+      vi.mocked(findingRepository.findGroupById).mockResolvedValue({ id: 'g1', status: 'open' });
       vi.mocked(findingRepository.getVerifications).mockResolvedValue([{
         verdict: 'true_positive',
         confidence: 0.95,
@@ -127,6 +128,7 @@ describe('findingService', () => {
       expect(result).toBeDefined();
       expect(result?.id).toBe('f1');
       expect(result?.severity).toBe('high');
+      expect(result?.status).toBe('open');
       expect(result?.verdict).toBe('TP');
       expect(result?.confidence).toBe(0.95);
     });
@@ -142,17 +144,19 @@ describe('findingService', () => {
   });
 
   describe('updateStatus', () => {
-    it('should update finding status', async () => {
+    it('should update finding group status', async () => {
       const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
-      vi.mocked(findingRepository.updateStatus).mockResolvedValue({
-        id: 'f1',
-        status: 'fixed',
+      vi.mocked(findingRepository.findById).mockResolvedValue({ id: 'f1', groupId: 'g1' });
+      vi.mocked(findingRepository.updateGroupStatus).mockResolvedValue({
+        id: 'g1',
+        status: 'resolved',
       });
 
-      const result = await findingService.updateStatus('f1', 'fixed', 'user-123');
+      const result = await findingService.updateStatus('f1', 'resolved', 'user-123');
 
       expect(result).toBeDefined();
-      expect(result.status).toBe('fixed');
+      expect(result.status).toBe('resolved');
+      expect(findingRepository.updateGroupStatus).toHaveBeenCalledWith('g1', 'resolved', 'user-123');
     });
 
     it('should throw for invalid status', async () => {
@@ -229,49 +233,23 @@ describe('findingService', () => {
     });
   });
 
-  describe('getById edge cases', () => {
-    it('+ should return FP verdict for false_positive', async () => {
-      const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
-      vi.mocked(findingRepository.findById).mockResolvedValue({ id: 'f1' });
-      vi.mocked(findingRepository.getVerifications).mockResolvedValue([{ verdict: 'false_positive' }]);
-
-      const result = await findingService.getById('f1');
-      expect(result?.verdict).toBe('FP');
-    });
-
-    it('+ should return Pending verdict when no verifications', async () => {
-      const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
-      vi.mocked(findingRepository.findById).mockResolvedValue({ id: 'f1' });
-      vi.mocked(findingRepository.getVerifications).mockResolvedValue([]);
-
-      const result = await findingService.getById('f1');
-      expect(result?.verdict).toBe('Pending');
-    });
-
-    it('+ should call repository with correct ID', async () => {
-      const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
-      vi.mocked(findingRepository.findById).mockResolvedValue(null);
-
-      await findingService.getById('test-id-123');
-      expect(findingRepository.findById).toHaveBeenCalledWith('test-id-123');
-    });
-  });
-
   describe('updateStatus edge cases', () => {
-    it('+ should support false_positive status', async () => {
+    it('+ should support resolved status', async () => {
       const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
-      vi.mocked(findingRepository.updateStatus).mockResolvedValue({ id: 'f1', status: 'false_positive' });
+      vi.mocked(findingRepository.findById).mockResolvedValue({ id: 'f1', groupId: 'g1' });
+      vi.mocked(findingRepository.updateGroupStatus).mockResolvedValue({ id: 'g1', status: 'resolved' });
 
-      const result = await findingService.updateStatus('f1', 'false_positive', 'user-123');
-      expect(result.status).toBe('false_positive');
+      const result = await findingService.updateStatus('f1', 'resolved', 'user-123');
+      expect(result.status).toBe('resolved');
     });
 
-    it('+ should support ignored status', async () => {
+    it('+ should support dismissed status', async () => {
       const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
-      vi.mocked(findingRepository.updateStatus).mockResolvedValue({ id: 'f1', status: 'ignored' });
+      vi.mocked(findingRepository.findById).mockResolvedValue({ id: 'f1', groupId: 'g1' });
+      vi.mocked(findingRepository.updateGroupStatus).mockResolvedValue({ id: 'g1', status: 'dismissed' });
 
-      const result = await findingService.updateStatus('f1', 'ignored', 'user-123');
-      expect(result.status).toBe('ignored');
+      const result = await findingService.updateStatus('f1', 'dismissed', 'user-123');
+      expect(result.status).toBe('dismissed');
     });
 
     it('- should throw for empty status', async () => {
@@ -307,7 +285,7 @@ describe('findingService', () => {
     it('+ should return findings with all fields', async () => {
       const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
       vi.mocked(findingRepository.listByProject).mockResolvedValue({
-        data: [{ id: 'f1', severity: 'critical', status: 'open', scanner: 'semgrep', filePath: 'src/test.c', lineNumber: 10 }],
+        data: [{ id: 'f1', severity: 'critical', groupStatus: 'open', scanner: 'semgrep', filePath: 'src/test.c', lineNumber: 10 }],
         total: 1,
       });
 

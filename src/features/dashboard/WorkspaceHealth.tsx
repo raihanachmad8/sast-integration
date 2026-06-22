@@ -1,7 +1,7 @@
 'use client';
 
-import { Card, Typography, Flex, theme } from 'antd';
-import { StatusPill } from '@/components/shared/StatusPill';
+import { Card, Flex, theme } from 'antd';
+import { StatusPill } from '@/commons/components/StatusPill';
 
 interface HealthItem {
   label: string;
@@ -22,7 +22,7 @@ export function WorkspaceHealth({ items }: WorkspaceHealthProps) {
   return (
     <Card
       title="Workspace health"
-      extra={<Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>Last updated 2 min ago</Typography.Text>}
+
     >
       <Flex wrap="wrap" gap={token.marginMD}>
         {items.map((item, i) => (

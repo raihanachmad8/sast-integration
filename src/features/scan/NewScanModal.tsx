@@ -1,9 +1,9 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Modal, Select, Typography, Button, Form, Flex, Tag, theme } from 'antd';
+import { Modal, Select, Typography, Button, Form, Flex, theme } from 'antd';
 import { MODAL_WIDTH } from '@/commons/constants/layout';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { createScanSchema } from '@/commons/schemas/scan.schema';
 import { createZodSync } from '@/lib/utils/zod-sync';
 import { useScannerAvailabilityQuery, useRepositoryBranchesQuery } from '@/modules/scan/queries';
@@ -15,7 +15,7 @@ interface NewScanModalProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (config: ScanConfig) => void;
-  repositories: Array<{ id: string; name: string; branch: string; provider: string | null; connectionType: 'scm' | 'external' }>;
+  repositories: Array<{ id: string; name: string; branch: string; provider: string | null; connectionType: string[] }>;
 }
 
 const SCANNER_DEFS = [

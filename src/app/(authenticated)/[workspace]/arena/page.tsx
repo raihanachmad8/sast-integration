@@ -1,10 +1,11 @@
 'use client';
 
 import { Card, Flex, Typography, theme } from 'antd';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { FeatureGate } from '@/components/shared/FeatureGate';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { FeatureGate } from '@/commons/components/FeatureGate';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 
 /**
  * Arena — experimental AI model comparison page.
@@ -20,13 +21,12 @@ export default function ArenaPage() {
       fallback={
         <Flex vertical gap={token.paddingXL}>
           <PageHeader title="Arena" description="Compare AI model performance on the same findings." />
-          <Card styles={{ body: { padding: token.paddingXL, textAlign: 'center' } }}>
-            <FaIcon icon="fa-flask" style={{ fontSize: token.fontSizeHeading2, color: token.colorTextSecondary, marginBottom: token.paddingLG }} />
-            <Typography.Title level={3} style={{ margin: `0 0 ${token.paddingMD}px` }}>Coming Soon</Typography.Title>
-            <Typography.Paragraph style={{ color: token.colorTextSecondary, fontSize: token.fontSize }}>
-              Arena is an experimental feature for comparing AI model performance. Enable it with <code>FEATURE_FLAG_ARENA=true</code> in your environment.
-            </Typography.Paragraph>
-          </Card>
+          <ComingSoonCard
+            icon="fa-flask"
+            title="Arena"
+            description="Arena is an experimental feature for comparing AI model performance."
+            envHint="FEATURE_FLAG_ARENA"
+          />
         </Flex>
       }
     >

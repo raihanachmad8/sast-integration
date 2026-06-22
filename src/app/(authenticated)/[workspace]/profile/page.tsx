@@ -2,19 +2,19 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { App, Flex, Tabs, Typography, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { PageHeader } from '@/components/shared/PageHeader';
+import { App, Flex, Tabs, theme } from 'antd';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { PageHeader } from '@/commons/components/PageHeader';
 import { useSessionData } from '@/modules/auth/queries';
 import { useUpdateProfileMutation, useRevokeSessionMutation, useChangePasswordMutation, useUploadAvatarMutation, useRemoveAvatarMutation, useProfileQuery } from '@/modules/profile';
 import { errorMessage } from '@/lib/api/errors';
-import { useConfirm } from '@/components/shared/ConfirmDialog';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorState } from '@/components/shared/ErrorState';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorState } from '@/commons/components/ErrorState';
 import { ProfileTab } from './ProfileTab';
 import { SecurityTab } from './SecurityTab';
 
-const { Text } = Typography;
+
 
 export default function ProfilePage() {
   const { message } = App.useApp();
@@ -31,16 +31,16 @@ export default function ProfilePage() {
   const email = profile?.email ?? user?.email ?? 'admin@sast.local';
   const role = session.data?.workspace?.role ?? 'owner';
 
-  if (session.isLoading || profileQuery.isLoading) return <LoadingState text="Loading profile..." />;
-  if (session.isError) return <ErrorState title="Failed to load session" description="Please try refreshing the page." />;
-  if (profileQuery.isError) return <ErrorState title="Failed to load profile" description="Could not load profile data." />;
-  const initials = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
-
   const updateProfileMutation = useUpdateProfileMutation();
   const changePasswordMutation = useChangePasswordMutation();
   const uploadAvatarMutation = useUploadAvatarMutation();
   const removeAvatarMutation = useRemoveAvatarMutation();
   const revokeSessionMutation = useRevokeSessionMutation();
+
+  if (session.isLoading || profileQuery.isLoading) return <LoadingState text="Loading profile..." />;
+  if (session.isError) return <ErrorState title="Failed to load session" description="Please try refreshing the page." />;
+  if (profileQuery.isError) return <ErrorState title="Failed to load profile" description="Could not load profile data." />;
+  const initials = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
 
   const handleProfileSave = (values: { name: string; username: string; timezone: string; language: string; bio: string }) => {
     if (!user?.id) return;
@@ -133,8 +133,6 @@ export default function ProfilePage() {
               />
             ),
           },
-          { key: 'notifications', label: <span><FaIcon icon="fa-bell" style={{ marginRight: 8 }} /> Notifications</span>, children: <div><Text type="secondary">Coming soon. Configure email and in-app notification settings.</Text></div> },
-          { key: 'tokens', label: <span><FaIcon icon="fa-key" style={{ marginRight: 8 }} /> Personal tokens</span>, children: <div><Text type="secondary">Coming soon. Generate tokens for CLI and CI integration.</Text></div> },
         ]}
       />
     </Flex>

@@ -34,7 +34,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     // If scanId is provided, batch verify all findings in that scan
     if (scanId) {
-      const result = await aiVerificationService.verifyFindingsBatch(scanId, modelId ?? '');
+      const result = await aiVerificationService.verifyFindingsBatch(scanId, modelId ?? '', workspaceId);
       return ApiResponse.success('Batch verification completed', result);
     }
 
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       const results = [];
       for (const findingId of findingIds) {
         try {
-          const result = await aiVerificationService.verifyFinding(findingId, modelId ?? '');
+          const result = await aiVerificationService.verifyFinding(findingId, modelId ?? '', workspaceId);
           results.push(result);
         } catch (e) {
           results.push({ findingId, error: e instanceof Error ? e.message : 'Unknown error' });

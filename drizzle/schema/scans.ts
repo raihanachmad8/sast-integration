@@ -58,6 +58,11 @@ export const qualityGates = pgTable('quality_gates', {
   threshold: varchar('threshold', { length: 20 }).notNull().default('high'),
   failOnCritical: boolean('fail_on_critical').default(true),
   failOnHighTp: boolean('fail_on_high_tp').default(true),
+  failOnHigh: boolean('fail_on_high').default(true),
+  failOnMedium: boolean('fail_on_medium').default(false),
+  failOnLow: boolean('fail_on_low').default(false),
+  failOnPending: boolean('fail_on_pending').default(true),
+  failOnTp: boolean('fail_on_tp').default(false),
   warnOnPending: boolean('warn_on_pending').default(true),
   requireHumanAck: boolean('require_human_ack').default(false),
   pendingBehavior: varchar('pending_behavior', { length: 20 }).default('warn'),
@@ -74,6 +79,7 @@ export const qualityGateResults = pgTable('quality_gate_results', {
   pendingFindings: integer('pending_findings').default(0),
   newFindings: integer('new_findings').default(0), // PR context: findings new in this PR
   fixedFindings: integer('fixed_findings').default(0), // PR context: findings fixed in this PR
+  persistentFindings: integer('persistent_findings').default(0), // PR context: pre-existing findings (exist on both head and base)
   evaluatedAt: timestamp('evaluated_at').defaultNow().notNull(),
 });
 

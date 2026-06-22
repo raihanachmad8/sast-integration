@@ -26,6 +26,4 @@ export {
 export type {
   ScmProviderConnection,
   RepositoryCatalog,
-  AddProviderPayload,
-  SyncReposPayload,
 } from './types';

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   try {
     logger.dashboard.info('getRecentScans');
     const { searchParams } = new URL(request.url);
-    const { perPage: limit } = parsePagination(searchParams);
+    const { perPage: limit } = parsePagination(searchParams, { perPage: 5 });
     const data = await dashboardService.getRecentScans(workspace.context.workspaceId, limit);
     logger.dashboard.info('getRecentScans completed');
     return ApiResponse.success('Recent scans retrieved', data);

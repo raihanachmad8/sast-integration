@@ -6,9 +6,13 @@ import { Api } from '@/lib/api/client';
 import { extractPaginated } from '@/lib/api/pagination';
 import type { ApiResponse } from '@/commons/types/api';
 import type { ListParams, PaginatedResponse } from '@/commons/types/pagination';
-import type { ScannerId } from '@/server/modules/scan/constants';
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });
+
+/** Supported scanner identifiers — mirrors server constants. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- used to derive ScannerId type
+const SUPPORTED_SCANNERS = ['semgrep', 'cppcheck', 'gitleaks', 'flawfinder', 'clang-tidy', 'gcc-fanalyzer'] as const;
+type ScannerId = (typeof SUPPORTED_SCANNERS)[number];
 
 /** Scanner availability map from the API */
 export type ScannerAvailability = Record<ScannerId, boolean>;
@@ -46,7 +50,7 @@ export const scanApi = {
    * Uses the workspace findings API with scanId filter.
    */
   async getFindings(workspaceId: string, scanId: string): Promise<Finding[]> {
-    const response = await _api.Get<ApiResponse<Finding[]>>(ENDPOINTS.FINDINGS.LIST(workspaceId), { params: { scanId } });
+    const response = await _api.Get<ApiResponse<Finding[]>>(ENDPOINTS.FINDINGS.LIST(workspaceId), { scanId });
     return response.data ?? [];
   },
 
@@ -65,7 +69,7 @@ export const scanApi = {
    * Check which scanners are available on the host system.
    */
   async getAvailability(workspaceId: string): Promise<ScannerAvailability> {
-    const { data } = await _api.Get<ApiResponse<ScannerAvailability>>(`${ENDPOINTS.SCANS.LIST(workspaceId).replace('/scans', '/scanners')}`);
+    const { data } = await _api.Get<ApiResponse<ScannerAvailability>>(ENDPOINTS.SCANNERS.AVAILABILITY(workspaceId));
     return data ?? {};
   },
 

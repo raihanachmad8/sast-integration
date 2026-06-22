@@ -1,26 +1,27 @@
 'use client';
 
 import { Table } from 'antd';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { EmptyState } from '@/components/shared/EmptyState';
-import { useQualityGatesQuery } from '@/modules/quality-gates';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { EmptyState } from '@/commons/components/EmptyState';
+import { ErrorState } from '@/commons/components/ErrorState';
+import { useQualityGateConfigQuery } from '@/modules/quality-gates';
 import type { QualityGate } from '@/commons/types/reports';
-import { StatusPill } from '@/components/shared/StatusPill';
+import { StatusPill } from '@/commons/components/StatusPill';
 
-interface GateResultsTableProps {
+interface GateConfigTableProps {
   workspaceId: string;
 }
 
 /**
- * Table showing quality gate evaluation results.
- * Uses DataTable pattern with antd tokens.
+ * Table showing the active quality gate configuration.
+ * Since the backend has no results endpoint, this displays the current config.
  *
  * @example
- * <GateResultsTable workspaceId="ws_01" />
+ * <GateConfigTable workspaceId="ws_01" />
  */
-export function GateResultsTable(_props: GateResultsTableProps) {
-  const resultsQuery = useQualityGatesQuery();
-  const data = resultsQuery.data ?? [];
+export function GateConfigTable(_props: GateConfigTableProps) {
+  const configQuery = useQualityGateConfigQuery();
+  const gate = configQuery.data;
 
   const columns = [
     {
@@ -30,40 +31,62 @@ export function GateResultsTable(_props: GateResultsTableProps) {
       render: (threshold: string) => <StatusPill variant="slate">{threshold}</StatusPill>,
     },
     {
-      title: 'Fail on Critical',
+      title: 'Fail Critical',
       dataIndex: 'failOnCritical',
       key: 'failOnCritical',
       render: (val: boolean) => <StatusPill variant={val ? 'red' : 'slate'}>{val ? 'Yes' : 'No'}</StatusPill>,
     },
     {
-      title: 'Fail on High TP',
-      dataIndex: 'failOnHighTp',
-      key: 'failOnHighTp',
+      title: 'Fail High',
+      dataIndex: 'failOnHigh',
+      key: 'failOnHigh',
       render: (val: boolean) => <StatusPill variant={val ? 'red' : 'slate'}>{val ? 'Yes' : 'No'}</StatusPill>,
     },
     {
-      title: 'Warn on Pending',
-      dataIndex: 'warnOnPending',
-      key: 'warnOnPending',
+      title: 'Fail Medium',
+      dataIndex: 'failOnMedium',
+      key: 'failOnMedium',
       render: (val: boolean) => <StatusPill variant={val ? 'amber' : 'slate'}>{val ? 'Yes' : 'No'}</StatusPill>,
     },
     {
-      title: 'Pending Behavior',
-      dataIndex: 'pendingBehavior',
-      key: 'pendingBehavior',
+      title: 'Fail Low',
+      dataIndex: 'failOnLow',
+      key: 'failOnLow',
+      render: (val: boolean) => <StatusPill variant={val ? 'amber' : 'slate'}>{val ? 'Yes' : 'No'}</StatusPill>,
+    },
+    {
+      title: 'Fail Pending Review',
+      dataIndex: 'failOnPending',
+      key: 'failOnPending',
+      render: (val: boolean) => <StatusPill variant={val ? 'red' : 'slate'}>{val ? 'Yes' : 'No'}</StatusPill>,
+    },
+    {
+      title: 'Fail on AI TP',
+      dataIndex: 'failOnTp',
+      key: 'failOnTp',
+      render: (val: boolean) => <StatusPill variant={val ? 'amber' : 'slate'}>{val ? 'Yes' : 'No'}</StatusPill>,
     },
   ];
 
-  if (resultsQuery.isLoading) {
-    return <LoadingState text="Loading results..." />;
+  if (configQuery.isLoading) {
+    return <LoadingState text="Loading gate config..." />;
   }
 
-  if (data.length === 0) {
+  if (configQuery.isError) {
+    return (
+      <ErrorState
+        title="Failed to load gate config"
+        description="Could not load quality gate configuration."
+      />
+    );
+  }
+
+  if (!gate) {
     return (
       <EmptyState
         icon="fa-clipboard-check"
-        title="No gate evaluations yet"
-        text="Results appear after scans complete and gates are evaluated."
+        title="No gate configuration"
+        text="Configure a quality gate to define pass/fail criteria for scans."
       />
     );
   }
@@ -71,9 +94,9 @@ export function GateResultsTable(_props: GateResultsTableProps) {
   return (
     <Table
       columns={columns}
-      dataSource={data}
+      dataSource={[gate]}
       rowKey={(r: QualityGate) => r.id}
-      pagination={{ pageSize: 10, showSizeChanger: false }}
+      pagination={false}
       size="middle"
       scroll={{ x: 600 }}
     />

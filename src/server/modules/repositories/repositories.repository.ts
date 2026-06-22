@@ -1,4 +1,4 @@
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, isNull, sql } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { repositories } from '@drizzle/schema/source-controls';
 
@@ -10,7 +10,7 @@ export interface CreateRepositoryInput {
   name: string;
   url: string;
   defaultBranch?: string;
-  connectionType?: string;
+  connectionType?: string[];
   autoScan?: boolean;
   createdBy?: string;
 }
@@ -21,7 +21,7 @@ export interface UpdateRepositoryInput {
   name?: string;
   url?: string;
   defaultBranch?: string;
-  connectionType?: string;
+  connectionType?: string[];
   autoScan?: boolean;
   webhookId?: string;
   webhookSecret?: string;
@@ -54,7 +54,7 @@ export const repositoriesRepository = {
         name: data.name,
         url: data.url,
         defaultBranch: data.defaultBranch ?? 'main',
-        connectionType: data.connectionType ?? 'scm',
+        connectionType: data.connectionType ?? ['scm'],
         autoScan: data.autoScan ?? false,
         ...(data.createdBy && { createdBy: data.createdBy, updatedBy: data.createdBy }),
       })
@@ -83,9 +83,6 @@ export const repositoriesRepository = {
       .where(eq(repositories.id, id));
   },
 
-  /**
-   * Find a repository by URL within a workspace (for CI/CD auto-registration dedup).
-   */
   async findByUrl(url: string, workspaceId: string, tx?: Tx) {
     const executor = tx ?? db;
     const [repo] = await executor
@@ -96,9 +93,6 @@ export const repositoriesRepository = {
     return repo ?? null;
   },
 
-  /**
-   * Find a repository by name within a workspace (for CI/CD auto-registration).
-   */
   async findByNameAndWorkspace(name: string, workspaceId: string, tx?: Tx) {
     const executor = tx ?? db;
     const [repo] = await executor
@@ -107,5 +101,81 @@ export const repositoriesRepository = {
       .where(and(eq(repositories.name, name), eq(repositories.workspaceId, workspaceId), isNull(repositories.deletedAt)))
       .limit(1);
     return repo ?? null;
+  },
+
+  async findOrCreate(data: CreateRepositoryInput, tx?: Tx) {
+    const executor = tx ?? db;
+
+    const [inserted] = await executor
+      .insert(repositories)
+      .values({
+        workspaceId: data.workspaceId,
+        projectId: data.projectId,
+        name: data.name,
+        url: data.url,
+        defaultBranch: data.defaultBranch ?? 'main',
+        connectionType: data.connectionType ?? ['scm'],
+        autoScan: data.autoScan ?? false,
+        ...(data.createdBy && { createdBy: data.createdBy, updatedBy: data.createdBy }),
+      })
+      .onConflictDoNothing()
+      .returning();
+
+    if (inserted) return inserted;
+
+    const [existing] = await executor
+      .select()
+      .from(repositories)
+      .where(and(
+        eq(repositories.name, data.name),
+        eq(repositories.workspaceId, data.workspaceId),
+        isNull(repositories.deletedAt),
+      ))
+      .limit(1);
+
+    if (existing) {
+      const updates: Record<string, unknown> = { updatedAt: new Date() };
+      if (data.projectId && !existing.projectId) updates.projectId = data.projectId;
+
+      if (data.connectionType?.length) {
+        const current = Array.isArray(existing.connectionType) ? existing.connectionType : [];
+        const merged = [...new Set([...current, ...data.connectionType])];
+        if (merged.length !== current.length) updates.connectionType = merged;
+      }
+
+      if (Object.keys(updates).length > 1) {
+        await executor.update(repositories).set(updates).where(eq(repositories.id, existing.id));
+        return { ...existing, ...updates };
+      }
+      return existing;
+    }
+
+    const [softDeleted] = await executor
+      .select()
+      .from(repositories)
+      .where(and(
+        eq(repositories.name, data.name),
+        eq(repositories.workspaceId, data.workspaceId),
+      ))
+      .limit(1);
+
+    if (softDeleted) {
+      const [restored] = await executor
+        .update(repositories)
+        .set({
+          deletedAt: null,
+          deletedBy: null,
+          url: data.url,
+          projectId: data.projectId,
+          defaultBranch: data.defaultBranch ?? 'main',
+          connectionType: data.connectionType ?? ['scm'],
+          updatedAt: new Date(),
+        })
+        .where(eq(repositories.id, softDeleted.id))
+        .returning();
+      return restored ?? softDeleted;
+    }
+
+    return existing!;
   },
 };

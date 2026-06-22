@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Drawer, Form, Input, InputNumber, Modal, Typography, Button, Flex, Pagination, theme } from 'antd';
-import { MODAL_WIDTH } from '@/commons/constants/layout';
+import { Drawer, Input, Typography, Button, Flex, Pagination, theme } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
-import { FaIcon } from '@/components/shared/FaIcon';
-import { StatusTag } from '@/components/shared/StatusTag';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { LoadingState } from '@/components/shared/LoadingState';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { StatusTag } from '@/commons/components/StatusTag';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { LoadingState } from '@/commons/components/LoadingState';
 import { useScannerRulesQuery } from '@/modules/scanner-engines';
 
 interface Scanner {
@@ -17,7 +16,6 @@ interface Scanner {
   capability: string;
   status: string;
   rules: string;
-  version: string;
   enabled: boolean;
 }
 
@@ -47,15 +45,6 @@ export function RulesDrawer({ open, scanner, onClose }: ScannerRulesDrawerProps)
     return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); };
   }, [searchInput]);
 
-  // Reset on drawer open/close
-  useEffect(() => {
-    if (!open) {
-      setSearchInput('');
-      setDebouncedSearch('');
-      setPage(1);
-    }
-  }, [open]);
-
   const rulesQuery = useScannerRulesQuery(scanner?.id ?? '', {
     enabled: open && !!scanner?.id,
     page,
@@ -76,7 +65,7 @@ export function RulesDrawer({ open, scanner, onClose }: ScannerRulesDrawerProps)
   return (
     <Drawer
       open={open}
-      onClose={onClose}
+      onClose={() => { onClose(); setSearchInput(''); setDebouncedSearch(''); setPage(1); }}
       title={null}
       size="large"
       closeIcon={null}
@@ -107,6 +96,10 @@ export function RulesDrawer({ open, scanner, onClose }: ScannerRulesDrawerProps)
         {rulesQuery.isLoading ? (
           <Flex justify="center" style={{ padding: token.paddingXL }}>
             <LoadingState text="Loading rules..." compact />
+          </Flex>
+        ) : rulesQuery.isError ? (
+          <Flex justify="center" align="center" style={{ padding: token.paddingXL, color: token.colorError }}>
+            <Typography.Text type="danger">Failed to load rules. Please try again.</Typography.Text>
           </Flex>
         ) : (
           <Flex vertical gap={token.padding}>
@@ -152,37 +145,4 @@ export function RulesDrawer({ open, scanner, onClose }: ScannerRulesDrawerProps)
   );
 }
 
-interface ScannerSettingsModalProps {
-  open: boolean;
-  scanner: Scanner | null;
-  onClose: () => void;
-  onSave: (settings: { timeout: string; maxFindings: string }) => void;
-}
 
-export function ScannerSettingsModal({ open, scanner, onClose, onSave }: ScannerSettingsModalProps) {
-  const { token } = theme.useToken();
-  const [form] = Form.useForm();
-
-  if (!scanner) return null;
-
-  const handleSave = () => {
-    onSave(form.getFieldsValue());
-    onClose();
-    form.resetFields();
-  };
-
-  return (
-    <Modal title={`${scanner.name} Settings`} open={open} onOk={handleSave} onCancel={onClose} okText="Save" width={MODAL_WIDTH.SM}>
-      <Form form={form} layout="vertical" initialValues={{ timeout: '300', maxFindings: '2000' }}>
-        <Flex vertical gap={token.paddingMD} style={{ padding: `${token.paddingLG} 0` }}>
-          <Form.Item label="Timeout (seconds)" name="timeout" required rules={[{ required: true, message: 'Timeout is required' }]}>
-            <InputNumber style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item label="Max findings" name="maxFindings" required rules={[{ required: true, message: 'Max findings is required' }]}>
-            <InputNumber style={{ width: '100%' }} />
-          </Form.Item>
-        </Flex>
-      </Form>
-    </Modal>
-  );
-}

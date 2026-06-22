@@ -20,7 +20,10 @@ export function createZodSync(schema: ZodType): RuleRender {
     validator: (rule) =>
       new Promise<void>(async (resolve, reject) => {
         const { field } = rule as { field: string };
-        const values = getFieldsValue();
+        const raw = getFieldsValue();
+        const values = Object.fromEntries(
+          Object.entries(raw).map(([k, v]) => [k, v === undefined ? '' : v]),
+        );
         const data = await schema.safeParseAsync(values);
 
         if (!data.success && data.error) {

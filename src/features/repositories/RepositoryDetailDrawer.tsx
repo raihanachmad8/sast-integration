@@ -1,11 +1,11 @@
 'use client';
 
-import { App, Button, Card, Descriptions, Drawer, Statistic, Tag, Typography, theme } from 'antd';
+import { Button, Card, Descriptions, Drawer, Space, Statistic, Tag, Typography, theme } from 'antd';
 import { CloseOutlined, CodeOutlined } from '@ant-design/icons';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import type { Repository } from '@/commons/types';
-import { StatusTag } from '@/components/shared/StatusTag';
-import { EmptyState } from '@/components/shared/EmptyState';
+import { StatusTag } from '@/commons/components/StatusTag';
+import { EmptyState } from '@/commons/components/EmptyState';
 
 const { Text, Title } = Typography;
 
@@ -13,6 +13,8 @@ interface RepositoryDetailDrawerProps {
   open: boolean;
   onClose: () => void;
   repository: Repository | null;
+  onRunScan?: (repositoryId: string) => void;
+  onViewHistory?: (repositoryId: string) => void;
 }
 
 const PROVIDER_CONFIG: Record<string, { icon: string; label: string }> = {
@@ -21,8 +23,7 @@ const PROVIDER_CONFIG: Record<string, { icon: string; label: string }> = {
   gitea: { icon: 'fa-code-branch', label: 'Gitea' },
 };
 
-export function RepositoryDetailDrawer({ open, onClose, repository }: RepositoryDetailDrawerProps) {
-  const { modal } = App.useApp();
+export function RepositoryDetailDrawer({ open, onClose, repository, onRunScan, onViewHistory }: RepositoryDetailDrawerProps) {
   const { token } = theme.useToken();
 
   if (!repository) {
@@ -65,9 +66,17 @@ export function RepositoryDetailDrawer({ open, onClose, repository }: Repository
               <Text>{repository.project ?? '—'}</Text>
             </Descriptions.Item>
             <Descriptions.Item label="Connection">
-              <Tag color={repository.connectionType === 'scm' ? 'cyan' : 'orange'}>
-                {repository.connectionType === 'scm' ? 'SCM (Managed)' : 'External (CI)'}
-              </Tag>
+              <Space size={[4, 4]} wrap>
+                {repository.connectionType?.includes('scm') && (
+                  <Tag color="cyan">SCM (Managed)</Tag>
+                )}
+                {repository.connectionType?.includes('external') && (
+                  <Tag color="orange">External (CI)</Tag>
+                )}
+                {(!repository.connectionType || repository.connectionType.length === 0) && (
+                  <Tag>Unknown</Tag>
+                )}
+              </Space>
             </Descriptions.Item>
             {provider && (
               <Descriptions.Item label="Provider">
@@ -122,16 +131,16 @@ export function RepositoryDetailDrawer({ open, onClose, repository }: Repository
           <Button
             type="primary"
             block
-            disabled={repository.connectionType !== 'scm'}
+            disabled={!repository.connectionType?.includes('scm')}
             icon={<FaIcon icon="fa-play" />}
-            onClick={() => modal.success({ title: 'Scan started', content: `Scan started for ${repository.name}.` })}
+            onClick={() => onRunScan?.(repository.id)}
           >
             Run Scan
           </Button>
           <Button
             block
             icon={<FaIcon icon="fa-clock-rotate-left" />}
-            onClick={() => modal.info({ title: 'Scan history', content: `Scan history for ${repository.name} would open here.` })}
+            onClick={() => onViewHistory?.(repository.id)}
           >
             View History
           </Button>

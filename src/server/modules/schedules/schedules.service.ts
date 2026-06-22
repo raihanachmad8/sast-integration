@@ -1,5 +1,5 @@
 import { schedulesRepository } from './schedules.repository';
-import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
 import { createScheduleSchema, updateScheduleSchema } from '@/commons/schemas';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
@@ -39,10 +39,7 @@ export const schedulesService = {
    */
   async create(data: unknown, workspaceId: string, userId: string) {
     logger.schedule.info('createSchedule', { workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
     const parsed = createScheduleSchema.parse(data);
 
     const result = await schedulesRepository.create({
@@ -63,10 +60,7 @@ export const schedulesService = {
    */
   async update(id: string, data: unknown, workspaceId: string, userId: string) {
     logger.schedule.info('updateSchedule', { id, workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
     const existing = await schedulesRepository.getById(id, workspaceId);
     if (!existing) {
       throw new AppError('Schedule not found', 404, 'NOT_FOUND');
@@ -89,10 +83,7 @@ export const schedulesService = {
    */
   async delete(id: string, workspaceId: string, userId: string) {
     logger.schedule.info('deleteSchedule', { id, workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
     const existing = await schedulesRepository.getById(id, workspaceId);
     if (!existing) {
       throw new AppError('Schedule not found', 404, 'NOT_FOUND');
@@ -108,10 +99,7 @@ export const schedulesService = {
    */
   async toggle(id: string, workspaceId: string, userId: string) {
     logger.schedule.info('toggleSchedule', { id, workspaceId });
-    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new AppError('You are not a member of this workspace', 403, 'FORBIDDEN');
-    }
+    await assertWorkspaceMember(workspaceId, userId);
     const existing = await schedulesRepository.getById(id, workspaceId);
     if (!existing) {
       throw new AppError('Schedule not found', 404, 'NOT_FOUND');

@@ -26,7 +26,7 @@ export const findingsApi = {
    * @returns Paginated result with data array and meta (total, page, perPage, lastPage).
    */
   async list(workspaceId: string, params: FindingListParams): Promise<FindingListResponse<FindingExtended>> {
-    const response = await _api.Get<ApiResponse<FindingExtended[]>>(ENDPOINTS.FINDINGS.LIST(workspaceId), { params });
+    const response = await _api.Get<ApiResponse<FindingExtended[]>>(ENDPOINTS.FINDINGS.LIST(workspaceId), { ...params });
     return {
       data: response.data ?? [],
       meta: {
@@ -63,7 +63,7 @@ export const findingsApi = {
   },
 
   async update(workspaceId: string, id: string, payload: Record<string, unknown>) {
-    const { data } = await _api.Put<ApiResponse<FindingExtended>>(ENDPOINTS.FINDINGS.DETAIL(workspaceId, id), payload);
+    const { data } = await _api.Patch<ApiResponse<FindingExtended>>(ENDPOINTS.FINDINGS.DETAIL(workspaceId, id), payload);
     return data;
   },
 
@@ -75,5 +75,12 @@ export const findingsApi = {
   async aiVerify(workspaceId: string, findingIds: string[]) {
     const { data } = await _api.Post<ApiResponse<{ queued: number }>>(ENDPOINTS.FINDINGS.AI_VERIFY(workspaceId), { findingIds });
     return data;
+  },
+
+  async verify(workspaceId: string, findingId: string, modelId?: string) {
+    return _api.Post<ApiResponse<{ result: unknown }>>(
+      ENDPOINTS.FINDINGS.VERIFY(workspaceId, findingId),
+      modelId ? { modelId } : {},
+    );
   },
 };

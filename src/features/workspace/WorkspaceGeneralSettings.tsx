@@ -5,8 +5,8 @@ import { Form, Input, Button, Card, App, Flex, theme } from 'antd';
 import { useWorkspaceDetailQuery, useUpdateWorkspaceMutation } from '@/modules/workspace/queries';
 import { createZodSync } from '@/lib/utils/zod-sync';
 import { workspaceUpdateSchema } from '@/commons/schemas';
-import { LoadingState } from '@/components/shared/LoadingState';
-import { ErrorState } from '@/components/shared/ErrorState';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ErrorState } from '@/commons/components/ErrorState';
 import { errorMessage } from '@/lib/api/errors';
 
 const rule = createZodSync(workspaceUpdateSchema);
@@ -16,7 +16,7 @@ interface WorkspaceGeneralSettingsProps {
 }
 
 /**
- * Workspace general settings form — edit name, slug, and description.
+ * Workspace general settings form — edit name and description.
  * Fetches current workspace detail and submits updates via mutation.
  *
  * @example
@@ -33,14 +33,14 @@ export function WorkspaceGeneralSettings({ workspaceId }: WorkspaceGeneralSettin
 
   useEffect(() => {
     if (workspace) {
-      form.setFieldsValue({ name: workspace.name, slug: workspace.slug, description: workspace.description ?? '' });
+      form.setFieldsValue({ name: workspace.name, description: workspace.description ?? '' });
     }
   }, [workspace, form]);
 
   if (workspaceQuery.isLoading) return <LoadingState compact text="Loading workspace..." />;
   if (workspaceQuery.isError) return <ErrorState title="Failed to load workspace" description={errorMessage(workspaceQuery.error)} />;
 
-  const handleFinish = (values: { name: string; slug: string; description: string }) => {
+  const handleFinish = (values: { name: string; description: string }) => {
     updateMutation.mutate(
       { id: workspaceId, payload: values },
       {
@@ -55,10 +55,6 @@ export function WorkspaceGeneralSettings({ workspaceId }: WorkspaceGeneralSettin
       <Form form={form} layout="vertical" onFinish={handleFinish} style={{ maxWidth: 560 }}>
         <Form.Item label="Workspace name" name="name" rules={[rule]}>
           <Input placeholder="e.g. SAST Integration" />
-        </Form.Item>
-
-        <Form.Item label="Slug" name="slug" rules={[rule]} extra="Unique identifier used in URLs.">
-          <Input placeholder="e.g. sast-integration" />
         </Form.Item>
 
         <Form.Item label="Description" name="description">

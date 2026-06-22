@@ -28,7 +28,7 @@ create-scan.action.ts       # Server action
 
 - **Feature-level**: Define in `features/<name>/constants.ts`
 - **Shared**: Define in `commons/constants/`
-- **Server**: Define in `server/<module>/constants.ts`
+- **Server**: Define in `server/modules/<module>/constants.ts`
 - Never scatter magic values — extract to named constants
 
 ## API Routes
@@ -64,7 +64,7 @@ import { useQuery } from '@tanstack/react-query';
 
 // 3. Internal — absolute paths
 import { ApiResponse } from '@/commons/types';
-import { scanService } from '@/server/scans';
+import { scanService } from '@/server/modules/scan/scan.service';
 
 // 4. Internal — relative paths
 import { ScanResultsTable } from './components';

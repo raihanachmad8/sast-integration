@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, Row, Col, Typography, Flex, theme } from 'antd';
-import { FaIcon } from '@/components/shared/FaIcon';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { STATUS_TOKENS } from '@/commons/constants/tokens';
 import type { ScanRow } from './types';
 
@@ -22,9 +22,9 @@ export function ScanSummaryCards({ scans }: ScanSummaryCardsProps) {
     { key: 'managed', label: 'Managed', icon: 'fa-robot', color: token.colorSuccess, bg: token.colorTealDeepBg },
     { key: 'upload', label: 'Upload', icon: 'fa-cloud-arrow-up', color: token.colorTextSecondary, bg: token.colorBgLayout },
   ];
-  const running = scans.filter(s => s.status === 'Running').length;
-  const completed = scans.filter(s => s.status === 'Completed').length;
-  const failed = scans.filter(s => s.status === 'Failed').length;
+  const running = scans.filter(s => s.status === 'running').length;
+  const completed = scans.filter(s => s.status === 'completed').length;
+  const failed = scans.filter(s => s.status === 'failed').length;
   const managed = scans.filter(s => s.origin === 'managed').length;
   const external = scans.filter(s => s.origin === 'external_upload').length;
 

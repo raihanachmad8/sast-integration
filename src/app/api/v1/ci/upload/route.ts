@@ -38,6 +38,7 @@ import { repositoriesRepository } from '@/server/modules/repositories/repositori
 import { getStorageDriver } from '@/server/modules/storage/storage.service';
 import { logger } from '@/server/lib/logger';
 import { AppError } from '@/server/http/errors';
+import { normalizeRepoName } from '../normalize-repo';
 import { randomUUID } from 'node:crypto';
 
 export async function POST(request: NextRequest) {
@@ -112,24 +113,20 @@ export async function POST(request: NextRequest) {
         return ApiResponse.error('Missing required field: repoName', 'VALIDATION_ERROR', undefined, 400);
       }
 
-      // Find or auto-create repository
-      let repository = await repositoriesRepository.findByNameAndWorkspace(repoName, workspaceId);
+      // Find or auto-create repository (atomic — handles concurrent requests safely)
+      const repository = await repositoriesRepository.findOrCreate({
+        workspaceId: workspaceId,
+        projectId: projectId,
+        name: normalizeRepoName(repoName, repoUrl),
+        url: repoUrl || `external://${repoName}`,
+        defaultBranch: branch,
+        connectionType: ['external'],
+      });
 
-      if (!repository) {
-        repository = await repositoriesRepository.create({
-          workspaceId: workspaceId,
-          projectId: projectId,
-          name: repoName,
-          url: repoUrl || `external://${repoName}`,
-          defaultBranch: branch,
-          connectionType: 'external',
-        });
-
-        logger.scan.info('CI/CD: auto-created external repository', {
-          repositoryId: repository.id,
-          name: repoName,
-        });
-      }
+      logger.scan.info('CI/CD: repository resolved', {
+        repositoryId: repository.id,
+        name: repoName,
+      });
 
       // Find or create scan for this commit
       scan = await scanRepository.findByCommitSha(repository.id, commit);
@@ -152,7 +149,7 @@ export async function POST(request: NextRequest) {
     const result = parseScanResult(tool, sarifContent, scan.id);
 
     // Store findings with dedup (scoped to repositoryId + scanner)
-    let storedFindings: Array<{ id: string }> = [];
+    let storedFindings: Array<{ id: string; groupId: string | null; isNew: boolean }> = [];
     if (result.findings.length > 0) {
       const findingResult = await findingService.replaceFindingsForScanJob(
         projectId,
@@ -192,35 +189,6 @@ export async function POST(request: NextRequest) {
       fileSize: sarifBuffer.length,
       parsedSummary: result.summary,
     });
-
-    // Auto-trigger AI verification for findings from this tool
-    if (storedFindings.length > 0) {
-      try {
-        const { db } = await import('@/server/db/client');
-        const { models } = await import('@drizzle/schema/integrations');
-        const { eq, asc } = await import('drizzle-orm');
-
-        const [model] = await db.select().from(models)
-          .where(eq(models.workspaceId, workspaceId))
-          .orderBy(asc(models.priority))
-          .limit(1);
-
-        if (model) {
-          const { enqueue } = await import('@/server/modules/queue/queue.service');
-          for (const finding of storedFindings) {
-            if (!finding.id) continue;
-            await enqueue('ai-verify-finding', {
-              findingId: finding.id,
-              scanId: scan.id,
-              modelId: model.id,
-            }, { retryLimit: 5, retryDelay: 30 });
-          }
-          logger.scan.info('CI/CD upload: AI verification enqueued', { scanId: scan.id, count: storedFindings.length, modelId: model.id });
-        }
-      } catch (err) {
-        logger.scan.error('CI/CD upload: AI verification failed', { scanId: scan.id, error: (err as Error).message });
-      }
-    }
 
     // LEGACY PATTERN: mark completed if no scanId was provided (backward compat)
     if (!scanIdField) {

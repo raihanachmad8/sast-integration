@@ -5,6 +5,12 @@ import { scanRepository } from '@/server/modules/scan/repositories/scan.reposito
 import { findingService } from '@/server/modules/scan/services/finding.service';
 import { parseScanResult } from '@/server/modules/scan/parsers';
 import { getStorageDriver } from '@/server/modules/storage/storage.service';
+import { db } from '@/server/db/client';
+import { models } from '@drizzle/schema/integrations';
+import { repositories } from '@drizzle/schema/source-controls';
+import { findingGroupScans } from '@drizzle/schema/findings';
+import { eq, asc, and, isNull, sql } from 'drizzle-orm';
+import { enqueue } from '@/server/modules/queue/queue.service';
 import type { NewFinding } from '@drizzle/schema/findings';
 
 interface ParseScanResultJobData {
@@ -71,161 +77,278 @@ interface ParseScanResultJobData {
  */
 export async function processParseScanResultJob(job: Job<ParseScanResultJobData>) {
   const { scanId, fileKey, scanner, projectId } = job.data;
-  logger.queue.debug('processParseScanResultJob', { scanId, scanner, fileKey });
+  const currentJobId = job.id;
+  logger.queue.debug('processParseScanResultJob', { scanId, scanner, fileKey, jobId: currentJobId });
 
-  // Get scan to extract repositoryId
-  const scan = await scanRepository.getById(scanId);
-  const repositoryId = scan?.repositoryId ?? null;
+  let enrichedFindings: NewFinding[] = [];
 
-  // Record: parsing started
-  await scanRepository.appendProgressEvent(scanId, {
-    id: randomUUID(),
-    type: 'parsing',
-    description: `Parsing ${scanner} results`,
-    timestamp: new Date().toISOString(),
-    scanner,
-  });
-
-  // Download file content from storage
-  const storage = await getStorageDriver();
-  const stream = await storage.getStream(fileKey);
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  const content = Buffer.concat(chunks).toString('utf-8');
-
-  // Parse scanner output
-  const result = parseScanResult(scanner, content, scanId);
-
-  // Enrich findings with code snippets from source context (managed scans only)
-  const enrichedFindings = await enrichFindingsWithSourceContext(scanId, result.findings, storage);
-
-  // Create findings with dedup (replaces old active findings)
-  let createdFindings: Array<{ id: string }> = [];
-  if (enrichedFindings.length > 0) {
-    const result = await findingService.replaceFindingsForScanJob(projectId, scanId, enrichedFindings, repositoryId);
-    createdFindings = result.findings ?? [];
-  }
-
-  // Auto-trigger AI verification for findings from this scanner
   try {
-    const { db } = await import('@/server/db/client');
-    const { models } = await import('@drizzle/schema/integrations');
-    const { eq: drizzleEq, asc, and: drizzleAnd, isNull: drizzleIsNull } = await import('drizzle-orm');
-    const { repositories } = await import('@drizzle/schema/source-controls');
-
-    // Get workspace from scan -> repository
+    // Get scan to extract repositoryId
     const scan = await scanRepository.getById(scanId);
-    const repo = scan?.repositoryId ? await db.select({ workspaceId: repositories.workspaceId }).from(repositories).where(drizzleAnd(drizzleEq(repositories.id, scan.repositoryId), drizzleIsNull(repositories.deletedAt))).limit(1) : null;
-    const workspaceId = repo?.[0]?.workspaceId;
+    const repositoryId = scan?.repositoryId ?? null;
 
-    if (workspaceId) {
-      // Get first available model
-      const [model] = await db.select().from(models)
-        .where(drizzleEq(models.workspaceId, workspaceId))
-        .orderBy(asc(models.priority))
-        .limit(1);
+    // Record: parsing started
+    await scanRepository.appendProgressEvent(scanId, {
+      id: randomUUID(),
+      type: 'parsing',
+      description: `Parsing ${scanner} results`,
+      timestamp: new Date().toISOString(),
+      scanner,
+    });
 
-      if (model && createdFindings.length > 0) {
-        logger.queue.info('parse-scan-result: about to enqueue AI verify', { scanId, count: createdFindings.length, modelId: model.id });
-        for (const finding of createdFindings) {
-          if (!finding.id) {
-            logger.queue.warn('parse-scan-result: finding has no id', { finding });
-            continue;
+    // Download file content from storage
+    const storage = await getStorageDriver();
+    const stream = await storage.getStream(fileKey);
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const content = Buffer.concat(chunks).toString('utf-8');
+
+    // Parse scanner output
+    const result = parseScanResult(scanner, content, scanId);
+
+    // Enrich findings with code snippets from source context (managed scans only)
+    enrichedFindings = await enrichFindingsWithSourceContext(scanId, result.findings, storage);
+
+    // Create findings with dedup (replaces old active findings)
+    let createdFindings: Array<{ id: string; groupId: string | null; isNew: boolean }> = [];
+    if (enrichedFindings.length > 0) {
+      const findingResult = await findingService.replaceFindingsForScanJob(projectId, scanId, enrichedFindings, repositoryId);
+      createdFindings = findingResult.findings ?? [];
+    }
+
+    // Log new vs pre-existing counts
+    const newCount = createdFindings.filter((f) => f.isNew).length;
+    const persistentCount = createdFindings.filter((f) => !f.isNew).length;
+    logger.queue.info('parse-scan-result: findings breakdown', {
+      scanId,
+      scanner,
+      total: createdFindings.length,
+      new: newCount,
+      persistent: persistentCount,
+    });
+
+    // Auto-trigger AI verification for findings from this scanner
+    try {
+      // Get workspace from scan -> repository
+      const scanData = await scanRepository.getById(scanId);
+      const repo = scanData?.repositoryId
+        ? await db.select({ workspaceId: repositories.workspaceId })
+            .from(repositories)
+            .where(and(eq(repositories.id, scanData.repositoryId), isNull(repositories.deletedAt)))
+            .limit(1)
+        : null;
+      const workspaceId = repo?.[0]?.workspaceId;
+
+      if (workspaceId && createdFindings.length > 0) {
+        // Get first available model
+        const [model] = await db.select().from(models)
+          .where(eq(models.workspaceId, workspaceId))
+          .orderBy(asc(models.priority))
+          .limit(1);
+
+        if (model) {
+          // Group findings by groupId and skip groups that already have verification
+          const { aiVerificationRepository } = await import('@/server/modules/scan/repositories/ai-verification.repository');
+          const groupIds = [...new Set(createdFindings.map((f) => f.groupId).filter(Boolean))] as string[];
+
+          const verifiedGroupIds = new Set<string>();
+          for (const groupId of groupIds) {
+            const hasVerified = await aiVerificationRepository.hasVerification(groupId);
+            if (hasVerified) verifiedGroupIds.add(groupId);
           }
-          try {
-            const { enqueue } = await import('@/server/modules/queue/queue.service');
-            const jobId = await enqueue('ai-verify-finding', { findingId: finding.id, scanId, modelId: model.id }, {
-              retryLimit: 5,
-              retryDelay: 30,
-            });
-            logger.queue.info('parse-scan-result: enqueue success', { findingId: finding.id, jobId });
-          } catch (err) {
-            logger.queue.error('parse-scan-result: AI verify enqueue failed', { findingId: finding.id, error: err instanceof Error ? err.message : String(err) });
+
+          // Get junction data to filter only NEW findings (isNew=true)
+          const junctionData = groupIds.length > 0
+            ? await db.select({
+                groupId: findingGroupScans.groupId,
+                isNew: findingGroupScans.isNew,
+              })
+                .from(findingGroupScans)
+                .where(eq(findingGroupScans.scanId, scanId))
+            : [];
+          const isNewMap = new Map(junctionData.map(j => [j.groupId, j.isNew]));
+
+          // Filter: only NEW findings that don't have verification yet
+          const findingsToVerify = createdFindings.filter((f) => {
+            if (!f.id) return false;
+            if (!f.groupId) return false;
+            if (verifiedGroupIds.has(f.groupId)) return false;
+            // Skip pre-existing findings (isNew=false) — don't waste AI quota on them
+            if (isNewMap.get(f.groupId) === false) return false;
+            return true;
+          });
+
+          logger.queue.info('parse-scan-result: enqueuing AI verify', {
+            scanId,
+            totalFindings: createdFindings.length,
+            toVerify: findingsToVerify.length,
+            skippedGroups: verifiedGroupIds.size,
+            modelId: model.id,
+          });
+
+          for (const finding of findingsToVerify) {
+            if (!finding.id) {
+              logger.queue.warn('parse-scan-result: finding has no id', { finding });
+              continue;
+            }
+            try {
+              const jobId = await enqueue('ai-verify-finding', { findingId: finding.id, scanId, modelId: model.id, workspaceId }, {
+                retryLimit: 5,
+                retryDelay: 30,
+              });
+              logger.queue.info('parse-scan-result: enqueue success', { findingId: finding.id, jobId });
+            } catch (err) {
+              logger.queue.error('parse-scan-result: AI verify enqueue failed', { findingId: finding.id, error: err instanceof Error ? err.message : String(err) });
+            }
           }
         }
-        logger.queue.info('parse-scan-result: AI verification enqueued', { scanId, count: createdFindings.length, modelId: model.id });
-      } else {
-        logger.queue.info('parse-scan-result: skipping AI verify', { scanId, modelFound: !!model, findingsCount: createdFindings.length });
       }
+    } catch (err) {
+      logger.queue.error('parse-scan-result: AI verification setup failed', { scanId, error: err instanceof Error ? err.message : String(err) });
     }
+
+    // Record scan result
+    await scanRepository.createScanResult({
+      scanId,
+      scanner,
+      parsedSummary: result.summary,
+    });
+
+    // Record: parsing completed — use createdFindings.length (after dedup), not enrichedFindings.length (raw parser output)
+    await scanRepository.appendProgressEvent(scanId, {
+      id: randomUUID(),
+      type: 'parsing',
+      description: `${scanner} parsing completed — ${createdFindings.length} findings`,
+      timestamp: new Date().toISOString(),
+      scanner,
+    });
   } catch (err) {
-    logger.queue.error('parse-scan-result: AI verification setup failed', { scanId, error: err instanceof Error ? err.message : String(err) });
+    logger.queue.error('parse-scan-result: job failed', {
+      scanId,
+      scanner,
+      jobId: currentJobId,
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack?.slice(0, 500) : undefined,
+    });
+
+    // Record: parsing failed
+    await scanRepository.appendProgressEvent(scanId, {
+      id: randomUUID(),
+      type: 'parsing',
+      description: `${scanner} parsing failed — ${(err as Error).message?.slice(0, 200)}`,
+      timestamp: new Date().toISOString(),
+      scanner,
+    }).catch((appendErr) => {
+      logger.queue.error('parse-scan-result: failed to append failure event', {
+        scanId,
+        error: appendErr instanceof Error ? appendErr.message : String(appendErr),
+      });
+    });
+
+    // Re-throw so pg-boss marks the job as failed
+    throw err;
+  } finally {
+    // ALWAYS check if all parse jobs are done — even on failure
+    // Pass currentJobId so checkAndCompleteScan excludes it from pending count
+    logger.queue.debug('parse-scan-result: finally block executing', { scanId, scanner, jobId: currentJobId });
+    await checkAndCompleteScan(scanId, projectId, currentJobId);
   }
 
-  // Record scan result
-  await scanRepository.createScanResult({
-    scanId,
-    scanner,
-    parsedSummary: result.summary,
-  });
+  logger.queue.info('processParseScanResultJob completed', { scanId, scanner, findingsCount: enrichedFindings.length, jobId: currentJobId });
+}
 
-  // Record: parsing completed
-  await scanRepository.appendProgressEvent(scanId, {
-    id: randomUUID(),
-    type: 'parsing',
-    description: `${scanner} parsing completed — ${enrichedFindings.length} findings`,
-    timestamp: new Date().toISOString(),
-    scanner,
-  });
-
-  // Check if all parse jobs for this scan are done — if so, mark scan completed
+/**
+ * Check if all parse jobs for a scan are done and mark scan completed.
+ * Runs on BOTH success and failure to prevent scans stuck in "parsing".
+ * Uses atomic tryCompleteScan to prevent race conditions between parallel parse jobs.
+ *
+ * IMPORTANT: currentJobId must be passed so we exclude the running job from the pending count.
+ * pg-boss sets state='active' BEFORE calling the handler, and only sets 'completed' AFTER
+ * the handler returns. Without excluding the current job, the last parse job would always
+ * see itself as "pending" and never complete the scan.
+ */
+async function checkAndCompleteScan(scanId: string, projectId: string | null, currentJobId: string) {
   try {
-    const { db } = await import('@/server/db/client');
-    const { sql } = await import('drizzle-orm');
-    const pendingJobs = await db.execute(
+    logger.queue.info('checkAndCompleteScan: starting', { scanId, projectId, currentJobId });
+
+    // Count pending jobs: created OR active (excluding the current job which is still 'active')
+    const pendingJobs = await db.execute<{ count: number }>(
       sql`SELECT count(*)::int as count FROM pgboss.job 
           WHERE name = 'parse-scan-result' 
           AND data->>'scanId' = ${scanId}
-          AND state IN ('created', 'active')`
+          AND state IN ('created', 'active')
+          AND id != ${currentJobId}`
     );
     const pendingCount = pendingJobs[0]?.count ?? 0;
 
-    if (pendingCount === 0) {
-      await scanRepository.updateStatus(scanId, 'completed');
-      await scanRepository.appendProgressEvent(scanId, {
-        id: randomUUID(),
-        type: 'completed',
-        description: 'All parsing completed successfully',
-        timestamp: new Date().toISOString(),
-      });
-      logger.queue.info('parse-scan-result: scan marked completed', { scanId });
+    // Also get full job state breakdown for diagnostics
+    const jobStates = await db.execute<{ state: string; count: number }>(
+      sql`SELECT state, count(*)::int as count FROM pgboss.job 
+          WHERE name = 'parse-scan-result' 
+          AND data->>'scanId' = ${scanId}
+          GROUP BY state`
+    );
 
-      // Evaluate quality gate if projectId exists
-      if (projectId) {
-        try {
-          const scan = await scanRepository.getById(scanId);
-          if (scan?.repositoryId) {
-            // Look up workspaceId from repository
-            const { db: dbClient } = await import('@/server/db/client');
-            const { repositories } = await import('@drizzle/schema/source-controls');
-            const { eq: drizzleEq, and: drizzleAnd, isNull: drizzleIsNull } = await import('drizzle-orm');
-            const [repo] = await dbClient.select({ workspaceId: repositories.workspaceId })
-              .from(repositories)
-              .where(drizzleAnd(drizzleEq(repositories.id, scan.repositoryId), drizzleIsNull(repositories.deletedAt)))
-              .limit(1);
+    logger.queue.info('checkAndCompleteScan: pending jobs query result', {
+      scanId,
+      currentJobId,
+      pendingCount,
+      jobStates: jobStates.map((r) => `${r.state}:${r.count}`).join(', '),
+    });
 
-            if (repo?.workspaceId) {
-              const { qualityGateService } = await import('@/server/modules/scan/services/quality-gate.service');
-              await qualityGateService.evaluateScan(scanId, repo.workspaceId, projectId);
-              logger.queue.info('parse-scan-result: quality gate evaluated', { scanId });
-            } else {
-              logger.queue.warn('parse-scan-result: workspace not found for repository', { scanId, repositoryId: scan.repositoryId });
-            }
+    if (pendingCount > 0) {
+      logger.queue.debug('parse-scan-result: still pending jobs', { scanId, pendingCount, currentJobId });
+      return;
+    }
+
+    logger.queue.info('parse-scan-result: no pending jobs, attempting to complete scan', { scanId, currentJobId });
+
+    // Atomic: only one parse job wins the race to mark completed
+    const completedScan = await scanRepository.tryCompleteScan(scanId);
+    if (!completedScan) {
+      // Already completed by another parse job, or wrong status
+      return;
+    }
+
+    await scanRepository.appendProgressEvent(scanId, {
+      id: randomUUID(),
+      type: 'completed',
+      description: 'All parsing completed successfully',
+      timestamp: new Date().toISOString(),
+    });
+    logger.queue.info('parse-scan-result: scan marked completed', { scanId });
+
+    // Evaluate quality gate if projectId exists
+    if (projectId) {
+      try {
+        if (completedScan.repositoryId) {
+          const [repo] = await db.select({ workspaceId: repositories.workspaceId })
+            .from(repositories)
+            .where(and(eq(repositories.id, completedScan.repositoryId), isNull(repositories.deletedAt)))
+            .limit(1);
+
+          if (repo?.workspaceId) {
+            const { qualityGateService } = await import('@/server/modules/scan/services/quality-gate.service');
+            await qualityGateService.evaluateScan(scanId, repo.workspaceId, projectId);
+            logger.queue.info('parse-scan-result: quality gate evaluated', { scanId });
+          } else {
+            logger.queue.warn('parse-scan-result: workspace not found for repository', { scanId, repositoryId: completedScan.repositoryId });
           }
-        } catch (err) {
-          logger.queue.error('parse-scan-result: quality gate evaluation failed', { scanId, error: err instanceof Error ? err.message : String(err) });
         }
+      } catch (err) {
+        logger.queue.error('parse-scan-result: quality gate evaluation failed', { scanId, error: err instanceof Error ? err.message : String(err) });
       }
-    } else {
-      logger.queue.debug('parse-scan-result: still pending jobs', { scanId, pendingCount });
     }
   } catch (err) {
-    logger.queue.error('parse-scan-result: failed to check pending jobs', { scanId, error: err instanceof Error ? err.message : String(err) });
+    logger.queue.error('parse-scan-result: failed to check pending jobs', {
+      scanId,
+      currentJobId,
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack?.slice(0, 500) : undefined,
+    });
   }
-
-  logger.queue.debug('processParseScanResultJob completed', { scanId, findingsCount: enrichedFindings.length });
 }
 
 /**

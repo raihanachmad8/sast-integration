@@ -1,5 +1,8 @@
 import { type NewFinding } from '@drizzle/schema/findings';
 import { logger } from '@/server/lib/logger';
+import { normalizeFilePath } from './path-normalizer';
+import type { Severity } from '@/commons/types/domain';
+import type { ParseResult } from './index';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -17,7 +20,6 @@ interface ClangTidyDiagnostic {
 // Matches: /path/file.c:42:12: warning: message [check-name]
 // Also handles Windows paths: C:\path\file.c:42:12: warning: message [check-name]
 // Uses greedy match (.+) for file path, then backtracks to find line:col: level:
-// eslint-disable-next-line no-useless-escape
 const DIAG_RE = /^(.+):(\d+):(\d+):\s+(warning|error|note):\s+(.+?)(?:\s+\[([^\]]+)\])?\s*$/;
 
 // ─── Parser ─────────────────────────────────────────────────────────────────
@@ -71,7 +73,7 @@ export function parseClangTidy(
   content: string | Buffer,
   scanId: string,
   scanner: string = 'clang-tidy',
-): { findings: NewFinding[]; summary: Record<string, number> } {
+): ParseResult {
   const text = typeof content === 'string' ? content : content.toString('utf8');
 
   logger.scan.debug('parseClangTidy', { length: text.length });
@@ -92,7 +94,7 @@ export function parseClangTidy(
 
     // Skip system header warnings (not from user code)
     // Match patterns like: /usr/include/..., /usr/lib/..., <built-in>, <scratch space>
-    if (file.startsWith('<') || file.includes('/usr/include/') || file.includes('/usr/lib/') || file.includes('\\include\\') || file.includes('\\lib\\')) continue;
+    if (file.startsWith('<') || file.includes('/usr/include/') || file.includes('/usr/lib/') || file.startsWith('\\include\\') || file.startsWith('\\lib\\') || /^[A-Z]:\\(Program Files|msys64|LLVM)\\/.test(file)) continue;
 
     if (level === 'warning' || level === 'error') {
       // Commit previous finding
@@ -138,15 +140,14 @@ function createFinding(diag: ClangTidyDiagnostic, scanId: string, scanner: strin
     scanner,
     rule: diag.checkName,
     severity,
-    filePath: diag.file,
+    filePath: normalizeFilePath(diag.file),
     lineNumber: diag.line,
     message: diag.message,
     description: diag.message,
-    status: 'open',
   };
 }
 
-function mapSeverity(level: string, checkName: string): string {
+function mapSeverity(level: string, checkName: string): Severity {
   if (level === 'error') return 'high';
 
   // Cert and security checks are more severe
