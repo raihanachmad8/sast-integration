@@ -5,9 +5,10 @@
  *
  * Finalizes a scan from CI/CD pipelines:
  * 1. Updates scan status
- * 2. Evaluates quality gate
- * 3. Auto-posts PR comment (dedup by scan ID)
- * 4. Sets commit status (for branch protection)
+ * 2. Posts inline comments (fast feedback)
+ * 3. Evaluates quality gate (final verdict)
+ * 4. Posts PR comment (final summary)
+ * 5. Sets commit status (for branch protection)
  *
  * ## Authentication
  * Uses Project API Token via `Authorization: Bearer sast_p_xxxxx`
@@ -198,27 +199,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5. Auto-post PR comment + commit status (if PR scan)
-    let prCommentResult = null;
-    let commitStatusResult = null;
+    // 5. Post inline comments FIRST (fast feedback to developer)
     let inlineCommentsResult = null;
-
     if (scan.prNumber && scan.headBranch && scan.baseBranch && scan.repositoryId) {
       try {
-        const precomputedData = (gateResult as { newFindingsData?: unknown[] })?.newFindingsData;
-        logger.scan.info('CI/CD: calling postPrCommentAndCommitStatus', {
-          scanId,
-          hasPrecomputedData: precomputedData !== undefined && precomputedData !== null,
-          precomputedDataLength: Array.isArray(precomputedData) ? precomputedData.length : 'N/A',
-        });
+        inlineCommentsResult = await postInlineComments(scanId, workspaceId, scan, gateResult);
+      } catch (err) {
+        logger.scan.error('CI/CD inline comments failed (non-critical)', { scanId, error: (err as Error).message });
+      }
+    }
 
+    // 6. Evaluate quality gate (final verdict — after inline comments posted)
+    // gateResult already computed in step 4 above, no need to re-evaluate
+
+    // 7. Post PR comment + commit status (final summary with QG data)
+    let prCommentResult = null;
+    let commitStatusResult = null;
+    if (scan.prNumber && scan.headBranch && scan.baseBranch && scan.repositoryId) {
+      try {
         const scmResult = await postPrCommentAndCommitStatus(
           scanId, workspaceId, scan, gateResult,
-          precomputedData,
         );
         prCommentResult = scmResult.prComment;
         commitStatusResult = scmResult.commitStatus;
-        inlineCommentsResult = scmResult.inlineComments;
       } catch (err) {
         logger.scan.error('CI/CD SCM actions failed (non-critical)', { scanId, error: (err as Error).message });
       }
@@ -249,26 +252,18 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Post PR comment and set commit status for a completed scan.
+ * Post inline review comments for new findings (fast feedback).
  */
-async function postPrCommentAndCommitStatus(
+async function postInlineComments(
   scanId: string,
   workspaceId: string,
-  scan: { repositoryId: string | null; headBranch: string | null; baseBranch: string | null; prNumber: number | null; commitSha: string | null },
+  scan: { repositoryId: string | null; headBranch: string | null; baseBranch: string | null; prNumber: number | null },
   gateResult: { status: string; newFindings?: number; fixedFindings?: number; blockingFindings?: number } | null,
-  precomputedFindings?: unknown[],
-): Promise<{
-  prComment: { action: 'created' | 'updated'; prNumber: number } | null;
-  commitStatus: { status: string; context: string } | null;
-  inlineComments: { created: number; updated: number } | null;
-}> {
-  if (!scan.repositoryId || !scan.headBranch || !scan.baseBranch || !scan.prNumber) {
-    return { prComment: null, commitStatus: null, inlineComments: null };
-  }
+): Promise<{ created: number; updated: number } | null> {
+  if (!scan.repositoryId || !scan.headBranch || !scan.baseBranch || !scan.prNumber) return null;
 
-  // Get repository and source control credentials
   const repository = await repositoriesRepository.getById(scan.repositoryId, workspaceId);
-  if (!repository) return { prComment: null, commitStatus: null, inlineComments: null };
+  if (!repository) return null;
 
   const [sourceControl] = await db
     .select()
@@ -276,10 +271,10 @@ async function postPrCommentAndCommitStatus(
     .where(eq(sourceControls.workspaceId, workspaceId))
     .limit(1);
 
-  if (!sourceControl?.credentials) return { prComment: null, commitStatus: null, inlineComments: null };
+  if (!sourceControl?.credentials) return null;
 
   const credentials = sourceControl.credentials as { baseUrl?: string; token?: string; provider?: string; clientId?: string; clientSecret?: string; refreshToken?: string };
-  if (!credentials.baseUrl || !credentials.token) return { prComment: null, commitStatus: null, inlineComments: null };
+  if (!credentials.baseUrl || !credentials.token) return null;
 
   const provider = sourceControl.provider || 'gitea';
   const scm = createScmApiService(provider, {
@@ -292,31 +287,147 @@ async function postPrCommentAndCommitStatus(
   });
   const [owner, repo] = parseRepoName(repository.name);
 
-  // Get workspace slug for PR comment link
   const [ws] = await db.select({ slug: workspaces.slug }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
   const workspaceSlug = ws?.slug ?? 'workspace';
 
-  // Post PR comment
-  let prCommentResult = null;
-  let inlineCommentsResult = null;
-  try {
-    // Use precomputed findings from quality gate, or fallback to fresh query
-    const isPrecomputed = precomputedFindings !== undefined && precomputedFindings !== null;
-    logger.scan.info('CI/CD: postPrComment precomputed check', {
-      scanId,
-      isPrecomputed,
-      precomputedType: typeof precomputedFindings,
-      precomputedLength: Array.isArray(precomputedFindings) ? precomputedFindings.length : 'N/A',
-      willUseFallback: !isPrecomputed,
-    });
+  // Get new findings from code diff
+  const precomputedFindings = (gateResult as { newFindingsData?: unknown[] })?.newFindingsData;
+  const diffData = precomputedFindings !== undefined && precomputedFindings !== null
+    ? precomputedFindings
+    : (await findingRepository.diffNewFindings(
+        scan.repositoryId!, scan.headBranch!, scan.baseBranch!, {}, { page: 1, perPage: 1000 },
+      )).data;
 
-    const diffData = isPrecomputed
+  const newFindings = diffData.map((f) => {
+    const rec = f as Record<string, unknown>;
+    return {
+      severity: (rec.severity as string) ?? 'medium',
+      filePath: rec.filePath as string,
+      lineNumber: rec.lineNumber as number,
+      rule: rec.rule as string,
+      message: rec.message as string,
+      scanner: rec.scanner as string,
+      codeSnippet: rec.codeSnippet as string ?? null,
+      aiVerdict: rec.aiVerdict as string ?? null,
+      confidence: String(rec.confidence ?? ''),
+      findingId: (rec.id ?? rec.findingId) as string,
+      fingerprint: rec.fingerprint as string,
+    };
+  });
+
+  // Dedup by fingerprint
+  const seenFingerprints = new Set<string>();
+  const uniqueFindings = newFindings.filter((f) => {
+    if (!f.filePath || !f.lineNumber || !f.findingId || !f.fingerprint) return false;
+    if (seenFingerprints.has(f.fingerprint)) return false;
+    seenFingerprints.add(f.fingerprint);
+    return true;
+  });
+
+  // Resolve fixed finding threads
+  try {
+    const fixedFingerprints = (gateResult as { fixedFingerprints?: string[] })?.fixedFingerprints;
+    if (fixedFingerprints && fixedFingerprints.length > 0) {
+      const resolveResult = await scm.resolveInlineReviewComments(owner, repo, scan.prNumber, fixedFingerprints);
+      logger.scan.info('CI/CD: resolved finding threads', { scanId, resolved: resolveResult.resolved, failed: resolveResult.failed });
+    }
+  } catch (err) {
+    logger.scan.warn('CI/CD: resolve threads failed (non-critical)', { scanId, error: (err as Error).message });
+  }
+
+  // Post new inline comments (skip existing)
+  if (uniqueFindings.length === 0) return { created: 0, updated: 0 };
+
+  const existingFingerprints = await scm.listExistingInlineFingerprints(owner, repo, scan.prNumber);
+  const newOnlyFindings = uniqueFindings.filter((f) => !existingFingerprints.has(f.fingerprint));
+
+  if (newOnlyFindings.length === 0) {
+    logger.scan.info('CI/CD: all inline findings already have comments, skipping', { scanId });
+    return { created: 0, updated: 0 };
+  }
+
+  const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const inlineComments: InlineReviewComment[] = newOnlyFindings.map((f) => ({
+    filePath: f.filePath!,
+    lineNumber: f.lineNumber!,
+    body: buildInlineReviewComment(f, appBaseUrl, workspaceSlug),
+    severity: f.severity,
+    findingId: f.findingId,
+    fingerprint: f.fingerprint,
+    scanner: f.scanner,
+  }));
+
+  return await scm.postInlineReviewComments(owner, repo, scan.prNumber, scanId, inlineComments);
+}
+
+/**
+ * Post PR summary comment and set commit status (final step — after inline comments).
+ */
+async function postPrCommentAndCommitStatus(
+  scanId: string,
+  workspaceId: string,
+  scan: { repositoryId: string | null; headBranch: string | null; baseBranch: string | null; prNumber: number | null; commitSha: string | null },
+  gateResult: { status: string; newFindings?: number; fixedFindings?: number; blockingFindings?: number } | null,
+): Promise<{
+  prComment: { action: 'created' | 'updated'; prNumber: number } | null;
+  commitStatus: { status: string; context: string } | null;
+}> {
+  if (!scan.repositoryId || !scan.headBranch || !scan.baseBranch || !scan.prNumber) {
+    return { prComment: null, commitStatus: null };
+  }
+
+  const repository = await repositoriesRepository.getById(scan.repositoryId, workspaceId);
+  if (!repository) return { prComment: null, commitStatus: null };
+
+  const [sourceControl] = await db
+    .select()
+    .from(sourceControls)
+    .where(eq(sourceControls.workspaceId, workspaceId))
+    .limit(1);
+
+  if (!sourceControl?.credentials) return { prComment: null, commitStatus: null };
+
+  const credentials = sourceControl.credentials as { baseUrl?: string; token?: string; provider?: string; clientId?: string; clientSecret?: string; refreshToken?: string };
+  if (!credentials.baseUrl || !credentials.token) return { prComment: null, commitStatus: null };
+
+  const provider = sourceControl.provider || 'gitea';
+  const scm = createScmApiService(provider, {
+    baseUrl: credentials.baseUrl,
+    token: credentials.token,
+    clientId: credentials.clientId,
+    clientSecret: credentials.clientSecret,
+    refreshToken: credentials.refreshToken,
+    sourceControlId: sourceControl.id,
+  });
+  const [owner, repo] = parseRepoName(repository.name);
+
+  const [ws] = await db.select({ slug: workspaces.slug }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+  const workspaceSlug = ws?.slug ?? 'workspace';
+
+  // Post PR summary comment
+  let prCommentResult = null;
+  try {
+    const gateDb = await qualityGateRepository.getResultByScanId(scanId);
+    const gateStatus = gateDb?.status ?? gateResult?.status ?? 'pending';
+    const newCount = gateDb?.newFindings ?? gateResult?.newFindings ?? 0;
+    const fixedCount = gateDb?.fixedFindings ?? gateResult?.fixedFindings ?? 0;
+    const blockingCount = gateDb?.blockingFindings ?? gateResult?.blockingFindings ?? 0;
+    const persistentCount = gateDb?.persistentFindings ?? 0;
+
+    // Get dismissed/resolved counts
+    const statusCounts = await findingRepository.countGroupsByStatusForScan(scanId);
+    const dismissedCount = statusCounts.dismissed;
+    const resolvedCount = statusCounts.resolved;
+
+    // Get new findings for the comment body
+    const precomputedFindings = (gateResult as { newFindingsData?: unknown[] })?.newFindingsData;
+    const diffData = precomputedFindings !== undefined && precomputedFindings !== null
       ? precomputedFindings
       : (await findingRepository.diffNewFindings(
           scan.repositoryId!, scan.headBranch!, scan.baseBranch!, {}, { page: 1, perPage: 1000 },
         )).data;
 
-    const newFindings = diffData.map((f) => {
+    const newFindingsForComment = diffData.map((f) => {
       const rec = f as Record<string, unknown>;
       return {
         severity: (rec.severity as string) ?? 'medium',
@@ -333,81 +444,13 @@ async function postPrCommentAndCommitStatus(
       };
     });
 
-    // Dedup by fingerprint — each unique finding = 1 inline comment
-    const seenFingerprints = new Set<string>();
-    const uniqueFindings = newFindings.filter((f) => {
-      if (!f.filePath || !f.lineNumber || !f.findingId || !f.fingerprint) return false;
-      if (seenFingerprints.has(f.fingerprint)) return false;
-      seenFingerprints.add(f.fingerprint);
-      return true;
-    });
-
-    logger.scan.info('CI/CD: inline findings dedup', {
-      total: newFindings.length,
-      unique: uniqueFindings.length,
-      locations: Array.from(seenFingerprints),
-    });
-
-    const gateDb = await qualityGateRepository.getResultByScanId(scanId);
-    const gateStatus = gateDb?.status ?? gateResult?.status ?? 'pending';
-    const newCount = gateDb?.newFindings ?? gateResult?.newFindings ?? newFindings.length;
-    const fixedCount = gateDb?.fixedFindings ?? gateResult?.fixedFindings ?? 0;
-    const blockingCount = gateDb?.blockingFindings ?? gateResult?.blockingFindings ?? 0;
-    const persistentCount = gateDb?.persistentFindings ?? 0;
-
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const commentBody = buildPrComment(
-      scanId, gateStatus, newCount, fixedCount, blockingCount, newFindings, appBaseUrl, persistentCount, workspaceSlug,
+      scanId, gateStatus, newCount, fixedCount, blockingCount, newFindingsForComment, appBaseUrl, persistentCount, workspaceSlug, dismissedCount, resolvedCount,
     );
 
     const action = await scm.postOrUpdatePrComment(owner, repo, scan.prNumber, scanId, commentBody);
     prCommentResult = { action, prNumber: scan.prNumber };
-
-    // Post inline review comments for ALL new findings
-    const inlineFindings = uniqueFindings;
-
-    // Resolve inline comments for resolved findings (close/resolve threads)
-    try {
-      // Use fixedFingerprints from branch comparison (previous scan vs current scan)
-      const fixedFingerprints = (gateResult as { fixedFingerprints?: string[] })?.fixedFingerprints;
-
-      if (fixedFingerprints && fixedFingerprints.length > 0) {
-        const resolveResult = await scm.resolveInlineReviewComments(
-          owner, repo, scan.prNumber, fixedFingerprints,
-        );
-        logger.scan.info('CI/CD: resolved finding threads', {
-          scanId, resolved: resolveResult.resolved, failed: resolveResult.failed,
-        });
-      }
-    } catch (err) {
-      logger.scan.warn('CI/CD: resolve threads failed (non-critical)', { scanId, error: (err as Error).message });
-    }
-
-    // Post new inline comments (skip findings that already have comments)
-    if (inlineFindings.length > 0) {
-      const existingFingerprints = await scm.listExistingInlineFingerprints(owner, repo, scan.prNumber);
-
-      const newOnlyFindings = inlineFindings.filter((f) => !existingFingerprints.has(f.fingerprint));
-
-      if (newOnlyFindings.length > 0) {
-        const inlineComments: InlineReviewComment[] = newOnlyFindings.map((f) => ({
-          filePath: f.filePath!,
-          lineNumber: f.lineNumber!,
-          body: buildInlineReviewComment(f, appBaseUrl, workspaceSlug),
-          severity: f.severity,
-          findingId: f.findingId,
-          fingerprint: f.fingerprint,
-          scanner: f.scanner,
-        }));
-
-        inlineCommentsResult = await scm.postInlineReviewComments(
-          owner, repo, scan.prNumber, scanId, inlineComments,
-        );
-      } else {
-        inlineCommentsResult = { created: 0, updated: 0 };
-        logger.scan.info('CI/CD: all inline findings already have comments, skipping', { scanId });
-      }
-    }
   } catch (err) {
     logger.scan.error('PR comment failed', { scanId, error: (err as Error).message });
   }
@@ -434,5 +477,5 @@ async function postPrCommentAndCommitStatus(
     }
   }
 
-  return { prComment: prCommentResult, commitStatus: commitStatusResult, inlineComments: inlineCommentsResult };
+  return { prComment: prCommentResult, commitStatus: commitStatusResult };
 }
