@@ -52,21 +52,12 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
     letterSpacing: '0.06em',
   };
 
-  const handleOverrideVerdict = (findingId: string, newVerdict: 'TP' | 'FP') => {
-    const status = newVerdict === 'FP' ? 'resolved' : 'open';
+  const handleResolve = (findingId: string) => {
     updateFindingMutation.mutate(
-      { id: findingId, payload: { verdict: newVerdict } },
+      { id: findingId, payload: { status: 'resolved' } },
       {
-        onSuccess: () => {
-          updateFindingMutation.mutate(
-            { id: findingId, payload: { status } },
-            {
-              onSuccess: () => { message.success(`Verdict overridden to "${newVerdict}"`); findingQuery.refetch(); },
-              onError: () => message.error('Failed to update status'),
-            }
-          );
-        },
-        onError: () => message.error('Failed to override verdict'),
+        onSuccess: () => { message.success('Finding resolved'); findingQuery.refetch(); },
+        onError: () => message.error('Failed to resolve finding'),
       }
     );
   };
@@ -205,7 +196,7 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
               <Card styles={{ body: { padding: token.paddingXL } }}>
                 <FindingActions
                   finding={finding as unknown as Finding}
-                  onOverrideVerdict={handleOverrideVerdict}
+                  onResolve={handleResolve}
                   onDismiss={handleDismiss}
                   onReverify={handleReverify}
                 />

@@ -10,20 +10,18 @@ const { Text } = Typography;
 
 interface FindingActionsProps {
   finding: Finding;
-  onOverrideVerdict?: (id: string, newVerdict: 'TP' | 'FP') => void;
   onDismiss?: (id: string) => void;
+  onResolve?: (id: string) => void;
   onReverify?: (id: string, modelId: string) => void;
   onOpenFullPage?: (id: string) => void;
 }
 
-export function FindingActions({ finding, onOverrideVerdict, onDismiss, onReverify, onOpenFullPage }: FindingActionsProps) {
+export function FindingActions({ finding, onDismiss, onResolve, onReverify, onOpenFullPage }: FindingActionsProps) {
   const { token } = theme.useToken();
-  const [overrideOpen, setOverrideOpen] = useState(false);
-  const [overrideVerdict, setOverrideVerdict] = useState<'TP' | 'FP'>('TP');
+  const [resolveOpen, setResolveOpen] = useState(false);
   const [reverifyOpen, setReverifyOpen] = useState(false);
   const [reverifyModel, setReverifyModel] = useState<string>('');
 
-  // Fetch available AI models from API
   const { data: modelsData } = useAiModelsQuery({ page: 1, perPage: 100 });
   const modelOptions = useMemo(() => {
     const models = modelsData?.data ?? [];
@@ -43,9 +41,9 @@ export function FindingActions({ finding, onOverrideVerdict, onDismiss, onReveri
     letterSpacing: '0.06em',
   };
 
-  const handleOverride = () => {
-    onOverrideVerdict?.(finding.id, overrideVerdict);
-    setOverrideOpen(false);
+  const handleResolve = () => {
+    onResolve?.(finding.id);
+    setResolveOpen(false);
   };
 
   const handleReverify = () => {
@@ -61,13 +59,10 @@ export function FindingActions({ finding, onOverrideVerdict, onDismiss, onReveri
         <Text style={sectionTitleStyle}>Actions</Text>
         <Row gutter={[token.marginSM, token.marginSM]}>
           <Col span={12}>
-            <Button block onClick={() => setOverrideOpen(true)}>Mark as TP</Button>
+            <Button block danger onClick={() => onDismiss?.(finding.id)}>Dismiss</Button>
           </Col>
           <Col span={12}>
-            <Button block danger onClick={() => { setOverrideVerdict('FP'); setOverrideOpen(true); }}>Mark as FP</Button>
-          </Col>
-          <Col span={12}>
-            <Button block onClick={() => onDismiss?.(finding.id)}>Dismiss</Button>
+            <Button block type="primary" onClick={() => setResolveOpen(true)}>Resolve</Button>
           </Col>
           <Col span={12}>
             <Button block onClick={() => setReverifyOpen(true)}>Re-verify with AI</Button>
@@ -80,13 +75,18 @@ export function FindingActions({ finding, onOverrideVerdict, onDismiss, onReveri
         </Row>
       </Flex>
 
-      <Modal title="Confirm Verdict" open={overrideOpen} destroyOnHidden onOk={handleOverride} onCancel={() => setOverrideOpen(false)} okText="Confirm" okButtonProps={{ danger: overrideVerdict === 'FP' }}>
+      <Modal
+        title="Resolve Finding"
+        open={resolveOpen}
+        destroyOnHidden
+        onOk={handleResolve}
+        onCancel={() => setResolveOpen(false)}
+        okText="Resolve"
+        okButtonProps={{ type: 'primary' }}
+      >
         <Flex vertical gap={token.marginSM} style={{ marginTop: token.marginMD }}>
-          <Text>Mark <strong>{finding.rule}</strong> as {overrideVerdict}?</Text>
-          <Select value={overrideVerdict} onChange={setOverrideVerdict} style={{ width: '100%' }} options={[
-            { value: 'TP', label: 'True Positive (TP) — confirmed issue' },
-            { value: 'FP', label: 'False Positive (FP) — not a real issue' },
-          ]} />
+          <Text>Resolve <strong>{finding.rule}</strong> as not an issue?</Text>
+          <Text type="secondary">This marks the finding as resolved. It will not block the quality gate.</Text>
         </Flex>
       </Modal>
 

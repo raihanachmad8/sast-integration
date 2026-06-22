@@ -94,6 +94,12 @@ export async function POST(request: NextRequest) {
       return ApiResponse.error('Scan not found', 'NOT_FOUND', undefined, 404);
     }
 
+    // Idempotency: skip if scan already in terminal state
+    if (scan.status === 'completed' || scan.status === 'failed') {
+      logger.scan.info('CI/CD complete: scan already in terminal state, skipping', { scanId, status: scan.status });
+      return ApiResponse.success('Scan already completed', { scanId, status: scan.status, skipped: true });
+    }
+
     // 1. Update scan status (validate it's a terminal status)
     const validStatuses = ['completed', 'failed'];
     const scanStatus = status && validStatuses.includes(status) ? status : 'completed';

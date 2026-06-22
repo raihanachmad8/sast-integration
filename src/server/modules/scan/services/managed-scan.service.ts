@@ -355,10 +355,21 @@ export const managedScanService = {
       await collectAndStoreContexts(checkoutDir, data.scanId, executionResults, storage);
 
       // Enqueue parse jobs (AFTER source context is stored)
+      const failedEnqueues: string[] = [];
       for (const result of executionResults) {
         if (result.status === 'completed' && result.fileKey) {
-          await safeEnqueueParseJob(data.scanId, result.fileKey, result.scanner, data.projectId);
+          const enqueued = await safeEnqueueParseJob(data.scanId, result.fileKey, result.scanner, data.projectId);
+          if (!enqueued) failedEnqueues.push(result.scanner);
         }
+      }
+
+      // Warn if any parse jobs failed to enqueue
+      if (failedEnqueues.length > 0) {
+        await scanRepository.appendProgressEvent(data.scanId, {
+          id: randomUUID(), type: 'skipped',
+          description: `Failed to enqueue parse jobs for: ${failedEnqueues.join(', ')}. Findings from these scanners will be missing.`,
+          timestamp: new Date().toISOString(),
+        });
       }
 
       // Set status to parsing while parse jobs run in background
@@ -505,11 +516,13 @@ async function collectAndStoreContexts(
   }
 }
 
-async function safeEnqueueParseJob(scanId: string, fileKey: string, scanner: ScannerId, projectId: string | null) {
+async function safeEnqueueParseJob(scanId: string, fileKey: string, scanner: ScannerId, projectId: string | null): Promise<boolean> {
   try {
     await enqueue('parse-scan-result', { scanId, fileKey, scanner, projectId });
+    return true;
   } catch (err) {
     logger.scan.error('enqueue parse job failed', { scanner, error: (err as Error).message, scanId });
+    return false;
   }
 }
 

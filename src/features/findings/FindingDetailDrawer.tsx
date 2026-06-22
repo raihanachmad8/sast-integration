@@ -20,7 +20,7 @@ interface FindingDetailDrawerProps {
   finding: Finding | null;
   members?: Array<{ userId: string; name: string; email: string; initials: string; color: string }>;
   onDismiss?: (id: string) => void;
-  onOverrideVerdict?: (id: string, newVerdict: 'TP' | 'FP') => void;
+  onResolve?: (id: string) => void;
   onReverify?: (id: string, model: string) => void;
   onOpenFullPage?: (id: string) => void;
   onAssign?: (findingId: string, assignee: string | null) => void;
@@ -32,7 +32,7 @@ export const FindingDetailDrawer = React.memo(function FindingDetailDrawer({
   finding,
   members = [],
   onDismiss,
-  onOverrideVerdict,
+  onResolve,
   onReverify,
   onOpenFullPage,
   onAssign,
@@ -155,7 +155,7 @@ export const FindingDetailDrawer = React.memo(function FindingDetailDrawer({
         <FindingActions
           finding={normalizedFinding}
           onDismiss={onDismiss}
-          onOverrideVerdict={onOverrideVerdict}
+          onResolve={onResolve}
           onReverify={onReverify}
           onOpenFullPage={onOpenFullPage}
         />

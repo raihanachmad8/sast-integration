@@ -13,6 +13,10 @@ import { eq } from 'drizzle-orm';
 import { AppError } from '@/server/http/errors';
 import { SCAN } from '../constants';
 
+/** Debounce timers for repostPrComment per scanId. */
+const repostTimers = new Map<string, NodeJS.Timeout>();
+const REPOST_DEBOUNCE_MS = 2000;
+
 export const qualityGateService = {
   /**
    * Get quality gate configuration for a workspace.
@@ -374,8 +378,26 @@ export const qualityGateService = {
   /**
    * Re-post the PR summary comment after QG re-evaluation.
    * Called when verdict changes or AI review completes to keep the PR comment up to date.
+   * Debounced per scanId to prevent redundant evaluations on rapid verdict changes.
    */
-  async repostPrComment(scanId: string, workspaceId: string) {
+  repostPrComment(scanId: string, workspaceId: string) {
+    // Clear existing timer for this scanId
+    const existing = repostTimers.get(scanId);
+    if (existing) clearTimeout(existing);
+
+    // Set new debounce timer
+    const timer = setTimeout(async () => {
+      repostTimers.delete(scanId);
+      await this._repostPrComment(scanId, workspaceId);
+    }, REPOST_DEBOUNCE_MS);
+
+    repostTimers.set(scanId, timer);
+  },
+
+  /**
+   * Internal: actually re-post the PR comment (called after debounce).
+   */
+  async _repostPrComment(scanId: string, workspaceId: string) {
     try {
       const scan = await scanRepository.getById(scanId);
       if (!scan?.prNumber || !scan?.headBranch || !scan?.baseBranch || !scan?.repositoryId) return;

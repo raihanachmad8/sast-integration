@@ -136,17 +136,12 @@ export function useFindingsPageState() {
     });
   }, [updateStatusMutation, message, findingsQuery]);
 
-  const handleOverrideVerdict = useCallback((id: string, verdict: 'TP' | 'FP') => {
-    const status = verdict === 'FP' ? 'resolved' : 'open';
-    updateStatusMutation.mutate({ id, payload: { verdict } }, {
+  const handleResolve = useCallback((id: string) => {
+    updateStatusMutation.mutate({ id, payload: { status: 'resolved' } }, {
       onSuccess: () => {
-        updateStatusMutation.mutate({ id, payload: { status } }, {
-          onSuccess: () => {
-            setSelected((prev) => prev && prev.id === id ? { ...prev, verdict, status: status as Finding['status'], confidence: 85 } : prev);
-            message.success(`Verdict overridden to ${verdict}`);
-            findingsQuery.refetch();
-          },
-        });
+        setSelected((prev) => prev && prev.id === id ? { ...prev, status: 'resolved' as const } : prev);
+        message.success('Finding resolved');
+        findingsQuery.refetch();
       },
     });
   }, [updateStatusMutation, message, findingsQuery]);
@@ -252,7 +247,7 @@ export function useFindingsPageState() {
     handleRunAiVerification,
     handleReview,
     handleDismiss,
-    handleOverrideVerdict,
+    handleResolve,
     handleReverify,
     handleOpenFullPage,
     handleAssign,

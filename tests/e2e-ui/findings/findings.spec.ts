@@ -100,10 +100,10 @@ test.describe('Findings Page', () => {
   });
 
   /**
-   * Purpose: Verify that a finding can be dismissed by overriding its verdict to FP.
-   * Opens the finding detail drawer, clicks Override verdict, selects FP, and confirms the success message.
+   * Purpose: Verify that a finding can be resolved via the drawer action.
+   * Opens the finding detail drawer, clicks Resolve, confirms, and checks success message.
    */
-  test('should dismiss a finding', async ({ page }) => {
+  test('should resolve a finding', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(500);
@@ -114,7 +114,7 @@ test.describe('Findings Page', () => {
       if (route.request().method() === 'PATCH') {
         route.fulfill({
           status: 200,
-          body: JSON.stringify({ success: true, data: { id: 'finding-1', status: 'resolved', verdict: 'FP' } }),
+          body: JSON.stringify({ success: true, data: { id: 'finding-1', status: 'resolved' } }),
         });
       } else {
         route.continue();
@@ -128,18 +128,14 @@ test.describe('Findings Page', () => {
       const drawer = page.locator('.ant-drawer');
       await expect(drawer).toBeVisible({ timeout: 5000 });
 
-      const overrideButton = drawer.getByRole('button', { name: /Override verdict/i });
-      await expect(overrideButton).toBeVisible({ timeout: 5000 });
-      await overrideButton.click();
+      const resolveButton = drawer.getByRole('button', { name: /Resolve/i });
+      await expect(resolveButton).toBeVisible({ timeout: 5000 });
+      await resolveButton.click();
 
-      const modal = page.getByRole('dialog', { name: /Override Verdict/i });
+      const modal = page.getByRole('dialog', { name: /Resolve Finding/i });
       await expect(modal).toBeVisible({ timeout: 5000 });
 
-      const fpSelect = modal.locator('.ant-select');
-      await fpSelect.click();
-      await page.getByText('False Positive (FP)').click();
-
-      await modal.getByRole('button', { name: 'Override' }).click();
+      await modal.getByRole('button', { name: 'Resolve' }).click();
       await expect(modal).not.toBeVisible({ timeout: 10000 });
 
       await expect.poll(async () => {

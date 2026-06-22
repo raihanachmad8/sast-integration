@@ -47,14 +47,14 @@ function decode(sp: URLSearchParams, opts: { defaultPageSize: number; searchKey:
   return { page, perPage, search, order, filters };
 }
 
-function encode(p: TableParams, opts: { defaultPageSize: number; searchKey: string; orderKey: string }): string {
-  const u = new URLSearchParams();
-  if (p.page > 1) u.set('page', String(p.page));
-  if (p.perPage !== opts.defaultPageSize) u.set('per_page', String(p.perPage));
-  if (p.search) u.set(opts.searchKey, p.search);
-  if (p.order) u.set(opts.orderKey, p.order);
+function encode(p: TableParams, opts: { defaultPageSize: number; searchKey: string; orderKey: string }, existingParams?: URLSearchParams): string {
+  const u = new URLSearchParams(existingParams?.toString() ?? '');
+  if (p.page > 1) u.set('page', String(p.page)); else u.delete('page');
+  if (p.perPage !== opts.defaultPageSize) u.set('per_page', String(p.perPage)); else u.delete('per_page');
+  if (p.search) u.set(opts.searchKey, p.search); else u.delete(opts.searchKey);
+  if (p.order) u.set(opts.orderKey, p.order); else u.delete(opts.orderKey);
   for (const [k, v] of Object.entries(p.filters)) {
-    if (v && v !== 'all') u.set(k, v);
+    if (v && v !== 'all') u.set(k, v); else u.delete(k);
   }
   return u.toString();
 }
@@ -115,9 +115,9 @@ export function useTableParams<T = unknown>(options: UseTableParamsOptions<T> = 
 
   const pushUrl = useCallback((next: TableParams) => {
     ownUpdateCountRef.current += 1;
-    const qs = encode(next, qsOpts);
+    const qs = encode(next, qsOpts, searchParams);
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [router, pathname, qsOpts]);
+  }, [router, pathname, qsOpts, searchParams]);
 
   const setPagination = useCallback((page: number, perPage: number) => {
     const next = { ...paramsRef.current, page, perPage };

@@ -14,7 +14,6 @@ import { findingService } from '@/server/modules/scan/services/finding.service';
 import { db } from '@/server/db/client';
 import { findingGroups } from '@drizzle/schema/findings';
 import { eq } from 'drizzle-orm';
-import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string; findingId: string }> };
 
@@ -49,10 +48,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         if (scan?.prNumber && scan?.baseBranch && scan?.headBranch && scan?.repositoryId) {
           // repostPrComment internally calls evaluatePrScan — no need to call it separately
           await qualityGateService.repostPrComment(scan.id, workspaceId);
-          logger.scan.info('verify: QG re-evaluated and PR comment reposted', { scanId: scan.id });
         }
-      } catch (err) {
-        logger.scan.warn('verify: QG re-evaluation failed', { error: (err as Error).message });
+      } catch {
+        // QG re-evaluation failed silently
       }
 
       // Update inline comments with new verdict
@@ -72,13 +70,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
               rule: f.rule,
               groupId: f.groupId,
             }, result.verdict === 'false_positive' ? 'false_positive' : 'true_positive');
+
           }
         } catch (err) {
-          logger.scan.warn('verify: inline comment update failed', { error: (err as Error).message });
+          // inline update failed silently
         }
       }
-    }).catch((err) => {
-      logger.scan.error('verify: post-mutation side effect failed', { findingId, error: (err as Error).message });
+    }).catch(() => {
+      // post-mutation side effect failed silently
     });
 
     return ApiResponse.success('Verification completed', result);

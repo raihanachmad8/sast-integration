@@ -45,7 +45,7 @@ export default function FindingsPage() {
     handleRunAiVerification,
     handleReview,
     handleDismiss,
-    handleOverrideVerdict,
+    handleResolve,
     handleReverify,
     handleOpenFullPage,
     handleAssign,
@@ -113,7 +113,7 @@ export default function FindingsPage() {
         finding={selected}
         members={members.map((m) => ({ userId: m.userId, name: m.name, email: m.email, initials: m.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase(), color: token.colorTextSecondary }))}
         onDismiss={handleDismiss}
-        onOverrideVerdict={handleOverrideVerdict}
+        onResolve={handleResolve}
         onReverify={handleReverify}
         onOpenFullPage={handleOpenFullPage}
         onAssign={handleAssign}
