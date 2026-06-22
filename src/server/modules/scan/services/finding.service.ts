@@ -7,8 +7,12 @@ import { findingRepository } from '../repositories/finding.repository';
 import { AppError } from '@/server/http/errors';
 import { models } from '@drizzle/schema/integrations';
 import { scans } from '@drizzle/schema/scans';
-import { repositories } from '@drizzle/schema/source-controls';
-import { eq, and, inArray } from 'drizzle-orm';
+import { repositories, sourceControls } from '@drizzle/schema/source-controls';
+import { workspaces } from '@drizzle/schema/workspaces';
+import { eq, and, inArray, isNotNull } from 'drizzle-orm';
+import { createScmApiService } from '@/server/modules/source-control/scm-api.service';
+import { buildInlineReviewComment, parseRepoName } from '@/server/modules/source-control/scm-api.service';
+import type { ScmCredentials } from '@/server/modules/source-control/scm-api.service';
 
 type NewFindingInput = Omit<NewFinding, 'id' | 'createdAt' | 'updatedAt'>;
 
@@ -73,6 +77,18 @@ export const findingService = {
         }
       }
 
+      // Step 1.5: Get existing groups for this scan+scanner to detect fixed findings
+      const existingGroupsForScan = inputScanners.length > 0
+        ? await tx.select({ id: findingGroups.id, fingerprint: findingGroups.fingerprint })
+            .from(findingGroups)
+            .innerJoin(findingGroupScans, eq(findingGroupScans.groupId, findingGroups.id))
+            .where(and(
+              eq(findingGroupScans.scanId, scanId),
+              inArray(findingGroups.fingerprint, Array.from(seenFingerprints.keys())),
+            ))
+        : [];
+      const existingFingerprintsBefore = new Set(existingGroupsForScan.map((g) => g.fingerprint));
+
       // Step 2: Batch find-or-create groups (also reopens fixed/false_positive groups)
       const fingerprintEntries = Array.from(seenFingerprints.entries()).map(([fp, input]) => ({
         fingerprint: fp,
@@ -97,13 +113,14 @@ export const findingService = {
       }));
       const created = await findingRepository.createMany(findingsToInsert, tx);
 
-      // Step 4: Mark groups NOT in incoming fingerprints → status='fixed'
+      // Step 4: Mark groups that were in previous scan but NOT in current batch → status='fixed'
+      // These are groups that existed before this scan but their fingerprints are not in the incoming batch
       const incomingFingerprints = new Set(seenFingerprints.keys());
-      const groupsToFix = Array.from(groupMap.entries())
-        .filter(([fp]) => !incomingFingerprints.has(fp))
-        .map(([, g]) => g.id);
-      if (groupsToFix.length > 0) {
-        await findingRepository.updateGroupsStatusBulk(groupsToFix, 'fixed', tx);
+      const groupsPreviouslyExisting = existingGroupsForScan
+        .filter((g) => !incomingFingerprints.has(g.fingerprint))
+        .map((g) => g.id);
+      if (groupsPreviouslyExisting.length > 0) {
+        await findingRepository.updateGroupsStatusBulk(groupsPreviouslyExisting, 'fixed', tx);
       }
 
       // Build findings array with isNew flag from groupMap
@@ -124,7 +141,7 @@ export const findingService = {
       const result = {
         new: newCount,
         persistent: persistentCount,
-        resolved: groupsToFix.length,
+        resolved: groupsPreviouslyExisting.length,
         findings: findingsWithIsNew,
       };
 
@@ -328,11 +345,127 @@ export const findingService = {
         throw new AppError(SCAN.ERRORS.NOT_FOUND, 404, SCAN.ERRORS.NOT_FOUND_CODE);
       }
 
+      // Get group fingerprint for inline comment update
+      const [group] = await db.select({ fingerprint: findingGroups.fingerprint })
+        .from(findingGroups)
+        .where(eq(findingGroups.id, finding.groupId))
+        .limit(1);
+
+      // Update inline comments on open PRs (non-blocking, best effort)
+      if (group?.fingerprint) {
+        this.updateInlineCommentsForVerdict({
+          fingerprint: group.fingerprint,
+          filePath: finding.filePath,
+          lineNumber: finding.lineNumber,
+          scanner: finding.scanner,
+          message: finding.message,
+          severity: finding.severity,
+          rule: finding.rule,
+          groupId: finding.groupId,
+        }, verdict).catch((err) => {
+          logger.scan.warn('updateVerdict: inline comment update failed (non-critical)', { findingId, error: (err as Error).message });
+        });
+      }
+
       logger.scan.info('updateVerdict completed', { findingId, groupId: finding.groupId, verdict, status });
       return result;
     } catch (error) {
       logger.scan.error('updateVerdict failed', { error, findingId, verdict });
       throw error;
+    }
+  },
+
+  /**
+   * Update inline comments on open PRs when verdict changes.
+   * Finds all open PRs that have this finding's fingerprint, rebuilds comment body,
+   * and calls SCM updateInlineReviewComments.
+   */
+  async updateInlineCommentsForVerdict(
+    finding: { fingerprint: string; filePath?: string | null; lineNumber?: number | null; scanner?: string | null; message?: string | null; severity?: string | null; rule?: string | null; groupId?: string | null },
+    verdict: string,
+  ) {
+    if (!finding.fingerprint) return;
+
+    const verdictDisplay = verdict === 'true_positive' ? 'TP' : 'FP';
+
+    // Find open PRs with this fingerprint via junction table + scans
+    const openPrs = await db.select({
+      repoName: repositories.name,
+      prNumber: scans.prNumber,
+      provider: sourceControls.provider,
+      credentials: sourceControls.credentials,
+      workspaceId: repositories.workspaceId,
+    })
+    .from(scans)
+    .innerJoin(repositories, eq(scans.repositoryId, repositories.id))
+    .innerJoin(sourceControls, eq(repositories.workspaceId, sourceControls.workspaceId))
+    .innerJoin(findingGroupScans, eq(findingGroupScans.scanId, scans.id))
+    .innerJoin(findingGroups, eq(findingGroups.id, findingGroupScans.groupId))
+    .where(
+      and(
+        eq(findingGroups.fingerprint, finding.fingerprint),
+        inArray(scans.status, ['running', 'completed']),
+        isNotNull(scans.prNumber),
+      )
+    )
+    .groupBy(
+      scans.prNumber,
+      repositories.name,
+      repositories.workspaceId,
+      sourceControls.provider,
+      sourceControls.credentials,
+    );
+
+    if (openPrs.length === 0) return;
+
+    // Look up workspace slug for link
+    const wsIds = [...new Set(openPrs.map(p => p.workspaceId))];
+    const wsRows = await db.select({ id: workspaces.id, slug: workspaces.slug })
+      .from(workspaces)
+      .where(inArray(workspaces.id, wsIds));
+    const slugMap = new Map(wsRows.map(r => [r.id, r.slug]));
+
+    logger.scan.info('updateInlineCommentsForVerdict: found open PRs', {
+      fingerprint: finding.fingerprint,
+      prCount: openPrs.length,
+    });
+
+    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+    for (const pr of openPrs) {
+      try {
+        if (!pr.credentials || !pr.provider || !pr.prNumber) continue;
+
+        const [owner, repo] = parseRepoName(pr.repoName);
+        const scm = createScmApiService(pr.provider, pr.credentials as ScmCredentials);
+        const wsSlug = slugMap.get(pr.workspaceId) ?? 'workspace';
+        const newBody = buildInlineReviewComment({
+          severity: (finding.severity ?? 'medium') as string,
+          filePath: finding.filePath ?? null,
+          lineNumber: finding.lineNumber ?? 0,
+          rule: finding.rule ?? null,
+          message: finding.message ?? null,
+          scanner: finding.scanner ?? null,
+          codeSnippet: null,
+          aiVerdict: verdictDisplay,
+          confidence: '',
+          findingId: '',
+          fingerprint: finding.fingerprint,
+        }, appBaseUrl, wsSlug);
+
+        await scm.updateInlineReviewComments(owner, repo, pr.prNumber, [{
+          fingerprint: finding.fingerprint,
+          filePath: finding.filePath ?? '',
+          lineNumber: finding.lineNumber ?? 0,
+          body: newBody,
+          scanner: finding.scanner ?? 'unknown',
+        }]);
+      } catch (err) {
+        logger.scan.warn('updateInlineCommentsForVerdict: failed for PR', {
+          prNumber: pr.prNumber,
+          error: (err as Error).message,
+        });
+      }
     }
   },
 
