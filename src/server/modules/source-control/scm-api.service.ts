@@ -270,24 +270,24 @@ export function buildPrComment(
   comment += `| 🟠 High | ${high.length} | ${high.length > 0 ? '❌ Blocking' : '✅ Pass'} |\n`;
   comment += `| 🟡 Medium | ${medium.length} | ${medium.length > 0 ? '⚠️ Warning' : '✅ Pass'} |\n`;
   comment += `| ⚪ Low | ${low.length} | ✅ Pass |\n`;
-  comment += `\n| Summary | Unique Issues |\n`;
-  comment += `|---------|---------------|\n`;
-  comment += `| Total | ${newFindings + persistentFindings} |\n`;
-  comment += `| New | ${newFindings} |\n`;
-  comment += `| Pre-existing | ${persistentFindings} |\n`;
-  comment += `| Fixed | ${fixedFindings} |\n`;
-  comment += `| Dismissed | ${dismissedFindings} |\n`;
-  comment += `| Resolved (FP) | ${resolvedFindings} |\n`;
-  comment += `\n| AI Verification | Count |\n`;
-  comment += `|-----------------|-------|\n`;
+  comment += `\n| Summary | Count |\n`;
+  comment += `|---------|-------|\n`;
+  comment += `| 📦 Total | ${newFindings + persistentFindings} |\n`;
+  comment += `| 🆕 New | ${newFindings} |\n`;
+  comment += `| 📂 Pre-existing | ${persistentFindings} |\n`;
+  comment += `| 📌 Fixed | ${fixedFindings} |\n`;
+  comment += `| 🙈 Dismissed | ${dismissedFindings} |\n`;
+  comment += `| ✅ Resolved (FP) | ${resolvedFindings} |\n`;
+  comment += `\n| 🤖 AI Verification | Count |\n`;
+  comment += `|--------------------|-------|\n`;
   comment += `| ✅ Verified TP | ${verified} |\n`;
   comment += `| ❌ Verified FP | ${falsePos} |\n`;
   comment += `| ⏳ Pending | ${pending} |\n`;
 
   // Actions
   comment += `\n---\n\n### 🎯 Actions\n\n`;
-  comment += `- [📊 View Full Report](${appBaseUrl}/${workspaceSlug}/findings?scanId=${scanId})\n`;
-  comment += `\n---\n*Powered by SAST Integration • Scan: \`${scanId.substring(0, 8)}\` • ${new Date().toISOString().split('T')[0]}*\n`;
+  comment += `- 📊 [View Full Report](${appBaseUrl}/${workspaceSlug}/findings?scanId=${scanId})\n`;
+  comment += `\n---\n*🔧 Powered by SAST Integration • \`${scanId.substring(0, 8)}\` • ${new Date().toISOString().split('T')[0]}*\n`;
 
   return comment;
 }
@@ -304,6 +304,7 @@ function normalizeDisplayPath(filePath: string): string {
 /**
  * Build inline review comment body for a specific finding.
  * This appears as a comment on the specific line in the PR diff.
+ * Uses emojis and structured format for quick scanning.
  */
 export function buildInlineReviewComment(
   finding: PrCommentFinding,
@@ -311,21 +312,51 @@ export function buildInlineReviewComment(
   workspaceSlug: string = 'workspace',
 ): string {
   const link = `${appBaseUrl}/${workspaceSlug}/findings/${finding.findingId}`;
-  const sevLabel = finding.severity.charAt(0).toUpperCase() + finding.severity.slice(1);
   const displayPath = normalizeDisplayPath(finding.filePath || '');
 
-  let comment = `SAST Integration detected a ${sevLabel} issue at ${displayPath}:${finding.lineNumber}.\n\n`;
-  comment += `**Issue:** ${finding.message || 'No description'}\n`;
-  comment += `**Rule:** ${finding.rule || 'N/A'}\n`;
-  comment += `**Scanner:** ${finding.scanner || 'N/A'}\n`;
+  const sevEmoji: Record<string, string> = {
+    critical: '🔴',
+    high: '🟠',
+    medium: '🟡',
+    low: '⚪',
+  };
+  const sevEmojiIcon = sevEmoji[finding.severity] ?? '⚪';
 
-  if (finding.aiVerdict) {
-    comment += `**AI review:** ${finding.aiVerdict}${finding.confidence ? ` (${finding.confidence})` : ''}\n`;
-  } else {
-    comment += `**AI review:** Pending verification\n`;
+  const verdictEmoji: Record<string, string> = {
+    true_positive: '✅',
+    TP: '✅',
+    false_positive: '❌',
+    FP: '❌',
+    pending: '⏳',
+    Pending: '⏳',
+  };
+  const verdictLabel: Record<string, string> = {
+    true_positive: 'True Positive',
+    TP: 'True Positive',
+    false_positive: 'False Positive',
+    FP: 'False Positive',
+    pending: 'Pending',
+    Pending: 'Pending',
+  };
+  const vEmoji = verdictEmoji[finding.aiVerdict ?? ''] ?? '⏳';
+  const vLabel = verdictLabel[finding.aiVerdict ?? ''] ?? 'Pending verification';
+
+  let comment = `<!-- sast-integration:inline-review:${finding.fingerprint} -->\n`;
+  comment += `${sevEmojiIcon} **${finding.severity.toUpperCase()}** · \`${finding.scanner}\`\n\n`;
+  comment += `**📋 ${finding.rule || 'Unknown rule'}**\n\n`;
+  comment += `> ${(finding.message || 'No description').split('\n')[0]}\n\n`;
+
+  if (finding.codeSnippet) {
+    const snippet = finding.codeSnippet.split('\n').slice(0, 3).join('\n');
+    comment += `**🔍 Code:**\n`;
+    comment += `\`\`\`${displayPath.split('.').pop() || ''}\n${snippet}\n\`\`\`\n\n`;
   }
 
-  comment += `\n**Action:** [📝 Review](${link})`;
+  comment += `| AI Review | Confidence |\n`;
+  comment += `|-----------|------------|\n`;
+  comment += `| ${vEmoji} ${vLabel} | ${finding.confidence ?? '—'} |\n\n`;
+
+  comment += `👉 [View full finding](${link})`;
 
   return comment;
 }
