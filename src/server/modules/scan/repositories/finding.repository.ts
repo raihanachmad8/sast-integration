@@ -1032,7 +1032,7 @@ export const findingRepository = {
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
       .where(eq(findings.scanId, currentScanId));
 
-    // Find groups that were in previous scan but NOT in current scan
+    // Find groups that were in previous scan but NOT in current scan (code fixed)
     const fixedGroups = await executor
       .select({ fingerprint: findingGroups.fingerprint })
       .from(findings)
@@ -1042,8 +1042,23 @@ export const findingRepository = {
         sql`${findingGroups.fingerprint} NOT IN (${currentFingerprints})`,
       ));
 
+    // Also find groups that exist in both scans but were resolved (user marked as FP)
+    const resolvedGroups = await executor
+      .select({ fingerprint: findingGroups.fingerprint })
+      .from(findings)
+      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+      .where(and(
+        eq(findings.scanId, currentScanId),
+        eq(findingGroups.status, 'resolved'),
+      ));
+
     // Deduplicate by fingerprint
-    const fingerprints = [...new Set(fixedGroups.map((g) => g.fingerprint))];
+    const fingerprints = [
+      ...new Set([
+        ...fixedGroups.map((g) => g.fingerprint),
+        ...resolvedGroups.map((g) => g.fingerprint),
+      ]),
+    ];
     return fingerprints;
   },
 
@@ -1106,7 +1121,7 @@ export const findingRepository = {
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
       .where(and(
         eq(findings.scanId, sql`(${latestScanId})`),
-        eq(findingGroups.status, 'open'),
+        sql`${findingGroups.status} != 'resolved'`,
       ));
 
     return Number(total) || 0;
@@ -1195,7 +1210,7 @@ export const findingRepository = {
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
       .where(and(
         eq(findings.scanId, scanId),
-        eq(findingGroups.status, 'open'),
+        sql`${findingGroups.status} != 'resolved'`,
       ));
 
     // Filter: only include findings on changed lines (normalize paths for comparison)
