@@ -54,7 +54,6 @@ export function TableFooter({
         pageSize={pageSize}
         total={total}
         onChange={onChange}
-        onShowSizeChange={onChange}
         showSizeChanger
         pageSizeOptions={pageSizeOptions}
         size="small"

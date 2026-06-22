@@ -45,7 +45,7 @@ export function AiAnalysisCard({
   knowledgeUses = 0,
 }: AiAnalysisCardProps) {
   const { token } = theme.useToken();
-  const displayCwes = likelyCwe && likelyCwe.length > 0 ? likelyCwe : [cwe];
+  const displayCwes = likelyCwe && likelyCwe.length > 0 ? likelyCwe : (cwe ? [cwe] : []);
 
   return (
     <Flex vertical>
@@ -59,46 +59,40 @@ export function AiAnalysisCard({
         <Flex vertical gap={token.paddingLG} style={{ padding: token.paddingLG }}>
           <Flex vertical gap={token.marginXS}>
             <Typography.Text strong style={{ color: token.colorPurple }}>Verdict reasoning</Typography.Text>
-            <Typography.Text type="secondary" style={{ lineHeight: 1.6 }}>{reasoning}</Typography.Text>
+            <Typography.Text type="secondary" style={{ lineHeight: 1.6 }}>{reasoning || '—'}</Typography.Text>
           </Flex>
 
-          {matchDetail && (
-            <Flex vertical gap={token.marginXS}>
-              <Typography.Text strong style={{ color: token.colorPurple }}>Match detail</Typography.Text>
-              <Typography.Text type="secondary" style={{ lineHeight: 1.6 }}>{matchDetail}</Typography.Text>
-            </Flex>
-          )}
+          <Flex vertical gap={token.marginXS}>
+            <Typography.Text strong style={{ color: token.colorPurple }}>Match detail</Typography.Text>
+            <Typography.Text type="secondary" style={{ lineHeight: 1.6 }}>{matchDetail || '—'}</Typography.Text>
+          </Flex>
 
           <Flex vertical gap={token.marginXS}>
             <Typography.Text strong style={{ color: token.colorPurple }}>CWE mapping</Typography.Text>
             <Flex gap={token.marginXXS} wrap="wrap">
-              {displayCwes.map((cw) => (
+              {displayCwes.length > 0 ? displayCwes.map((cw) => (
                 <StatusTag key={cw} type="knowledgeSource" value={cw} />
-              ))}
+              )) : <Typography.Text type="secondary">—</Typography.Text>}
             </Flex>
           </Flex>
 
-          {dataFlow && (
-            <Flex vertical gap={token.marginXS}>
-              <Typography.Text strong style={{ color: token.colorPurple }}>Data flow</Typography.Text>
-              <Typography.Text type="secondary" style={{ lineHeight: 1.6, fontFamily: token.fontFamilyCode }}>{dataFlow}</Typography.Text>
-            </Flex>
-          )}
+          <Flex vertical gap={token.marginXS}>
+            <Typography.Text strong style={{ color: token.colorPurple }}>Data flow</Typography.Text>
+            <Typography.Text type="secondary" style={{ lineHeight: 1.6, fontFamily: token.fontFamilyCode }}>{dataFlow || '—'}</Typography.Text>
+          </Flex>
 
-          {taintSource && (
-            <Flex vertical gap={token.marginXS}>
-              <Typography.Text strong style={{ color: token.colorPurple }}>Taint source</Typography.Text>
-              <Typography.Text type="secondary" style={{ lineHeight: 1.6 }}>{taintSource}</Typography.Text>
-            </Flex>
-          )}
+          <Flex vertical gap={token.marginXS}>
+            <Typography.Text strong style={{ color: token.colorPurple }}>Taint source</Typography.Text>
+            <Typography.Text type="secondary" style={{ lineHeight: 1.6 }}>{taintSource || '—'}</Typography.Text>
+          </Flex>
 
           <Flex vertical gap={token.marginXS}>
             <Typography.Text strong style={{ color: token.colorPurple }}>Remediation</Typography.Text>
-            <Typography.Text type="secondary" style={{ lineHeight: 1.6 }}>{remediation}</Typography.Text>
+            <Typography.Text type="secondary" style={{ lineHeight: 1.6 }}>{remediation || '—'}</Typography.Text>
           </Flex>
 
           <Flex align="center" gap={token.marginXS} style={{ padding: `${token.paddingXS}px ${token.paddingMD}px`, background: token.colorFillQuaternary, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: token.borderRadius, fontSize: token.fontSizeSM }}>
-            <FaIcon icon="fa-book" style={{ color: token.colorPurple }} /> <Typography.Text type="secondary">Knowledge ref: {cwe} ({knowledgeUses} prior uses)</Typography.Text>
+            <FaIcon icon="fa-book" style={{ color: token.colorPurple }} /> <Typography.Text type="secondary">Knowledge ref: {cwe || '—'} ({knowledgeUses} prior uses)</Typography.Text>
           </Flex>
         </Flex>
       </div>

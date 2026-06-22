@@ -74,8 +74,9 @@ export const findingRepository = {
     const executor = tx ?? db;
     const offset = getOffset(params.page, params.perPage);
 
-    const statusFilter = params.status || 'open';
-    const conditions = [eq(findingGroups.status, statusFilter)];
+    // Don't default to 'open' — show all findings unless status filter is explicitly set
+    const conditions = [];
+    if (params.status) conditions.push(eq(findingGroups.status, params.status));
     if (params.severity) conditions.push(eq(findings.severity, params.severity));
     if (params.scanner) conditions.push(eq(findings.scanner, params.scanner));
     if (params.repositoryId) conditions.push(eq(findingGroups.repositoryId, params.repositoryId));
@@ -91,6 +92,7 @@ export const findingRepository = {
       groupStatus: findingGroups.status,
       filePath: findings.filePath,
       lineNumber: findings.lineNumber,
+      codeSnippet: findings.codeSnippet,
       description: findings.description,
       rule: findings.rule,
       scanner: findings.scanner,
@@ -98,17 +100,62 @@ export const findingRepository = {
       assignedTo: findings.assignedTo,
       createdAt: findings.createdAt,
       firstSeenAt: findingGroups.firstSeenAt,
+      repositoryName: repositories.name,
     }).from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+      .innerJoin(scans, eq(findings.scanId, scans.id))
+      .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
       .where(and(eq(findingGroups.projectId, projectId), whereClause))
       .orderBy(desc(findings.createdAt))
       .limit(params.perPage).offset(offset);
+
+    // Fetch AI verifications separately to avoid LEFT JOIN duplicate rows
+    const findingIds = data.map((r) => r.id);
+    const aiData = findingIds.length > 0
+      ? await executor.select({
+          findingId: aiVerifications.findingId,
+          verdict: aiVerifications.verdict,
+          confidence: aiVerifications.confidence,
+          explanation: aiVerifications.explanation,
+          fixSuggestion: aiVerifications.fixSuggestion,
+          dataFlow: aiVerifications.dataFlow,
+          taintSource: aiVerifications.taintSource,
+          matchDetail: aiVerifications.matchDetail,
+          likelyCwe: aiVerifications.likelyCwe,
+          modelName: models.name,
+        }).from(aiVerifications)
+          .leftJoin(models, eq(aiVerifications.modelId, models.id))
+          .where(inArray(aiVerifications.findingId, findingIds))
+      : [];
+
+    const aiMap = new Map<string, typeof aiData[number]>();
+    for (const row of aiData) {
+      if (!row.findingId) continue;
+      const existing = aiMap.get(row.findingId);
+      if (!existing) aiMap.set(row.findingId, row);
+    }
+
+    const enrichedData = data.map((row) => {
+      const ai = row.id ? aiMap.get(row.id) : undefined;
+      return {
+        ...row,
+        verdict: ai ? (ai.verdict === 'true_positive' ? 'TP' : ai.verdict === 'false_positive' ? 'FP' : 'Pending') : 'Pending',
+        model: ai?.modelName ?? null,
+        confidence: ai?.confidence ?? null,
+        explanation: ai?.explanation ?? null,
+        fixSuggestion: ai?.fixSuggestion ?? null,
+        dataFlow: ai?.dataFlow ?? null,
+        taintSource: ai?.taintSource ?? null,
+        matchDetail: ai?.matchDetail ?? null,
+        likelyCwe: ai?.likelyCwe ?? null,
+      };
+    });
 
     const [{ total }] = await executor.select({ total: count() }).from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
       .where(and(eq(findingGroups.projectId, projectId), whereClause));
 
-    return { data, total };
+    return { data: enrichedData, total };
   },
 
   /**
@@ -125,13 +172,14 @@ export const findingRepository = {
     const executor = tx ?? db;
     const offset = getOffset(params.page, params.perPage);
 
-    const statusFilter = params.status || 'open';
+    // Don't default to 'open' — show all findings unless status filter is explicitly set
     const conditions = [];
+    if (params.status) conditions.push(eq(findingGroups.status, params.status));
     if (params.severity) conditions.push(eq(findings.severity, params.severity));
     if (params.scanner) conditions.push(eq(findings.scanner, params.scanner));
     if (params.repositoryId) conditions.push(eq(findingGroups.repositoryId, params.repositoryId));
 
-    const workspaceFilter = and(eq(projects.workspaceId, workspaceId), isNull(projects.deletedAt), eq(findingGroups.status, statusFilter));
+    const workspaceFilter = eq(projects.workspaceId, workspaceId);
     const whereClause = conditions.length > 0 ? and(workspaceFilter, and(...conditions)) : workspaceFilter;
 
     const data = await executor.select({
@@ -227,8 +275,9 @@ export const findingRepository = {
     const executor = tx ?? db;
     const offset = getOffset(params.page, params.perPage);
 
-    const statusFilter = params.status || 'open';
-    const conditions = [eq(findingGroups.status, statusFilter)];
+    // Don't default to 'open' — show all findings unless status filter is explicitly set
+    const conditions = [];
+    if (params.status) conditions.push(eq(findingGroups.status, params.status));
     if (params.severity) conditions.push(eq(findings.severity, params.severity));
     if (params.scanner) conditions.push(eq(findings.scanner, params.scanner));
     if (params.repositoryId) conditions.push(eq(scans.repositoryId, params.repositoryId));
@@ -367,6 +416,7 @@ export const findingRepository = {
       groupStatus: findingGroups.status,
       filePath: findings.filePath,
       lineNumber: findings.lineNumber,
+      codeSnippet: findings.codeSnippet,
       description: findings.description,
       rule: findings.rule,
       scanner: findings.scanner,
@@ -395,6 +445,12 @@ export const findingRepository = {
           findingId: aiVerifications.findingId,
           verdict: aiVerifications.verdict,
           confidence: aiVerifications.confidence,
+          explanation: aiVerifications.explanation,
+          fixSuggestion: aiVerifications.fixSuggestion,
+          dataFlow: aiVerifications.dataFlow,
+          taintSource: aiVerifications.taintSource,
+          matchDetail: aiVerifications.matchDetail,
+          likelyCwe: aiVerifications.likelyCwe,
           modelName: models.name,
         }).from(aiVerifications)
           .leftJoin(models, eq(aiVerifications.modelId, models.id))
@@ -415,6 +471,12 @@ export const findingRepository = {
         verdict: ai ? (ai.verdict === 'true_positive' ? 'TP' : ai.verdict === 'false_positive' ? 'FP' : 'Pending') : 'Pending',
         model: ai?.modelName ?? null,
         confidence: ai?.confidence ?? null,
+        explanation: ai?.explanation ?? null,
+        fixSuggestion: ai?.fixSuggestion ?? null,
+        dataFlow: ai?.dataFlow ?? null,
+        taintSource: ai?.taintSource ?? null,
+        matchDetail: ai?.matchDetail ?? null,
+        likelyCwe: ai?.likelyCwe ?? null,
       };
     });
 

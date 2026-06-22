@@ -35,7 +35,18 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
   const verifyMutation = useVerifyFindingMutation();
   const updateFindingMutation = useUpdateFindingMutation();
 
-  const finding = (findingQuery.data ?? null) as Finding | null;
+  const rawFinding = (findingQuery.data ?? null) as Finding | null;
+
+  // Normalize field names: API returns `cweId`, `assignedTo`, `repositoryName`, `filePath`
+  // but Finding type expects `cwe`, `assignee`, `repo`, `file`
+  const finding: Finding | null = rawFinding ? {
+    ...rawFinding,
+    cwe: rawFinding.cwe || (rawFinding as unknown as Record<string, unknown>).cweId as string || '',
+    assignee: rawFinding.assignee ?? (rawFinding as unknown as Record<string, unknown>).assignedTo as string | null ?? null,
+    repo: rawFinding.repo || (rawFinding as unknown as Record<string, unknown>).repositoryName as string || '',
+    file: rawFinding.file || rawFinding.filePath || '',
+  } : null;
+
   const members = (membersQuery.data?.data ?? []) as Member[];
 
   const [assignee, setAssignee] = useState<string | null>(finding?.assignee ?? null);

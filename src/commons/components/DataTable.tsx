@@ -87,6 +87,10 @@ interface DataTableProps<T> {
   toolbar?: React.ReactNode;
   compact?: boolean;
   onChange?: (page: number, pageSize: number) => void;
+  /** Controlled sort state from parent (e.g. URL-synced) */
+  sort?: { key: string; dir: 'asc' | 'desc' } | null;
+  /** Callback when sort changes */
+  onSortChange?: (sort: { key: string; dir: 'asc' | 'desc' } | null) => void;
 }
 
 function SortIndicator({ columnKey, sort }: { columnKey: string; sort: { key: string; dir: 'asc' | 'desc' } | null }) {
@@ -125,6 +129,8 @@ export function DataTable<T>({
   toolbar,
   compact = false,
   onChange,
+  sort: externalSort,
+  onSortChange,
 }: DataTableProps<T>) {
   const { token } = theme.useToken();
   const breakpoints = Grid.useBreakpoint();
@@ -142,7 +148,9 @@ export function DataTable<T>({
     }
   }, [searchValue]);
 
-  const [sort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
+  // Use external sort if provided, otherwise local state
+  const [internalSort, setInternalSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
+  const sort = externalSort !== undefined ? externalSort : internalSort;
 
   const visibleColumns = useMemo(
     () => (isMobile ? columns.filter((col) => !col.hideOnMobile) : columns),
@@ -322,6 +330,16 @@ export function DataTable<T>({
           size={compact ? 'small' : 'middle'}
           locale={{ emptyText }}
           scroll={{ x: 600 }}
+          onChange={(_pagination, _filters, sorter) => {
+            if (!Array.isArray(sorter) && sorter.columnKey && sorter.order) {
+              const newSort = { key: String(sorter.columnKey), dir: sorter.order === 'ascend' ? 'asc' as const : 'desc' as const };
+              setInternalSort(newSort);
+              onSortChange?.(newSort);
+            } else {
+              setInternalSort(null);
+              onSortChange?.(null);
+            }
+          }}
         />
 
         {!isLoading && source.meta.total > 0 && onChange && (
