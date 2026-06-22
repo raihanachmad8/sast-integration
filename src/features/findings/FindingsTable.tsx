@@ -24,6 +24,7 @@ interface FindingsTableProps {
   onFilterChange: (key: string, value: string) => void;
   onReview: (row: Finding) => void;
   onDismiss?: (ids: string[]) => void;
+  onResolve?: (ids: string[]) => void;
   onReverify?: (ids: string[]) => void;
   onAssign?: (ids: string[]) => void;
   onAssignRow?: (row: Finding) => void;
@@ -51,7 +52,7 @@ const STATUS_OPTIONS = [
   { value: 'resolved', label: 'Resolved' },
 ];
 
-export function FindingsTable({ rows, isLoading, total, page, pageSize, search, filterValues, onPageChange, onSearchChange, onFilterChange, onReview, onDismiss, onReverify, onAssign, onAssignRow, members, projectOptions = [], repositoryOptions = [] }: FindingsTableProps) {
+export function FindingsTable({ rows, isLoading, total, page, pageSize, search, filterValues, onPageChange, onSearchChange, onFilterChange, onReview, onDismiss, onResolve, onReverify, onAssign, onAssignRow, members, projectOptions = [], repositoryOptions = [] }: FindingsTableProps) {
   const { token } = theme.useToken();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -206,6 +207,9 @@ export function FindingsTable({ rows, isLoading, total, page, pageSize, search, 
       <PermissionGate permission={PERMISSION.FINDING_TRIAGE}>
         <Button type="primary" size="small" onClick={() => { onDismiss?.([...selectedIds]); setSelectedIds(new Set()); }}>
           <FaIcon icon="fa-check" /> Dismiss
+        </Button>
+        <Button size="small" onClick={() => { onResolve?.([...selectedIds]); setSelectedIds(new Set()); }}>
+          <FaIcon icon="fa-circle-check" /> Resolve
         </Button>
       </PermissionGate>
       <PermissionGate permission={PERMISSION.SCAN_RUN}>

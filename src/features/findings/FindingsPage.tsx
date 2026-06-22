@@ -50,6 +50,7 @@ export default function FindingsPage() {
     handleOpenFullPage,
     handleAssign,
     handleBulkDismiss,
+    handleBulkResolve,
     handleBulkReverify,
     handleBulkAssign,
     handleBulkAssignConfirm,
@@ -99,6 +100,7 @@ export default function FindingsPage() {
         onFilterChange={handleTableFilter}
         onReview={handleReview}
         onDismiss={handleBulkDismiss}
+        onResolve={handleBulkResolve}
         onReverify={handleBulkReverify}
         onAssign={handleBulkAssign}
         onAssignRow={handleReview}

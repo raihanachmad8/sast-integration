@@ -182,6 +182,15 @@ export function useFindingsPageState() {
     });
   }, [bulkUpdateMutation, message, findingsQuery]);
 
+  const handleBulkResolve = useCallback((ids: string[]) => {
+    bulkUpdateMutation.mutate({ ids, payload: { status: 'resolved' } }, {
+      onSuccess: () => {
+        message.success(`${ids.length} finding(s) resolved`);
+        findingsQuery.refetch();
+      },
+    });
+  }, [bulkUpdateMutation, message, findingsQuery]);
+
   const handleBulkReverify = useCallback((ids: string[]) => {
     verifyMutation.mutate(ids, {
       onSuccess: () => {
@@ -252,6 +261,7 @@ export function useFindingsPageState() {
     handleOpenFullPage,
     handleAssign,
     handleBulkDismiss,
+    handleBulkResolve,
     handleBulkReverify,
     handleBulkAssign,
     handleBulkAssignConfirm,
