@@ -59,7 +59,7 @@ export const scanService = {
    * @returns Paginated scan list with total count
    * @throws {AppError} If the user is not a workspace member
    */
-  async list(workspaceId: string, params: { page: number; perPage: number; search?: string; filters?: { status?: string; stage?: string; origin?: string }; accessibleProjectIds?: string[] }, userId: string) {
+  async list(workspaceId: string, params: { page: number; perPage: number; search?: string; filters?: { status?: string; stage?: string; origin?: string; repositoryId?: string }; accessibleProjectIds?: string[] }, userId: string) {
     logger.scan.debug('list', { workspaceId, page: params.page });
     try {
       const role = await workspaceRepository.getMemberRole(workspaceId, userId);

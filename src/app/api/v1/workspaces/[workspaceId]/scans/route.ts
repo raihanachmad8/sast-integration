@@ -28,6 +28,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     const status = searchParams.get('status') ?? undefined;
     const stage = searchParams.get('stage') ?? undefined;
     const origin = searchParams.get('origin') ?? undefined;
+    const repositoryId = searchParams.get('repositoryId') ?? undefined;
 
     const role = await workspaceRepository.getMemberRole(workspaceId, auth.context.userId);
     const accessibleProjectIds = await projectRepository.getAccessibleProjectIds(workspaceId, auth.context.userId, role ?? undefined);
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       page,
       perPage,
       search,
-      filters: { status, stage, origin },
+      filters: { status, stage, origin, repositoryId },
       accessibleProjectIds: accessibleProjectIds ?? undefined,
     }, auth.context.userId);
 

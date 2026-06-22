@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { App, Button, Flex, theme } from 'antd';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSessionData } from '@/modules/auth/queries';
 import { PageHeader } from '@/commons/components/PageHeader';
 import { LoadingState } from '@/commons/components/LoadingState';
@@ -36,8 +36,11 @@ export default function ScanPage() {
   const session = useSessionData();
   const workspaceSlug = session.data?.workspace?.slug ?? '';
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { token } = theme.useToken();
   const { workspaceId } = useWorkspace();
+
+  const repositoryIdFromUrl = searchParams.get('repositoryId') || undefined;
 
   const { params, setPagination, setSearch, setFilter } = useTableParams({
     filterKeys: ['status', 'stage', 'origin'],
@@ -51,6 +54,7 @@ export default function ScanPage() {
     status: params.filters.status || undefined,
     stage: params.filters.stage || undefined,
     origin: params.filters.origin || undefined,
+    repositoryId: repositoryIdFromUrl,
   });
 
   const reposQuery = useRepositoriesQuery({ page: 1, perPage: 200, imported: true });

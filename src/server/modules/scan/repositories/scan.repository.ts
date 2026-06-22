@@ -13,6 +13,7 @@ export interface ScanListFilters {
   status?: string;
   stage?: string;
   origin?: string;
+  repositoryId?: string;
 }
 
 export const scanRepository = {
@@ -51,6 +52,7 @@ export const scanRepository = {
     const conditions = [eq(repositories.workspaceId, workspaceId), isNull(repositories.deletedAt)];
     if (filters.status) conditions.push(eq(scans.status, filters.status));
     if (filters.origin) conditions.push(eq(scans.origin, filters.origin));
+    if (filters.repositoryId) conditions.push(eq(scans.repositoryId, filters.repositoryId));
     if (params.search) conditions.push(ilike(repositories.name, `%${params.search}%`));
     if (filters.stage) {
       const VALID_STAGES = ['triggered', 'queued', 'cloning', 'scanning', 'parsing', 'ai_verifying', 'completed', 'failed', 'skipped'];
