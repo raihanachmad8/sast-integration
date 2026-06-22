@@ -1,10 +1,14 @@
 import { logger } from '@/server/lib/logger';
 import { db } from '@/server/db/client';
-import { type NewFinding } from '@drizzle/schema/findings';
+import { type NewFinding, findings, findingGroups, findingGroupScans } from '@drizzle/schema/findings';
 import { generateFindingFingerprint } from './finding.fingerprint';
 import { FINDING_TITLE_FINGERPRINT_MAX_LENGTH, FINDING_TITLE_MESSAGE_MAX_LENGTH, SCAN } from '../constants';
 import { findingRepository } from '../repositories/finding.repository';
 import { AppError } from '@/server/http/errors';
+import { models } from '@drizzle/schema/integrations';
+import { scans } from '@drizzle/schema/scans';
+import { repositories } from '@drizzle/schema/source-controls';
+import { eq, and, inArray } from 'drizzle-orm';
 
 type NewFindingInput = Omit<NewFinding, 'id' | 'createdAt' | 'updatedAt'>;
 
@@ -12,78 +16,75 @@ export const findingService = {
   /**
    * Replace findings for a scan job with deduplication.
    *
-   * Within a single transaction:
-   * 1. Loads all previous active findings for the same project
-   * 2. Marks superseded findings (same fingerprint) as inactive
-   * 3. Marks resolved findings (fingerprint not in new set) as inactive with status 'fixed'
-   * 4. Inserts new findings as active
+   * Flow:
+   * 1. Compute fingerprints (intra-batch dedup)
+   * 2. Find/create groups (ON CONFLICT)
+   * 3. Reopen groups with status 'fixed'/'false_positive' → 'open'
+   * 4. Insert finding records (historical)
+   * 5. Mark groups without incoming fingerprint → status='fixed'
    *
-   * This ensures only the latest scan's findings are "active" at any time.
-   *
-   * @param projectId - Project UUID for group scoping (optional if repositoryId provided)
-   * @param scanId - Scan UUID these findings belong to
-   * @param inputs - Array of normalized findings from any parser
    * @returns Object with counts: new, persistent, resolved, and findings array
    */
-  async replaceFindingsForScanJob(projectId: string | null, scanId: string, inputs: NewFindingInput[], repositoryId?: string | null): Promise<{ new: number; persistent: number; resolved: number; findings: Array<{ id: string }> }> {
+  async replaceFindingsForScanJob(projectId: string | null, scanId: string, inputs: NewFindingInput[], repositoryId?: string | null): Promise<{ new: number; persistent: number; resolved: number; findings: Array<{ id: string; groupId: string | null; isNew: boolean }> }> {
     logger.scan.info('replaceFindingsForScanJob', { projectId, repositoryId, scanId, count: inputs.length });
 
     return db.transaction(async (tx) => {
       if (inputs.length === 0) return { new: 0, persistent: 0, resolved: 0, findings: [] };
 
-      // Determine scanner name from first input (all inputs in a batch are from the same scanner)
-      const scannerName = inputs[0]?.scanner;
+      // Idempotency: if findings already exist for this scan+scanner, return them without re-inserting
+      // This allows multiple scanners to upload to the same scan independently
+      const inputScanners = [...new Set(inputs.map((i) => i.scanner).filter(Boolean))] as string[];
+      const existingFindings = inputScanners.length > 0
+        ? await tx.select({ id: findings.id, groupId: findings.groupId, rule: findings.rule, filePath: findings.filePath, message: findings.message })
+            .from(findings)
+            .where(and(eq(findings.scanId, scanId), inArray(findings.scanner, inputScanners)))
+        : [];
+      if (existingFindings.length > 0) {
+        // Build result from existing data
+        const groupIds = existingFindings.map((f) => f.groupId).filter((id): id is string => id !== null);
+        const groupStatuses = groupIds.length > 0
+          ? await tx.select({ id: findingGroups.id, isNew: findingGroupScans.isNew })
+            .from(findingGroups)
+            .leftJoin(findingGroupScans, and(eq(findingGroupScans.groupId, findingGroups.id), eq(findingGroupScans.scanId, scanId)))
+            .where(inArray(findingGroups.id, groupIds))
+          : [];
+        const groupMap = new Map(groupStatuses.map((g) => [g.id, g.isNew ?? true]));
 
-      // Step 1: Compute fingerprints for all incoming findings
-      const incomingFingerprints = new Map<string, NewFindingInput>();
-      for (const input of inputs) {
-        const fp = generateFindingFingerprint({
-          rule: input.rule ?? '',
-          filePath: input.filePath,
-          lineNumber: input.lineNumber,
-          message: input.message,
-        });
-        incomingFingerprints.set(fp, input);
+        const findingsWithIsNew = existingFindings.map((f) => ({
+          id: f.id,
+          groupId: f.groupId,
+          isNew: f.groupId ? (groupMap.get(f.groupId) ?? true) : true,
+        }));
+        const newCount = findingsWithIsNew.filter((f) => f.isNew).length;
+        return { new: newCount, persistent: findingsWithIsNew.length - newCount, resolved: 0, findings: findingsWithIsNew };
       }
 
-      // Step 2: Load previous active findings for dedup (project-scoped or repo-scoped)
-      const previousActiveFindings = (projectId || repositoryId)
-        ? await findingRepository.listActiveFindingsByProject(projectId ?? null, repositoryId ?? null, scanId, scannerName ?? undefined, tx)
-        : [];
-
-      // Step 3: Separate into superseded (same fingerprint) and resolved (not in new set)
-      const supersededIds: string[] = [];
-      const resolvedIds: string[] = [];
-
-      for (const prev of previousActiveFindings) {
-        if (!prev.fingerprint) continue;
-        if (incomingFingerprints.has(prev.fingerprint)) {
-          supersededIds.push(prev.id);
-        } else {
-          resolvedIds.push(prev.id);
+      // Step 1: Compute fingerprints (intra-batch dedup)
+      const seenFingerprints = new Map<string, NewFindingInput>();
+      for (const input of inputs) {
+        const fp = generateFindingFingerprint({
+          scanner: input.scanner ?? '',
+          rule: input.rule ?? '',
+          filePath: input.filePath,
+          message: input.message,
+        });
+        if (!seenFingerprints.has(fp)) {
+          seenFingerprints.set(fp, input);
         }
       }
 
-      // Step 4: Mark superseded findings as inactive
-      await findingRepository.markSupersededBulk(supersededIds, tx);
-
-      // Step 5: Mark resolved findings as inactive with status 'fixed'
-      await findingRepository.markResolvedBulk(resolvedIds, tx);
-
-      // Step 6: Batch find-or-create all finding groups
-      const fingerprintEntries = Array.from(incomingFingerprints.entries()).map(([fp, input]) => ({
+      // Step 2: Batch find-or-create groups (also reopens fixed/false_positive groups)
+      const fingerprintEntries = Array.from(seenFingerprints.entries()).map(([fp, input]) => ({
         fingerprint: fp,
         title: input.rule || input.message?.slice(0, FINDING_TITLE_MESSAGE_MAX_LENGTH) || fp.substring(0, FINDING_TITLE_FINGERPRINT_MAX_LENGTH),
       }));
-      const groupMap = await findingRepository.findOrCreateFindingGroups(projectId, repositoryId ?? null, fingerprintEntries, tx);
+      const groupMap = await findingRepository.findOrCreateFindingGroups(projectId, repositoryId ?? null, fingerprintEntries, scanId, tx);
 
-      // Step 7: Batch insert all new findings (filter null values for Drizzle compatibility)
-      const findingsToInsert = Array.from(incomingFingerprints.entries()).map(([fingerprint, input]) => ({
+      // Step 3: Insert finding records (historical — no active/status columns)
+      const findingsToInsert = Array.from(seenFingerprints.entries()).map(([fingerprint, input]) => ({
         scanId,
         groupId: groupMap.get(fingerprint)!.id,
-        active: true,
         severity: input.severity ?? 'unknown',
-        status: input.status ?? undefined,
         filePath: input.filePath ?? undefined,
         lineNumber: input.lineNumber ?? undefined,
         codeSnippet: input.codeSnippet ?? undefined,
@@ -96,11 +97,35 @@ export const findingService = {
       }));
       const created = await findingRepository.createMany(findingsToInsert, tx);
 
+      // Step 4: Mark groups NOT in incoming fingerprints → status='fixed'
+      const incomingFingerprints = new Set(seenFingerprints.keys());
+      const groupsToFix = Array.from(groupMap.entries())
+        .filter(([fp]) => !incomingFingerprints.has(fp))
+        .map(([, g]) => g.id);
+      if (groupsToFix.length > 0) {
+        await findingRepository.updateGroupsStatusBulk(groupsToFix, 'fixed', tx);
+      }
+
+      // Build findings array with isNew flag from groupMap
+      const findingsWithIsNew = created.map((f) => {
+        const fingerprint = Array.from(seenFingerprints.entries())
+          .find(([, input]) => input.rule === f.rule && input.filePath === f.filePath && input.message === f.message)?.[0];
+        const group = fingerprint ? groupMap.get(fingerprint) : null;
+        return {
+          id: f.id,
+          groupId: f.groupId,
+          isNew: group?.isNew ?? true,
+        };
+      });
+
+      const newCount = findingsWithIsNew.filter((f) => f.isNew).length;
+      const persistentCount = findingsWithIsNew.filter((f) => !f.isNew).length;
+
       const result = {
-        new: created.length,
-        persistent: supersededIds.length,
-        resolved: resolvedIds.length,
-        findings: created, // Return created findings with IDs
+        new: newCount,
+        persistent: persistentCount,
+        resolved: groupsToFix.length,
+        findings: findingsWithIsNew,
       };
 
       logger.scan.info('replaceFindingsForScanJob completed', { projectId, scanId, ...result });
@@ -110,12 +135,6 @@ export const findingService = {
 
   /**
    * List findings for a project with optional filters.
-   *
-   * @param projectId - Project UUID for data isolation
-   * @param filters - Optional filter criteria (severity, status, scanner, scanId, assignedTo)
-   * @param limit - Maximum results (default 50)
-   * @param page - Page number (default 1)
-   * @returns Paginated finding list with group info
    */
   async list(projectId: string | undefined, workspaceId: string, filters: {
     scanId?: string;
@@ -123,11 +142,13 @@ export const findingService = {
     severity?: string;
     scanner?: string;
     assignedTo?: string;
+    search?: string;
+    repositoryId?: string;
+    accessibleProjectIds?: string[];
   } = {}, limit = 50, page = 1) {
     logger.scan.debug('list', { projectId, workspaceId, filters, limit, page });
 
     try {
-      // If scanId is provided, use listByScan instead
       if (filters.scanId) {
         const result = await findingRepository.listByScan(filters.scanId, {
           page,
@@ -138,7 +159,6 @@ export const findingService = {
         return result;
       }
 
-      // If projectId is provided, filter by project; otherwise filter by workspace
       if (projectId) {
         const result = await findingRepository.listByProject(projectId, {
           page,
@@ -146,8 +166,23 @@ export const findingService = {
           severity: filters.severity,
           status: filters.status,
           scanner: filters.scanner,
+          repositoryId: filters.repositoryId,
         });
         logger.scan.debug('list completed', { projectId, total: result.total });
+        return result;
+      }
+
+      if (filters.accessibleProjectIds) {
+        const result = await findingRepository.listAccessible(workspaceId, filters.accessibleProjectIds, {
+          page,
+          perPage: limit,
+          severity: filters.severity,
+          status: filters.status,
+          scanner: filters.scanner,
+          search: filters.search,
+          repositoryId: filters.repositoryId,
+        });
+        logger.scan.debug('list completed', { workspaceId, accessibleProjectIds: filters.accessibleProjectIds.length, total: result.total });
         return result;
       }
 
@@ -157,6 +192,7 @@ export const findingService = {
         severity: filters.severity,
         status: filters.status,
         scanner: filters.scanner,
+        repositoryId: filters.repositoryId,
       });
       logger.scan.debug('list completed', { workspaceId, total: result.total });
       return result;
@@ -168,9 +204,6 @@ export const findingService = {
 
   /**
    * Get a single finding by ID with group info and AI verifications.
-   *
-   * @param findingId - Finding UUID
-   * @returns Finding record with aiVerifications, or null if not found
    */
   async getById(findingId: string) {
     logger.scan.debug('getById', { findingId });
@@ -182,17 +215,19 @@ export const findingService = {
         return null;
       }
 
+      // Get group status
+      const group = finding.groupId ? await findingRepository.findGroupById(finding.groupId) : null;
+
       const verifications = await findingRepository.getVerifications(findingId);
       const latestVerification = verifications[0] ?? null;
 
-      // Map DB fields to domain fields
       const result = {
         id: finding.id,
         scanId: finding.scanId,
         groupId: finding.groupId,
         cweId: finding.cweId,
         severity: finding.severity,
-        status: finding.status,
+        status: group?.status ?? 'open',
         filePath: finding.filePath,
         lineNumber: finding.lineNumber,
         codeSnippet: finding.codeSnippet,
@@ -203,10 +238,9 @@ export const findingService = {
         assignedTo: finding.assignedTo,
         createdAt: finding.createdAt,
         updatedAt: finding.updatedAt,
-        // AI verification mapped fields
         verdict: latestVerification?.verdict === 'true_positive' ? 'TP' : latestVerification?.verdict === 'false_positive' ? 'FP' : 'Pending',
         confidence: latestVerification?.confidence ? Number(latestVerification.confidence) : null,
-        model: '', // Will be populated by caller if needed
+        model: latestVerification?.modelId ? await this.getModelName(latestVerification.modelId) : '',
         explanation: latestVerification?.explanation ?? null,
         dataFlow: latestVerification?.dataFlow ?? null,
         taintSource: latestVerification?.taintSource ?? null,
@@ -215,9 +249,8 @@ export const findingService = {
         fixSuggestion: latestVerification?.fixSuggestion ?? null,
         latencyMs: latestVerification?.latencyMs ?? null,
         rawResponse: latestVerification?.rawResponse ?? null,
-        // Legacy fields for backward compatibility
         file: finding.filePath ?? '',
-        repo: '',
+        repo: await this.getRepositoryName(finding.scanId),
         cwe: finding.cweId ?? '',
         assignee: finding.assignedTo ?? null,
         lineNumberOrig: finding.lineNumber ?? 0,
@@ -232,30 +265,34 @@ export const findingService = {
   },
 
   /**
-   * Update finding status and record history.
-   *
-   * Valid statuses: open, fixed, false_positive, ignored
-   *
-   * @param findingId - Finding UUID
-   * @param status - New status value
-   * @param userId - User UUID who performed the change (null for system/automated)
-   * @returns Updated finding record
+   * Update finding group status and record history.
+   * Operates on finding_groups, not findings.
    */
   async updateStatus(findingId: string, status: string, userId: string | null = null) {
     logger.scan.info('updateStatus', { findingId, status });
 
     try {
-      const validStatuses = ['open', 'fixed', 'false_positive', 'ignored'];
+      const validStatuses = ['open', 'accepted', 'needs_review', 'fixed', 'false_positive', 'ignored'];
       if (!validStatuses.includes(status)) {
         throw new AppError(`Invalid status: ${status}. Must be one of: ${validStatuses.join(', ')}`, 400, SCAN.ERRORS.VALIDATION_ERROR);
       }
 
-      const result = await findingRepository.updateStatus(findingId, status, userId);
+      // Get finding → get groupId
+      const finding = await findingRepository.findById(findingId);
+      if (!finding) {
+        throw new AppError(SCAN.ERRORS.NOT_FOUND, 404, SCAN.ERRORS.NOT_FOUND_CODE);
+      }
+
+      if (!finding.groupId) {
+        throw new AppError('Finding has no associated group', 400, SCAN.ERRORS.VALIDATION_ERROR);
+      }
+
+      const result = await findingRepository.updateGroupStatus(finding.groupId, status, userId);
       if (!result) {
         throw new AppError(SCAN.ERRORS.NOT_FOUND, 404, SCAN.ERRORS.NOT_FOUND_CODE);
       }
 
-      logger.scan.info('updateStatus completed', { findingId, status });
+      logger.scan.info('updateStatus completed', { findingId, groupId: finding.groupId, status });
       return result;
     } catch (error) {
       logger.scan.error('updateStatus failed', { error, findingId, status });
@@ -264,11 +301,43 @@ export const findingService = {
   },
 
   /**
+   * Update finding verdict (accept or override AI verdict).
+   * Operates on finding_groups, not findings.
+   */
+  async updateVerdict(findingId: string, verdict: string, userId: string | null = null) {
+    logger.scan.info('updateVerdict', { findingId, verdict });
+
+    try {
+      const validVerdicts = ['true_positive', 'false_positive'];
+      if (!validVerdicts.includes(verdict)) {
+        throw new AppError(`Invalid verdict: ${verdict}. Must be one of: ${validVerdicts.join(', ')}`, 400, SCAN.ERRORS.VALIDATION_ERROR);
+      }
+
+      const finding = await findingRepository.findById(findingId);
+      if (!finding) {
+        throw new AppError(SCAN.ERRORS.NOT_FOUND, 404, SCAN.ERRORS.NOT_FOUND_CODE);
+      }
+
+      if (!finding.groupId) {
+        throw new AppError('Finding has no associated group', 400, SCAN.ERRORS.VALIDATION_ERROR);
+      }
+
+      const status = verdict === 'true_positive' ? 'open' : 'false_positive';
+      const result = await findingRepository.updateGroupStatus(finding.groupId, status, userId);
+      if (!result) {
+        throw new AppError(SCAN.ERRORS.NOT_FOUND, 404, SCAN.ERRORS.NOT_FOUND_CODE);
+      }
+
+      logger.scan.info('updateVerdict completed', { findingId, groupId: finding.groupId, verdict, status });
+      return result;
+    } catch (error) {
+      logger.scan.error('updateVerdict failed', { error, findingId, verdict });
+      throw error;
+    }
+  },
+
+  /**
    * Assign or unassign a finding to a user.
-   *
-   * @param findingId - Finding UUID
-   * @param assignedTo - User UUID to assign to (null to unassign)
-   * @returns Updated finding record
    */
   async assign(findingId: string, assignedTo: string | null) {
     logger.scan.info('assign', { findingId, assignedTo });
@@ -280,6 +349,34 @@ export const findingService = {
     } catch (error) {
       logger.scan.error('assign failed', { error, findingId });
       throw error;
+    }
+  },
+
+  /**
+   * Get AI model name by ID.
+   */
+  async getModelName(modelId: string): Promise<string> {
+    try {
+      const [model] = await db.select({ name: models.name }).from(models).where(eq(models.id, modelId)).limit(1);
+      return model?.name ?? '';
+    } catch {
+      return '';
+    }
+  },
+
+  /**
+   * Get repository name by scan ID.
+   */
+  async getRepositoryName(scanId: string): Promise<string> {
+    try {
+      const [result] = await db.select({ name: repositories.name })
+        .from(scans)
+        .innerJoin(repositories, eq(scans.repositoryId, repositories.id))
+        .where(eq(scans.id, scanId))
+        .limit(1);
+      return result?.name ?? '';
+    } catch {
+      return '';
     }
   },
 };
