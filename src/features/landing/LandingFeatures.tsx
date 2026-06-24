@@ -26,7 +26,7 @@ const FEATURES = [
     icon: <SecurityScanOutlined />,
     title: 'Multi-Engine Scanning',
     description:
-      'Orchestrate Semgrep, Gitleaks, Flawfinder, and Trivy through a unified pipeline with configurable policies and Docker-isolated runners.',
+      'Orchestrate Semgrep, Gitleaks, Flawfinder, and Cppcheck through a unified pipeline with configurable policies and Docker-isolated runners.',
     highlights: ['Parallel scanner execution', 'Custom ruleset management', 'Container-isolated runners'],
     accent: LANDING_TOKENS.accent.tealDark,
     accentBg: '#f0fdfa',

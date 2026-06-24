@@ -141,13 +141,15 @@ export function RepositoryDetailDrawer({ open, onClose, repository, onRunScan, o
               Run Scan
             </Button>
           </PermissionGate>
-          <Button
-            block
-            icon={<FaIcon icon="fa-clock-rotate-left" />}
-            onClick={() => onViewHistory?.(repository.id)}
-          >
-            View History
-          </Button>
+          <PermissionGate permission={PERMISSION.REPOSITORY_VIEW}>
+            <Button
+              block
+              icon={<FaIcon icon="fa-clock-rotate-left" />}
+              onClick={() => onViewHistory?.(repository.id)}
+            >
+              View History
+            </Button>
+          </PermissionGate>
         </section>
 
       </div>

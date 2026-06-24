@@ -214,9 +214,9 @@ function DashboardMock() {
               Scanner Engines
             </span>
             <EngineRow name="Semgrep"    status="done"    findings={12} />
-            <EngineRow name="Trivy"      status="done"    findings={8}  />
-            <EngineRow name="Gitleaks"   status="done"    findings={3}  />
-            <EngineRow name="Flawfinder" status="running"              />
+            <EngineRow name="Gitleaks"   status="done"    findings={8}  />
+            <EngineRow name="Flawfinder" status="done"    findings={3}  />
+            <EngineRow name="Cppcheck"   status="running"              />
           </div>
 
           {/* AI verification summary */}
@@ -479,7 +479,7 @@ export function LandingHero() {
                     lineHeight: 1.75,
                   }}
                 >
-                  Run Semgrep, Trivy, Gitleaks and Flawfinder through one unified
+                  Run Semgrep, Gitleaks, Flawfinder and Cppcheck through one unified
                   pipeline. Every finding is independently verified by fine-tuned AI —
                   cutting false positives by{' '}
                   <strong style={{ color: LANDING_TOKENS.accent.teal }}>over 70%</strong>.

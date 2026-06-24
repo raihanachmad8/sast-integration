@@ -8,7 +8,6 @@ test.describe('Profile Page', () => {
   test('should render profile page', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/profile`);
     await page.waitForLoadState('networkidle');
     await expect(page.locator('body')).toBeVisible();
@@ -21,7 +20,6 @@ test.describe('Profile Page', () => {
   test('should display user profile information', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/profile`);
     await page.waitForLoadState('networkidle');
 
@@ -42,12 +40,12 @@ test.describe('Profile Page', () => {
   test('should have save button for profile updates', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/profile`);
     await page.waitForLoadState('networkidle');
 
     const saveButton = page.locator('button:has-text("Save"), button:has-text("Update"), button:has-text("Change")');
     const isVisible = await saveButton.first().isVisible({ timeout: 5000 }).catch(() => false);
-    expect(isVisible || true).toBe(true);
+    test.skip(!isVisible, 'Save button not found on profile page');
+    await expect(saveButton.first()).toBeVisible();
   });
 });

@@ -80,19 +80,18 @@ test.describe('Findings Page', () => {
 
     const firstRow = page.locator('table tbody tr').first();
     test.skip(await firstRow.isVisible({ timeout: 5000 }).catch(() => false) === false, 'No findings rows present');
-    {
-      const checkbox = firstRow.locator('input[type="checkbox"], .ant-checkbox-input').first();
-      await checkbox.click({ timeout: 5000 });
 
-      const acceptButton = page.locator('button:has-text("Accept")');
-      await expect(acceptButton).toBeVisible({ timeout: 5000 });
-      await acceptButton.click();
+    const checkbox = firstRow.locator('input[type="checkbox"], .ant-checkbox-input').first();
+    await checkbox.click({ timeout: 5000 });
 
-      await expect.poll(async () => {
-        const msg = page.locator('.ant-message-success');
-        return await msg.count();
-      }, { timeout: 10000 }).toBeGreaterThan(0);
-    }
+    const acceptButton = page.locator('button:has-text("Accept")');
+    await expect(acceptButton).toBeVisible({ timeout: 5000 });
+    await acceptButton.click();
+
+    await expect.poll(async () => {
+      const msg = page.locator('.ant-message-success');
+      return await msg.count();
+    }, { timeout: 10000 }).toBeGreaterThan(0);
   });
 
   /**
@@ -118,26 +117,25 @@ test.describe('Findings Page', () => {
 
     const firstRow = page.locator('table tbody tr').first();
     test.skip(await firstRow.isVisible({ timeout: 5000 }).catch(() => false) === false, 'No findings rows present');
-    {
-      await firstRow.getByRole('button', { name: 'Review' }).click();
 
-      const drawer = page.locator('.ant-drawer');
-      await expect(drawer).toBeVisible({ timeout: 5000 });
+    await firstRow.getByRole('button', { name: 'Review' }).click();
 
-      const resolveButton = drawer.getByRole('button', { name: /Resolve/i });
-      await expect(resolveButton).toBeVisible({ timeout: 5000 });
-      await resolveButton.click();
+    const drawer = page.locator('.ant-drawer');
+    await expect(drawer).toBeVisible({ timeout: 5000 });
 
-      const modal = page.getByRole('dialog', { name: /Resolve Finding/i });
-      await expect(modal).toBeVisible({ timeout: 5000 });
+    const resolveButton = drawer.getByRole('button', { name: /Resolve/i });
+    await expect(resolveButton).toBeVisible({ timeout: 5000 });
+    await resolveButton.click();
 
-      await modal.getByRole('button', { name: 'Resolve' }).click();
-      await expect(modal).not.toBeVisible({ timeout: 10000 });
+    const modal = page.getByRole('dialog', { name: /Resolve Finding/i });
+    await expect(modal).toBeVisible({ timeout: 5000 });
 
-      await expect.poll(async () => {
-        const msg = page.locator('.ant-message-success');
-        return await msg.count();
-      }, { timeout: 10000 }).toBeGreaterThan(0);
-    }
+    await modal.getByRole('button', { name: 'Resolve' }).click();
+    await expect(modal).not.toBeVisible({ timeout: 10000 });
+
+    await expect.poll(async () => {
+      const msg = page.locator('.ant-message-success');
+      return await msg.count();
+    }, { timeout: 10000 }).toBeGreaterThan(0);
   });
 });

@@ -1,12 +1,15 @@
+const SEVERITY_COLORS: Record<string, { color: string; bg: string }> = {
+  CRITICAL: { color: '#f85149', bg: 'rgba(248,81,73,0.12)' },
+  HIGH:     { color: '#e3b341', bg: 'rgba(227,179,65,0.12)' },
+  MEDIUM:   { color: '#58a6ff', bg: 'rgba(88,166,255,0.12)' },
+  LOW:      { color: '#3fb950', bg: 'rgba(63,185,80,0.12)'  },
+};
+
+const DEFAULT_SEVERITY = { color: '#8b949e', bg: 'rgba(139,148,158,0.1)' };
+
 /** Severity badge used inside the dashboard mock. */
 export function SeverityBadge({ level, count }: { level: string; count: number }) {
-  const colors: Record<string, { color: string; bg: string }> = {
-    CRITICAL: { color: '#f85149', bg: 'rgba(248,81,73,0.12)' },
-    HIGH:     { color: '#e3b341', bg: 'rgba(227,179,65,0.12)' },
-    MEDIUM:   { color: '#58a6ff', bg: 'rgba(88,166,255,0.12)' },
-    LOW:      { color: '#3fb950', bg: 'rgba(63,185,80,0.12)'  },
-  };
-  const c = colors[level] ?? { color: '#8b949e', bg: 'rgba(139,148,158,0.1)' };
+  const c = SEVERITY_COLORS[level] ?? DEFAULT_SEVERITY;
   return (
     <div
       style={{
@@ -31,7 +34,7 @@ export function SeverityBadge({ level, count }: { level: string; count: number }
             boxShadow: `0 0 6px ${c.color}`,
           }}
         />
-        <span style={{ fontSize: 11.5, fontWeight: token.fontWeightStrong, color: c.color, letterSpacing: '0.04em' }}>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: c.color, letterSpacing: '0.04em' }}>
           {level}
         </span>
       </div>

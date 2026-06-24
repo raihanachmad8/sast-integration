@@ -38,8 +38,9 @@ export const ENTITY_COLORS = {
     Semgrep: { color: '#0f766e', bg: '#f0fdfa' },
     Gitleaks: { color: '#7c3aed', bg: '#faf5ff' },
     Flawfinder: { color: '#ea580c', bg: '#fff7ed' },
-    Trivy: { color: '#0ea5e9', bg: '#f0f9ff' },
-    Cppcheck: { color: '#6b7280', bg: '#f9fafb' },
+    Cppcheck: { color: '#0ea5e9', bg: '#f0f9ff' },
+    'Clang-Tidy': { color: '#f59e0b', bg: '#fffbeb' },
+    'GCC Fanalyzer': { color: '#6366f1', bg: '#eef2ff' },
     Sarif: { color: '#6b7280', bg: '#f9fafb' },
   },
   scanStatus: {

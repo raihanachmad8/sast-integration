@@ -61,9 +61,11 @@ function TechBadge({ name, icon, role, accentColor, bgColor }: TechBadgeProps) {
 
 const SCANNERS: TechBadgeProps[] = [
   { name: 'Semgrep',      icon: '⚙️', role: 'Pattern-based SAST',    accentColor: '#0ea5e9', bgColor: '#f0f9ff' },
-  { name: 'Trivy',        icon: '🛡️', role: 'Container & SCA scan',  accentColor: '#0f766e', bgColor: '#f0fdfa' },
   { name: 'Gitleaks',     icon: '🔑', role: 'Secret detection',       accentColor: '#f59e0b', bgColor: '#fffbeb' },
   { name: 'Flawfinder',   icon: '🔍', role: 'C/C++ vulnerability scan', accentColor: '#7c3aed', bgColor: '#f5f3ff' },
+  { name: 'Cppcheck',     icon: '🛡️', role: 'C/C++ static analysis',  accentColor: '#0f766e', bgColor: '#f0fdfa' },
+  { name: 'Clang-Tidy',   icon: '📋', role: 'C/C++ code quality',     accentColor: '#ea580c', bgColor: '#fff7ed' },
+  { name: 'GCC Fanalyzer', icon: '📊', role: 'C/C++ static analyzer',  accentColor: '#6366f1', bgColor: '#eef2ff' },
 ];
 
 const CORE_STACK: TechBadgeProps[] = [

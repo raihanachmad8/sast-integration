@@ -24,7 +24,7 @@ const STEPS = [
     icon: <SecurityScanOutlined />,
     step: '02',
     title: 'Scan',
-    desc: 'Run Semgrep, Trivy, Gitleaks, and Flawfinder in parallel inside Docker-isolated containers with your custom ruleset.',
+    desc: 'Run Semgrep, Gitleaks, Flawfinder, and Cppcheck in parallel inside Docker-isolated containers with your custom ruleset.',
     accent: LANDING_TOKENS.accent.yellow,
     accentBg: '#fffbeb',
   },
