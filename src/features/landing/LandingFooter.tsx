@@ -91,7 +91,7 @@ export function LandingFooter() {
                     width: 32,
                     height: 32,
                     borderRadius: 8,
-                    background: `linear-gradient(135deg, #0f766e, ${LANDING_TOKENS.accent.tealDark})`,
+                    background: `linear-gradient(135deg, ${token.colorPrimary}, ${LANDING_TOKENS.accent.tealDark})`,
                     color: LANDING_TOKENS.bg.white,
                     display: 'flex',
                     alignItems: 'center',
