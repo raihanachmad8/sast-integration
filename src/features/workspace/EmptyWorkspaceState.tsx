@@ -67,7 +67,7 @@ export function EmptyWorkspaceState({
                 flexShrink: 0,
               }}
             >
-              <FaIcon icon="fa-shield-halved" style={{ fontSize: 20 }} />
+              <FaIcon icon="fa-shield-halved" style={{ fontSize: token.fontSizeXL }} />
             </Flex>
             <div>
               <Flex align="center" gap={token.marginXS} wrap="wrap">

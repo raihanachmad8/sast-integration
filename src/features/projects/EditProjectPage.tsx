@@ -29,7 +29,7 @@ export function EditProjectPage({ projectId }: { projectId: string }) {
   if (!project) {
     return (
       <div style={{ textAlign: 'center', padding: token.paddingXL }}>
-        <Typography.Title level={2} style={{ fontWeight: 700 }}>Project not found</Typography.Title>
+        <Typography.Title level={2} style={{ fontWeight: token.fontWeightStrong }}>Project not found</Typography.Title>
         <Typography.Paragraph type="secondary">The project you are looking for does not exist.</Typography.Paragraph>
       </div>
     );

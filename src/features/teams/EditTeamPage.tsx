@@ -29,7 +29,7 @@ export function EditTeamPage({ teamId }: { teamId: string }) {
   if (!team) {
     return (
       <div style={{ textAlign: 'center', padding: token.paddingXL }}>
-        <Typography.Title level={2} style={{ fontWeight: 700 }}>Team not found</Typography.Title>
+        <Typography.Title level={2} style={{ fontWeight: token.fontWeightStrong }}>Team not found</Typography.Title>
         <Typography.Paragraph type="secondary">The team you are looking for does not exist.</Typography.Paragraph>
       </div>
     );

@@ -9,6 +9,8 @@ import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useTeamsQuery } from '@/modules/teams';
 import { useProjectsQuery } from '@/modules/projects/queries';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { PERMISSION } from '@/commons/constants/permissions';
 import type { Team } from '@/commons/types';
 
 interface TeamsTableProps {
@@ -18,6 +20,8 @@ interface TeamsTableProps {
 
 export function TeamsTable({ onView, onEdit }: TeamsTableProps) {
   const { token } = theme.useToken();
+  const { has } = usePermissions();
+  const canManage = has(PERMISSION.TEAM_MANAGE);
 
   const { params, setPagination, setSearch, setFilter } = useTableParams({
     filterKeys: ['project'],
@@ -47,7 +51,7 @@ export function TeamsTable({ onView, onEdit }: TeamsTableProps) {
         <div>
           <Typography.Link
             onClick={(e) => { e.stopPropagation(); onView(team); }}
-            style={{ fontWeight: 600 }}
+            style={{ fontWeight: token.fontWeightStrong }}
           >
             {team.name}
           </Typography.Link>
@@ -95,6 +99,7 @@ export function TeamsTable({ onView, onEdit }: TeamsTableProps) {
       label: 'Edit',
       icon: <FaIcon icon="fa-pen" />,
       onClick: (team) => onEdit(team),
+      show: () => canManage,
     },
   ];
 

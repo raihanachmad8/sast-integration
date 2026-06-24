@@ -111,7 +111,7 @@ export function RulesDrawer({ open, scanner, onClose }: ScannerRulesDrawerProps)
               rules.map((rule) => (
                 <div key={`${rule.id}-${rule.path}`} style={{ padding: token.paddingLG, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: token.borderRadiusLG, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 500, fontFamily: 'monospace', fontSize: token.fontSize, color: token.colorText }}>{rule.name}</div>
+                    <div style={{ fontWeight: token.fontWeightStrong, fontFamily: 'monospace', fontSize: token.fontSize, color: token.colorText }}>{rule.name}</div>
                     <Typography.Text style={{ fontSize: token.fontSize, color: token.colorTextSecondary, marginTop: 4, display: 'block' }}>{rule.description}</Typography.Text>
                     <Flex gap={token.marginXXS} style={{ marginTop: token.padding, flexWrap: 'wrap' }}>
                       {rule.languages.map((lang) => (

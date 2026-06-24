@@ -149,8 +149,8 @@ export function ProjectsTable({ onView }: ProjectsTableProps) {
 function Chips({ items, count, variant, max }: { items?: string[]; count?: number; variant: 'teal' | 'blue' | 'amber' | 'red' | 'purple' | 'slate'; max: number }) {
   const { token } = theme.useToken();
   if (!items || items.length === 0) {
-    if (count && count > 0) return <Typography.Text style={{ color: token.colorTextSecondary, fontSize: 14 }}>{count} item{count !== 1 ? 's' : ''}</Typography.Text>;
-    return <Typography.Text style={{ color: token.colorTextSecondary, fontSize: 14 }}>—</Typography.Text>;
+    if (count && count > 0) return <Typography.Text style={{ color: token.colorTextSecondary, fontSize: token.fontSize }}>{count} item{count !== 1 ? 's' : ''}</Typography.Text>;
+    return <Typography.Text style={{ color: token.colorTextSecondary, fontSize: token.fontSize }}>—</Typography.Text>;
   }
   return (
     <Flex wrap="wrap" gap={token.marginXXS}>

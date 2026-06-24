@@ -163,7 +163,7 @@ export function ScanTable({
       sortable: true,
       sortValue: (row) => row.findings,
       render: (row) => {
-        const isTerminal = row.status === 'completed' || row.status === 'failed';
+        const isTerminal = row.status === 'Completed' || row.status === 'Failed';
         if (!isTerminal && row.findings === 0) {
           return <Typography.Text type="secondary">—</Typography.Text>;
         }
@@ -194,13 +194,13 @@ export function ScanTable({
     {
       label: 'Retry',
       icon: <FaIcon icon="fa-rotate-right" />,
-      show: (row) => row.status === 'failed',
+      show: (row) => row.status === 'Failed',
       onClick: (row) => onRetry?.(row),
     },
     {
       label: 'View findings',
       icon: <FaIcon icon="fa-eye" />,
-      show: (row) => row.status !== 'failed',
+      show: (row) => row.status !== 'Failed',
       onClick: (row) => onViewFindings?.(row),
     },
   ];
@@ -208,7 +208,7 @@ export function ScanTable({
   if (error) {
     return (
       <div style={{ padding: token.paddingLG, textAlign: 'center', color: token.colorError }}>
-        <FaIcon icon="fa-triangle-exclamation" style={{ fontSize: 24, marginBottom: 8 }} />
+        <FaIcon icon="fa-triangle-exclamation" style={{ fontSize: token.fontSizeHeading3, marginBottom: token.marginXS }} />
         <div>{error}</div>
       </div>
     );

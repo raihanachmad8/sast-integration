@@ -6,6 +6,8 @@ import { FaIcon } from '@/commons/components/FaIcon';
 import type { Repository } from '@/commons/types';
 import { StatusTag } from '@/commons/components/StatusTag';
 import { EmptyState } from '@/commons/components/EmptyState';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PERMISSION } from '@/commons/constants/permissions';
 
 const { Text, Title } = Typography;
 
@@ -40,7 +42,7 @@ export function RepositoryDetailDrawer({ open, onClose, repository, onRunScan, o
     <Drawer
       title={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <CodeOutlined style={{ color: token.colorPrimary, fontSize: 18 }} />
+          <CodeOutlined style={{ color: token.colorPrimary, fontSize: token.fontSizeLG }} />
           <Text strong style={{ fontSize: token.fontSizeLG }}>{repository.name}</Text>
         </div>
       }
@@ -128,15 +130,17 @@ export function RepositoryDetailDrawer({ open, onClose, repository, onRunScan, o
 
         {/* Actions */}
         <section style={{ display: 'flex', gap: token.marginSM }}>
-          <Button
-            type="primary"
-            block
-            disabled={!repository.connectionType?.includes('scm')}
-            icon={<FaIcon icon="fa-play" />}
-            onClick={() => onRunScan?.(repository.id)}
-          >
-            Run Scan
-          </Button>
+          <PermissionGate permission={PERMISSION.SCAN_RUN}>
+            <Button
+              type="primary"
+              block
+              disabled={!repository.connectionType?.includes('scm')}
+              icon={<FaIcon icon="fa-play" />}
+              onClick={() => onRunScan?.(repository.id)}
+            >
+              Run Scan
+            </Button>
+          </PermissionGate>
           <Button
             block
             icon={<FaIcon icon="fa-clock-rotate-left" />}
