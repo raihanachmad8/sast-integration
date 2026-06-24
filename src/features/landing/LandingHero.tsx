@@ -10,16 +10,17 @@ import {
 } from '@ant-design/icons';
 import { ROUTES } from '@/commons/constants';
 import { LANDING_COLORS, GITHUB_REPO_URL } from '@/commons/constants/landing';
+import { LANDING_TOKENS } from '@/commons/constants/landing-tokens';
 
 const { Title, Text, Paragraph } = Typography;
 
 /** Severity badge used inside the dashboard mock. */
 function SeverityBadge({ level, count }: { level: string; count: number }) {
   const colors: Record<string, { color: string; bg: string }> = {
-    CRITICAL: { color: '#f85149', bg: 'rgba(248,81,73,0.12)' },
-    HIGH:     { color: '#e3b341', bg: 'rgba(227,179,65,0.12)' },
-    MEDIUM:   { color: '#58a6ff', bg: 'rgba(88,166,255,0.12)' },
-    LOW:      { color: '#3fb950', bg: 'rgba(63,185,80,0.12)'  },
+    CRITICAL: { color: LANDING_TOKENS.severity.critical, bg: LANDING_TOKENS.severity.criticalBg },
+    HIGH:     { color: LANDING_TOKENS.severity.high,     bg: LANDING_TOKENS.severity.highBg },
+    MEDIUM:   { color: LANDING_TOKENS.severity.medium,   bg: LANDING_TOKENS.severity.mediumBg },
+    LOW:      { color: LANDING_TOKENS.severity.low,      bg: LANDING_TOKENS.severity.lowBg },
   };
   const c = colors[level] ?? { color: '#8b949e', bg: 'rgba(139,148,158,0.1)' };
   return (
@@ -50,7 +51,7 @@ function SeverityBadge({ level, count }: { level: string; count: number }) {
           {level}
         </span>
       </div>
-      <span style={{ fontSize: 13, fontWeight: 700, color: '#e6edf3' }}>{count}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: LANDING_TOKENS.text.primary }}>{count}</span>
     </div>
   );
 }
@@ -73,17 +74,17 @@ function EngineRow({ name, status, findings }: { name: string; status: 'done' | 
             width: 7,
             height: 7,
             borderRadius: '50%',
-            background: status === 'done' ? '#3fb950' : '#f59e0b',
+            background: status === 'done' ? LANDING_TOKENS.accent.green : LANDING_TOKENS.accent.yellow,
             display: 'inline-block',
-            boxShadow: status === 'running' ? '0 0 6px #f59e0b' : 'none',
+            boxShadow: status === 'running' ? `0 0 6px ${LANDING_TOKENS.accent.yellow}` : 'none',
           }}
         />
-        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', fontWeight: 500 }}>{name}</span>
+        <span style={{ fontSize: 12, color: LANDING_TOKENS.text.secondary, fontWeight: 500 }}>{name}</span>
       </div>
       {status === 'done' && findings !== undefined ? (
-        <span style={{ fontSize: 12, color: '#5eead4', fontWeight: 600 }}>{findings} found</span>
+        <span style={{ fontSize: 12, color: LANDING_TOKENS.accent.teal, fontWeight: 600 }}>{findings} found</span>
       ) : (
-        <span style={{ fontSize: 11, color: '#f59e0b' }}>scanning…</span>
+        <span style={{ fontSize: 11, color: LANDING_TOKENS.accent.yellow }}>scanning…</span>
       )}
     </div>
   );
@@ -114,7 +115,7 @@ function DashboardMock() {
       <div
         className="lp-float"
         style={{
-          background: '#0d1117',
+          background: LANDING_TOKENS.bg.code,
           borderRadius: 18,
           overflow: 'hidden',
           border: '1px solid rgba(255,255,255,0.10)',
@@ -131,13 +132,13 @@ function DashboardMock() {
             alignItems: 'center',
             gap: 8,
             padding: '11px 16px',
-            background: '#161b22',
+            background: LANDING_TOKENS.bg.codeAlt,
             borderBottom: '1px solid rgba(255,255,255,0.07)',
           }}
         >
-          <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f57', display: 'inline-block', flexShrink: 0 }} />
-          <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#febc2e', display: 'inline-block', flexShrink: 0 }} />
-          <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#28c840', display: 'inline-block', flexShrink: 0 }} />
+          <span style={{ width: 12, height: 12, borderRadius: '50%', background: LANDING_TOKENS.trafficLight.red, display: 'inline-block', flexShrink: 0 }} />
+          <span style={{ width: 12, height: 12, borderRadius: '50%', background: LANDING_TOKENS.trafficLight.yellow, display: 'inline-block', flexShrink: 0 }} />
+          <span style={{ width: 12, height: 12, borderRadius: '50%', background: LANDING_TOKENS.trafficLight.green, display: 'inline-block', flexShrink: 0 }} />
           <span
             style={{
               flex: 1,
@@ -159,20 +160,20 @@ function DashboardMock() {
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '10px 16px',
-            background: '#0d1117',
+            background: LANDING_TOKENS.bg.code,
             borderBottom: '1px solid rgba(255,255,255,0.06)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#5eead4', letterSpacing: '0.03em' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: LANDING_TOKENS.accent.teal, letterSpacing: '0.03em' }}>
               scan #142
             </span>
             <span
               style={{
                 fontSize: 10,
                 fontWeight: 600,
-                color: '#3fb950',
-                background: 'rgba(63,185,80,0.12)',
+                color: LANDING_TOKENS.accent.green,
+                background: LANDING_TOKENS.severity.lowBg,
                 border: '1px solid rgba(63,185,80,0.25)',
                 borderRadius: 4,
                 padding: '1px 6px',
@@ -182,7 +183,7 @@ function DashboardMock() {
               COMPLETE
             </span>
           </div>
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontFamily: 'monospace' }}>
+          <span style={{ fontSize: 11, color: LANDING_TOKENS.text.dim, fontFamily: 'monospace' }}>
             2m 34s
           </span>
         </div>
@@ -190,7 +191,7 @@ function DashboardMock() {
         <div style={{ padding: '14px 16px', fontFamily: "'Inter', sans-serif" }}>
           {/* Severity breakdown */}
           <div style={{ marginBottom: 14 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', color: LANDING_TOKENS.text.faint, textTransform: 'uppercase' }}>
               Findings by Severity
             </span>
             <div style={{ marginTop: 8 }}>
@@ -209,7 +210,7 @@ function DashboardMock() {
               marginBottom: 14,
             }}
           >
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', color: LANDING_TOKENS.text.faint, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
               Scanner Engines
             </span>
             <EngineRow name="Semgrep"    status="done"    findings={12} />
@@ -227,7 +228,7 @@ function DashboardMock() {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', color: '#a78bfa', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', color: LANDING_TOKENS.accent.purple, textTransform: 'uppercase' }}>
                 🤖 AI Verification
               </span>
               <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>QLoRA LLM</span>
@@ -243,8 +244,8 @@ function DashboardMock() {
                   textAlign: 'center',
                 }}
               >
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#3fb950', lineHeight: 1 }}>16</div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 3 }}>True Positive</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: LANDING_TOKENS.accent.green, lineHeight: 1 }}>16</div>
+                <div style={{ fontSize: 10, color: LANDING_TOKENS.text.muted, marginTop: 3 }}>True Positive</div>
               </div>
               <div
                 style={{
@@ -256,8 +257,8 @@ function DashboardMock() {
                   textAlign: 'center',
                 }}
               >
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#f85149', lineHeight: 1 }}>7</div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 3 }}>False Positive</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: LANDING_TOKENS.accent.red, lineHeight: 1 }}>7</div>
+                <div style={{ fontSize: 10, color: LANDING_TOKENS.text.muted, marginTop: 3 }}>False Positive</div>
               </div>
               <div
                 style={{
@@ -269,8 +270,8 @@ function DashboardMock() {
                   textAlign: 'center',
                 }}
               >
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#5eead4', lineHeight: 1 }}>94%</div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', marginTop: 3 }}>Accuracy</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: LANDING_TOKENS.accent.teal, lineHeight: 1 }}>94%</div>
+                <div style={{ fontSize: 10, color: LANDING_TOKENS.text.muted, marginTop: 3 }}>Accuracy</div>
               </div>
             </div>
           </div>
@@ -283,7 +284,7 @@ function DashboardMock() {
           position: 'absolute',
           bottom: -18,
           right: -16,
-          background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+          background: `linear-gradient(135deg, ${LANDING_TOKENS.bg.card} 0%, ${LANDING_TOKENS.bg.cardAlt} 100%)`,
           border: '1px solid rgba(167,139,250,0.4)',
           borderRadius: 12,
           padding: '10px 14px',
@@ -300,7 +301,7 @@ function DashboardMock() {
           <div style={{ fontSize: 10, color: 'rgba(167,139,250,0.8)', fontWeight: 600, letterSpacing: '0.05em', lineHeight: 1.3 }}>
             AI VERIFIED
           </div>
-          <div style={{ fontSize: 13, color: '#fff', fontWeight: 700, lineHeight: 1.3 }}>
+          <div style={{ fontSize: 13, color: LANDING_TOKENS.bg.white, fontWeight: 700, lineHeight: 1.3 }}>
             94% accuracy
           </div>
         </div>
@@ -329,7 +330,7 @@ function DashboardMock() {
           <div style={{ fontSize: 10, color: 'rgba(94,234,212,0.8)', fontWeight: 600, letterSpacing: '0.05em', lineHeight: 1.3 }}>
             SCAN SPEED
           </div>
-          <div style={{ fontSize: 13, color: '#fff', fontWeight: 700, lineHeight: 1.3 }}>
+          <div style={{ fontSize: 13, color: LANDING_TOKENS.bg.white, fontWeight: 700, lineHeight: 1.3 }}>
             {'< 5 min'}
           </div>
         </div>
@@ -340,9 +341,9 @@ function DashboardMock() {
 
 /** Stats bar rendered below the hero split layout. */
 const HERO_STATS = [
-  { value: '4',    label: 'Scanner Engines',   color: '#14b8a6' },
-  { value: '70%+',  label: 'Less False Positives', color: '#a78bfa' },
-  { value: '247',  label: 'Security Rules',    color: '#f59e0b' },
+  { value: '4',    label: 'Scanner Engines',   color: LANDING_TOKENS.accent.tealDark },
+  { value: '70%+',  label: 'Less False Positives', color: LANDING_TOKENS.accent.purple },
+  { value: '247',  label: 'Security Rules',    color: LANDING_TOKENS.accent.yellow },
   { value: '100%', label: 'Open Source',       color: '#10b981' },
 ] as const;
 
@@ -372,11 +373,11 @@ export function LandingHero() {
             'clamp(100px, 14vw, 160px) clamp(24px, 5vw, 64px) clamp(80px, 10vw, 120px)',
           background: `linear-gradient(
             155deg,
-            #050f0d 0%,
-            #0a1f1a 30%,
-            #0f2d26 55%,
-            #082b26 75%,
-            #04110e 100%
+            ${LANDING_TOKENS.bg.dark} 0%,
+            ${LANDING_TOKENS.bg.darkAlt} 30%,
+            ${LANDING_TOKENS.bg.darkMid} 55%,
+            ${LANDING_TOKENS.bg.darkDeep} 75%,
+            ${LANDING_TOKENS.bg.darkEnd} 100%
           )`,
         }}
       >
@@ -437,14 +438,14 @@ export function LandingHero() {
                     fontSize: token.fontSizeSM,
                     fontWeight: 600,
                     background: LANDING_COLORS.white.overlay,
-                    color: '#fff',
+                    color: LANDING_TOKENS.bg.white,
                     border: '1px solid rgba(255,255,255,0.18)',
                     backdropFilter: 'blur(8px)',
                     marginBottom: 28,
                     letterSpacing: '0.02em',
                   }}
                 >
-                  <ThunderboltOutlined style={{ color: '#facc15' }} />
+                  <ThunderboltOutlined style={{ color: LANDING_TOKENS.accent.gold }} />
                   v0.4.0 — Open Source SAST Platform
                 </div>
               </div>
@@ -459,7 +460,7 @@ export function LandingHero() {
                     fontWeight: 800,
                     lineHeight: 1.08,
                     letterSpacing: '-0.03em',
-                    color: '#fff',
+                    color: LANDING_TOKENS.bg.white,
                   }}
                 >
                   Ship Code That&apos;s{' '}
@@ -481,7 +482,7 @@ export function LandingHero() {
                   Run Semgrep, Trivy, Gitleaks and Flawfinder through one unified
                   pipeline. Every finding is independently verified by fine-tuned AI —
                   cutting false positives by{' '}
-                  <strong style={{ color: '#5eead4' }}>over 70%</strong>.
+                  <strong style={{ color: LANDING_TOKENS.accent.teal }}>over 70%</strong>.
                 </Paragraph>
               </div>
 
@@ -498,7 +499,7 @@ export function LandingHero() {
                       size="large"
                       icon={<ArrowRightOutlined />}
                       style={{
-                        background: '#fff',
+                        background: LANDING_TOKENS.bg.white,
                         color: token.colorPrimary,
                         border: 'none',
                         fontWeight: 700,
@@ -527,7 +528,7 @@ export function LandingHero() {
                         fontSize: 15,
                         borderRadius: 10,
                         borderColor: 'rgba(255,255,255,0.28)',
-                        color: '#fff',
+                        color: LANDING_TOKENS.bg.white,
                         fontWeight: 500,
                       }}
                     >
@@ -547,7 +548,7 @@ export function LandingHero() {
                   {TRUST_ITEMS.map((item) => (
                     <Flex key={item} align="center" gap={6}>
                       <CheckCircleFilled
-                        style={{ color: '#5eead4', fontSize: 13 }}
+                        style={{ color: LANDING_TOKENS.accent.teal, fontSize: 13 }}
                       />
                       <Text
                         style={{
@@ -581,7 +582,7 @@ export function LandingHero() {
       <section
         style={{
           padding: `${token.paddingXL}px clamp(24px, 5vw, 64px)`,
-          background: '#fff',
+          background: LANDING_TOKENS.bg.white,
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
         }}
       >

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { GithubOutlined } from '@ant-design/icons';
 import { ROUTES } from '@/commons/constants';
 import { GITHUB_REPO_URL } from '@/commons/constants/landing';
+import { LANDING_TOKENS } from '@/commons/constants/landing-tokens';
 
 const { Text } = Typography;
 
@@ -64,7 +65,7 @@ export function LandingFooter() {
   return (
     <footer
       style={{
-        background: '#050f0d',
+        background: LANDING_TOKENS.bg.dark,
         borderTop: '1px solid rgba(255,255,255,0.07)',
         paddingTop: 'clamp(56px, 8vw, 80px)',
       }}
@@ -90,8 +91,8 @@ export function LandingFooter() {
                     width: 32,
                     height: 32,
                     borderRadius: 8,
-                    background: 'linear-gradient(135deg, #0f766e, #14b8a6)',
-                    color: '#fff',
+                    background: `linear-gradient(135deg, #0f766e, ${LANDING_TOKENS.accent.tealDark})`,
+                    color: LANDING_TOKENS.bg.white,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -103,7 +104,7 @@ export function LandingFooter() {
                 </div>
                 <Text
                   strong
-                  style={{ fontSize: 15, color: '#fff', letterSpacing: '-0.02em' }}
+                  style={{ fontSize: 15, color: LANDING_TOKENS.bg.white, letterSpacing: '-0.02em' }}
                 >
                   SAST Integration
                 </Text>
@@ -112,7 +113,7 @@ export function LandingFooter() {
               {/* Tagline */}
               <Text
                 style={{
-                  color: 'rgba(255,255,255,0.45)',
+                    color: LANDING_TOKENS.text.muted,
                   fontSize: 14,
                   lineHeight: 1.7,
                   maxWidth: 260,
@@ -143,7 +144,7 @@ export function LandingFooter() {
                     transition: 'color 0.18s ease, border-color 0.18s ease, background 0.18s ease',
                   }}
                   onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLAnchorElement).style.color = '#fff';
+                    (e.currentTarget as HTMLAnchorElement).style.color = LANDING_TOKENS.bg.white;
                     (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.08)';
                     (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(255,255,255,0.25)';
                   }}
@@ -169,7 +170,7 @@ export function LandingFooter() {
                     fontWeight: 700,
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
-                    color: 'rgba(255,255,255,0.35)',
+                    color: LANDING_TOKENS.text.faint,
                     marginBottom: 2,
                   }}
                 >
@@ -220,8 +221,8 @@ export function LandingFooter() {
               rel="noopener noreferrer"
               className="lp-link"
               style={{
-                color: 'rgba(255,255,255,0.3)',
-                fontSize: token.fontSizeSM,
+                      color: LANDING_TOKENS.text.faint,
+                      fontSize: token.fontSizeSM,
               }}
             >
               MIT License

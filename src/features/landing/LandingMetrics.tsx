@@ -2,6 +2,7 @@
 
 import { Typography, Row, Col, Flex, Tag, theme } from 'antd';
 import { TrophyOutlined } from '@ant-design/icons';
+import { LANDING_TOKENS } from '@/commons/constants/landing-tokens';
 
 const { Title, Text } = Typography;
 
@@ -11,7 +12,7 @@ const METRICS = [
     label: 'False Positive Reduction',
     sublabel: 'via QLoRA AI verification',
     icon: '🎯',
-    accent: '#14b8a6',
+    accent: LANDING_TOKENS.accent.tealDark,
     glow: 'rgba(20,184,166,0.2)',
   },
   {
@@ -19,7 +20,7 @@ const METRICS = [
     label: 'Average Scan Time',
     sublabel: 'full repo, all engines',
     icon: '⚡',
-    accent: '#f59e0b',
+    accent: LANDING_TOKENS.accent.yellow,
     glow: 'rgba(245,158,11,0.2)',
   },
   {
@@ -27,7 +28,7 @@ const METRICS = [
     label: 'Scanner Engines',
     sublabel: 'running in parallel',
     icon: '🔍',
-    accent: '#7c3aed',
+    accent: LANDING_TOKENS.accent.purpleDark,
     glow: 'rgba(124,58,237,0.2)',
   },
   {
@@ -67,7 +68,7 @@ function Cell({ value }: { value: boolean }) {
             height: 24,
             borderRadius: '50%',
             background: 'rgba(20,184,166,0.18)',
-            color: '#14b8a6',
+            color: LANDING_TOKENS.accent.tealDark,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -84,7 +85,7 @@ function Cell({ value }: { value: boolean }) {
             height: 24,
             borderRadius: '50%',
             background: 'rgba(239,68,68,0.12)',
-            color: '#f87171',
+            color: LANDING_TOKENS.accent.red,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -114,7 +115,7 @@ export function LandingMetrics() {
       id="metrics"
       style={{
         padding: 'clamp(80px, 12vw, 120px) clamp(24px, 5vw, 64px)',
-        background: '#050f0d',
+        background: LANDING_TOKENS.bg.dark,
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -147,7 +148,7 @@ export function LandingMetrics() {
               fontWeight: 600,
               letterSpacing: '0.04em',
               border: '1px solid rgba(20,184,166,0.35)',
-              color: '#5eead4',
+              color: LANDING_TOKENS.accent.teal,
               background: 'rgba(20,184,166,0.1)',
             }}
             icon={<TrophyOutlined />}
@@ -162,7 +163,7 @@ export function LandingMetrics() {
               fontSize: 'clamp(28px, 4vw, 40px)',
               fontWeight: 800,
               letterSpacing: '-0.025em',
-              color: '#fff',
+              color: LANDING_TOKENS.bg.white,
             }}
           >
             Security that speaks in results
@@ -174,7 +175,7 @@ export function LandingMetrics() {
               fontSize: token.fontSizeLG,
               marginTop: token.marginXS,
               lineHeight: 1.65,
-              color: 'rgba(255,255,255,0.55)',
+                  color: LANDING_TOKENS.text.secondary,
             }}
           >
             Real metrics from production usage — not marketing estimates.
@@ -251,7 +252,7 @@ export function LandingMetrics() {
                 fontSize: token.fontSizeSM,
                 fontWeight: 600,
                 letterSpacing: '0.05em',
-                color: 'rgba(255,255,255,0.4)',
+                color: LANDING_TOKENS.text.faint,
                 textTransform: 'uppercase',
               }}
             >
@@ -288,7 +289,7 @@ export function LandingMetrics() {
                 style={{
                   fontSize: 12,
                   fontWeight: 700,
-                  color: '#5eead4',
+                  color: LANDING_TOKENS.accent.teal,
                   letterSpacing: '0.04em',
                   textAlign: 'center',
                 }}
@@ -299,7 +300,7 @@ export function LandingMetrics() {
                 style={{
                   fontSize: 12,
                   fontWeight: 700,
-                  color: 'rgba(255,255,255,0.35)',
+                  color: LANDING_TOKENS.text.faint,
                   letterSpacing: '0.04em',
                   textAlign: 'center',
                 }}
@@ -328,7 +329,7 @@ export function LandingMetrics() {
                 <Text
                   style={{
                     fontSize: 13,
-                    color: 'rgba(255,255,255,0.75)',
+                    color: LANDING_TOKENS.text.secondary,
                     fontWeight: 500,
                   }}
                 >

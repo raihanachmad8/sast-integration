@@ -7,6 +7,7 @@ import {
   RobotOutlined,
   FileTextOutlined,
 } from '@ant-design/icons';
+import { LANDING_TOKENS } from '@/commons/constants/landing-tokens';
 
 const { Title, Text } = Typography;
 
@@ -16,7 +17,7 @@ const STEPS = [
     step: '01',
     title: 'Connect',
     desc: 'Import repositories from GitHub, GitLab, or Gitea. Configure scan policies and engine selection per project in minutes.',
-    accent: '#14b8a6',
+    accent: LANDING_TOKENS.accent.tealDark,
     accentBg: '#f0fdfa',
   },
   {
@@ -24,7 +25,7 @@ const STEPS = [
     step: '02',
     title: 'Scan',
     desc: 'Run Semgrep, Trivy, Gitleaks, and Flawfinder in parallel inside Docker-isolated containers with your custom ruleset.',
-    accent: '#f59e0b',
+    accent: LANDING_TOKENS.accent.yellow,
     accentBg: '#fffbeb',
   },
   {
@@ -32,7 +33,7 @@ const STEPS = [
     step: '03',
     title: 'Verify',
     desc: 'Each finding is independently assessed by a QLoRA fine-tuned LLM — classified as true/false positive with data-flow context.',
-    accent: '#7c3aed',
+    accent: LANDING_TOKENS.accent.purpleDark,
     accentBg: '#f5f3ff',
   },
   {
@@ -126,7 +127,7 @@ export function LandingHowItWorks() {
             right: '12.5%',
             height: 2,
             background:
-              'linear-gradient(90deg, #14b8a6 0%, #f59e0b 33%, #7c3aed 66%, #10b981 100%)',
+              `linear-gradient(90deg, ${LANDING_TOKENS.accent.tealDark} 0%, ${LANDING_TOKENS.accent.yellow} 33%, ${LANDING_TOKENS.accent.purpleDark} 66%, #10b981 100%)`,
             opacity: 0.25,
             borderRadius: 1,
           }}
@@ -168,13 +169,12 @@ export function LandingHowItWorks() {
                       height: 24,
                       borderRadius: '50%',
                       background: step.accent,
-                      color: '#fff',
-                      fontSize: 10,
+                      color: LANDING_TOKENS.bg.white,
                       fontWeight: 800,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      border: '2px solid #fff',
+                      border: `2px solid ${LANDING_TOKENS.bg.white}`,
                       letterSpacing: '-0.02em',
                     }}
                   >

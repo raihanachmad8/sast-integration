@@ -17,6 +17,7 @@ import {
   SafetyCertificateOutlined,
   CheckCircleFilled,
 } from '@ant-design/icons';
+import { LANDING_TOKENS } from '@/commons/constants/landing-tokens';
 
 const { Title, Text } = Typography;
 
@@ -27,7 +28,7 @@ const FEATURES = [
     description:
       'Orchestrate Semgrep, Gitleaks, Flawfinder, and Trivy through a unified pipeline with configurable policies and Docker-isolated runners.',
     highlights: ['Parallel scanner execution', 'Custom ruleset management', 'Container-isolated runners'],
-    accent: '#14b8a6',
+    accent: LANDING_TOKENS.accent.tealDark,
     accentBg: '#f0fdfa',
   },
   {
@@ -36,7 +37,7 @@ const FEATURES = [
     description:
       'QLoRA fine-tuned LLMs independently classify every finding as true or false positive with reasoned explanations, data-flow tracing, and CWE mapping.',
     highlights: ['70%+ verdict accuracy', 'Data flow tracing', 'CWE mapping & remediation'],
-    accent: '#7c3aed',
+    accent: LANDING_TOKENS.accent.purpleDark,
     accentBg: '#f5f3ff',
   },
   {
@@ -54,7 +55,7 @@ const FEATURES = [
     description:
       'Trigger scans automatically on every push or pull request via GitHub Actions, GitLab CI, or Gitea Actions. Set quality gates to block insecure merges.',
     highlights: ['GitHub / GitLab / Gitea webhooks', 'Quality gate enforcement', 'PR status checks'],
-    accent: '#f59e0b',
+    accent: LANDING_TOKENS.accent.yellow,
     accentBg: '#fffbeb',
   },
   {

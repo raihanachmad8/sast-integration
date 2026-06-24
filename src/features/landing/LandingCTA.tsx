@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowRightOutlined, GithubOutlined, CheckCircleFilled } from '@ant-design/icons';
 import { ROUTES } from '@/commons/constants';
 import { LANDING_COLORS, GITHUB_REPO_URL } from '@/commons/constants/landing';
+import { LANDING_TOKENS } from '@/commons/constants/landing-tokens';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -95,7 +96,7 @@ export function LandingCTA() {
           level={2}
           style={{
             margin: 0,
-            color: '#fff',
+            color: LANDING_TOKENS.bg.white,
             fontSize: 'clamp(30px, 5vw, 48px)',
             fontWeight: 800,
             letterSpacing: '-0.03em',
@@ -137,7 +138,7 @@ export function LandingCTA() {
               size="large"
               icon={<ArrowRightOutlined />}
               style={{
-                background: '#fff',
+                background: LANDING_TOKENS.bg.white,
                 color: token.colorPrimary,
                 border: 'none',
                 fontWeight: 700,
@@ -166,7 +167,7 @@ export function LandingCTA() {
                 fontSize: 15,
                 borderRadius: 10,
                 borderColor: LANDING_COLORS.white.muted,
-                color: '#fff',
+                color: LANDING_TOKENS.bg.white,
                 fontWeight: 500,
               }}
             >
