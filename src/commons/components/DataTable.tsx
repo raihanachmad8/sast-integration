@@ -97,13 +97,13 @@ function SortIndicator({ columnKey, sort }: { columnKey: string; sort: { key: st
   const { token } = theme.useToken();
 
   if (sort?.key !== columnKey) {
-    return <FaIcon icon="fa-arrow-up-arrow-down" style={{ fontSize: 10, opacity: 0.3, marginLeft: 4 }} />;
+    return <FaIcon icon="fa-arrow-up-arrow-down" style={{ fontSize: token.fontSizeSM, opacity: 0.3, marginLeft: token.marginXXS }} />;
   }
 
   return (
     <FaIcon
       icon={sort.dir === 'asc' ? 'fa-arrow-up' : 'fa-arrow-down'}
-      style={{ fontSize: 10, color: token.colorPrimary, marginLeft: 4 }}
+      style={{ fontSize: token.fontSizeSM, color: token.colorPrimary, marginLeft: token.marginXXS }}
     />
   );
 }
