@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Modal, Typography, Button, Flex, Steps, Tag, Alert, theme, App, Divider } from 'antd';
 import { MODAL_WIDTH } from '@/commons/constants/layout';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { ENTITY_COLORS } from '@/commons/constants/tokens';
 
 const { Text, Link } = Typography;
 
@@ -17,9 +18,9 @@ interface CICDSetupModalProps {
 type Platform = 'github' | 'gitlab' | 'gitea';
 
 const PLATFORMS: Record<Platform, { label: string; icon: string; file: string; color: string }> = {
-  github: { label: 'GitHub Actions', icon: 'fa-brands fa-github', file: '.github/workflows/sast-scan.yml', color: '#24292e' },
-  gitlab: { label: 'GitLab CI', icon: 'fa-brands fa-gitlab', file: '.gitlab-ci.yml', color: '#FC6D26' },
-  gitea: { label: 'Gitea Actions', icon: 'fa-solid fa-code-branch', file: '.gitea/workflows/sast-scan.yml', color: '#478061' },
+  github: { label: 'GitHub Actions', icon: 'fa-brands fa-github', file: '.github/workflows/sast-scan.yml', color: ENTITY_COLORS.provider.github.color },
+  gitlab: { label: 'GitLab CI', icon: 'fa-brands fa-gitlab', file: '.gitlab-ci.yml', color: ENTITY_COLORS.provider.gitlab.color },
+  gitea: { label: 'Gitea Actions', icon: 'fa-solid fa-code-branch', file: '.gitea/workflows/sast-scan.yml', color: ENTITY_COLORS.provider.gitea.color },
 };
 
 const SECRETS = [
@@ -174,7 +175,7 @@ jobs:
                 title: 'Add secrets/variables',
                 description: (
                   <Flex vertical gap={token.paddingXS}>
-                    <Text type="secondary">Add these in your repository {platform.color === '#FC6D26' ? 'CI/CD Variables' : 'Secrets'}:</Text>
+                    <Text type="secondary">Add these in your repository {platform.color === ENTITY_COLORS.provider.gitlab.color ? 'CI/CD Variables' : 'Secrets'}:</Text>
                     {SECRETS.map((s) => (
                       <Flex key={s.name} align="center" gap={token.paddingXS}>
                         <Tag color="blue">{s.name}</Tag>

@@ -2,6 +2,7 @@
 
 import { Tag, Tooltip, Typography, theme } from 'antd';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { ENTITY_COLORS } from '@/commons/constants/tokens';
 import type { AiVerdictDb } from './types';
 
 const { Text } = Typography;
@@ -21,27 +22,27 @@ interface AiVerificationBadgeProps {
 /** Verdict configuration. */
 const VERDICT_CONFIG: Record<string, { color: string; icon: string; label: string }> = {
   true_positive: {
-    color: 'red',
+    color: 'error',
     icon: 'fa-circle-check',
     label: 'True Positive',
   },
   false_positive: {
-    color: 'teal',
+    color: 'success',
     icon: 'fa-circle-xmark',
     label: 'False Positive',
   },
   pending: {
-    color: 'gold',
+    color: 'warning',
     icon: 'fa-clock',
     label: 'Pending Review',
   },
   verified: {
-    color: 'blue',
+    color: 'processing',
     icon: 'fa-robot',
     label: 'AI Verified',
   },
   error: {
-    color: 'gold',
+    color: 'warning',
     icon: 'fa-triangle-exclamation',
     label: 'AI Error',
   },
@@ -72,7 +73,7 @@ export function AiVerificationBadge({
       style={{
         borderRadius: token.borderRadius,
         fontSize: isSmall ? token.fontSizeSM : 14,
-        fontWeight: 600,
+        fontWeight: token.fontWeightStrong,
         cursor: model ? 'help' : 'default',
       }}
     >
