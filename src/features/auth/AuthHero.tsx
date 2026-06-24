@@ -17,9 +17,9 @@ const CHECKLIST = [
   'Workspace RBAC with 4 role levels',
 ];
 
-function ShieldIcon() {
+function ShieldIcon({ size = 22 }: { size?: number }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
     </svg>
   );
@@ -53,8 +53,8 @@ export function AuthHero() {
           align="center"
           justify="center"
           style={{
-            width: 40,
-            height: 40,
+            width: token.sizeXL,
+            height: token.sizeXL,
             borderRadius: token.borderRadiusLG,
             background: token.colorFillQuaternary,
             color: token.colorTextLightSolid,
@@ -76,12 +76,12 @@ export function AuthHero() {
       <Title level={2} style={{ margin: 0, fontWeight: 700, color: token.colorTextLightSolid }}>
         Review scanner findings<br />with clear AI attribution.
       </Title>
-      <Text style={{ fontSize: token.fontSize, lineHeight: token.lineHeightLG, color: token.colorTealDeepBg, maxWidth: 380 }}>
+      <Text style={{ fontSize: token.fontSize, lineHeight: token.lineHeightLG, color: token.colorTealDeepBg, maxWidth: token.sizeXXL * 8 }}>
         Connect repositories, queue scans, verify findings with AI, and manage workspace access — all in one place.
       </Text>
 
       {/* Feature cards */}
-      <Flex gap={token.marginXS} style={{ maxWidth: 300 }}>
+      <Flex gap={token.marginXS} style={{ maxWidth: token.sizeXXL * 6.25 }}>
         {FEATURES.map((item) => (
           <Flex
             key={item.label}

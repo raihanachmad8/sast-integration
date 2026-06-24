@@ -87,15 +87,15 @@ function ResetForm() {
 
   return (
     <>
-      <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Reset password</Title>
-      <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>Enter your new password below.</Text>
+      <Title level={2} style={{ margin: 0, fontWeight: antdToken.fontWeightStrong }}>Reset password</Title>
+      <Text type="secondary" style={{ display: 'block', marginTop: antdToken.marginXXS }}>Enter your new password below.</Text>
 
-      {mutation.error && <Alert title={mutation.error.message} type="error" showIcon style={{ marginTop: 16 }} />}
+      {mutation.error && <Alert title={mutation.error.message} type="error" showIcon style={{ marginTop: antdToken.margin }} />}
 
       <Form layout="vertical" onFinish={(v) => mutation.mutate(v)} autoComplete="off" requiredMark={false} style={{ marginTop: antdToken.paddingXL }}>
         <Form.Item
           name="password"
-          label={<span style={{ fontWeight: 600, fontSize: antdToken.fontSizeSM }}>New password</span>}
+          label={<span style={{ fontWeight: antdToken.fontWeightStrong, fontSize: antdToken.fontSizeSM }}>New password</span>}
           rules={[rule]}
         >
           <Input.Password placeholder="Minimum 8 characters" size="large" autoComplete="new-password" onChange={(e) => setPasswordValue(e.target.value)} />
@@ -104,7 +104,7 @@ function ResetForm() {
 
         <Form.Item
           name="confirmPassword"
-          label={<span style={{ fontWeight: 600, fontSize: antdToken.fontSizeSM }}>Confirm password</span>}
+          label={<span style={{ fontWeight: antdToken.fontWeightStrong, fontSize: antdToken.fontSizeSM }}>Confirm password</span>}
           dependencies={['password']}
           rules={[rule]}
         >
@@ -112,7 +112,7 @@ function ResetForm() {
         </Form.Item>
 
         <Form.Item style={{ marginTop: antdToken.paddingXS }}>
-          <Button type="primary" htmlType="submit" loading={mutation.isPending} block size="large" style={{ width: '100%', height: 48, fontWeight: 600 }}>
+          <Button type="primary" htmlType="submit" loading={mutation.isPending} block size="large" style={{ width: '100%', height: antdToken.controlHeightLG, fontWeight: antdToken.fontWeightStrong }}>
             Reset password
           </Button>
         </Form.Item>
@@ -120,7 +120,7 @@ function ResetForm() {
 
       <div style={{ marginTop: antdToken.paddingMD, textAlign: 'center', fontSize: antdToken.fontSizeSM }}>
         <Text type="secondary">
-          <Link href={ROUTES.AUTH.SIGNIN} style={{ fontWeight: 600, color: antdToken.colorPrimary }}>Back to sign in</Link>
+          <Link href={ROUTES.AUTH.SIGNIN} style={{ fontWeight: antdToken.fontWeightStrong, color: antdToken.colorPrimary }}>Back to sign in</Link>
         </Text>
       </div>
     </>

@@ -8,5 +8,5 @@
  * import { AuthForm, AuthHero } from '@/features/auth';
  * ```
  */
-export { AuthForm } from './AuthForm';
+export { AuthForm, AuthField } from './AuthForm';
 export { AuthHero } from './AuthHero';

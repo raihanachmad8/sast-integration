@@ -34,7 +34,7 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
           background: token.colorBgLayout,
         }}
       >
-        <div style={{ width: '100%', maxWidth: 440 }}>
+        <div style={{ width: '100%', maxWidth: token.sizeXXL * 9.17 }}>
           {children}
         </div>
       </Col>

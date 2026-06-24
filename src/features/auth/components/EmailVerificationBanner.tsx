@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Button, message } from 'antd';
+import { Alert, App, Button, theme } from 'antd';
 import { useEmailVerificationStatus, useSessionQuery } from '@/modules/auth/queries';
 import { authApi } from '@/modules/auth/api';
 import { FaIcon } from '@/commons/components/FaIcon';
@@ -16,6 +16,8 @@ import { FaIcon } from '@/commons/components/FaIcon';
 export function EmailVerificationBanner() {
   const { isVerified, isLoading } = useEmailVerificationStatus();
   const session = useSessionQuery();
+  const { message } = App.useApp();
+  const { token } = theme.useToken();
 
   if (isLoading || isVerified) {
     return null;
@@ -42,14 +44,14 @@ export function EmailVerificationBanner() {
       type="warning"
       showIcon
       icon={<FaIcon icon="fa-envelope" />}
-      message="Please verify your email address"
+      title="Please verify your email address"
       description="Your email has not been verified yet. You can still use the platform, but some features may be limited until verification is complete."
       action={
         <Button size="small" type="primary" onClick={handleResend}>
           Resend verification email
         </Button>
       }
-      style={{ marginBottom: 16 }}
+      style={{ marginBottom: token.margin }}
     />
   );
 }
