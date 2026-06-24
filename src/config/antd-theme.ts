@@ -298,6 +298,7 @@ export const antdTheme: ThemeConfig = {
       paddingSM: 16,
       borderRadiusLG: 12,
       colorBgContainer: '#ffffff',
+      colorBorderSecondary: '#e5e7eb',
     },
 
     // ─── Modal ─────────────────────────────────────────────────────

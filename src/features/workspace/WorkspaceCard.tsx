@@ -68,7 +68,7 @@ export function WorkspaceCard({ workspace, onSelect }: WorkspaceCardProps) {
   return (
     <Card
       hoverable
-      style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+      style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: `1px solid ${token.colorBorderSecondary}` }}
     >
       <Flex justify="space-between" align="flex-start" gap={token.marginSM}>
         <Flex align="center" gap={token.marginSM}>
