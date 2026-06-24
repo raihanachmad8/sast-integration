@@ -219,7 +219,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                   cursor: 'pointer',
                   fontSize: token.fontSizeSM,
                   color: token.colorText,
-                  fontWeight: 500,
+                  fontWeight: token.fontWeightStrong,
                 }}
               >
                 <MenuOutlined style={{ fontSize: token.fontSizeSM }} />

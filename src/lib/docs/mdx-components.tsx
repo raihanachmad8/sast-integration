@@ -201,7 +201,7 @@ export const mdxComponents = {
     return (
       <a
         href={href}
-        style={{ color: token.colorPrimary, fontWeight: 500, textDecoration: 'underline', textUnderlineOffset: 3 }}
+        style={{ color: token.colorPrimary, fontWeight: token.fontWeightStrong, textDecoration: 'underline', textUnderlineOffset: 3 }}
         target={href?.startsWith('http') ? '_blank' : undefined}
         rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}
         {...props}

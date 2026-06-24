@@ -37,7 +37,7 @@ export default function DocsIndexPage() {
       <div style={{ marginBottom: token.marginXXL }}>
         <Title
           level={1}
-          style={{ margin: `0 0 ${token.paddingXS}px`, fontWeight: 800, letterSpacing: '-0.02em' }}
+          style={{ margin: `0 0 ${token.paddingXS}px`, fontWeight: token.fontWeightStrong, letterSpacing: '-0.02em' }}
         >
           Documentation
         </Title>

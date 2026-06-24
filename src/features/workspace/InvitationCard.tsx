@@ -54,7 +54,7 @@ export function InvitationCard({ invitation, onAccept, onDecline, isAccepting, i
               borderRadius: token.borderRadiusLG,
               background: token.colorWarningBg,
               color: token.colorWarning,
-              fontWeight: 800,
+              fontWeight: token.fontWeightStrong,
               fontSize: token.fontSize,
               flexShrink: 0,
             }}

@@ -81,7 +81,7 @@ export function WorkspaceCard({ workspace, onSelect }: WorkspaceCardProps) {
               borderRadius: token.borderRadiusLG,
               background: isPersonal ? token.colorTextBase : token.colorPrimary,
               color: token.colorTextLightSolid,
-              fontWeight: 800,
+              fontWeight: token.fontWeightStrong,
               fontSize: token.fontSize,
               flexShrink: 0,
             }}
