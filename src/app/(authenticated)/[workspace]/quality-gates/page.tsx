@@ -16,6 +16,7 @@ import { errorMessage } from '@/lib/api/errors';
 import { FeatureGate } from '@/commons/components/FeatureGate';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
 import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { usePermissions } from '@/lib/hooks/usePermissions';
 
 export default function QualityGatesPage() {
   const { token } = theme.useToken();
@@ -45,6 +46,8 @@ function QualityGatesPageContent() {
   const { token } = theme.useToken();
   const gatesQuery = useQualityGateConfigQuery();
   const updateMutation = useUpdateQualityGateMutation();
+  const { isAtLeast } = usePermissions();
+  const canManage = isAtLeast('manager');
   const [form] = Form.useForm();
   const rule = createZodSync(qualityGateConfigSchema);
 
@@ -53,11 +56,16 @@ function QualityGatesPageContent() {
   useEffect(() => {
     if (gate) {
       form.setFieldsValue({
-        failOnCritical: gate.failOnCritical ?? false,
-        failOnHighTp: gate.failOnHighTp ?? false,
-        warnOnPending: gate.warnOnPending ?? false,
+        failOnCritical: gate.failOnCritical ?? true,
+        failOnHighTp: gate.failOnHighTp ?? true,
+        failOnHigh: gate.failOnHigh ?? true,
+        failOnMedium: gate.failOnMedium ?? false,
+        failOnLow: gate.failOnLow ?? false,
+        failOnPending: gate.failOnPending ?? true,
+        failOnTp: gate.failOnTp ?? false,
+        warnOnPending: gate.warnOnPending ?? true,
         requireHumanAck: gate.requireHumanAck ?? false,
-        threshold: gate.threshold ?? 'high',
+        threshold: gate.threshold ?? 'medium',
         pendingBehavior: gate.pendingBehavior ?? 'warn',
       });
     }
@@ -98,26 +106,26 @@ function QualityGatesPageContent() {
             <Col xs={24} md={12}>
               <Flex vertical gap={token.marginLG}>
                 <Form.Item name="failOnCritical" valuePropName="checked" label="Fail on unresolved critical findings" extra="Block merge if any critical finding remains open." rules={[rule]}>
-                  <Switch />
+                  <Switch disabled={!canManage} />
                 </Form.Item>
                 <Form.Item name="failOnHighTp" valuePropName="checked" label="Fail on high findings verified as TP" extra="Block merge if AI confirms a high-severity true positive." rules={[rule]}>
-                  <Switch />
+                  <Switch disabled={!canManage} />
                 </Form.Item>
                 <Form.Item name="warnOnPending" valuePropName="checked" label="Warn on pending AI verification" extra="Show warning status if findings are still awaiting AI review." rules={[rule]}>
-                  <Switch />
+                  <Switch disabled={!canManage} />
                 </Form.Item>
                 <Form.Item name="requireHumanAck" valuePropName="checked" label="Require human acknowledgement" extra="Require a reviewer to explicitly accept before merge." rules={[rule]}>
-                  <Switch />
+                  <Switch disabled={!canManage} />
                 </Form.Item>
               </Flex>
             </Col>
             <Col xs={24} md={12}>
               <Flex vertical gap={token.marginLG}>
                 <Form.Item label="Blocking threshold" name="threshold" rules={[rule]}>
-                  <Select options={[{ value: 'critical', label: 'Critical only' }, { value: 'high', label: 'High and above' }, { value: 'medium', label: 'Medium and above' }, { value: 'low', label: 'Low and above' }]} />
+                  <Select disabled={!canManage} options={[{ value: 'critical', label: 'Critical only' }, { value: 'high', label: 'High and above' }, { value: 'medium', label: 'Medium and above' }, { value: 'low', label: 'Low and above' }]} />
                 </Form.Item>
                 <Form.Item label="Pending behavior" name="pendingBehavior" rules={[rule]}>
-                  <Select options={[{ value: 'warn', label: 'Warn' }, { value: 'fail', label: 'Fail' }, { value: 'ignore', label: 'Ignore' }]} />
+                  <Select disabled={!canManage} options={[{ value: 'warn', label: 'Warn' }, { value: 'fail', label: 'Fail' }, { value: 'ignore', label: 'Ignore' }]} />
                 </Form.Item>
               </Flex>
             </Col>
@@ -128,7 +136,7 @@ function QualityGatesPageContent() {
       <Card styles={{ body: { padding: token.paddingLG } }}>
         <Typography.Title level={4} style={{ fontSize: token.fontSizeHeading4, fontWeight: token.fontWeightStrong, margin: `0 0 ${token.marginSM}px` }}>Evaluations</Typography.Title>
         <Flex vertical align="center" style={{ color: token.colorTextSecondary, padding: token.paddingXL }}>
-          <FaIcon icon="fa-clipboard-check" style={{ fontSize: 32, marginBottom: token.marginMD, opacity: 0.4 }} />
+          <FaIcon icon="fa-clipboard-check" style={{ fontSize: token.fontSizeHeading1, marginBottom: token.marginMD, opacity: 0.4 }} />
           <Typography.Text type="secondary">Gate evaluations are shown in each scan&apos;s detail view.</Typography.Text>
         </Flex>
       </Card>

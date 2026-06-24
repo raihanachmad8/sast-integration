@@ -1,27 +1,28 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Button, Input, Select, Card, Checkbox, Typography, App, Form, Row, Col, Flex, Dropdown, Grid, theme } from 'antd';
-import { useSessionData } from '@/modules/auth/queries';
+import { Button, Input, Select, Card, Switch, Typography, App, Form, Flex, Dropdown, Grid, Avatar, theme } from 'antd';
+
+import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
+import { PermissionGate } from '@/commons/components/PermissionGate';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { DataTable, makeSource } from '@/commons/components/DataTable';
-import { useTableParams } from '@/lib/hooks/useTableParams';
-import { PermissionGate } from '@/commons/components/PermissionGate';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { SetupGuideDrawer } from '@/features/source-control/SetupGuideDrawer';
-import { ConfigureProviderModal, ImportRepoModal, SendTestEventModal, SyncResultsModal } from '@/features/source-control/SourceControlModals';
-import { ProviderCard } from '@/features/source-control/ProviderCard';
-import { LoadingState } from '@/commons/components/LoadingState';
-import { ErrorState } from '@/commons/components/ErrorState';
-import { useSourceControlProvidersQuery, useSourceControlReposQuery, useDeleteSourceControlMutation, useAddSourceControlProviderMutation, useUpdateSourceControlMutation, useSyncProviderMutation, useImportRepositoryMutation, useUninstallRepositoryMutation, useTestSourceControlMutation, useSendSourceControlTestEventMutation } from '@/modules/source-control';
-import { usePrReviewSettingsQuery, useUpdatePrReviewSettingsMutation } from '@/modules/workspace-settings';
-import { errorMessage } from '@/lib/api/errors';
-import { useConfirm } from '@/commons/components/ConfirmDialog';
-import { useFeatureFlags } from '@/lib/hooks/useFeatureFlag';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { PERMISSION } from '@/commons/constants/permissions';
 import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { errorMessage } from '@/lib/api/errors';
+import { useFeatureFlags } from '@/lib/hooks/useFeatureFlag';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { useTableParams } from '@/lib/hooks/useTableParams';
+import { usePrReviewSettingsQuery, useUpdatePrReviewSettingsMutation } from '@/modules/workspace-settings';
+import { useSourceControlProvidersQuery, useSourceControlReposQuery, useDeleteSourceControlMutation, useAddSourceControlProviderMutation, useUpdateSourceControlMutation, useSyncProviderMutation, useImportRepositoryMutation, useUninstallRepositoryMutation, useTestSourceControlMutation } from '@/modules/source-control';
+import { useSessionData } from '@/modules/auth/queries';
+import { ConfigureProviderModal, ImportRepoModal, SyncResultsModal } from '@/features/source-control/SourceControlModals';
+import { SetupGuideDrawer } from '@/features/source-control/SetupGuideDrawer';
 
 interface ScmProvider {
   id: string;
@@ -63,24 +64,25 @@ function deriveStatus(credentials: Record<string, unknown> | undefined, mode: st
     return c.token ? 'Connected' : 'Disconnected';
   }
   if (mode === 'github-app') {
-    return (c.appId && c.privateKey) ? 'Connected' : (c.appId ? 'Pending' : 'Disconnected');
+    return (c.appId && c.privateKey && c.installationId) ? 'Connected' : (c.appId ? 'Pending' : 'Disconnected');
   }
   return 'Disconnected';
 }
 
 function mapApiProviderToScmProvider(apiProvider: { id: string; name: string; type?: string; status?: string; mode?: string; org?: string; discovered?: number; imported?: number; credentials?: Record<string, unknown> }): ScmProvider {
-  const mode = apiProvider.mode ?? 'oauth-app';
+  const creds = apiProvider.credentials as Record<string, unknown> | undefined;
+  const mode = (creds?.mode as string) ?? apiProvider.mode ?? 'oauth-app';
   return {
     id: apiProvider.id,
     name: apiProvider.name,
     icon: PROVIDER_ICONS[apiProvider.type ?? ''] ?? 'fa-solid fa-code',
     mode: apiProvider.type ?? 'github',
     modeDetail: mode,
-    status: deriveStatus(apiProvider.credentials, mode),
+    status: deriveStatus(creds, mode),
     org: apiProvider.org ?? '',
     repos: apiProvider.discovered ?? 0,
     imported: apiProvider.imported ?? 0,
-    credentials: apiProvider.credentials,
+    credentials: creds,
   };
 }
 
@@ -89,9 +91,11 @@ export default function SourceControlPage() {
   const { message } = App.useApp();
   const { confirm } = useConfirm();
   const breakpoints = Grid.useBreakpoint();
-  const isMobile = !breakpoints.md;
+  const _isMobile = !breakpoints.md;
   const session = useSessionData();
   const workspaceId = session.data?.workspace?.id ?? '';
+  const { has } = usePermissions();
+  const canManage = has(PERMISSION.INTEGRATION_MANAGE);
   const { flags } = useFeatureFlags([FEATURE_FLAG.SOURCE_CONTROL_GITHUB, FEATURE_FLAG.SOURCE_CONTROL_GITLAB, FEATURE_FLAG.SOURCE_CONTROL_GITEA]);
   const hasScmProvider = flags[FEATURE_FLAG.SOURCE_CONTROL_GITHUB] || flags[FEATURE_FLAG.SOURCE_CONTROL_GITLAB] || flags[FEATURE_FLAG.SOURCE_CONTROL_GITEA];
 
@@ -103,7 +107,6 @@ export default function SourceControlPage() {
   const importRepositoryMutation = useImportRepositoryMutation();
   const uninstallRepositoryMutation = useUninstallRepositoryMutation();
   const testProviderMutation = useTestSourceControlMutation();
-  const sendTestEventMutation = useSendSourceControlTestEventMutation();
   const prReviewSettingsQuery = usePrReviewSettingsQuery();
   const updatePrReviewSettingsMutation = useUpdatePrReviewSettingsMutation();
 
@@ -129,7 +132,6 @@ export default function SourceControlPage() {
 
   const [configureOpen, setConfigureOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [testEventOpen, setTestEventOpen] = useState(false);
   const [syncResultsOpen, setSyncResultsOpen] = useState(false);
   const [syncResults, setSyncResults] = useState<{ provider: string; repos: number; imported: number; newWebhooks: number } | null>(null);
   const [selectedRepo, setSelectedRepo] = useState('');
@@ -200,6 +202,19 @@ export default function SourceControlPage() {
     });
   };
 
+  const handleDelete = (providerId: string) => {
+    confirm({
+      title: 'Delete provider?',
+      content: 'This will remove the provider connection and all associated data. This action cannot be undone.',
+      okText: 'Delete',
+      danger: true,
+      onOk: () => deleteSourceControlMutation.mutate(providerId, {
+        onSuccess: () => message.success('Provider deleted'),
+        onError: (err) => message.error(errorMessage(err)),
+      }),
+    });
+  };
+
   const handleConnectProvider = (providerKey: string) => {
     handleSetupGuide(providerKey);
   };
@@ -222,10 +237,6 @@ export default function SourceControlPage() {
         onError: () => message.error('Failed to uninstall repository'),
       }),
     });
-  };
-
-  const handleSendTestEvent = () => {
-    setTestEventOpen(true);
   };
 
   if (!workspaceId) {
@@ -274,10 +285,10 @@ export default function SourceControlPage() {
           <PermissionGate permission={PERMISSION.INTEGRATION_MANAGE}>
             <Flex gap={token.paddingSM}>
               {providers.length > 0 && (
-                <Button onClick={handleSyncConnected} icon={<FaIcon icon="fa-rotate" />}>Sync connected</Button>
+                <Button onClick={handleSyncConnected} loading={syncProviderMutation.isPending} icon={<FaIcon icon="fa-rotate" />}>Sync connected</Button>
               )}
               <Dropdown menu={{ items: connectMenuItems }} trigger={['click']}>
-                <Button type="primary" size="large" icon={<FaIcon icon="fa-plug" />}>Connect provider</Button>
+                <Button type="primary" icon={<FaIcon icon="fa-plug" />}>Connect provider</Button>
               </Dropdown>
             </Flex>
           </PermissionGate>
@@ -285,45 +296,55 @@ export default function SourceControlPage() {
       />
 
       {providers.length > 0 ? (
-        <Flex wrap gap={token.paddingXL} align="flex-start">
-          {providers.map((provider) => (
-            <div key={provider.id} style={{ flex: '1 1 300px', maxWidth: '100%' }}>
-              <ProviderCard provider={provider} onConfigure={handleConfigure} onTest={handleTest} onSync={handleSync} onDisconnect={handleDisconnect} />
-            </div>
-          ))}
-        </Flex>
+        <Card styles={{ body: { padding: 0 } }}>
+          <div style={{ padding: `${token.paddingMD}px ${token.paddingLG}px`, borderBottom: `1px solid ${token.colorBorderSecondary}`, fontWeight: token.fontWeightStrong }}>Providers</div>
+          <DataTable
+            source={{ data: providers, meta: { page: 1, pageSize: 10, total: providers.length } }}
+            columns={[
+              { key: 'name', header: 'Provider', render: (row) => (
+                <Flex align="center" gap={token.paddingSM}>
+                  <Avatar size={32} icon={<FaIcon icon={row.icon} />} style={{ backgroundColor: token.colorBgLayout, color: token.colorText }} />
+                  <Flex vertical>
+                    <Typography.Text strong>{row.name}</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{row.mode}</Typography.Text>
+                  </Flex>
+                </Flex>
+              )},
+              { key: 'status', header: 'Status', render: (row) => (
+                <StatusPill variant={row.status === 'Connected' ? 'teal' : row.status === 'Pending' ? 'amber' : 'slate'}>{row.status}</StatusPill>
+              )},
+              { key: 'repos', header: 'Discovered', render: (row) => <Typography.Text>{row.repos}</Typography.Text> },
+              { key: 'imported', header: 'Imported', render: (row) => <Typography.Text>{row.imported}</Typography.Text> },
+            ]}
+            rowKey={(row) => row.id}
+            actions={[
+              { label: 'Configure', icon: <FaIcon icon="fa-gear" />, onClick: (row) => handleConfigure(row.name), show: () => canManage },
+              { label: 'Test', icon: <FaIcon icon="fa-flask-vial" />, onClick: (row) => handleTest(row.id), disabled: (row) => row.status === 'Disconnected', show: () => canManage },
+              { label: 'Sync', icon: <FaIcon icon="fa-arrows-rotate" />, onClick: (row) => handleSync(row.id), disabled: (row) => row.status !== 'Connected', show: () => canManage },
+              { label: 'Disconnect', icon: <FaIcon icon="fa-link-slash" />, variant: 'danger' as const, onClick: (row) => handleDisconnect(row.id), show: (row) => row.status === 'Connected' && canManage },
+              { label: 'Delete', icon: <FaIcon icon="fa-trash" />, variant: 'danger' as const, onClick: (row) => handleDelete(row.id), show: () => canManage },
+            ]}
+          />
+        </Card>
       ) : (
-        <Card styles={{ body: { padding: token.paddingXL * 2 } }}>
-          <Flex vertical align="center" gap={token.paddingLG} style={{ textAlign: 'center' }}>
-            <FaIcon icon="fa-plug" style={{ fontSize: 48, color: token.colorPrimaryBg }} />
-            <Typography.Title level={3} style={{ margin: 0 }}>No providers connected</Typography.Title>
-            <Typography.Text type="secondary" style={{ maxWidth: 480 }}>
-              Connect a Git provider (GitHub, GitLab, or Gitea) to sync repositories and enable automated scanning.
+        <Card styles={{ body: { padding: token.paddingXL } }}>
+          <Flex vertical align="center" gap={token.paddingMD} style={{ textAlign: 'center' }}>
+            <FaIcon icon="fa-plug" style={{ fontSize: token.fontSizeHeading2, color: token.colorTextQuaternary }} />
+            <Typography.Title level={5} style={{ margin: 0 }}>No providers connected</Typography.Title>
+            <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM, maxWidth: 400 }}>
+              Connect a Git provider to sync repositories and enable automated scanning.
             </Typography.Text>
-            <Dropdown menu={{ items: connectMenuItems }} trigger={['click']}>
-              <Button type="primary" size="large" icon={<FaIcon icon="fa-plus" />}>
-                Connect your first provider
-              </Button>
-            </Dropdown>
+            {canManage && (
+              <Dropdown menu={{ items: connectMenuItems }} trigger={['click']}>
+                <Button type="primary" icon={<FaIcon icon="fa-plus" />}>Connect provider</Button>
+              </Dropdown>
+            )}
           </Flex>
         </Card>
       )}
 
       <Card styles={{ body: { padding: 0 } }}>
-        <Flex vertical style={{ padding: token.paddingXL }} gap={token.paddingSM}>
-          <Flex align={isMobile ? 'flex-start' : 'center'} justify="space-between" gap={token.paddingMD} vertical={isMobile}>
-            <Typography.Text strong style={{ fontSize: token.fontSizeLG }}>Repository catalog</Typography.Text>
-            <Flex gap={token.paddingSM} wrap="wrap">
-              <StatusPill variant="slate">{reposQuery.data?.meta.total ?? 0} repositories</StatusPill>
-              <StatusPill variant="teal">{(reposQuery.data?.data ?? []).filter(r => r.imported).length} imported</StatusPill>
-              <StatusPill variant="blue">{(reposQuery.data?.data ?? []).filter(r => r.webhookStatus === 'active').length} connected</StatusPill>
-            </Flex>
-          </Flex>
-          <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            Synced from connected providers. Import creates an internal repository binding and provisions the SCM webhook.
-          </Typography.Text>
-        </Flex>
-
+        <div style={{ padding: `${token.paddingMD}px ${token.paddingLG}px`, borderBottom: `1px solid ${token.colorBorderSecondary}`, fontWeight: token.fontWeightStrong }}>Repository catalog</div>
         <DataTable
           source={makeSource(reposQuery.data)}
           columns={[
@@ -361,111 +382,93 @@ export default function SourceControlPage() {
           filterValues={params.filters}
           onFilterChange={setFilter}
           actions={[
-            { label: 'Import', icon: <FaIcon icon="fa-download" />, onClick: (row) => handleImport(row.id, row.fullName), show: (row) => !row.imported },
-            { label: 'Uninstall', icon: <FaIcon icon="fa-trash" />, variant: 'danger', onClick: (row) => handleUninstall(row.importId, row.fullName), show: (row) => row.imported },
+            { label: 'Import', icon: <FaIcon icon="fa-download" />, onClick: (row) => handleImport(row.id, row.fullName), show: (row) => !row.imported && canManage },
+            { label: 'Uninstall', icon: <FaIcon icon="fa-trash" />, variant: 'danger', onClick: (row) => handleUninstall(row.importId, row.fullName), show: (row) => row.imported && canManage },
           ]}
           onChange={(p, ps) => setPagination(p, ps)}
         />
       </Card>
 
-      <Row gutter={[16, 16]} align="top">
-        <Col xs={24} lg={12}>
-          <Card styles={{ body: { padding: token.paddingXL } }}>
-            <Flex vertical gap={token.paddingMD}>
-              <Typography.Text strong style={{ fontSize: token.fontSizeLG, whiteSpace: 'nowrap' }}>Pull request review output</Typography.Text>
-              <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                Provider delivery controls live here. The pass/fail gate rule is owned by Analysis Policy.
-              </Typography.Text>
-              <Flex vertical gap={token.paddingSM}>
-                {prReviewItems.map((item, index) => (
-                  <Flex key={index} justify="space-between" align="center" style={{ padding: token.paddingSM, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: token.borderRadius }}>
-                    <Flex vertical gap={2}>
-                      <Typography.Text strong>{item.title}</Typography.Text>
-                      <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{item.description}</Typography.Text>
-                    </Flex>
-                    <Checkbox
-                      checked={Boolean(prReviewSettingsQuery.data?.[item.key as keyof typeof prReviewSettingsQuery.data] ?? item.defaultChecked)}
-                      onChange={(e) => {
-                        updatePrReviewSettingsMutation.mutate({ [item.key]: e.target.checked });
-                      }}
-                    />
-                  </Flex>
-                ))}
+      <Card styles={{ body: { padding: token.paddingXL } }}>
+        <Typography.Title level={5} style={{ margin: `0 0 ${token.marginXS}px` }}>Pull request review output</Typography.Title>
+        <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM, display: 'block', marginBottom: token.paddingLG }}>
+          Provider delivery controls. The pass/fail gate rule is owned by Analysis Policy.
+        </Typography.Text>
+        <Flex vertical gap={token.paddingSM}>
+          {prReviewItems.map((item, index) => (
+            <Flex key={index} justify="space-between" align="center" style={{ padding: `${token.paddingSM}px ${token.paddingMD}px`, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: token.borderRadius }}>
+              <Flex vertical style={{ minWidth: 0 }}>
+                <Typography.Text strong style={{ fontSize: token.fontSize }}>{item.title}</Typography.Text>
+                <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{item.description}</Typography.Text>
               </Flex>
-              <Form layout="vertical">
-                <Row gutter={[16, 16]}>
-                  <Col xs={24} sm={12}>
-                    <Form.Item label="Status context">
-                      <Input
-                        value={prReviewSettingsQuery.data?.statusContext}
-                        onChange={(e) => {
-                          updatePrReviewSettingsMutation.mutate({ statusContext: e.target.value });
-                        }}
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col xs={24} sm={12}>
-                    <Form.Item label="Review summary format">
-                      <Select
-                        value={prReviewSettingsQuery.data?.reviewSummaryFormat}
-                        onChange={(value) => {
-                          updatePrReviewSettingsMutation.mutate({ reviewSummaryFormat: value });
-                        }}
-                        style={{ width: '100%' }}
-                        options={[{ value: 'compact', label: 'Compact' }, { value: 'detailed', label: 'Detailed with findings' }]}
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </Form>
+              <Switch
+                disabled={!canManage}
+                checked={Boolean(prReviewSettingsQuery.data?.[item.key as keyof typeof prReviewSettingsQuery.data] ?? item.defaultChecked)}
+                onChange={(checked) => {
+                  updatePrReviewSettingsMutation.mutate({ [item.key]: checked });
+                }}
+              />
             </Flex>
-          </Card>
-        </Col>
-
-        <Col xs={24} lg={12}>
-          <Card styles={{ body: { padding: token.paddingXL } }}>
-            <Flex vertical gap={token.paddingMD}>
-              <Typography.Text strong style={{ fontSize: token.fontSizeLG, whiteSpace: 'nowrap' }}>Inbound SCM webhook</Typography.Text>
-              <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                Push and pull request events should route through Source Control, not outgoing Webhooks.
-              </Typography.Text>
-              <Flex vertical gap={token.paddingXS}>
-                <Typography.Text type="secondary" strong style={{ fontSize: token.fontSizeSM }}>Endpoint</Typography.Text>
-                <Typography.Text code copyable>/api/v1/source-control/webhooks/github</Typography.Text>
-              </Flex>
-              <Flex gap={token.paddingXS} wrap>
-                <StatusPill variant="teal">push</StatusPill>
-                <StatusPill variant="teal">pull_request</StatusPill>
-                <StatusPill variant="slate">signature verified</StatusPill>
-              </Flex>
-              <Button block onClick={handleSendTestEvent}>Send test event</Button>
-            </Flex>
-          </Card>
-        </Col>
-      </Row>
+          ))}
+        </Flex>
+        <Flex gap={token.paddingMD} style={{ marginTop: token.paddingLG }} wrap="wrap">
+          <Form.Item label="Status context" style={{ marginBottom: 0, flex: '1 1 200px' }}>
+            <Input
+              disabled={!canManage}
+              value={prReviewSettingsQuery.data?.statusContext}
+              onChange={(e) => {
+                updatePrReviewSettingsMutation.mutate({ statusContext: e.target.value });
+              }}
+            />
+          </Form.Item>
+          <Form.Item label="Review summary format" style={{ marginBottom: 0, flex: '1 1 200px' }}>
+            <Select
+              disabled={!canManage}
+              value={prReviewSettingsQuery.data?.reviewSummaryFormat}
+              onChange={(value) => {
+                updatePrReviewSettingsMutation.mutate({ reviewSummaryFormat: value });
+              }}
+              style={{ width: '100%' }}
+              options={[{ value: 'compact', label: 'Compact' }, { value: 'detailed', label: 'Detailed with findings' }]}
+            />
+          </Form.Item>
+        </Flex>
+      </Card>
 
       <SetupGuideDrawer open={setupGuideOpen} onClose={() => { setSetupGuideOpen(false); setSelectedProvider(null); }} providerId={selectedProvider} onConnect={handleConnectFromDrawer} />
       <ConfigureProviderModal open={configureOpen} providerName={selectedProviderName} isConnected={providers.some(p => p.name === selectedProviderName && p.status === 'Connected')} existingProvider={providers.find(p => p.name === selectedProviderName)} onCancel={() => setConfigureOpen(false)} onSave={async (values) => {
         const creds = values.credentials as Record<string, unknown>;
-        // Strip masked placeholder values so server keeps existing secrets unchanged
         const cleanCreds = Object.fromEntries(Object.entries(creds).filter(([, v]) => v !== '••••••••••••' && v !== undefined && v !== ''));
         const existing = providers.find(p => p.name === selectedProviderName);
         try {
+          let providerId = existing?.id;
           if (existing) {
             const result = await updateProviderMutation.mutateAsync({ id: existing.id, data: { provider: String(values.provider).toLowerCase(), name: String(values.name), credentials: cleanCreds } });
-            setConfigureOpen(false);
             message.success('Provider updated');
-            if (result?.redirectUrl) { window.location.href = result.redirectUrl; }
+            if (result?.redirectUrl) { window.location.href = result.redirectUrl; return; }
           } else {
             const result = await addProviderMutation.mutateAsync({ provider: String(values.provider).toLowerCase(), name: String(values.name), credentials: cleanCreds });
-            setConfigureOpen(false);
+            providerId = result?.sourceControl?.id;
             message.success('Provider connected');
-            if (result.redirectUrl) { window.location.href = result.redirectUrl; }
+            if (result.redirectUrl) { window.location.href = result.redirectUrl; return; }
+          }
+          setConfigureOpen(false);
+          if (providerId) {
+            await sourceControlsQuery.refetch();
+            testProviderMutation.mutate(providerId, {
+              onSuccess: () => {
+                message.success('Connection test passed');
+                syncProviderMutation.mutate(providerId, {
+                  onSuccess: (results) => { setSyncResults(results); setSyncResultsOpen(true); },
+                  onError: () => {},
+                });
+              },
+              onError: () => {},
+            });
           }
         } catch (err) { message.error(errorMessage(err)); }
       }} />
       <ImportRepoModal open={importOpen} repoFullName={selectedRepo} onClose={() => setImportOpen(false)} onSave={() => { importRepositoryMutation.mutate({ providerId: firstProviderId, sourceRepositoryId: selectedRepoSourceControlId }, { onSuccess: () => { message.success(`${selectedRepo} imported`); setImportOpen(false); }, onError: () => message.error('Failed to import repository') }); }} />
-      <SendTestEventModal open={testEventOpen} onClose={() => setTestEventOpen(false)} onSend={(type) => { sendTestEventMutation.mutate(firstProviderId, { onSuccess: () => message.success(`Test ${type} event sent`), onError: (err) => message.error(errorMessage(err)) }); }} />
       <SyncResultsModal open={syncResultsOpen} results={syncResults} onClose={() => setSyncResultsOpen(false)} />
     </Flex>
   );

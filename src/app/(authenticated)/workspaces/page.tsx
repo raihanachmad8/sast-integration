@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button, Flex, Typography, Alert, App, theme } from 'antd';
 import { LeftOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -25,6 +25,7 @@ const { Title, Text } = Typography;
 
 export default function WorkspaceChooserPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { message } = App.useApp();
   const { token } = theme.useToken();
@@ -41,6 +42,7 @@ export default function WorkspaceChooserPage() {
   const workspaceMode = clientEnv.workspaceMode;
   const isSingleMode = workspaceMode === 'single';
   const canCreatePersonal = hasValidSession && workspaceMode === WORKSPACE.MODE.MULTIPLE;
+  const redirectTo = searchParams.get('redirect');
 
   const handleSelect = (ws: { id: string; slug: string; name: string; role: string }) => {
     switchMutation.mutate(ws.id, {
@@ -49,7 +51,11 @@ export default function WorkspaceChooserPage() {
           if (!old) return old;
           return { ...old, workspace: { id: ws.id, name: ws.name, slug: ws.slug, role: ws.role } };
         });
-        router.push(ROUTES.WORKSPACE.DASHBOARD(ws.slug));
+        if (redirectTo && redirectTo.startsWith('/')) {
+          router.push(redirectTo);
+        } else {
+          router.push(ROUTES.WORKSPACE.DASHBOARD(ws.slug));
+        }
       },
       onError: () => message.error('Failed to switch workspace'),
     });
@@ -74,7 +80,9 @@ export default function WorkspaceChooserPage() {
         });
         queryClient.invalidateQueries({ queryKey: authKeys.session() });
         queryClient.invalidateQueries({ queryKey: ['workspaces'] });
-        if (ws) {
+        if (redirectTo && redirectTo.startsWith('/')) {
+          router.push(redirectTo);
+        } else if (ws) {
           router.push(ROUTES.WORKSPACE.DASHBOARD(ws.slug));
         } else {
           window.location.reload();
@@ -113,7 +121,13 @@ export default function WorkspaceChooserPage() {
     createMutation.mutate(
       { name: 'Personal Workspace', type: WORKSPACE.TYPE.PERSONAL },
       {
-        onSuccess: (ws) => router.push(ROUTES.WORKSPACE.DASHBOARD(ws.slug)),
+        onSuccess: (ws) => {
+          if (redirectTo && redirectTo.startsWith('/')) {
+            router.push(redirectTo);
+          } else {
+            router.push(ROUTES.WORKSPACE.DASHBOARD(ws.slug));
+          }
+        },
         onError: () => message.error('Failed to create workspace'),
       }
     );
@@ -157,7 +171,7 @@ export default function WorkspaceChooserPage() {
               flexShrink: 0,
             }}
           >
-            <FaIcon icon="fa-shield-halved" style={{ fontSize: 18 }} />
+            <FaIcon icon="fa-shield-halved" style={{ fontSize: token.fontSizeLG }} />
           </Flex>
           <div>
             <Title level={4} style={{ margin: 0 }}>Choose workspace</Title>

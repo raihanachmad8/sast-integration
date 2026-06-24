@@ -56,10 +56,10 @@ export function ProfileTab({ name, email, role, initials, avatarUrl, username, b
               {avatarUrl ? (
                 <Avatar size={72} src={avatarUrl} />
               ) : (
-                <Avatar size={72} style={{ background: token.colorPrimary, fontWeight: 700, fontSize: 22 }}>{initials}</Avatar>
+                <Avatar size={72} style={{ background: token.colorPrimary, fontWeight: 700, fontSize: token.fontSizeHeading3 }}>{initials}</Avatar>
               )}
               <div style={{ position: 'absolute', bottom: 0, right: 0, background: token.colorBgContainer, borderRadius: '50%', padding: 4, border: `1px solid ${token.colorBorder}` }}>
-                <FaIcon icon="fa-camera" style={{ fontSize: 12, color: token.colorTextSecondary }} />
+                <FaIcon icon="fa-camera" style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }} />
               </div>
             </div>
           </Upload>

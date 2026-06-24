@@ -2,24 +2,26 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { Button, App, Flex, Typography, theme } from 'antd';
-import { PageHeader } from '@/commons/components/PageHeader';
+
+import { ErrorBanner } from '@/commons/components/ErrorBanner';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { StatusPill } from '@/commons/components/StatusPill';
 import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
-import { EditScheduleModal, AddScheduleModal } from '@/features/schedules/ScheduleModals';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { PERMISSION } from '@/commons/constants/permissions';
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { errorMessage } from '@/lib/api/errors';
+import { usePermissions } from '@/lib/hooks/usePermissions';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useSchedulesQuery, useCreateScheduleMutation, useUpdateScheduleMutation, useDeleteScheduleMutation, useToggleScheduleMutation } from '@/modules/schedules';
 import type { CreateScheduleInput, UpdateScheduleInput } from '@/commons/schemas/schedule.schema';
-import { PermissionGate } from '@/commons/components/PermissionGate';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { LoadingState } from '@/commons/components/LoadingState';
-import { ErrorBanner } from '@/commons/components/ErrorBanner';
-import { errorMessage } from '@/lib/api/errors';
-import { useConfirm } from '@/commons/components/ConfirmDialog';
 import type { ScheduleRow } from '@/commons/types/schedules';
-import { StatusPill } from '@/commons/components/StatusPill';
 import { FeatureGate } from '@/commons/components/FeatureGate';
-import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
-import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { AddScheduleModal, EditScheduleModal } from '@/features/schedules/ScheduleModals';
 
 function buildColumns(token: ReturnType<typeof theme.useToken>['token']): DataTableColumn<ScheduleRow>[] {
   const RUN_ICON: Record<string, { icon: string; color: string }> = {
@@ -36,7 +38,7 @@ function buildColumns(token: ReturnType<typeof theme.useToken>['token']): DataTa
       render: (row) => (
         <div>
           <div style={{ fontWeight: 600 }}>{row.repositoryName}</div>
-          <div style={{ fontSize: 12, color: token.colorTextSecondary }}>{row.branch}</div>
+          <div style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}>{row.branch}</div>
         </div>
       ),
     },
@@ -47,7 +49,7 @@ function buildColumns(token: ReturnType<typeof theme.useToken>['token']): DataTa
       sortValue: (row) => row.cronExpression,
       render: (row) => (
         <div>
-          <div style={{ fontFamily: 'monospace', fontSize: 13 }}>{row.cronExpression}</div>
+          <div style={{ fontFamily: 'monospace', fontSize: token.fontSize }}>{row.cronExpression}</div>
         </div>
       ),
     },
@@ -105,6 +107,8 @@ function SchedulesPageContent() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const { confirm } = useConfirm();
+  const { has } = usePermissions();
+  const canManage = has(PERMISSION.SCHEDULE_MANAGE);
 
   const { params, setPagination, setSearch } = useTableParams({
     defaultPageSize: 10,
@@ -148,11 +152,11 @@ function SchedulesPageContent() {
   const columns = useMemo(() => buildColumns(token), [token]);
 
   const actions = useMemo<ActionConfig<ScheduleRow>[]>(() => [
-    { label: 'Edit', icon: <FaIcon icon="fa-pen" />, onClick: (schedule) => handleEdit(schedule) },
-    { label: 'Pause', icon: <FaIcon icon="fa-pause" />, onClick: (schedule) => handleToggleStatus(schedule), show: (schedule) => schedule.active },
-    { label: 'Resume', icon: <FaIcon icon="fa-play" />, onClick: (schedule) => handleToggleStatus(schedule), show: (schedule) => !schedule.active },
-    { label: 'Delete', icon: <FaIcon icon="fa-trash" />, onClick: (schedule) => handleDelete(schedule), variant: 'danger' },
-  ], [handleEdit, handleToggleStatus, handleDelete]);
+    { label: 'Edit', icon: <FaIcon icon="fa-pen" />, onClick: (schedule) => handleEdit(schedule), show: () => canManage },
+    { label: 'Pause', icon: <FaIcon icon="fa-pause" />, onClick: (schedule) => handleToggleStatus(schedule), show: (schedule) => schedule.active && canManage },
+    { label: 'Resume', icon: <FaIcon icon="fa-play" />, onClick: (schedule) => handleToggleStatus(schedule), show: (schedule) => !schedule.active && canManage },
+    { label: 'Delete', icon: <FaIcon icon="fa-trash" />, onClick: (schedule) => handleDelete(schedule), variant: 'danger', show: () => canManage },
+  ], [handleEdit, handleToggleStatus, handleDelete, canManage]);
 
   if (schedulesQuery.isLoading) return <LoadingState text="Loading schedules..." />;
   if (schedulesQuery.error) return <ErrorBanner message={errorMessage(schedulesQuery.error)} />;
