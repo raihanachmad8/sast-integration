@@ -35,13 +35,13 @@ function ShieldIcon({ size = 16 }: { size?: number }) {
 }
 
 /** Animated hamburger / close icon. */
-function HamburgerIcon({ open }: { open: boolean }) {
+function HamburgerIcon({ open, barColor, barBorderRadius }: { open: boolean; barColor: string; barBorderRadius: number }) {
   const bar: React.CSSProperties = {
     display: 'block',
     width: 22,
     height: 2,
-    borderRadius: 2,
-    background: '#fff',
+    borderRadius: barBorderRadius,
+    background: barColor,
     transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.2s ease',
     transformOrigin: 'center',
   };
@@ -146,9 +146,9 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                 justifyContent: 'center',
                 width: 32,
                 height: 32,
-                borderRadius: 8,
+                borderRadius: token.borderRadius,
                 background: `linear-gradient(135deg, ${token.colorPrimary} 0%, ${token.colorPrimaryHover} 100%)`,
-                color: '#fff',
+                color: token.colorTextLightSolid,
                 flexShrink: 0,
                 boxShadow: '0 4px 12px rgba(15,118,110,0.4)',
               }}
@@ -157,7 +157,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             </div>
             <Text
               strong
-              style={{ fontSize: 15, color: '#fff', margin: 0, letterSpacing: '-0.02em' }}
+              style={{ fontSize: token.fontSize, color: token.colorTextLightSolid, margin: 0, letterSpacing: '-0.02em' }}
             >
               SAST Integration
             </Text>
@@ -171,7 +171,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                   key={link.label}
                   href={link.href}
                   className="lp-nav-link"
-                  style={{ padding: '6px 13px', fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.72)' }}
+                  style={{ padding: `${token.paddingXS}px ${token.paddingSM}px`, fontSize: token.fontSize, fontWeight: token.fontWeightStrong, color: token.colorTextQuaternary }}
                 >
                   {link.label}
                 </a>
@@ -193,11 +193,11 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                   gap: 6,
                   padding: '6px 12px',
                   color: 'rgba(255,255,255,0.68)',
-                  fontSize: 14,
+                  fontSize: token.fontSize,
                   textDecoration: 'none',
                 }}
               >
-                <GithubOutlined style={{ fontSize: 16 }} />
+                <GithubOutlined style={{ fontSize: token.fontSizeLG }} />
                 <span>GitHub</span>
               </a>
               <Link href={ROUTES.AUTH.SIGNIN}>
@@ -206,8 +206,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                   size="small"
                   style={{
                     borderColor: 'rgba(255,255,255,0.28)',
-                    color: '#fff',
-                    fontWeight: 500,
+                    color: token.colorTextLightSolid,
+                    fontWeight: token.fontWeightStrong,
                     height: 32,
                     paddingInline: 14,
                   }}
@@ -252,7 +252,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                 transition: 'background 0.18s ease',
               }}
             >
-              <HamburgerIcon open={menuOpen} />
+              <HamburgerIcon open={menuOpen} barColor={token.colorTextLightSolid} barBorderRadius={token.borderRadiusXS} />
             </button>
           )}
         </div>
@@ -282,8 +282,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                       display: 'flex',
                       alignItems: 'center',
                       padding: '13px 4px',
-                      fontSize: 16,
-                      fontWeight: 500,
+                      fontSize: token.fontSizeLG,
+                      fontWeight: token.fontWeightStrong,
                       color: 'rgba(255,255,255,0.80)',
                       textDecoration: 'none',
                       borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -308,14 +308,14 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                   alignItems: 'center',
                   gap: 8,
                   padding: '13px 4px',
-                  fontSize: 16,
-                  fontWeight: 500,
+                  fontSize: token.fontSizeLG,
+                  fontWeight: token.fontWeightStrong,
                   color: 'rgba(255,255,255,0.80)',
                   textDecoration: 'none',
                   borderBottom: '1px solid rgba(255,255,255,0.06)',
                 }}
               >
-                <GithubOutlined style={{ fontSize: 17 }} />
+                <GithubOutlined style={{ fontSize: token.fontSizeLG }} />
                 GitHub
               </a>
 
@@ -327,11 +327,11 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                     block
                     style={{
                       borderColor: 'rgba(255,255,255,0.28)',
-                      color: '#fff',
-                      fontWeight: 500,
+                      color: token.colorTextLightSolid,
+                      fontWeight: token.fontWeightStrong,
                       height: 44,
-                      fontSize: 15,
-                      borderRadius: 10,
+                      fontSize: token.fontSize,
+                      borderRadius: token.borderRadiusLG,
                     }}
                   >
                     Sign in
@@ -344,8 +344,8 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                     style={{
                       fontWeight: 600,
                       height: 44,
-                      fontSize: 15,
-                      borderRadius: 10,
+                      fontSize: token.fontSize,
+                      borderRadius: token.borderRadiusLG,
                       background: `linear-gradient(135deg, ${token.colorPrimary}, ${token.colorPrimaryHover})`,
                       border: 'none',
                       boxShadow: '0 2px 12px rgba(15,118,110,0.4)',

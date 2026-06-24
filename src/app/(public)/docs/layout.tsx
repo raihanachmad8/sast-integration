@@ -222,7 +222,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                   fontWeight: 500,
                 }}
               >
-                <MenuOutlined style={{ fontSize: 12 }} />
+                <MenuOutlined style={{ fontSize: token.fontSizeSM }} />
                 Menu
               </button>
               <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
@@ -291,7 +291,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                 flexShrink: 0,
               }}
             >
-              <Text strong style={{ fontSize: 14 }}>Documentation</Text>
+              <Text strong style={{ fontSize: token.fontSize }}>Documentation</Text>
               <button
                 aria-label="Close navigation"
                 onClick={() => setDrawerOpen(false)}
@@ -303,7 +303,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                   display: 'flex',
                   alignItems: 'center',
                   color: token.colorTextSecondary,
-                  fontSize: 16,
+                  fontSize: token.fontSizeLG,
                   borderRadius: token.borderRadiusSM,
                 }}
               >
