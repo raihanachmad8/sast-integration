@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Modal, Segmented, Spin, Tag, Typography } from 'antd';
+import { Button, Modal, Segmented, Spin, Tag, Typography, theme } from 'antd';
 import {
   DownloadOutlined,
   FileExcelOutlined,
@@ -95,6 +95,7 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
   onClose,
   onDownload,
 }: ReportPreviewModalProps) {
+  const { token } = theme.useToken();
   const [activeTab, setActiveTab] = useState<'preview' | 'details'>('preview');
 
   const [pdfData, setPdfData] = useState<ArrayBuffer | null>(null);
@@ -203,8 +204,8 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
     <Modal
       open={open}
       title={
-        <span style={{ fontSize: 14 }}>
-          <Icon style={{ marginRight: 6, color: ext === 'pdf' ? '#ff4d4f' : '#52c41a' }} />
+        <span style={{ fontSize: token.fontSize }}>
+          <Icon style={{ marginRight: token.marginXXS, color: ext === 'pdf' ? token.colorError : token.colorSuccess }} />
           {report.title}
         </span>
       }
@@ -213,10 +214,10 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
       destroyOnHidden
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 12, color: '#999' }}>
+          <div style={{ fontSize: token.fontSizeSM, color: token.colorTextTertiary }}>
             {reportDate} {sizeKb !== null && ` \u00B7 ${sizeKb} KB`}
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: token.marginXXS }}>
             <Button onClick={onClose}>Tutup</Button>
             <Button
               type="primary"
@@ -230,7 +231,7 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
       }
     >
       {/* Status bar */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+      <div style={{ display: 'flex', gap: token.marginXXS, marginBottom: token.marginXS }}>
         <Tag color={S3_STATUS_COLOR[S3_STATUS_MAP[report.status ?? 'pending']] ?? 'default'}>
           {(S3_STATUS_MAP[report.status ?? 'pending'] ?? report.status ?? 'unknown').toUpperCase()}
         </Tag>
@@ -248,15 +249,15 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
           { label: 'Preview', value: 'preview', icon: <TableOutlined /> },
           { label: 'Details', value: 'details', icon: <FileTextOutlined /> },
         ]}
-        style={{ marginBottom: 8 }}
+        style={{ marginBottom: token.marginXS }}
       />
 
       {/* Preview pane */}
       {activeTab === 'preview' && (
         <div
           style={{
-            background: '#fafafa',
-            borderRadius: 8,
+            background: token.colorBgLayout,
+            borderRadius: token.borderRadius,
             overflow: 'hidden',
             minHeight: 420,
             display: 'flex',
@@ -284,13 +285,13 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
           )}
 
           {!loading && !error && ext === 'pdf' && !pdfData && (
-            <div style={{ padding: 32, textAlign: 'center', color: '#999' }}>Preview tidak tersedia</div>
+            <div style={{ padding: 32, textAlign: 'center', color: token.colorTextTertiary }}>Preview tidak tersedia</div>
           )}
 
           {!loading && !error && ext === 'xlsx' && currentSheet && (
             <div style={{ maxHeight: 420, overflow: 'auto' }}>
               {excelData && excelData.sheets.length > 1 && (
-                <div style={{ display: 'flex', gap: 4, padding: '6px 8px', borderBottom: '1px solid #f0f0f0', background: '#fff', position: 'sticky', top: 0, zIndex: 1 }}>
+                <div style={{ display: 'flex', gap: token.marginXXS, padding: `${token.paddingXS}px ${token.paddingXS}px`, borderBottom: `1px solid ${token.colorBorderSecondary}`, background: token.colorBgContainer, position: 'sticky', top: 0, zIndex: 1 }}>
                   {excelData.sheets.map((sheet, idx) => (
                     <Button
                       key={sheet.name}
@@ -307,22 +308,22 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
                 style={{
                   width: '100%',
                   borderCollapse: 'collapse',
-                  fontSize: 12,
+                  fontSize: token.fontSizeSM,
                   fontFamily: 'Consolas, monospace',
                   tableLayout: 'fixed',
                 }}
               >
                 <thead>
-                  <tr style={{ background: '#f5f5f5', position: 'sticky', top: 0, zIndex: 1 }}>
+                    <tr style={{ background: token.colorBgLayout, position: 'sticky', top: 0, zIndex: 1 }}>
                     {columnLetters.slice(0, currentSheet.colCount).map((col) => (
                       <th
                         key={col}
                         style={{
-                          padding: '4px 8px',
-                          border: '1px solid #e8e8e8',
-                          fontWeight: 600,
+                          padding: `${token.paddingXXS}px ${token.paddingXS}px`,
+                          border: `1px solid ${token.colorBorderSecondary}`,
+                          fontWeight: token.fontWeightStrong,
                           textAlign: 'center',
-                          color: '#666',
+                          color: token.colorTextSecondary,
                           width: col === 'A' ? 50 : undefined,
                         }}
                       >
@@ -341,11 +342,11 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
                             key={cellIdx}
                             colSpan={cell.mergedSpan}
                             style={{
-                              padding: '4px 8px',
-                              border: '1px solid #e8e8e8',
+                              padding: `${token.paddingXXS}px ${token.paddingXS}px`,
+                              border: `1px solid ${token.colorBorderSecondary}`,
                               background: cell.bg,
                               color: cell.color,
-                              fontWeight: cell.bold ? 600 : undefined,
+                              fontWeight: cell.bold ? token.fontWeightStrong : undefined,
                               fontStyle: cell.italic ? 'italic' : undefined,
                               fontSize: cell.fontSize ? Math.min(cell.fontSize, 14) : undefined,
                               fontFamily: cell.fontName,
@@ -369,11 +370,11 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
           )}
 
           {!loading && !error && ext === 'xlsx' && !currentSheet && (
-            <div style={{ padding: 32, textAlign: 'center', color: '#999' }}>Tidak ada data</div>
+            <div style={{ padding: 32, textAlign: 'center', color: token.colorTextTertiary }}>Tidak ada data</div>
           )}
 
           {!loading && !error && !['pdf', 'xlsx'].includes(ext) && (
-            <div style={{ padding: 32, textAlign: 'center', color: '#999' }}>
+            <div style={{ padding: 32, textAlign: 'center', color: token.colorTextTertiary }}>
               Preview tidak tersedia untuk format {ext.toUpperCase()}
             </div>
           )}
@@ -384,22 +385,22 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
       {activeTab === 'details' && (
         <div
           style={{
-            background: '#fafafa',
-            borderRadius: 8,
-            padding: 16,
+            background: token.colorBgLayout,
+            borderRadius: token.borderRadius,
+            padding: token.padding,
             minHeight: 420,
           }}
         >
-          <table style={{ width: '100%', fontSize: 13 }}>
+          <table style={{ width: '100%', fontSize: token.fontSize }}>
             <tbody>
-              <tr><td style={{ color: '#999', padding: '6px 0', width: 120 }}>Judul</td><td style={{ padding: '6px 0' }}>{report.title}</td></tr>
-              <tr><td style={{ color: '#999', padding: '6px 0' }}>Jenis</td><td style={{ padding: '6px 0' }}>{report.type}</td></tr>
-              <tr><td style={{ color: '#999', padding: '6px 0' }}>Format</td><td style={{ padding: '6px 0' }}>{report.format?.toUpperCase()}</td></tr>
-              <tr><td style={{ color: '#999', padding: '6px 0' }}>Status</td><td style={{ padding: '6px 0' }}>{report.status}</td></tr>
-              {reportRange && <tr><td style={{ color: '#999', padding: '6px 0' }}>Rentang</td><td style={{ padding: '6px 0' }}>{reportRange}</td></tr>}
-              {sizeKb !== null && <tr><td style={{ color: '#999', padding: '6px 0' }}>Ukuran</td><td style={{ padding: '6px 0' }}>{sizeKb} KB</td></tr>}
-              <tr><td style={{ color: '#999', padding: '6px 0' }}>Dibuat</td><td style={{ padding: '6px 0' }}>{reportDate}</td></tr>
-              {report.id && <tr><td style={{ color: '#999', padding: '6px 0' }}>Report ID</td><td style={{ padding: '6px 0', fontFamily: 'monospace', fontSize: 12 }}>{report.id}</td></tr>}
+              <tr><td style={{ color: token.colorTextTertiary, padding: `${token.paddingXS}px 0`, width: 120 }}>Judul</td><td style={{ padding: `${token.paddingXS}px 0` }}>{report.title}</td></tr>
+              <tr><td style={{ color: token.colorTextTertiary, padding: `${token.paddingXS}px 0` }}>Jenis</td><td style={{ padding: `${token.paddingXS}px 0` }}>{report.type}</td></tr>
+              <tr><td style={{ color: token.colorTextTertiary, padding: `${token.paddingXS}px 0` }}>Format</td><td style={{ padding: `${token.paddingXS}px 0` }}>{report.format?.toUpperCase()}</td></tr>
+              <tr><td style={{ color: token.colorTextTertiary, padding: `${token.paddingXS}px 0` }}>Status</td><td style={{ padding: `${token.paddingXS}px 0` }}>{report.status}</td></tr>
+              {reportRange && <tr><td style={{ color: token.colorTextTertiary, padding: `${token.paddingXS}px 0` }}>Rentang</td><td style={{ padding: `${token.paddingXS}px 0` }}>{reportRange}</td></tr>}
+              {sizeKb !== null && <tr><td style={{ color: token.colorTextTertiary, padding: `${token.paddingXS}px 0` }}>Ukuran</td><td style={{ padding: `${token.paddingXS}px 0` }}>{sizeKb} KB</td></tr>}
+              <tr><td style={{ color: token.colorTextTertiary, padding: `${token.paddingXS}px 0` }}>Dibuat</td><td style={{ padding: `${token.paddingXS}px 0` }}>{reportDate}</td></tr>
+              {report.id && <tr><td style={{ color: token.colorTextTertiary, padding: `${token.paddingXS}px 0` }}>Report ID</td><td style={{ padding: `${token.paddingXS}px 0`, fontFamily: 'monospace', fontSize: token.fontSizeSM }}>{report.id}</td></tr>}
             </tbody>
           </table>
         </div>
