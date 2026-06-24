@@ -1,5 +1,6 @@
 import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios';
 import { SECURITY } from '@/commons/constants';
+import { clientEnv } from '@/config/client-env';
 
 /**
  * Axios-based API client factory — single source of truth for all HTTP requests.
@@ -168,6 +169,10 @@ export function Api({ baseUrl }: TApi): IApiClient {
       if (workspaceId) {
         config.headers['x-workspace-id'] = workspaceId;
       }
+      // Let axios auto-set Content-Type with correct boundary for FormData
+      if (config.data instanceof FormData) {
+        delete config.headers['Content-Type'];
+      }
       return config;
     },
     (error) => Promise.reject(error),
@@ -250,5 +255,29 @@ export function Api({ baseUrl }: TApi): IApiClient {
     Delete: <T>(path: string) =>
       request<T>(instance, 'DELETE', path),
   };
+}
+
+// ─── Standalone Refresh (bypasses interceptor) ──────────
+
+/**
+ * Call the refresh endpoint directly via raw axios (bypasses interceptor).
+ * Used by useSessionQuery for the initial page-load refresh where no
+ * access token exists in memory yet. This avoids the double-refresh race
+ * condition that occurs when authApi.refresh() goes through the interceptor.
+ *
+ * @returns Refresh response with new access token
+ */
+export async function refreshAccessToken() {
+  const { data } = await axios.post(
+    `${clientEnv.apiUrl}/auth/refresh`,
+    {},
+    {
+      headers: {
+        [SECURITY.REFRESH_CSRF_HEADER]: SECURITY.REFRESH_CSRF_HEADER_VALUE,
+      },
+      withCredentials: true,
+    },
+  );
+  return data;
 }
 

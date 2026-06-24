@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { ApiResponse, buildMeta } from '@/server/http/response';
+import { NextRequest } from 'next/server';
+import { ApiResponse } from '@/server/http/response';
 import { authService } from '@/server/modules/auth/services/auth.service';
 import { verifyRefreshToken } from '@/server/modules/auth/services/jwt.service';
 import { AUTH } from '@/server/modules/auth/constants';
@@ -37,16 +37,11 @@ export async function POST(request: NextRequest) {
 
     const result = await authService.refresh(payload.sessionId, payload.refreshTokenId);
 
-    const response = NextResponse.json({
-      success: true,
-      message: AUTH.MESSAGES.REFRESH_SUCCESS,
-      data: {
-        tokenType: result.tokenType,
-        accessToken: result.accessToken,
-        expiresAt: result.expiresAt,
-        expiresIn: result.expiresIn,
-      },
-      meta: buildMeta(),
+    const response = ApiResponse.success(AUTH.MESSAGES.REFRESH_SUCCESS, {
+      tokenType: result.tokenType,
+      accessToken: result.accessToken,
+      expiresAt: result.expiresAt,
+      expiresIn: result.expiresIn,
     });
 
     setRefreshCookie(response, result.refreshToken);

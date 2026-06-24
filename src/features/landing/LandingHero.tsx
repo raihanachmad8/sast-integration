@@ -47,7 +47,7 @@ function SeverityBadge({ level, count }: { level: string; count: number }) {
             boxShadow: `0 0 6px ${c.color}`,
           }}
         />
-        <span style={{ fontSize: 11.5, fontWeight: 600, color: c.color, letterSpacing: '0.04em' }}>
+        <span style={{ fontSize: 11.5, fontWeight: token.fontWeightStrong, color: c.color, letterSpacing: '0.04em' }}>
           {level}
         </span>
       </div>
@@ -82,7 +82,7 @@ function EngineRow({ name, status, findings }: { name: string; status: 'done' | 
         <span style={{ fontSize: 12, color: LANDING_TOKENS.text.secondary, fontWeight: 500 }}>{name}</span>
       </div>
       {status === 'done' && findings !== undefined ? (
-        <span style={{ fontSize: 12, color: LANDING_TOKENS.accent.teal, fontWeight: 600 }}>{findings} found</span>
+        <span style={{ fontSize: 12, color: LANDING_TOKENS.accent.teal, fontWeight: token.fontWeightStrong }}>{findings} found</span>
       ) : (
         <span style={{ fontSize: 11, color: LANDING_TOKENS.accent.yellow }}>scanning…</span>
       )}
@@ -165,13 +165,13 @@ function DashboardMock() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: LANDING_TOKENS.accent.teal, letterSpacing: '0.03em' }}>
+            <span style={{ fontSize: 11, fontWeight: token.fontWeightStrong, color: LANDING_TOKENS.accent.teal, letterSpacing: '0.03em' }}>
               scan #142
             </span>
             <span
               style={{
                 fontSize: 10,
-                fontWeight: 600,
+                fontWeight: token.fontWeightStrong,
                 color: LANDING_TOKENS.accent.green,
                 background: LANDING_TOKENS.severity.lowBg,
                 border: '1px solid rgba(63,185,80,0.25)',
@@ -298,7 +298,7 @@ function DashboardMock() {
       >
         <span style={{ fontSize: 18 }}>🤖</span>
         <div>
-          <div style={{ fontSize: 10, color: 'rgba(167,139,250,0.8)', fontWeight: 600, letterSpacing: '0.05em', lineHeight: 1.3 }}>
+          <div style={{ fontSize: 10, color: 'rgba(167,139,250,0.8)', fontWeight: token.fontWeightStrong, letterSpacing: '0.05em', lineHeight: 1.3 }}>
             AI VERIFIED
           </div>
           <div style={{ fontSize: 13, color: LANDING_TOKENS.bg.white, fontWeight: 700, lineHeight: 1.3 }}>
@@ -327,7 +327,7 @@ function DashboardMock() {
       >
         <span style={{ fontSize: 16 }}>⚡</span>
         <div>
-          <div style={{ fontSize: 10, color: 'rgba(94,234,212,0.8)', fontWeight: 600, letterSpacing: '0.05em', lineHeight: 1.3 }}>
+          <div style={{ fontSize: 10, color: 'rgba(94,234,212,0.8)', fontWeight: token.fontWeightStrong, letterSpacing: '0.05em', lineHeight: 1.3 }}>
             SCAN SPEED
           </div>
           <div style={{ fontSize: 13, color: LANDING_TOKENS.bg.white, fontWeight: 700, lineHeight: 1.3 }}>
@@ -436,7 +436,7 @@ export function LandingHero() {
                     padding: '6px 16px',
                     borderRadius: 100,
                     fontSize: token.fontSizeSM,
-                    fontWeight: 600,
+                    fontWeight: token.fontWeightStrong,
                     background: LANDING_COLORS.white.overlay,
                     color: LANDING_TOKENS.bg.white,
                     border: '1px solid rgba(255,255,255,0.18)',

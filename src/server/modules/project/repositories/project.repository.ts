@@ -1,14 +1,12 @@
 import { eq, and, or, isNull, inArray, sql } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { db, type Tx } from '@/server/db/client';
 import { projects, projectMembers, projectTeams } from '@drizzle/schema/projects';
 import { repositories } from '@drizzle/schema/source-controls';
 import { users } from '@drizzle/schema/users';
 import { teams, teamMembers } from '@drizzle/schema/teams';
-import { REPOSITORY_CONNECTION_TYPES, type RepositoryConnectionType } from '../constants';
+
 
 import { sourceControlImports, sourceControls } from '@drizzle/schema/source-controls';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export const projectRepository = {
   /** List all projects for a workspace (with soft delete filter) */
@@ -187,9 +185,9 @@ export const projectRepository = {
         providerName: sourceControls.name,
         createdAt: repositories.createdAt,
         lastSyncedAt: repositories.lastSyncedAt,
-        scanCount: sql<number>`(SELECT COUNT(*)::int FROM scans WHERE repository_id = ${repositories.id})`,
-        findingCount: sql<number>`(SELECT COUNT(*)::int FROM findings f JOIN scans s ON f.scan_id = s.id WHERE s.repository_id = ${repositories.id})`,
-        lastScan: sql<Date | null>`(SELECT MAX(created_at) FROM scans WHERE repository_id = ${repositories.id})`,
+        scanCount: sql<number>`COALESCE((SELECT COUNT(*)::int FROM scans s WHERE s.repository_id = ${repositories.id}), 0)`,
+        findingCount: sql<number>`COALESCE((SELECT COUNT(*)::int FROM findings f JOIN scans s ON f.scan_id = s.id WHERE s.repository_id = ${repositories.id}), 0)`,
+        lastScan: sql<Date | null>`(SELECT MAX(s.created_at) FROM scans s WHERE s.repository_id = ${repositories.id})`,
       })
       .from(repositories)
       .leftJoin(projects, eq(projects.id, repositories.projectId))
@@ -414,28 +412,28 @@ export const projectRepository = {
     // Owner and manager can see all projects
     if (role === 'owner' || role === 'manager') return null;
 
-    // Direct project membership
-    const directRows = await db
-      .select({ projectId: projectMembers.projectId })
-      .from(projectMembers)
-      .innerJoin(projects, eq(projects.id, projectMembers.projectId))
-      .where(and(
-        eq(projects.workspaceId, workspaceId),
-        eq(projectMembers.userId, userId),
-        isNull(projects.deletedAt),
-      ));
-
-    // Team-based project membership
-    const teamRows = await db
-      .select({ projectId: projectTeams.projectId })
-      .from(projectTeams)
-      .innerJoin(projects, eq(projects.id, projectTeams.projectId))
-      .innerJoin(teamMembers, eq(teamMembers.teamId, projectTeams.teamId))
-      .where(and(
-        eq(projects.workspaceId, workspaceId),
-        eq(teamMembers.userId, userId),
-        isNull(projects.deletedAt),
-      ));
+    // Parallel: direct project membership + team-based project membership
+    const [directRows, teamRows] = await Promise.all([
+      db
+        .select({ projectId: projectMembers.projectId })
+        .from(projectMembers)
+        .innerJoin(projects, eq(projects.id, projectMembers.projectId))
+        .where(and(
+          eq(projects.workspaceId, workspaceId),
+          eq(projectMembers.userId, userId),
+          isNull(projects.deletedAt),
+        )),
+      db
+        .select({ projectId: projectTeams.projectId })
+        .from(projectTeams)
+        .innerJoin(projects, eq(projects.id, projectTeams.projectId))
+        .innerJoin(teamMembers, eq(teamMembers.teamId, projectTeams.teamId))
+        .where(and(
+          eq(projects.workspaceId, workspaceId),
+          eq(teamMembers.userId, userId),
+          isNull(projects.deletedAt),
+        )),
+    ]);
 
     const ids = new Set<string>();
     for (const r of directRows) ids.add(r.projectId);
@@ -448,38 +446,40 @@ export const projectRepository = {
    * @returns Array of { userId, name, email, role, avatarUrl } for all accessible members.
    */
   async getProjectMembers(projectId: string, workspaceId: string) {
-    const directMembers = await db
-      .select({
-        userId: users.id,
-        name: users.name,
-        email: users.email,
-        avatarUrl: users.avatarUrl,
-        role: projectMembers.role,
-      })
-      .from(projectMembers)
-      .innerJoin(users, eq(users.id, projectMembers.userId))
-      .innerJoin(projects, eq(projects.id, projectMembers.projectId))
-      .where(and(
-        eq(projectMembers.projectId, projectId),
-        eq(projects.workspaceId, workspaceId),
-      ));
-
-    const teamMemberRows = await db
-      .select({
-        userId: users.id,
-        name: users.name,
-        email: users.email,
-        avatarUrl: users.avatarUrl,
-        role: teamMembers.role,
-      })
-      .from(teamMembers)
-      .innerJoin(users, eq(users.id, teamMembers.userId))
-      .innerJoin(projectTeams, eq(projectTeams.teamId, teamMembers.teamId))
-      .innerJoin(projects, eq(projects.id, projectTeams.projectId))
-      .where(and(
-        eq(projectTeams.projectId, projectId),
-        eq(projects.workspaceId, workspaceId),
-      ));
+    // Parallel: direct members + team-based members
+    const [directMembers, teamMemberRows] = await Promise.all([
+      db
+        .select({
+          userId: users.id,
+          name: users.name,
+          email: users.email,
+          avatarUrl: users.avatarUrl,
+          role: projectMembers.role,
+        })
+        .from(projectMembers)
+        .innerJoin(users, eq(users.id, projectMembers.userId))
+        .innerJoin(projects, eq(projects.id, projectMembers.projectId))
+        .where(and(
+          eq(projectMembers.projectId, projectId),
+          eq(projects.workspaceId, workspaceId),
+        )),
+      db
+        .select({
+          userId: users.id,
+          name: users.name,
+          email: users.email,
+          avatarUrl: users.avatarUrl,
+          role: teamMembers.role,
+        })
+        .from(teamMembers)
+        .innerJoin(users, eq(users.id, teamMembers.userId))
+        .innerJoin(projectTeams, eq(projectTeams.teamId, teamMembers.teamId))
+        .innerJoin(projects, eq(projects.id, projectTeams.projectId))
+        .where(and(
+          eq(projectTeams.projectId, projectId),
+          eq(projects.workspaceId, workspaceId),
+        )),
+    ]);
 
     // Deduplicate: direct membership takes precedence
     const seen = new Set<string>();

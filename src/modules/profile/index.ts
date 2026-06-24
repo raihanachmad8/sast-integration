@@ -4,7 +4,6 @@ export {
   useUpdateProfileMutation,
   useSessionsQuery,
   useRevokeSessionMutation,
-  useAuditLogQuery,
   useChangePasswordMutation,
   useUploadAvatarMutation,
   useRemoveAvatarMutation,

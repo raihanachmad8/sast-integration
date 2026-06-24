@@ -72,7 +72,7 @@ export function LandingHowItWorks() {
             marginBottom: token.marginSM,
             padding: '3px 14px',
             fontSize: 12,
-            fontWeight: 600,
+            fontWeight: token.fontWeightStrong,
             letterSpacing: '0.04em',
             border: `1px solid ${token.colorPrimaryBorder}`,
             color: token.colorPrimary,

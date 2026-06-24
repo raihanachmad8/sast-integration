@@ -1,5 +1,5 @@
-import { eq, and, or, desc, count, sql, inArray, isNull, ilike, type InferInsertModel } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { eq, and, or, asc, desc, count, sql, inArray, isNull, ilike, type InferInsertModel } from 'drizzle-orm';
+import { db, type Tx } from '@/server/db/client';
 import { getOffset } from '@/lib/pagination';
 import { findings, findingGroups, aiVerifications, findingHistory, findingGroupScans } from '@drizzle/schema/findings';
 import { projects } from '@drizzle/schema/projects';
@@ -9,7 +9,95 @@ import { models } from '@drizzle/schema/integrations';
 import type { ChangedFile } from '@/server/modules/source-control/scm-api.service';
 import { logger } from '@/server/lib/logger';
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+const SORT_COLUMNS = {
+  createdAt: findings.createdAt,
+  severity: findings.severity,
+  scanner: findings.scanner,
+} as const;
+
+type SortKey = keyof typeof SORT_COLUMNS;
+
+const VERDICT_ORDER: Record<string, number> = {
+  true_positive: 0,
+  false_positive: 1,
+  Pending: 2,
+};
+
+/** Normalize frontend verdict filter (TP/FP/Pending) to DB verdict (true_positive/false_positive/Pending). */
+function normalizeVerdictFilter(verdict: string): string {
+  if (verdict === 'TP') return 'true_positive';
+  if (verdict === 'FP') return 'false_positive';
+  return verdict;
+}
+
+function buildSortOrder(sort?: string, order?: 'ASC' | 'DESC') {
+  if (!sort || !(sort in SORT_COLUMNS)) return desc(findings.createdAt);
+  const column = SORT_COLUMNS[sort as SortKey];
+  return order === 'ASC' ? asc(column) : desc(column);
+}
+
+/**
+ * Build a safe array_position SQL expression.
+ * Drizzle expands array elements into individual parameters ($1, $2, ...),
+ * so we must use ARRAY[...] syntax with explicit uuid[] cast.
+ */
+function buildArrayPositionOrder(ids: string[]) {
+  const arr = sql`ARRAY[${sql.join(ids.map((id) => sql`${id}`), sql`, `)}]::uuid[]`;
+  return sql`array_position(${arr}, ${findings.id})`;
+}
+
+/**
+ * Sort finding IDs by AI verdict in-memory.
+ * Order: TP → FP → Pending (ASC) or Pending → FP → TP (DESC).
+ */
+function sortIdsByVerdict(
+  ids: string[],
+  aiVerdicts: Map<string, string>,
+  order?: 'ASC' | 'DESC',
+): string[] {
+  const withVerdict = ids.map((id) => ({
+    id,
+    verdict: aiVerdicts.get(id) ?? 'Pending',
+  }));
+  withVerdict.sort((a, b) => {
+    const aVal = VERDICT_ORDER[a.verdict] ?? 3;
+    const bVal = VERDICT_ORDER[b.verdict] ?? 3;
+    return order === 'ASC' ? aVal - bVal : bVal - aVal;
+  });
+  return withVerdict.map((r) => r.id);
+}
+
+/**
+ * Fetch latest AI verdict for each finding ID.
+ * Returns a Map<findingId, verdict>.
+ */
+async function fetchLatestVerdicts(
+  executor: { select: typeof db.select },
+  findingIds: string[],
+): Promise<Map<string, string>> {
+  if (findingIds.length === 0) return new Map();
+
+  const aiRows = await executor.select({
+    findingId: aiVerifications.findingId,
+    verdict: aiVerifications.verdict,
+    createdAt: aiVerifications.createdAt,
+  }).from(aiVerifications)
+    .where(inArray(aiVerifications.findingId, findingIds));
+
+  const latestAi = new Map<string, { verdict: string; ts: Date }>();
+  for (const row of aiRows) {
+    if (!row.findingId) continue;
+    const existing = latestAi.get(row.findingId);
+    if (!existing || (row.createdAt && row.createdAt > existing.ts)) {
+      latestAi.set(row.findingId, {
+        verdict: row.verdict ?? 'Pending',
+        ts: row.createdAt ?? new Date(0),
+      });
+    }
+  }
+
+  return new Map([...latestAi.entries()].map(([k, v]) => [k, v.verdict]));
+}
 
 /**
  * Strip Docker workspace prefix from absolute file paths.
@@ -19,6 +107,27 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 function stripDockerPrefix(filePath: string): string {
   const match = filePath.match(/^\/workspace\/[^/]+\/[^/]+\/(.+)$/);
   return match ? match[1] : filePath;
+}
+
+async function fetchAiEnrichment(findingId: string, groupId: string | null, executor: typeof db | Tx) {
+  const conditions = [eq(aiVerifications.findingId, findingId)];
+  if (groupId) {
+    conditions.push(eq(aiVerifications.groupId, groupId));
+  }
+  const [latestVerification] = await executor
+    .select()
+    .from(aiVerifications)
+    .where(and(...conditions))
+    .orderBy(desc(aiVerifications.createdAt))
+    .limit(1);
+
+  if (!latestVerification) return null;
+
+  const [model] = latestVerification.modelId
+    ? await executor.select().from(models).where(eq(models.id, latestVerification.modelId)).limit(1)
+    : [];
+
+  return { ...latestVerification, modelName: model?.name };
 }
 
 export const findingRepository = {
@@ -70,6 +179,9 @@ export const findingRepository = {
     status?: string;
     scanner?: string;
     repositoryId?: string;
+    verdict?: string;
+    sort?: string;
+    order?: 'ASC' | 'DESC';
   }, tx?: Tx) {
     const executor = tx ?? db;
     const offset = getOffset(params.page, params.perPage);
@@ -81,9 +193,9 @@ export const findingRepository = {
     if (params.scanner) conditions.push(eq(findings.scanner, params.scanner));
     if (params.repositoryId) conditions.push(eq(findingGroups.repositoryId, params.repositoryId));
 
-    const whereClause = and(...conditions);
+    const whereClause = and(eq(findingGroups.projectId, projectId), and(...conditions));
 
-    const data = await executor.select({
+    const SELECT_SHAPE = {
       id: findings.id,
       scanId: findings.scanId,
       groupId: findings.groupId,
@@ -101,42 +213,72 @@ export const findingRepository = {
       createdAt: findings.createdAt,
       firstSeenAt: findingGroups.firstSeenAt,
       repositoryName: repositories.name,
-    }).from(findings)
-      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(scans, eq(findings.scanId, scans.id))
-      .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
-      .where(and(eq(findingGroups.projectId, projectId), whereClause))
-      .orderBy(desc(findings.createdAt))
-      .limit(params.perPage).offset(offset);
+    };
 
-    // Fetch AI verifications separately to avoid LEFT JOIN duplicate rows
-    const findingIds = data.map((r) => r.id);
-    const aiData = findingIds.length > 0
-      ? await executor.select({
-          findingId: aiVerifications.findingId,
-          verdict: aiVerifications.verdict,
-          confidence: aiVerifications.confidence,
-          explanation: aiVerifications.explanation,
-          fixSuggestion: aiVerifications.fixSuggestion,
-          dataFlow: aiVerifications.dataFlow,
-          taintSource: aiVerifications.taintSource,
-          matchDetail: aiVerifications.matchDetail,
-          likelyCwe: aiVerifications.likelyCwe,
-          modelName: models.name,
-        }).from(aiVerifications)
-          .leftJoin(models, eq(aiVerifications.modelId, models.id))
-          .where(inArray(aiVerifications.findingId, findingIds))
-      : [];
+    const fetchByIds = (ids: string[], orderBy: ReturnType<typeof sql>) =>
+      executor.select(SELECT_SHAPE).from(findings)
+        .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+        .innerJoin(scans, eq(findings.scanId, scans.id))
+        .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+        .where(inArray(findings.id, ids))
+        .orderBy(orderBy);
 
-    const aiMap = new Map<string, typeof aiData[number]>();
-    for (const row of aiData) {
-      if (!row.findingId) continue;
-      const existing = aiMap.get(row.findingId);
-      if (!existing) aiMap.set(row.findingId, row);
+    const isVerdictSort = params.sort === 'verdict';
+    const hasVerdictFilter = !!params.verdict;
+    const normalizedVerdictFilter = hasVerdictFilter ? normalizeVerdictFilter(params.verdict!) : undefined;
+
+    let data: Awaited<ReturnType<typeof fetchByIds>>;
+    let filteredTotal = 0;
+
+    if (isVerdictSort || hasVerdictFilter) {
+      const allMatchingIds = await executor.select({ id: findings.id })
+        .from(findings)
+        .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+        .innerJoin(scans, eq(findings.scanId, scans.id))
+        .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+        .where(whereClause)
+        .orderBy(desc(findings.createdAt))
+        .then((rows) => rows.map((r) => r.id));
+
+      if (allMatchingIds.length === 0) {
+        data = [];
+      } else {
+        const verdicts = await fetchLatestVerdicts(executor, allMatchingIds);
+
+        // Filter by verdict if provided
+        let filteredIds = allMatchingIds;
+        if (hasVerdictFilter) {
+          filteredIds = allMatchingIds.filter((id) => {
+            const v = verdicts.get(id) ?? 'Pending';
+            return v === normalizedVerdictFilter;
+          });
+        }
+
+        filteredTotal = filteredIds.length;
+
+        // Sort by verdict if requested
+        const sortedIds = isVerdictSort
+          ? sortIdsByVerdict(filteredIds, verdicts, params.order)
+          : filteredIds;
+
+        const paginatedIds = sortedIds.slice(offset, offset + params.perPage);
+
+        data = paginatedIds.length > 0
+          ? await fetchByIds(paginatedIds, buildArrayPositionOrder(paginatedIds))
+          : [];
+      }
+    } else {
+      data = await executor.select(SELECT_SHAPE).from(findings)
+        .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+        .innerJoin(scans, eq(findings.scanId, scans.id))
+        .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+        .where(whereClause)
+        .orderBy(buildSortOrder(params.sort, params.order))
+        .limit(params.perPage).offset(offset);
     }
 
-    const enrichedData = data.map((row) => {
-      const ai = row.id ? aiMap.get(row.id) : undefined;
+    const enrichedData = await Promise.all(data.map(async (row) => {
+      const ai = await fetchAiEnrichment(row.id, row.groupId ?? null, executor);
       return {
         ...row,
         verdict: ai ? (ai.verdict === 'true_positive' ? 'TP' : ai.verdict === 'false_positive' ? 'FP' : 'Pending') : 'Pending',
@@ -149,11 +291,14 @@ export const findingRepository = {
         matchDetail: ai?.matchDetail ?? null,
         likelyCwe: ai?.likelyCwe ?? null,
       };
-    });
+    }));
 
-    const [{ total }] = await executor.select({ total: count() }).from(findings)
-      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .where(and(eq(findingGroups.projectId, projectId), whereClause));
+    // Use filteredTotal when verdict filter is active, otherwise use DB count
+    const total = hasVerdictFilter
+      ? filteredTotal
+      : (await executor.select({ total: count(findings.id) }).from(findings)
+          .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+          .where(whereClause))[0]?.total ?? 0;
 
     return { data: enrichedData, total };
   },
@@ -168,6 +313,9 @@ export const findingRepository = {
     status?: string;
     scanner?: string;
     repositoryId?: string;
+    verdict?: string;
+    sort?: string;
+    order?: 'ASC' | 'DESC';
   }, tx?: Tx) {
     const executor = tx ?? db;
     const offset = getOffset(params.page, params.perPage);
@@ -182,7 +330,7 @@ export const findingRepository = {
     const workspaceFilter = eq(projects.workspaceId, workspaceId);
     const whereClause = conditions.length > 0 ? and(workspaceFilter, and(...conditions)) : workspaceFilter;
 
-    const data = await executor.select({
+    const SELECT_SHAPE = {
       id: findings.id,
       scanId: findings.scanId,
       groupId: findings.groupId,
@@ -201,43 +349,73 @@ export const findingRepository = {
       createdAt: findings.createdAt,
       firstSeenAt: findingGroups.firstSeenAt,
       repositoryName: repositories.name,
-    }).from(findings)
-      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(projects, eq(findingGroups.projectId, projects.id))
-      .innerJoin(scans, eq(findings.scanId, scans.id))
-      .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
-      .where(whereClause)
-      .orderBy(desc(findings.createdAt))
-      .limit(params.perPage).offset(offset);
+    };
 
-    // Fetch AI verifications separately to avoid LEFT JOIN duplicate rows
-    const findingIds = data.map((r) => r.id);
-    const aiData = findingIds.length > 0
-      ? await executor.select({
-          findingId: aiVerifications.findingId,
-          verdict: aiVerifications.verdict,
-          confidence: aiVerifications.confidence,
-          explanation: aiVerifications.explanation,
-          fixSuggestion: aiVerifications.fixSuggestion,
-          dataFlow: aiVerifications.dataFlow,
-          taintSource: aiVerifications.taintSource,
-          matchDetail: aiVerifications.matchDetail,
-          likelyCwe: aiVerifications.likelyCwe,
-          modelName: models.name,
-        }).from(aiVerifications)
-          .leftJoin(models, eq(aiVerifications.modelId, models.id))
-          .where(inArray(aiVerifications.findingId, findingIds))
-      : [];
+    const fetchByIds = (ids: string[], orderBy: ReturnType<typeof sql>) =>
+      executor.select(SELECT_SHAPE).from(findings)
+        .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+        .innerJoin(projects, eq(findingGroups.projectId, projects.id))
+        .innerJoin(scans, eq(findings.scanId, scans.id))
+        .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+        .where(inArray(findings.id, ids))
+        .orderBy(orderBy);
 
-    const aiMap = new Map<string, typeof aiData[number]>();
-    for (const row of aiData) {
-      if (!row.findingId) continue;
-      const existing = aiMap.get(row.findingId);
-      if (!existing) aiMap.set(row.findingId, row);
+    const isVerdictSort = params.sort === 'verdict';
+    const hasVerdictFilter = !!params.verdict;
+    const normalizedVerdictFilter = hasVerdictFilter ? normalizeVerdictFilter(params.verdict!) : undefined;
+
+    let data: Awaited<ReturnType<typeof fetchByIds>>;
+    let filteredTotal = 0;
+
+    if (isVerdictSort || hasVerdictFilter) {
+      const allMatchingIds = await executor.select({ id: findings.id })
+        .from(findings)
+        .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+        .innerJoin(projects, eq(findingGroups.projectId, projects.id))
+        .innerJoin(scans, eq(findings.scanId, scans.id))
+        .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+        .where(whereClause)
+        .orderBy(desc(findings.createdAt))
+        .then((rows) => rows.map((r) => r.id));
+
+      if (allMatchingIds.length === 0) {
+        data = [];
+      } else {
+        const verdicts = await fetchLatestVerdicts(executor, allMatchingIds);
+
+        let filteredIds = allMatchingIds;
+        if (hasVerdictFilter) {
+          filteredIds = allMatchingIds.filter((id) => {
+            const v = verdicts.get(id) ?? 'Pending';
+            return v === normalizedVerdictFilter;
+          });
+        }
+
+        filteredTotal = filteredIds.length;
+
+        const sortedIds = isVerdictSort
+          ? sortIdsByVerdict(filteredIds, verdicts, params.order)
+          : filteredIds;
+
+        const paginatedIds = sortedIds.slice(offset, offset + params.perPage);
+
+        data = paginatedIds.length > 0
+          ? await fetchByIds(paginatedIds, buildArrayPositionOrder(paginatedIds))
+          : [];
+      }
+    } else {
+      data = await executor.select(SELECT_SHAPE).from(findings)
+        .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+        .innerJoin(projects, eq(findingGroups.projectId, projects.id))
+        .innerJoin(scans, eq(findings.scanId, scans.id))
+        .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+        .where(whereClause)
+        .orderBy(buildSortOrder(params.sort, params.order))
+        .limit(params.perPage).offset(offset);
     }
 
-    const enrichedData = data.map((row) => {
-      const ai = row.id ? aiMap.get(row.id) : undefined;
+    const enrichedData = await Promise.all(data.map(async (row) => {
+      const ai = await fetchAiEnrichment(row.id, row.groupId ?? null, executor);
       return {
         ...row,
         verdict: ai ? (ai.verdict === 'true_positive' ? 'TP' : ai.verdict === 'false_positive' ? 'FP' : 'Pending') : 'Pending',
@@ -250,12 +428,14 @@ export const findingRepository = {
         matchDetail: ai?.matchDetail ?? null,
         likelyCwe: ai?.likelyCwe ?? null,
       };
-    });
+    }));
 
-    const [{ total }] = await executor.select({ total: count(sql`DISTINCT ${findingGroups.id}`) }).from(findings)
-      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(projects, eq(findingGroups.projectId, projects.id))
-      .where(whereClause);
+    const total = hasVerdictFilter
+      ? filteredTotal
+      : (await executor.select({ total: count(sql`DISTINCT ${findingGroups.id}`) }).from(findings)
+          .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+          .innerJoin(projects, eq(findingGroups.projectId, projects.id))
+          .where(whereClause))[0]?.total ?? 0;
 
     return { data: enrichedData, total };
   },
@@ -271,11 +451,13 @@ export const findingRepository = {
     scanner?: string;
     search?: string;
     repositoryId?: string;
+    verdict?: string;
+    sort?: string;
+    order?: 'ASC' | 'DESC';
   }, tx?: Tx) {
     const executor = tx ?? db;
     const offset = getOffset(params.page, params.perPage);
 
-    // Don't default to 'open' — show all findings unless status filter is explicitly set
     const conditions = [];
     if (params.status) conditions.push(eq(findingGroups.status, params.status));
     if (params.severity) conditions.push(eq(findings.severity, params.severity));
@@ -292,19 +474,17 @@ export const findingRepository = {
     }
 
     const workspaceFilter = eq(projects.workspaceId, workspaceId);
-
     const projectScope = accessibleProjectIds.length > 0
       ? or(
           inArray(findingGroups.projectId, accessibleProjectIds),
           isNull(repositories.projectId),
         )
       : isNull(repositories.projectId);
-
     const whereClause = conditions.length > 0
       ? and(workspaceFilter, projectScope, and(...conditions))
       : and(workspaceFilter, projectScope);
 
-    const data = await executor.select({
+    const SELECT_SHAPE = {
       id: findings.id,
       scanId: findings.scanId,
       groupId: findings.groupId,
@@ -322,44 +502,73 @@ export const findingRepository = {
       assignedTo: findings.assignedTo,
       createdAt: findings.createdAt,
       repositoryName: repositories.name,
-    }).from(findings)
-      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(projects, eq(findingGroups.projectId, projects.id))
-      .innerJoin(scans, eq(findings.scanId, scans.id))
-      .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
-      .where(whereClause)
-      .orderBy(desc(findings.createdAt))
-      .limit(params.perPage).offset(offset);
+    };
 
-    // Fetch AI verifications separately to avoid LEFT JOIN duplicate rows
-    const findingIds = data.map((r) => r.id);
-    const aiData = findingIds.length > 0
-      ? await executor.select({
-          findingId: aiVerifications.findingId,
-          verdict: aiVerifications.verdict,
-          confidence: aiVerifications.confidence,
-          explanation: aiVerifications.explanation,
-          fixSuggestion: aiVerifications.fixSuggestion,
-          dataFlow: aiVerifications.dataFlow,
-          taintSource: aiVerifications.taintSource,
-          matchDetail: aiVerifications.matchDetail,
-          likelyCwe: aiVerifications.likelyCwe,
-          modelName: models.name,
-        }).from(aiVerifications)
-          .leftJoin(models, eq(aiVerifications.modelId, models.id))
-          .where(inArray(aiVerifications.findingId, findingIds))
-      : [];
+    const fetchByIds = (ids: string[], orderBy: ReturnType<typeof sql>) =>
+      executor.select(SELECT_SHAPE).from(findings)
+        .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+        .innerJoin(projects, eq(findingGroups.projectId, projects.id))
+        .innerJoin(scans, eq(findings.scanId, scans.id))
+        .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+        .where(inArray(findings.id, ids))
+        .orderBy(orderBy);
 
-    // Map AI data to findings (latest verification per finding)
-    const aiMap = new Map<string, typeof aiData[number]>();
-    for (const row of aiData) {
-      if (!row.findingId) continue;
-      const existing = aiMap.get(row.findingId);
-      if (!existing) aiMap.set(row.findingId, row);
+    const isVerdictSort = params.sort === 'verdict';
+    const hasVerdictFilter = !!params.verdict;
+    const normalizedVerdictFilter = hasVerdictFilter ? normalizeVerdictFilter(params.verdict!) : undefined;
+
+    let data: Awaited<ReturnType<typeof fetchByIds>>;
+    let filteredTotal = 0;
+
+    if (isVerdictSort || hasVerdictFilter) {
+      const allMatchingIds = await executor.select({ id: findings.id })
+        .from(findings)
+        .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+        .innerJoin(projects, eq(findingGroups.projectId, projects.id))
+        .innerJoin(scans, eq(findings.scanId, scans.id))
+        .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+        .where(whereClause)
+        .orderBy(desc(findings.createdAt))
+        .then((rows) => rows.map((r) => r.id));
+
+      if (allMatchingIds.length === 0) {
+        data = [];
+      } else {
+        const verdicts = await fetchLatestVerdicts(executor, allMatchingIds);
+
+        let filteredIds = allMatchingIds;
+        if (hasVerdictFilter) {
+          filteredIds = allMatchingIds.filter((id) => {
+            const v = verdicts.get(id) ?? 'Pending';
+            return v === normalizedVerdictFilter;
+          });
+        }
+
+        filteredTotal = filteredIds.length;
+
+        const sortedIds = isVerdictSort
+          ? sortIdsByVerdict(filteredIds, verdicts, params.order)
+          : filteredIds;
+
+        const paginatedIds = sortedIds.slice(offset, offset + params.perPage);
+
+        data = paginatedIds.length > 0
+          ? await fetchByIds(paginatedIds, buildArrayPositionOrder(paginatedIds))
+          : [];
+      }
+    } else {
+      data = await executor.select(SELECT_SHAPE).from(findings)
+        .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+        .innerJoin(projects, eq(findingGroups.projectId, projects.id))
+        .innerJoin(scans, eq(findings.scanId, scans.id))
+        .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+        .where(whereClause)
+        .orderBy(buildSortOrder(params.sort, params.order))
+        .limit(params.perPage).offset(offset);
     }
 
-    const enrichedData = data.map((row) => {
-      const ai = row.id ? aiMap.get(row.id) : undefined;
+    const enrichedData = await Promise.all(data.map(async (row) => {
+      const ai = await fetchAiEnrichment(row.id, row.groupId ?? null, executor);
       return {
         ...row,
         verdict: ai ? (ai.verdict === 'true_positive' ? 'TP' : ai.verdict === 'false_positive' ? 'FP' : 'Pending') : 'Pending',
@@ -372,14 +581,16 @@ export const findingRepository = {
         matchDetail: ai?.matchDetail ?? null,
         likelyCwe: ai?.likelyCwe ?? null,
       };
-    });
+    }));
 
-    const [{ total }] = await executor.select({ total: count() }).from(findings)
-      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(projects, eq(findingGroups.projectId, projects.id))
-      .innerJoin(scans, eq(findings.scanId, scans.id))
-      .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
-      .where(whereClause);
+    const total = hasVerdictFilter
+      ? filteredTotal
+      : (await executor.select({ total: count() }).from(findings)
+          .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+          .innerJoin(projects, eq(findingGroups.projectId, projects.id))
+          .innerJoin(scans, eq(findings.scanId, scans.id))
+          .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+          .where(whereClause))[0]?.total ?? 0;
 
     return { data: enrichedData, total };
   },
@@ -393,6 +604,8 @@ export const findingRepository = {
     perPage: number;
     status?: string;
     onlyNew?: boolean;
+    sort?: string;
+    order?: 'ASC' | 'DESC';
   }, tx?: Tx) {
     const executor = tx ?? db;
     const offset = getOffset(params.page, params.perPage);
@@ -407,7 +620,7 @@ export const findingRepository = {
 
     const whereClause = and(...conditions);
 
-    const data = await executor.select({
+    const SELECT_SHAPE = {
       id: findings.id,
       scanId: findings.scanId,
       groupId: findings.groupId,
@@ -426,46 +639,64 @@ export const findingRepository = {
       firstSeenAt: findingGroups.firstSeenAt,
       repositoryName: repositories.name,
       isNew: findingGroupScans.isNew,
-    }).from(findings)
-      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .innerJoin(scans, eq(findings.scanId, scans.id))
-      .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
-      .leftJoin(findingGroupScans, and(
-        eq(findingGroupScans.groupId, findingGroups.id),
-        eq(findingGroupScans.scanId, scanId),
-      ))
-      .where(whereClause)
-      .orderBy(desc(findings.createdAt))
-      .limit(params.perPage).offset(offset);
+    };
 
-    // Fetch AI verifications separately to avoid LEFT JOIN duplicate rows
-    const findingIds = data.map((r) => r.id);
-    const aiData = findingIds.length > 0
-      ? await executor.select({
-          findingId: aiVerifications.findingId,
-          verdict: aiVerifications.verdict,
-          confidence: aiVerifications.confidence,
-          explanation: aiVerifications.explanation,
-          fixSuggestion: aiVerifications.fixSuggestion,
-          dataFlow: aiVerifications.dataFlow,
-          taintSource: aiVerifications.taintSource,
-          matchDetail: aiVerifications.matchDetail,
-          likelyCwe: aiVerifications.likelyCwe,
-          modelName: models.name,
-        }).from(aiVerifications)
-          .leftJoin(models, eq(aiVerifications.modelId, models.id))
-          .where(inArray(aiVerifications.findingId, findingIds))
-      : [];
+    const fetchByIds = (ids: string[], orderBy: ReturnType<typeof sql>) =>
+      executor.select(SELECT_SHAPE).from(findings)
+        .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+        .innerJoin(scans, eq(findings.scanId, scans.id))
+        .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+        .leftJoin(findingGroupScans, and(
+          eq(findingGroupScans.groupId, findingGroups.id),
+          eq(findingGroupScans.scanId, scanId),
+        ))
+        .where(inArray(findings.id, ids))
+        .orderBy(orderBy);
 
-    const aiMap = new Map<string, typeof aiData[number]>();
-    for (const row of aiData) {
-      if (!row.findingId) continue;
-      const existing = aiMap.get(row.findingId);
-      if (!existing) aiMap.set(row.findingId, row);
+    const isVerdictSort = params.sort === 'verdict';
+
+    let data: Awaited<ReturnType<typeof fetchByIds>>;
+    if (isVerdictSort) {
+      const allMatchingIds = await executor.select({ id: findings.id })
+        .from(findings)
+        .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+        .innerJoin(scans, eq(findings.scanId, scans.id))
+        .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+        .leftJoin(findingGroupScans, and(
+          eq(findingGroupScans.groupId, findingGroups.id),
+          eq(findingGroupScans.scanId, scanId),
+        ))
+        .where(whereClause)
+        .orderBy(desc(findings.createdAt))
+        .then((rows) => rows.map((r) => r.id));
+
+      if (allMatchingIds.length === 0) {
+        data = [];
+      } else {
+        const verdicts = await fetchLatestVerdicts(executor, allMatchingIds);
+        const sortedIds = sortIdsByVerdict(allMatchingIds, verdicts, params.order);
+        const paginatedIds = sortedIds.slice(offset, offset + params.perPage);
+
+        data = paginatedIds.length > 0
+          ? await fetchByIds(paginatedIds, buildArrayPositionOrder(paginatedIds))
+          : [];
+      }
+    } else {
+      data = await executor.select(SELECT_SHAPE).from(findings)
+        .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+        .innerJoin(scans, eq(findings.scanId, scans.id))
+        .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+        .leftJoin(findingGroupScans, and(
+          eq(findingGroupScans.groupId, findingGroups.id),
+          eq(findingGroupScans.scanId, scanId),
+        ))
+        .where(whereClause)
+        .orderBy(buildSortOrder(params.sort, params.order))
+        .limit(params.perPage).offset(offset);
     }
 
-    const enrichedData = data.map((row) => {
-      const ai = row.id ? aiMap.get(row.id) : undefined;
+    const enrichedData = await Promise.all(data.map(async (row) => {
+      const ai = await fetchAiEnrichment(row.id, row.groupId ?? null, executor);
       return {
         ...row,
         verdict: ai ? (ai.verdict === 'true_positive' ? 'TP' : ai.verdict === 'false_positive' ? 'FP' : 'Pending') : 'Pending',
@@ -478,7 +709,7 @@ export const findingRepository = {
         matchDetail: ai?.matchDetail ?? null,
         likelyCwe: ai?.likelyCwe ?? null,
       };
-    });
+    }));
 
     const countConditions = [eq(findings.scanId, scanId)];
     if (params.status) countConditions.push(eq(findingGroups.status, params.status));
@@ -1375,21 +1606,25 @@ export const findingRepository = {
       groupIsNew.set(g.groupId, changedLines ? changedLines.has(g.lineNumber) : false);
     }
 
-    // Update each group's isNew flag
+    // Update each group's isNew flag in parallel
     let newCount = 0;
     let preExistingCount = 0;
+    const updatePromises: Promise<unknown>[] = [];
     for (const [groupId, isNew] of groupIsNew) {
       if (isNew) newCount++;
       else preExistingCount++;
 
-      await executor
-        .update(findingGroupScans)
-        .set({ isNew })
-        .where(and(
-          eq(findingGroupScans.scanId, scanId),
-          eq(findingGroupScans.groupId, groupId),
-        ));
+      updatePromises.push(
+        executor
+          .update(findingGroupScans)
+          .set({ isNew })
+          .where(and(
+            eq(findingGroupScans.scanId, scanId),
+            eq(findingGroupScans.groupId, groupId),
+          ))
+      );
     }
+    await Promise.all(updatePromises);
 
     logger.scan.info('updateIsNewByCodeDiff: completed', {
       scanId,

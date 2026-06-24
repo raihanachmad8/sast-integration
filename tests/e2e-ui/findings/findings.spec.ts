@@ -9,7 +9,6 @@ test.describe('Findings Page', () => {
     const slug = await signInAndOpenWorkspace(page);
     // Wait for the workspace page to fully load before navigating
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/findings`);
     await page.waitForLoadState('networkidle');
     await expect(page.locator('body')).toBeVisible();
@@ -22,7 +21,6 @@ test.describe('Findings Page', () => {
   test('should show findings table or empty state', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/findings`);
     await page.waitForLoadState('networkidle');
 
@@ -39,7 +37,6 @@ test.describe('Findings Page', () => {
   test('should have severity filter options', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/findings`);
     await page.waitForLoadState('networkidle');
 
@@ -53,7 +50,6 @@ test.describe('Findings Page', () => {
   test('should have status filter options', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/findings`);
     await page.waitForLoadState('networkidle');
 
@@ -68,7 +64,6 @@ test.describe('Findings Page', () => {
   test('should verify a finding', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/findings`);
     await page.waitForLoadState('networkidle');
 
@@ -84,7 +79,8 @@ test.describe('Findings Page', () => {
     });
 
     const firstRow = page.locator('table tbody tr').first();
-    if (await firstRow.isVisible({ timeout: 5000 }).catch(() => false)) {
+    test.skip(await firstRow.isVisible({ timeout: 5000 }).catch(() => false) === false, 'No findings rows present');
+    {
       const checkbox = firstRow.locator('input[type="checkbox"], .ant-checkbox-input').first();
       await checkbox.click({ timeout: 5000 });
 
@@ -106,7 +102,6 @@ test.describe('Findings Page', () => {
   test('should resolve a finding', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/findings`);
     await page.waitForLoadState('networkidle');
 
@@ -122,7 +117,8 @@ test.describe('Findings Page', () => {
     });
 
     const firstRow = page.locator('table tbody tr').first();
-    if (await firstRow.isVisible({ timeout: 5000 }).catch(() => false)) {
+    test.skip(await firstRow.isVisible({ timeout: 5000 }).catch(() => false) === false, 'No findings rows present');
+    {
       await firstRow.getByRole('button', { name: 'Review' }).click();
 
       const drawer = page.locator('.ant-drawer');

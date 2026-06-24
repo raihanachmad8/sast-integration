@@ -263,7 +263,7 @@ describe('teamService.update', () => {
 
     await teamService.update('ws-1', 'team-1', { memberIds: ['user-1'] }, 'user-1');
 
-    expect(mockTeamRepo.setMembers).toHaveBeenCalledWith('team-1', ['user-1']);
+    expect(mockTeamRepo.setMembers).toHaveBeenCalledWith('team-1', ['user-1'], expect.anything());
   });
 });
 

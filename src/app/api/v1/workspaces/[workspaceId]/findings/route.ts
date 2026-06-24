@@ -31,8 +31,16 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     const status = searchParams.get('status') || undefined;
     const severity = searchParams.get('severity') || undefined;
     const scanner = searchParams.get('scanner') || undefined;
+    const verdict = searchParams.get('verdict') || undefined;
     const search = searchParams.get('search') || undefined;
     const { page, perPage } = parsePagination(searchParams, { perPage: 50 });
+
+    const ALLOWED_SORT_COLUMNS = ['createdAt', 'severity', 'scanner', 'verdict'] as const;
+    type SortColumn = (typeof ALLOWED_SORT_COLUMNS)[number];
+    const rawSort = searchParams.get('sort');
+    const rawOrder = searchParams.get('order');
+    const sort: SortColumn | undefined = ALLOWED_SORT_COLUMNS.includes(rawSort as SortColumn) ? (rawSort as SortColumn) : undefined;
+    const order: 'ASC' | 'DESC' = rawOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     // Compute user's accessible projects for project-scoped listing
     const role = await workspaceRepository.getMemberRole(workspaceId, auth.context.userId);
@@ -43,9 +51,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       status,
       severity,
       scanner,
+      verdict,
       search,
       repositoryId,
       accessibleProjectIds: accessibleProjectIds ?? undefined,
+      sort,
+      order,
     }, perPage, page);
 
     return ApiResponse.paginated('Findings retrieved', result.data, {

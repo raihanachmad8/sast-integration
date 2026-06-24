@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
 
-  const workspace = await requirePermission(request, auth.context, PERMISSION.POLICY_MANAGE);
+  const workspace = await requirePermission(request, auth.context, PERMISSION.POLICY_VIEW);
   if (!workspace.success) return workspace.response;
 
   try {
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     logger.scan.info('getQualityGates completed');
     return ApiResponse.success('Quality gates retrieved', data);
   } catch (e) {
-    logger.scan.error('getQualityGates failed', { error: e instanceof Error ? e.message : e });
+    logger.scan.error('getQualityGates failed', { error: e instanceof Error ? e.message : e, stack: e instanceof Error ? e.stack : undefined });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
     return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
   }

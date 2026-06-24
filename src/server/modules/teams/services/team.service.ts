@@ -128,8 +128,11 @@ export const teamService = {
     });
 
     if (input.memberIds !== undefined) {
-      await assertWorkspaceMemberIds(workspaceId, input.memberIds);
-      await teamRepository.setMembers(teamId, dedupeIds(input.memberIds));
+      const memberIds = input.memberIds;
+      await assertWorkspaceMemberIds(workspaceId, memberIds);
+      await db.transaction(async (tx) => {
+        await teamRepository.setMembers(teamId, dedupeIds(memberIds), tx);
+      });
     }
 
     logger.team.info('update completed', { teamId });

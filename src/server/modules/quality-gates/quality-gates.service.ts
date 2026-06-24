@@ -7,13 +7,37 @@ import { logger } from '@/server/lib/logger';
 export const qualityGatesService = {
   /**
    * Retrieve the quality gate configuration for a workspace.
+   * Creates a default config if none exists.
    *
    * @param workspaceId - Workspace UUID to fetch the config for
-   * @returns Quality gate config record, or null if not configured
+   * @returns Quality gate configuration record
    */
   async getConfig(workspaceId: string) {
     logger.scan.info('get quality gate config', { workspaceId });
-    const config = await qualityGatesRepository.getConfig(workspaceId);
+    let config = await qualityGatesRepository.getConfig(workspaceId);
+
+    if (!config) {
+      logger.scan.info('No config found, creating default', { workspaceId });
+      try {
+        config = await qualityGatesRepository.upsertConfig(workspaceId, {
+          threshold: 'medium',
+          failOnCritical: true,
+          failOnHighTp: true,
+          failOnHigh: true,
+          failOnMedium: false,
+          failOnLow: false,
+          failOnPending: true,
+          failOnTp: false,
+          warnOnPending: true,
+          requireHumanAck: false,
+          pendingBehavior: 'warn',
+        });
+      } catch (error) {
+        logger.scan.error('Failed to create default config', { workspaceId, error: error instanceof Error ? error.message : error });
+        throw error;
+      }
+    }
+
     logger.scan.info('get quality gate config completed', { workspaceId, found: !!config });
     return config;
   },

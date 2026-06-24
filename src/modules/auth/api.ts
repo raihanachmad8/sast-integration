@@ -61,8 +61,8 @@ export const authApi = {
    * console.log(data.id); // user UUID
    * ```
    */
-  signup: (email: string, password: string, name: string) =>
-    _api.Post<ApiResponse<{ id: string; email: string }>>(ENDPOINTS.AUTH.SIGNUP, { email, password, name }),
+  signup: (email: string, password: string, name: string, confirmPassword: string) =>
+    _api.Post<ApiResponse<{ id: string; email: string }>>(ENDPOINTS.AUTH.SIGNUP, { email, password, name, confirmPassword }),
 
   /**
    * Sign out — invalidates the current session and clears the refresh token cookie.

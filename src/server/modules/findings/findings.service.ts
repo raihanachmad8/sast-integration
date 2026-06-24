@@ -9,6 +9,8 @@ interface ListParams {
   status?: string;
   severity?: string;
   projectId?: string;
+  sort?: string;
+  order?: 'ASC' | 'DESC';
 }
 
 interface BulkUpdatePayload {

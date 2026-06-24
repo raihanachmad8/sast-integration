@@ -64,6 +64,12 @@ vi.mock('@/server/modules/workspace/repositories/workspace.repository', () => ({
   workspaceRepository: mockWorkspaceRepo,
 }));
 
+vi.mock('@/server/db/client', () => ({
+  db: {
+    transaction: vi.fn(async (fn: Function) => fn({})),
+  },
+}));
+
 const { projectService } = await import('@/server/modules/project/services/project.service');
 
 describe('projectService.list', () => {
@@ -219,7 +225,7 @@ describe('projectService.create', () => {
 
     await projectService.create({ name: 'Project', memberIds: ['user-1', 'user-2'] }, 'ws-1', 'user-1');
 
-    expect(mockProjectRepo.setMembers).toHaveBeenCalledWith('proj-1', ['user-1', 'user-2']);
+    expect(mockProjectRepo.setMembers).toHaveBeenCalledWith('proj-1', ['user-1', 'user-2'], expect.anything());
   });
 
   /**
@@ -233,7 +239,7 @@ describe('projectService.create', () => {
 
     await projectService.create({ name: 'Project', teamIds: ['team-1'] }, 'ws-1', 'user-1');
 
-    expect(mockProjectRepo.setTeams).toHaveBeenCalledWith('proj-1', ['team-1']);
+    expect(mockProjectRepo.setTeams).toHaveBeenCalledWith('proj-1', ['team-1'], expect.anything());
   });
 
   /**
@@ -327,7 +333,7 @@ describe('projectService.update', () => {
 
     await projectService.update('proj-1', { memberIds: ['user-1'] }, 'user-1');
 
-    expect(mockProjectRepo.setMembers).toHaveBeenCalledWith('proj-1', ['user-1']);
+    expect(mockProjectRepo.setMembers).toHaveBeenCalledWith('proj-1', ['user-1'], expect.anything());
   });
 
   /**
@@ -342,7 +348,7 @@ describe('projectService.update', () => {
 
     await projectService.update('proj-1', { teamIds: ['team-1'] }, 'user-1');
 
-    expect(mockProjectRepo.setTeams).toHaveBeenCalledWith('proj-1', ['team-1']);
+    expect(mockProjectRepo.setTeams).toHaveBeenCalledWith('proj-1', ['team-1'], expect.anything());
   });
 });
 

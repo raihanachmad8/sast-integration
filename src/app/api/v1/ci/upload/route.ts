@@ -95,13 +95,23 @@ export async function POST(request: NextRequest) {
 
     if (scanIdField) {
       // NEW PATTERN: scanId provided (from /ci/init) — look up existing scan
+      // TODO: Create scanService.getForCiUpload(scanId) to encapsulate CI scan lookup
       scan = await scanRepository.getById(scanIdField);
 
       if (!scan) {
         return ApiResponse.error('Scan not found', 'NOT_FOUND', undefined, 404);
       }
 
+      // IDOR protection: ensure scan belongs to the authenticated workspace
+      if (scan.repositoryId) {
+        const repository = await repositoriesRepository.getById(scan.repositoryId, workspaceId);
+        if (!repository) {
+          return ApiResponse.error('Scan not found', 'NOT_FOUND', undefined, 404);
+        }
+      }
+
       // Update status to processing if still queued
+      // TODO: Create scanService.transitionStatus(scanId, fromStatus, toStatus) for CI state machine
       if (scan.status === 'queued') {
         await scanRepository.updateStatus(scan.id, 'processing');
       }
@@ -114,6 +124,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Find or auto-create repository (atomic — handles concurrent requests safely)
+      // TODO: Create repositoriesService.findOrCreateForCi(workspaceId, projectId, name, url, branch) to centralize CI repo resolution
       const repository = await repositoriesRepository.findOrCreate({
         workspaceId: workspaceId,
         projectId: projectId,
@@ -129,6 +140,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Find or create scan for this commit
+      // TODO: Create scanService.findOrCreateByCommit(repositoryId, commit, scanData) for CI scan creation
       scan = await scanRepository.findByCommitSha(repository.id, commit);
 
       if (!scan) {
@@ -170,7 +182,7 @@ export async function POST(request: NextRequest) {
       logger.scan.error('CI/CD upload: failed to store SARIF', { scanId: scan.id, tool, error: (err as Error).message });
     }
 
-    // Append progress event for this tool (with duration if provided)
+    // TODO: Create scanService.appendProgressEvent(scanId, event) for CI progress tracking
     await scanRepository.appendProgressEvent(scan.id, {
       id: randomUUID(),
       type: 'scanning',
@@ -181,6 +193,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Record scan result with actual fileKey
+    // TODO: Create scanService.recordScanResult(scanId, resultData) for CI result recording
     await scanRepository.createScanResult({
       scanId: scan.id,
       scanner: tool,
@@ -191,6 +204,7 @@ export async function POST(request: NextRequest) {
     });
 
     // LEGACY PATTERN: mark completed if no scanId was provided (backward compat)
+    // TODO: Create scanService.completeLegacyScan(scanId) to handle legacy completion flow
     if (!scanIdField) {
       await scanRepository.updateStatus(scan.id, 'completed');
       await scanRepository.appendProgressEvent(scan.id, {

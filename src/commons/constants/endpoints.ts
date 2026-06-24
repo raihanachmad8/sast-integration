@@ -29,7 +29,6 @@ export const ENDPOINTS = {
     PROFILE_UPDATE: '/api/v1/users/profile',
     SESSIONS: '/api/v1/auth/sessions',
     REVOKE_SESSION: (sessionId: string) => `/api/v1/auth/sessions/${sessionId}`,
-    AUDIT_LOG: '/api/v1/auth/audit-log',
     CHANGE_PASSWORD: '/api/v1/users/me/password',
     INVITE_ACCEPT_LOGGED_IN: '/api/v1/auth/invite/accept-logged-in',
   },
@@ -116,8 +115,6 @@ export const ENDPOINTS = {
   KNOWLEDGE_SOURCES: {
     LIST: (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/knowledge-sources`,
     DETAIL: (workspaceId: string, sourceId: string) => `/api/v1/workspaces/${workspaceId}/knowledge-sources/${sourceId}`,
-    ENTRIES: (workspaceId: string, sourceId: string) => `/api/v1/workspaces/${workspaceId}/knowledge-sources/${sourceId}/entries`,
-    SYNC: (workspaceId: string, sourceId: string) => `/api/v1/workspaces/${workspaceId}/knowledge-sources/${sourceId}/sync`,
     BACKFILL: (workspaceId: string, sourceId: string) => `/api/v1/workspaces/${workspaceId}/knowledge-sources/${sourceId}/backfill`,
   },
 

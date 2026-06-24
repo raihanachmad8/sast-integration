@@ -21,9 +21,10 @@ interface FallbackChainCardProps {
   onMoveDown: (index: number) => void;
   onSetActive: (modelId: string) => void;
   onAddFallback: () => void;
+  canManage?: boolean;
 }
 
-export function FallbackChainCard({ models, onMoveUp, onMoveDown, onSetActive, onAddFallback }: FallbackChainCardProps) {
+export function FallbackChainCard({ models, onMoveUp, onMoveDown, onSetActive, onAddFallback, canManage = true }: FallbackChainCardProps) {
   const { token } = theme.useToken();
 
   return (
@@ -44,14 +45,14 @@ export function FallbackChainCard({ models, onMoveUp, onMoveDown, onSetActive, o
               </Flex>
               <StatusPill variant={ROLE_VARIANT[m.role] ?? 'slate'}>{label}</StatusPill>
               <Flex gap={token.marginXXS} style={{ flexShrink: 0 }}>
-                <Button size="small" disabled={i === 0} onClick={() => onMoveUp(i)}>
+                <Button size="small" disabled={!canManage || i === 0} onClick={() => onMoveUp(i)}>
                   <FaIcon icon="fa-arrow-up" />
                 </Button>
-                <Button size="small" disabled={i === models.length - 1} onClick={() => onMoveDown(i)}>
+                <Button size="small" disabled={!canManage || i === models.length - 1} onClick={() => onMoveDown(i)}>
                   <FaIcon icon="fa-arrow-down" />
                 </Button>
                 {!isPrimary && (
-                  <Button size="small" type="primary" onClick={() => onSetActive(m.id)}>
+                  <Button size="small" type="primary" disabled={!canManage} onClick={() => onSetActive(m.id)}>
                     Set Active
                   </Button>
                 )}
@@ -63,7 +64,7 @@ export function FallbackChainCard({ models, onMoveUp, onMoveDown, onSetActive, o
           );
         })}
       </Flex>
-      <Button size="small" block style={{ marginTop: token.paddingLG }} onClick={onAddFallback} icon={<FaIcon icon="fa-plus" />}>
+      <Button size="small" block disabled={!canManage} style={{ marginTop: token.paddingLG }} onClick={onAddFallback} icon={<FaIcon icon="fa-plus" />}>
         Add fallback
       </Button>
     </Card>

@@ -17,8 +17,9 @@
 import type { Job } from 'pg-boss';
 import { logger } from '@/server/lib/logger';
 import { db } from '@/server/db/client';
-import { sourceControls, sourceControlImports, repositories } from '@drizzle/schema/source-controls';
-import { eq, isNull, and, sql } from 'drizzle-orm';
+import { sourceControlImports, repositories } from '@drizzle/schema/source-controls';
+import { eq, isNull, and, sql, inArray } from 'drizzle-orm';
+import { sourceControlRepository } from '@/server/modules/source-control/source-control.repository';
 
 interface SyncSourceControlJobData {
   sourceControlId?: string; // If provided, sync only this connection
@@ -30,9 +31,10 @@ export async function processSyncSourceControlJob(job: Job<SyncSourceControlJobD
 
   try {
     // Get connections to sync
+    const allConnections = await sourceControlRepository.listAll();
     const connections = sourceControlId
-      ? await db.select().from(sourceControls).where(eq(sourceControls.id, sourceControlId)).limit(1)
-      : await db.select().from(sourceControls);
+      ? allConnections.filter((c) => c.id === sourceControlId).slice(0, 1)
+      : allConnections;
 
     if (connections.length === 0) {
       logger.queue.info('No source control connections to sync');
@@ -49,7 +51,7 @@ export async function processSyncSourceControlJob(job: Job<SyncSourceControlJobD
         const result = await sourceControlService.sync(connection.id, connection.workspaceId);
 
         // Update lastSyncedAt
-        await db.update(sourceControls).set({ lastSyncedAt: new Date() }).where(eq(sourceControls.id, connection.id));
+        await sourceControlRepository.update(connection.id, { lastSyncedAt: new Date() });
 
         // Clean up orphaned imports
         await cleanupOrphanedImports(connection.id);
@@ -95,28 +97,27 @@ async function cleanupOrphanedImports(sourceControlId: string) {
       )`,
     ));
 
-  for (const orphan of orphanedImports) {
-    logger.queue.info('Cleaning up orphaned import', {
-      importId: orphan.importId,
-      repositoryId: orphan.repositoryId,
-    });
+  if (orphanedImports.length === 0) return;
 
-    // Soft-delete the local repository
-    if (orphan.repositoryId) {
-      await db
-        .update(repositories)
-        .set({ deletedAt: new Date(), deletedBy: null })
-        .where(eq(repositories.id, orphan.repositoryId));
-    }
+  const now = new Date();
 
-    // Mark import as uninstalled
+  // Batch soft-delete local repositories
+  const repoIds = orphanedImports
+    .map((o) => o.repositoryId)
+    .filter((id): id is string => id !== null);
+  if (repoIds.length > 0) {
     await db
-      .update(sourceControlImports)
-      .set({ uninstalledAt: new Date() })
-      .where(eq(sourceControlImports.id, orphan.importId));
+      .update(repositories)
+      .set({ deletedAt: now, deletedBy: null })
+      .where(inArray(repositories.id, repoIds));
   }
 
-  if (orphanedImports.length > 0) {
-    logger.queue.info('Cleaned up orphaned imports', { count: orphanedImports.length });
-  }
+  // Batch mark imports as uninstalled
+  const importIds = orphanedImports.map((o) => o.importId);
+  await db
+    .update(sourceControlImports)
+    .set({ uninstalledAt: now })
+    .where(inArray(sourceControlImports.id, importIds));
+
+  logger.queue.info('Cleaned up orphaned imports', { count: orphanedImports.length });
 }

@@ -1,8 +1,6 @@
 import { eq, and, asc } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { db, type Tx } from '@/server/db/client';
 import { models } from '@drizzle/schema/integrations';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export interface CreateAiModelInput {
   workspaceId: string;
@@ -25,6 +23,8 @@ export interface UpdateAiModelInput {
   priority?: number;
   promptPreset?: string;
   customSystemPrompt?: string | null;
+  status?: string;
+  lastTestedAt?: Date;
 }
 
 export const aiModelsRepository = {

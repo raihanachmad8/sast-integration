@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from './api';
 import { authKeys } from './keys';
-import { setAccessToken, setWorkspaceId } from '@/lib/api/client';
+import { setAccessToken, setWorkspaceId, refreshAccessToken } from '@/lib/api/client';
 import { STALE } from '@/commons/constants/query';
 import type { SessionData, SigninResponse, RefreshTokenResponse } from './types';
 import type { ApiResponse } from '@/commons/types/api';
@@ -24,20 +24,19 @@ export function useSessionQuery() {
   const query = useQuery({
     queryKey: authKeys.session(),
     queryFn: async (): Promise<SessionData & { accessToken: string }> => {
-      // Try using existing in-memory token first (fast path)
       const existingToken = typeof window !== 'undefined' ? window.__accessToken : undefined;
+
       if (existingToken) {
-        try {
-          const res: ApiResponse<SessionData> = await authApi.me();
-          return { ...res.data, accessToken: existingToken };
-        } catch {
-          // Token expired, fall through to refresh
-        }
+        // Fast path: token exists, just fetch session.
+        // If 401, axios interceptor handles refresh + retry automatically.
+        const res: ApiResponse<SessionData> = await authApi.me();
+        return { ...res.data, accessToken: existingToken };
       }
 
-      // Slow path: refresh token → get new access token → fetch session
-      const refreshRes: ApiResponse<RefreshTokenResponse> = await authApi.refresh();
-      const accessToken = refreshRes.data.accessToken;
+      // No token in memory: refresh to get one (e.g. page load with httpOnly cookie only)
+      // Uses standalone refreshAccessToken (bypasses interceptor) to avoid double-refresh race.
+      const refreshData = await refreshAccessToken() as { data: RefreshTokenResponse };
+      const accessToken = refreshData.data.accessToken;
       setAccessToken(accessToken);
       const res: ApiResponse<SessionData> = await authApi.me();
       return { ...res.data, accessToken };
@@ -115,8 +114,8 @@ export function useSigninMutation() {
  */
 export function useSignupMutation() {
   return useMutation({
-    mutationFn: ({ email, password, name }: { email: string; password: string; name: string }) =>
-      authApi.signup(email, password, name).then((res) => res.data),
+    mutationFn: ({ email, password, name, confirmPassword }: { email: string; password: string; name: string; confirmPassword: string }) =>
+      authApi.signup(email, password, name, confirmPassword).then((res) => res.data),
   });
 }
 

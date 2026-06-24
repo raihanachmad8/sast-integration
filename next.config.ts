@@ -1,4 +1,9 @@
 import type { NextConfig } from 'next';
+import bundleAnalyzer from '@next/bundle-analyzer';
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+});
 
 const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
@@ -18,7 +23,7 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
       "worker-src 'self' blob: https://unpkg.com",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https://avatars.githubusercontent.com",
+      "img-src 'self' data: https://avatars.githubusercontent.com https://res.cloudinary.com",
       "font-src 'self' data:",
       "connect-src 'self' https: http://localhost:* http://127.0.0.1:*",
       "frame-ancestors 'none'",
@@ -32,9 +37,11 @@ const nextConfig: NextConfig = {
   // pdfkit & exceljs ship binary/font assets that must NOT be bundled by Turbopack.
   // Marking them as server externals makes Next.js load them from node_modules at runtime.
   serverExternalPackages: ['pdfkit', 'exceljs'],
+  transpilePackages: ['antd', '@ant-design/icons'],
   images: {
     remotePatterns: [
       { hostname: 'avatars.githubusercontent.com' },
+      { hostname: 'res.cloudinary.com' },
     ],
   },
   async headers() {
@@ -42,4 +49,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

@@ -30,7 +30,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId, findingId } = await params;
-  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.SCANNER_MANAGE);
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.FINDING_OVERRIDE_AI);
   if (!workspace.success) return workspace.response;
 
   try {
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
             }, result.verdict === 'false_positive' ? 'false_positive' : 'true_positive');
 
           }
-        } catch (err) {
+        } catch (_err) {
           // inline update failed silently
         }
       }

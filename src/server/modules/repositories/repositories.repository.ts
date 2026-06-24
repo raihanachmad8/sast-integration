@@ -1,8 +1,7 @@
-import { eq, and, isNull, sql } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { eq, and, isNull } from 'drizzle-orm';
+import { db, type Tx } from '@/server/db/client';
 import { repositories } from '@drizzle/schema/source-controls';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+import { logger } from '@/server/lib/logger';
 
 export interface CreateRepositoryInput {
   workspaceId: string;
@@ -29,6 +28,7 @@ export interface UpdateRepositoryInput {
 
 export const repositoriesRepository = {
   async listByWorkspace(workspaceId: string) {
+    logger.repository.debug('listByWorkspace called', { workspaceId });
     return db
       .select()
       .from(repositories)
@@ -36,6 +36,7 @@ export const repositoriesRepository = {
   },
 
   async getById(id: string, workspaceId: string) {
+    logger.repository.debug('getById called', { id, workspaceId });
     const [repo] = await db
       .select()
       .from(repositories)
@@ -45,45 +46,64 @@ export const repositoriesRepository = {
   },
 
   async create(data: CreateRepositoryInput, tx?: Tx) {
-    const executor = tx ?? db;
-    const [repo] = await executor
-      .insert(repositories)
-      .values({
-        workspaceId: data.workspaceId,
-        projectId: data.projectId,
-        name: data.name,
-        url: data.url,
-        defaultBranch: data.defaultBranch ?? 'main',
-        connectionType: data.connectionType ?? ['scm'],
-        autoScan: data.autoScan ?? false,
-        ...(data.createdBy && { createdBy: data.createdBy, updatedBy: data.createdBy }),
-      })
-      .returning();
-    return repo;
+    logger.repository.debug('create called', { workspaceId: data.workspaceId, name: data.name });
+    try {
+      const executor = tx ?? db;
+      const [repo] = await executor
+        .insert(repositories)
+        .values({
+          workspaceId: data.workspaceId,
+          projectId: data.projectId,
+          name: data.name,
+          url: data.url,
+          defaultBranch: data.defaultBranch ?? 'main',
+          connectionType: data.connectionType ?? ['scm'],
+          autoScan: data.autoScan ?? false,
+          ...(data.createdBy && { createdBy: data.createdBy, updatedBy: data.createdBy }),
+        })
+        .returning();
+      return repo;
+    } catch (error) {
+      logger.repository.error('create failed', { error });
+      throw error;
+    }
   },
 
   async update(id: string, data: UpdateRepositoryInput, tx?: Tx) {
-    const executor = tx ?? db;
-    const [repo] = await executor
-      .update(repositories)
-      .set({
-        ...data,
-        updatedAt: new Date(),
-      })
-      .where(eq(repositories.id, id))
-      .returning();
-    return repo ?? null;
+    logger.repository.debug('update called', { id });
+    try {
+      const executor = tx ?? db;
+      const [repo] = await executor
+        .update(repositories)
+        .set({
+          ...data,
+          updatedAt: new Date(),
+        })
+        .where(eq(repositories.id, id))
+        .returning();
+      return repo ?? null;
+    } catch (error) {
+      logger.repository.error('update failed', { error });
+      throw error;
+    }
   },
 
   async delete(id: string, tx?: Tx) {
-    const executor = tx ?? db;
-    await executor
-      .update(repositories)
-      .set({ deletedAt: new Date() })
-      .where(eq(repositories.id, id));
+    logger.repository.debug('delete called', { id });
+    try {
+      const executor = tx ?? db;
+      await executor
+        .update(repositories)
+        .set({ deletedAt: new Date() })
+        .where(eq(repositories.id, id));
+    } catch (error) {
+      logger.repository.error('delete failed', { error });
+      throw error;
+    }
   },
 
   async findByUrl(url: string, workspaceId: string, tx?: Tx) {
+    logger.repository.debug('findByUrl called', { url, workspaceId });
     const executor = tx ?? db;
     const [repo] = await executor
       .select()
@@ -94,6 +114,7 @@ export const repositoriesRepository = {
   },
 
   async findByNameAndWorkspace(name: string, workspaceId: string, tx?: Tx) {
+    logger.repository.debug('findByNameAndWorkspace called', { name, workspaceId });
     const executor = tx ?? db;
     const [repo] = await executor
       .select()
@@ -104,78 +125,84 @@ export const repositoriesRepository = {
   },
 
   async findOrCreate(data: CreateRepositoryInput, tx?: Tx) {
-    const executor = tx ?? db;
+    logger.repository.debug('findOrCreate called', { workspaceId: data.workspaceId, name: data.name });
+    try {
+      const executor = tx ?? db;
 
-    const [inserted] = await executor
-      .insert(repositories)
-      .values({
-        workspaceId: data.workspaceId,
-        projectId: data.projectId,
-        name: data.name,
-        url: data.url,
-        defaultBranch: data.defaultBranch ?? 'main',
-        connectionType: data.connectionType ?? ['scm'],
-        autoScan: data.autoScan ?? false,
-        ...(data.createdBy && { createdBy: data.createdBy, updatedBy: data.createdBy }),
-      })
-      .onConflictDoNothing()
-      .returning();
-
-    if (inserted) return inserted;
-
-    const [existing] = await executor
-      .select()
-      .from(repositories)
-      .where(and(
-        eq(repositories.name, data.name),
-        eq(repositories.workspaceId, data.workspaceId),
-        isNull(repositories.deletedAt),
-      ))
-      .limit(1);
-
-    if (existing) {
-      const updates: Record<string, unknown> = { updatedAt: new Date() };
-      if (data.projectId && !existing.projectId) updates.projectId = data.projectId;
-
-      if (data.connectionType?.length) {
-        const current = Array.isArray(existing.connectionType) ? existing.connectionType : [];
-        const merged = [...new Set([...current, ...data.connectionType])];
-        if (merged.length !== current.length) updates.connectionType = merged;
-      }
-
-      if (Object.keys(updates).length > 1) {
-        await executor.update(repositories).set(updates).where(eq(repositories.id, existing.id));
-        return { ...existing, ...updates };
-      }
-      return existing;
-    }
-
-    const [softDeleted] = await executor
-      .select()
-      .from(repositories)
-      .where(and(
-        eq(repositories.name, data.name),
-        eq(repositories.workspaceId, data.workspaceId),
-      ))
-      .limit(1);
-
-    if (softDeleted) {
-      const [restored] = await executor
-        .update(repositories)
-        .set({
-          deletedAt: null,
-          deletedBy: null,
-          url: data.url,
+      const [inserted] = await executor
+        .insert(repositories)
+        .values({
+          workspaceId: data.workspaceId,
           projectId: data.projectId,
+          name: data.name,
+          url: data.url,
           defaultBranch: data.defaultBranch ?? 'main',
           connectionType: data.connectionType ?? ['scm'],
-          updatedAt: new Date(),
+          autoScan: data.autoScan ?? false,
+          ...(data.createdBy && { createdBy: data.createdBy, updatedBy: data.createdBy }),
         })
-        .where(eq(repositories.id, softDeleted.id))
+        .onConflictDoNothing()
         .returning();
-      return restored ?? softDeleted;
-    }
 
-    return existing!;
+      if (inserted) return inserted;
+
+      const [existing] = await executor
+        .select()
+        .from(repositories)
+        .where(and(
+          eq(repositories.name, data.name),
+          eq(repositories.workspaceId, data.workspaceId),
+          isNull(repositories.deletedAt),
+        ))
+        .limit(1);
+
+      if (existing) {
+        const updates: Record<string, unknown> = { updatedAt: new Date() };
+        if (data.projectId && !existing.projectId) updates.projectId = data.projectId;
+
+        if (data.connectionType?.length) {
+          const current = Array.isArray(existing.connectionType) ? existing.connectionType : [];
+          const merged = [...new Set([...current, ...data.connectionType])];
+          if (merged.length !== current.length) updates.connectionType = merged;
+        }
+
+        if (Object.keys(updates).length > 1) {
+          await executor.update(repositories).set(updates).where(eq(repositories.id, existing.id));
+          return { ...existing, ...updates };
+        }
+        return existing;
+      }
+
+      const [softDeleted] = await executor
+        .select()
+        .from(repositories)
+        .where(and(
+          eq(repositories.name, data.name),
+          eq(repositories.workspaceId, data.workspaceId),
+        ))
+        .limit(1);
+
+      if (softDeleted) {
+        const [restored] = await executor
+          .update(repositories)
+          .set({
+            deletedAt: null,
+            deletedBy: null,
+            url: data.url,
+            projectId: data.projectId,
+            defaultBranch: data.defaultBranch ?? 'main',
+            connectionType: data.connectionType ?? ['scm'],
+            updatedAt: new Date(),
+          })
+          .where(eq(repositories.id, softDeleted.id))
+          .returning();
+        return restored ?? softDeleted;
+      }
+
+      return existing!;
+    } catch (error) {
+      logger.repository.error('findOrCreate failed', { error });
+      throw error;
+    }
   },
 };

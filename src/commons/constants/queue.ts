@@ -64,6 +64,8 @@ export const QUEUE_JOBS = {
   SYNC_SOURCE_CONTROL: 'sync-source-control',
   /** Detects and fails orphaned scans stuck in non-terminal states */
   SCAN_TIMEOUT_WATCHDOG: 'scan-timeout-watchdog',
+  /** Periodic sync of global knowledge base sources (CWE, NVD) */
+  SYNC_KNOWLEDGE_BASE: 'sync-knowledge-base',
 } as const;
 
 /** Type representing all valid queue job names */
@@ -101,4 +103,5 @@ export const QUEUE_JOB_EXPIRY: Record<string, number> = {
   [QUEUE_JOBS.CLEANUP_OLD_SCAN_FILES]: 300,      // 5 min — file cleanup
   [QUEUE_JOBS.SCAN_TIMEOUT_WATCHDOG]: 300,       // 5 min — watchdog
   [QUEUE_JOBS.TRIGGER_SCHEDULED_MANAGED_SCAN]: 300, // 5 min — trigger only
+  [QUEUE_JOBS.SYNC_KNOWLEDGE_BASE]: 1800,       // 30 min — knowledge sync (NVD rate limits)
 };

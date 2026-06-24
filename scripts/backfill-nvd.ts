@@ -15,54 +15,50 @@
  *   NVD_API_KEY  - NVD API key for higher rate limits (optional)
  */
 
-import { and, eq, isNull } from 'drizzle-orm';
-import { db } from '../src/server/db/client';
-import { knowledgeSources } from '../drizzle/schema/integrations';
-import { QUEUE_JOBS } from '../src/commons/constants/queue';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Load .env
+const envPaths = [path.resolve('.env.local'), path.resolve('.env')];
+for (const p of envPaths) {
+  if (fs.existsSync(p)) {
+    process.loadEnvFile(p);
+    break;
+  }
+}
 
 async function main() {
-  const { enqueue } = await import('../src/server/modules/queue/queue.service');
+  const { db } = await import('../src/server/db/client');
+  const { knowledgeBackfillService } = await import('../src/server/modules/knowledge-base/knowledge-backfill.service');
 
-  // 1. Find or create global NVD source
+  // Find or create global NVD source
+  const { knowledgeSources } = await import('../drizzle/schema/integrations');
+  const { and, eq, isNull } = await import('drizzle-orm');
+
   let [source] = await db
     .select()
     .from(knowledgeSources)
-    .where(
-      and(
-        eq(knowledgeSources.type, 'nvd'),
-        isNull(knowledgeSources.workspaceId),
-      ),
-    )
+    .where(and(eq(knowledgeSources.type, 'nvd'), isNull(knowledgeSources.workspaceId)))
     .limit(1);
 
   if (!source) {
     [source] = await db
       .insert(knowledgeSources)
-      .values({
-        name: 'NVD CVE Feed',
-        type: 'nvd',
-        url: 'https://services.nvd.nist.gov/rest/json/cves/2.0',
-        status: 'disconnected',
-      })
+      .values({ name: 'NVD CVE Feed', type: 'nvd', url: 'https://services.nvd.nist.gov/rest/json/cves/2.0', status: 'disconnected' })
       .returning();
     console.log(`[backfill] Created global NVD source: ${source.id}`);
   } else {
     console.log(`[backfill] Found global NVD source: ${source.id}`);
   }
 
-  // 2. Enqueue backfill job
-  const jobId = await enqueue(
-    QUEUE_JOBS.NVD_KNOWLEDGE_BACKFILL,
-    { sourceId: source.id },
-    { expireInSeconds: 1800 },
-  );
+  // Use the backfill service (creates DB record + enqueues properly)
+  const job = await knowledgeBackfillService.start(source.id, {});
 
-  console.log(`[backfill] Job enqueued: ${jobId}`);
-  console.log(`[backfill] Monitor progress:`);
+  console.log(`[backfill] Job started: ${job.id}`);
+  console.log(`[backfill] Status: ${job.status}`);
+  console.log(`[backfill] Range: ${job.rangeStart.toISOString()} → ${job.rangeEnd.toISOString()}`);
+  console.log(`[backfill] Monitor:`);
   console.log(`  psql -d sast_db -c "SELECT status, cursor_start, imported_count, last_error FROM knowledge_backfill_jobs ORDER BY created_at DESC LIMIT 1"`);
-  console.log(``);
-  console.log(`  Or check pg-boss:`);
-  console.log(`  psql -d sast_db -c "SELECT state, retry_count, output FROM pgboss.job WHERE name = 'nvd-knowledge-backfill' ORDER BY created_on DESC LIMIT 1"`);
 
   process.exit(0);
 }

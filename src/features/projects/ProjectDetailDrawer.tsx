@@ -10,6 +10,8 @@ import { errorMessage } from '@/lib/api/errors';
 import type { Project } from '@/commons/types';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { EmptyState } from '@/commons/components/EmptyState';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PERMISSION } from '@/commons/constants/permissions';
 
 interface ProjectDetailDrawerProps {
   open: boolean;
@@ -62,13 +64,13 @@ export function ProjectDetailDrawer({ open, project, onClose, onEdit }: ProjectD
 
         {project.description && (
           <section>
-            <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: 700 }}>Description</Typography.Title>
+            <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: token.fontWeightStrong }}>Description</Typography.Title>
             <Typography.Paragraph style={{ color: token.colorTextSecondary, fontSize: token.fontSize, lineHeight: 1.6, margin: 0 }}>{project.description}</Typography.Paragraph>
           </section>
         )}
 
         <section>
-          <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: 700 }}>Repositories</Typography.Title>
+          <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: token.fontWeightStrong }}>Repositories</Typography.Title>
           {project.repositories?.length > 0
             ? <Flex wrap="wrap" gap={token.paddingXS}>{project.repositories.map(r => <StatusPill key={r} variant="slate">{r}</StatusPill>)}</Flex>
             : <Typography.Paragraph style={{ color: token.colorTextSecondary, fontSize: token.fontSize }}>No repositories attached.</Typography.Paragraph>
@@ -76,7 +78,7 @@ export function ProjectDetailDrawer({ open, project, onClose, onEdit }: ProjectD
         </section>
 
         <section>
-          <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: 700 }}>Teams</Typography.Title>
+          <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: token.fontWeightStrong }}>Teams</Typography.Title>
           {(project.teamNames ?? project.teams ?? []).length > 0
             ? <Flex wrap="wrap" gap={token.paddingXS}>{(project.teamNames ?? project.teams ?? []).map((t, i) => <StatusPill key={project.teams?.[i] ?? t} variant="teal">{t}</StatusPill>)}</Flex>
             : <Typography.Paragraph style={{ color: token.colorTextSecondary, fontSize: token.fontSize }}>No teams assigned.</Typography.Paragraph>
@@ -84,7 +86,7 @@ export function ProjectDetailDrawer({ open, project, onClose, onEdit }: ProjectD
         </section>
 
         <section>
-          <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: 700 }}>Direct members</Typography.Title>
+          <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: token.fontWeightStrong }}>Direct members</Typography.Title>
           {(project.memberNames ?? project.members ?? []).length > 0
             ? <Flex wrap="wrap" gap={token.paddingXS}>{(project.memberNames ?? project.members ?? []).map((m, i) => <StatusPill key={project.members?.[i] ?? m} variant="slate">{m}</StatusPill>)}</Flex>
             : <Typography.Paragraph style={{ color: token.colorTextSecondary, fontSize: token.fontSize }}>No direct members.</Typography.Paragraph>
@@ -92,7 +94,7 @@ export function ProjectDetailDrawer({ open, project, onClose, onEdit }: ProjectD
         </section>
 
         <section>
-          <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: 700 }}>Automation</Typography.Title>
+          <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: token.fontWeightStrong }}>Automation</Typography.Title>
           {project.automation?.length > 0
             ? <Flex wrap="wrap" gap={token.paddingXS}>{project.automation.map(a => <StatusPill key={a} variant="teal">{a}</StatusPill>)}</Flex>
             : <StatusPill variant="slate">Manual</StatusPill>
@@ -100,25 +102,27 @@ export function ProjectDetailDrawer({ open, project, onClose, onEdit }: ProjectD
         </section>
 
         <div style={{ display: 'flex', gap: token.paddingMD, borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: token.paddingXL }}>
-          <Button type="primary" icon={<FaIcon icon="fa-pen" />} onClick={() => onEdit(project)}>Edit project</Button>
-          <Button
-            danger
-            icon={<FaIcon icon="fa-trash" />}
-            loading={deleteMutation.isPending}
-            onClick={() => confirm({
-              title: 'Delete project?',
-              content: `Delete "${project.name}"? This cannot be undone.`,
-              danger: true,
-              onOk: () => {
-                deleteMutation.mutate(project.id, {
-                  onSuccess: () => { modal.success({ title: 'Deleted', content: `${project.name} has been deleted.` }); onClose(); },
-                  onError: (err) => modal.error({ title: 'Failed to delete', content: errorMessage(err) }),
-                });
-              },
-            })}
-          >
-            Delete
-          </Button>
+          <PermissionGate permission={PERMISSION.PROJECT_MANAGE}>
+            <Button type="primary" icon={<FaIcon icon="fa-pen" />} onClick={() => onEdit(project)}>Edit project</Button>
+            <Button
+              danger
+              icon={<FaIcon icon="fa-trash" />}
+              loading={deleteMutation.isPending}
+              onClick={() => confirm({
+                title: 'Delete project?',
+                content: `Delete "${project.name}"? This cannot be undone.`,
+                danger: true,
+                onOk: () => {
+                  deleteMutation.mutate(project.id, {
+                    onSuccess: () => { modal.success({ title: 'Deleted', content: `${project.name} has been deleted.` }); onClose(); },
+                    onError: (err) => modal.error({ title: 'Failed to delete', content: errorMessage(err) }),
+                  });
+                },
+              })}
+            >
+              Delete
+            </Button>
+          </PermissionGate>
         </div>
       </div>
     </Drawer>

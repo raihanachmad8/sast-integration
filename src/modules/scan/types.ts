@@ -74,7 +74,7 @@ export interface ScanDetailData {
   /** Scan origin type. */
   origin: 'managed' | 'external_upload';
   /** Scan status. */
-  status: 'queued' | 'running' | 'processing' | 'completed' | 'failed';
+  status: 'queued' | 'running' | 'processing' | 'parsing' | 'completed' | 'failed';
   /** ISO 8601 timestamp when scan started. */
   startedAt: string;
   /** ISO 8601 timestamp when scan completed. */

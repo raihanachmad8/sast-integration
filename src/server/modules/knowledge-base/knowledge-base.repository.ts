@@ -1,9 +1,6 @@
 import { and, eq, count, or, ilike, sql, desc, inArray } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { db, type Tx } from '@/server/db/client';
 import { knowledgeEntries, knowledgeSources, knowledgeBackfillJobs } from '@drizzle/schema/integrations';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
 const entrySelectFields = {
   id: knowledgeEntries.id,
   sourceId: knowledgeEntries.sourceId,
@@ -381,17 +378,14 @@ export const knowledgeBaseRepository = {
   // ── Knowledge Backfill Jobs ────────────────────────────────────────
 
   /**
-   * List backfill jobs for a workspace + source, ordered by createdAt desc.
+   * List backfill jobs for a source, ordered by createdAt desc.
    */
-  async listBackfillJobs(workspaceId: string, sourceId: string, tx?: Tx) {
+  async listBackfillJobs(sourceId: string, tx?: Tx) {
     const executor = tx ?? db;
     return executor
       .select()
       .from(knowledgeBackfillJobs)
-      .where(and(
-        eq(knowledgeBackfillJobs.workspaceId, workspaceId),
-        eq(knowledgeBackfillJobs.sourceId, sourceId),
-      ))
+      .where(eq(knowledgeBackfillJobs.sourceId, sourceId))
       .orderBy(desc(knowledgeBackfillJobs.createdAt));
   },
 
@@ -450,7 +444,6 @@ export const knowledgeBaseRepository = {
    * Insert a backfill job.
    */
   async insertBackfillJob(data: {
-    workspaceId: string;
     sourceId: string;
     sourceType: string;
     status: string;
@@ -458,6 +451,8 @@ export const knowledgeBaseRepository = {
     rangeEnd: Date;
     cursorStart: Date;
     windowDays: number;
+    maxDurationMs: number;
+    maxRetries: number;
     importedCount: number;
   }, tx?: Tx) {
     const executor = tx ?? db;
@@ -476,6 +471,7 @@ export const knowledgeBaseRepository = {
     lastError?: string | null;
     cursorStart?: Date;
     importedCount?: number;
+    retryCount?: number;
     startedAt?: Date;
     completedAt?: Date;
     updatedAt?: Date;
@@ -488,18 +484,18 @@ export const knowledgeBaseRepository = {
   },
 
   /**
-   * List queued/running backfill jobs for a workspace + source (for stale job detection).
+   * List queued/running backfill jobs for a source (for stale job detection).
    */
-  async listActiveBackfillJobs(workspaceId: string, sourceId: string, tx?: Tx) {
+  async listActiveBackfillJobs(sourceId: string, tx?: Tx) {
     const executor = tx ?? db;
     return executor
       .select()
       .from(knowledgeBackfillJobs)
       .where(and(
-        eq(knowledgeBackfillJobs.workspaceId, workspaceId),
         eq(knowledgeBackfillJobs.sourceId, sourceId),
         inArray(knowledgeBackfillJobs.status, ['queued', 'running']),
-      ));
+      ))
+      .orderBy(desc(knowledgeBackfillJobs.createdAt));
   },
 
   /**

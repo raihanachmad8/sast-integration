@@ -13,11 +13,13 @@ export async function GET(request: NextRequest) {
   if (!auth.success) return auth.response;
 
   try {
+    // TODO: Create authService.getProfile(userId) to encapsulate user + workspace lookup
     const user = await authRepository.findUserById(auth.context.userId);
     if (!user) return ApiResponse.error(AUTH.ERRORS.USER_NOT_FOUND, AUTH.ERROR_CODE.AUTH, undefined, 401);
 
     let workspace = null;
     if (user.currentWorkspaceId) {
+      // TODO: Create authService.getUserWorkspace(userId, workspaceId) to encapsulate workspace lookup
       const ws = await authRepository.getUserWorkspace(user.id, user.currentWorkspaceId);
       if (ws) {
         const permissions = ROLE_PERMISSIONS[ws.role as keyof typeof ROLE_PERMISSIONS] ?? [];
@@ -27,6 +29,7 @@ export async function GET(request: NextRequest) {
 
     logger.auth.info('me completed');
     return ApiResponse.success(AUTH.MESSAGES.SESSION_RETRIEVED, {
+      sessionId: auth.context.sessionId,
       user: {
         id: user.id,
         email: user.email,

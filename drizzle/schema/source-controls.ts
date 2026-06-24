@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, jsonb, timestamp, text, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, jsonb, timestamp, text, boolean, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { isNull } from 'drizzle-orm';
 import { users } from './users';
 import { workspaces } from './workspaces';
@@ -13,7 +13,9 @@ export const sourceControls = pgTable('source_controls', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   createdBy: uuid('created_by').references(() => users.id),
   lastSyncedAt: timestamp('last_synced_at'),
-});
+}, (t) => [
+  index('source_controls_workspace_id_idx').on(t.workspaceId),
+]);
 
 export const sourceControlRepositories = pgTable('source_control_repositories', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -71,6 +73,7 @@ export const repositories = pgTable('repositories', {
   deletedBy: uuid('deleted_by').references(() => users.id),
 }, (t) => [
   uniqueIndex('repositories_workspace_name_idx').on(t.workspaceId, t.name).where(isNull(t.deletedAt)),
+  index('repositories_project_id_idx').on(t.projectId),
 ]);
 
 export type SourceControl = typeof sourceControls.$inferSelect;

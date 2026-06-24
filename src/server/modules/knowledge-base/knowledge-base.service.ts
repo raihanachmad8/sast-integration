@@ -1,3 +1,4 @@
+import { db } from '@/server/db/client';
 import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
 import { knowledgeBaseRepository } from './knowledge-base.repository';
 import { AppError } from '@/server/http/errors';
@@ -66,19 +67,23 @@ export const knowledgeBaseService = {
 
     if (!source) throw new AppError('Knowledge source not found', 404, 'NOT_FOUND');
 
-    const entry = await knowledgeBaseRepository.insertEntry({
-      sourceId: data.sourceId,
-      cweId: data.cweId,
-      title: data.title,
-      content: data.content,
-      severity: data.severity,
-      remediation: data.remediation,
-      tags: data.tags,
-      muted: data.muted,
-    });
+    const entry = await db.transaction(async (tx) => {
+      const e = await knowledgeBaseRepository.insertEntry({
+        sourceId: data.sourceId,
+        cweId: data.cweId,
+        title: data.title,
+        content: data.content,
+        severity: data.severity,
+        remediation: data.remediation,
+        tags: data.tags,
+        muted: data.muted,
+      }, tx);
 
-    const total = await knowledgeBaseRepository.countEntriesBySource(source.id);
-    await knowledgeBaseRepository.updateSourceEntryCount(source.id, total);
+      const total = await knowledgeBaseRepository.countEntriesBySource(source.id, tx);
+      await knowledgeBaseRepository.updateSourceEntryCount(source.id, total, tx);
+
+      return e;
+    });
 
     logger.knowledge.info('createEntry completed', { entryId: entry.id });
     return entry;

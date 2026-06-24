@@ -2,26 +2,27 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { Button, App, Typography, Flex, theme, Tag } from 'antd';
-import { PageHeader } from '@/commons/components/PageHeader';
-import { FaIcon } from '@/commons/components/FaIcon';
-import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 
-import { EditModelModal, AddModelModal } from '@/features/model/ModelModals';
-import { FallbackChainCard } from '@/features/model/FallbackChainCard';
-import { VerificationSettingsCard } from '@/features/model/VerificationSettingsCard';
+import { ErrorState } from '@/commons/components/ErrorState';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { PERMISSION } from '@/commons/constants/permissions';
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { errorMessage } from '@/lib/api/errors';
+import { usePermissions } from '@/lib/hooks/usePermissions';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useAiModelsQuery, useCreateAiModelMutation, useUpdateAiModelMutation, useDeleteAiModelMutation, useTestAiModelMutation } from '@/modules/ai-models';
 import type { CreateAiModelInput } from '@/commons/schemas/ai-model.schema';
-import { PermissionGate } from '@/commons/components/PermissionGate';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { LoadingState } from '@/commons/components/LoadingState';
-import { ErrorState } from '@/commons/components/ErrorState';
-import { errorMessage } from '@/lib/api/errors';
 import type { AiModelRow } from '@/commons/types/ai-models';
-import { useConfirm } from '@/commons/components/ConfirmDialog';
 import { FeatureGate } from '@/commons/components/FeatureGate';
-import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
-import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { AddModelModal, EditModelModal } from '@/features/model/ModelModals';
+import { FallbackChainCard } from '@/features/model/FallbackChainCard';
+import { VerificationSettingsCard } from '@/features/model/VerificationSettingsCard';
 
 const PROVIDER_ICONS: Record<string, string> = {
   openai: 'fa-brands fa-openai',
@@ -105,6 +106,8 @@ function AiModelsPageContent() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const { confirm } = useConfirm();
+  const { isAtLeast } = usePermissions();
+  const canManage = isAtLeast('manager');
 
   const { params, setPagination, setSearch } = useTableParams({
     defaultPageSize: 10,
@@ -135,6 +138,7 @@ function AiModelsPageContent() {
     testMutation.mutate(primary.id, {
       onSuccess: (data) => {
         message.success(`Primary model is ${data?.status ?? 'unknown'}`);
+        modelsQuery.refetch();
       },
       onError: (err) => {
         message.error(errorMessage(err));
@@ -194,12 +198,13 @@ function AiModelsPageContent() {
     testMutation.mutate(model.id, {
       onSuccess: (data) => {
         message.success(`${model.name} is ${data?.status ?? 'unknown'}`);
+        modelsQuery.refetch();
       },
       onError: () => {
         message.error(`${model.name} is unreachable`);
       },
     });
-  }, [testMutation, message]);
+  }, [testMutation, message, modelsQuery]);
 
   const moveUp = (index: number) => {
     if (index === 0) return;
@@ -251,10 +256,10 @@ function AiModelsPageContent() {
   const columns = useMemo<DataTableColumn<AiModelRow>[]>(() => buildColumns(token), [token]);
 
   const actions = useMemo<ActionConfig<AiModelRow>[]>(() => [
-    { label: 'Test', icon: <FaIcon icon="fa-flask-vial" />, onClick: (model) => handleTest(model) },
-    { label: 'Edit', icon: <FaIcon icon="fa-pen" />, onClick: (model) => handleEdit(model) },
-    { label: 'Delete', icon: <FaIcon icon="fa-trash" />, danger: true, onClick: (model) => handleDelete(model) },
-  ], [handleTest, handleEdit, handleDelete]);
+    { label: 'Test', icon: <FaIcon icon="fa-flask-vial" />, onClick: (model) => handleTest(model), show: () => canManage },
+    { label: 'Edit', icon: <FaIcon icon="fa-pen" />, onClick: (model) => handleEdit(model), show: () => canManage },
+    { label: 'Delete', icon: <FaIcon icon="fa-trash" />, danger: true, onClick: (model) => handleDelete(model), show: () => canManage },
+  ], [handleTest, handleEdit, handleDelete, canManage]);
 
   if (modelsQuery.isLoading) {
     return <LoadingState text="Loading AI models..." />;
@@ -303,6 +308,7 @@ function AiModelsPageContent() {
         onMoveDown={moveDown}
         onSetActive={setActive}
         onAddFallback={() => setAddOpen(true)}
+        canManage={canManage}
       />
 
       <EditModelModal open={editOpen} model={selectedModel} onClose={() => { setEditOpen(false); setSelectedModel(null); }} onSave={handleSaveEdit} />

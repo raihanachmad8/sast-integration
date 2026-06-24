@@ -9,6 +9,8 @@ import { errorMessage } from '@/lib/api/errors';
 import type { Team, TeamMember } from '@/commons/types';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { EmptyState } from '@/commons/components/EmptyState';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PERMISSION } from '@/commons/constants/permissions';
 
 interface TeamDetailDrawerProps {
   open: boolean;
@@ -81,25 +83,27 @@ export function TeamDetailDrawer({ open, team, members, onClose, onEdit }: TeamD
       closeIcon={<CloseOutlined />}
       footer={
         <Flex gap={token.paddingSM}>
-          <Button type="primary" icon={<EditOutlined />} onClick={() => onEdit(team)}>
-            Edit
-          </Button>
-          <Button danger icon={<DeleteOutlined />} loading={deleteMutation.isPending} onClick={() => confirm({ 
-            title: 'Delete team?', 
-            content: `Delete "${team.name}"? This cannot be undone.`, 
-            danger: true,
-            onOk: () => {
-              deleteMutation.mutate(team.id, {
-                onSuccess: () => {
-                  modal.success({ title: 'Deleted', content: `${team.name} has been deleted.` });
-                  onClose();
-                },
-                onError: (err) => modal.error({ title: 'Failed to delete', content: errorMessage(err) }),
-              });
-            }
-          })}>
-            Delete
-          </Button>
+          <PermissionGate permission={PERMISSION.TEAM_MANAGE}>
+            <Button type="primary" icon={<EditOutlined />} onClick={() => onEdit(team)}>
+              Edit
+            </Button>
+            <Button danger icon={<DeleteOutlined />} loading={deleteMutation.isPending} onClick={() => confirm({ 
+              title: 'Delete team?', 
+              content: `Delete "${team.name}"? This cannot be undone.`, 
+              danger: true,
+              onOk: () => {
+                deleteMutation.mutate(team.id, {
+                  onSuccess: () => {
+                    modal.success({ title: 'Deleted', content: `${team.name} has been deleted.` });
+                    onClose();
+                  },
+                  onError: (err) => modal.error({ title: 'Failed to delete', content: errorMessage(err) }),
+                });
+              }
+            })}>
+              Delete
+            </Button>
+          </PermissionGate>
         </Flex>
       }
     >

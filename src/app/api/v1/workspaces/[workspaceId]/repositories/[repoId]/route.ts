@@ -6,9 +6,7 @@ import { AppError } from '@/server/http/errors';
 import { validateBody } from '@/server/http/validate';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { PERMISSION } from '@/commons/constants/permissions';
-import { db } from '@/server/db/client';
-import { repositories } from '@drizzle/schema/source-controls';
-import { eq, and, isNull } from 'drizzle-orm';
+import { repositoriesService } from '@/server/modules/repositories/repositories.service';
 
 type RouteContext = { params: Promise<{ workspaceId: string; repoId: string }> };
 
@@ -35,25 +33,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (!validation.success) return validation.response;
     const { projectId } = validation.data;
 
-    const [existing] = await db
-      .select()
-      .from(repositories)
-      .where(and(eq(repositories.id, repoId), eq(repositories.workspaceId, workspaceId), isNull(repositories.deletedAt)))
-      .limit(1);
+    // Use repositoriesService.getById instead of direct DB query
+    const existing = await repositoriesService.getById(repoId, workspaceId);
 
-    if (!existing) {
-      return ApiResponse.error('Repository not found', 'NOT_FOUND', undefined, 404);
-    }
-
-    const [updated] = await db
-      .update(repositories)
-      .set({
-        projectId: projectId ?? existing.projectId,
-        updatedAt: new Date(),
-        updatedBy: userId,
-      })
-      .where(eq(repositories.id, repoId))
-      .returning();
+    // Use repositoriesService.update instead of direct DB query
+    const updated = await repositoriesService.update(repoId, {
+      projectId: projectId ?? existing.projectId,
+    }, workspaceId, userId);
 
     return ApiResponse.success('Repository updated', updated);
   } catch (e) {

@@ -145,7 +145,7 @@ export function LandingMetrics() {
               marginBottom: token.marginSM,
               padding: '3px 14px',
               fontSize: 12,
-              fontWeight: 600,
+              fontWeight: token.fontWeightStrong,
               letterSpacing: '0.04em',
               border: '1px solid rgba(20,184,166,0.35)',
               color: LANDING_TOKENS.accent.teal,
@@ -219,7 +219,7 @@ export function LandingMetrics() {
                 <Text
                   style={{
                     fontSize: 13,
-                    fontWeight: 600,
+                    fontWeight: token.fontWeightStrong,
                     color: 'rgba(255,255,255,0.85)',
                     display: 'block',
                     marginBottom: 4,
@@ -250,7 +250,7 @@ export function LandingMetrics() {
             <Text
               style={{
                 fontSize: token.fontSizeSM,
-                fontWeight: 600,
+                fontWeight: token.fontWeightStrong,
                 letterSpacing: '0.05em',
                 color: LANDING_TOKENS.text.faint,
                 textTransform: 'uppercase',

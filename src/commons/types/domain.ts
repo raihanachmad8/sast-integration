@@ -203,7 +203,8 @@ export interface ScanRow {
   id: string;
   repository: string;
   repoSub: string;
-  status: "queued" | "running" | "processing" | "parsing" | "completed" | "failed";
+  /** Server maps DB status to TitleCase display labels. */
+  status: "Queued" | "Running" | "Processing" | "Parsing" | "Completed" | "Failed";
   stage: string;
   findings: number;
   critical: number;
@@ -223,7 +224,7 @@ export interface ScanDetail {
   branch: string;
   commitSha: string;
   origin: "managed" | "external_upload";
-  status: "queued" | "running" | "processing" | "completed" | "failed";
+  status: "queued" | "running" | "processing" | "parsing" | "completed" | "failed";
   startedAt: string;
   completedAt?: string;
   durationSeconds?: number;
@@ -332,25 +333,36 @@ export interface ScanPolicy {
   scanners: string[];
 }
 
-/** AI model */
+/** AI model — matches AiModelRow from Drizzle schema */
 export interface AiModel {
   id: string;
+  workspaceId: string;
   name: string;
   provider: string;
-  role: "primary" | "fallback_1" | "fallback_2";
-  status: "active" | "inactive" | "error";
+  baseUrl: string;
+  role: "primary" | "fallback";
+  priority: number;
+  promptPreset: string;
+  status: "reachable" | "unreachable";
   lastTested: string | null;
+  createdAt: string;
 }
 
-/** Knowledge base entry */
+/** Knowledge base entry — matches KnowledgeEntryRow from Drizzle schema */
 export interface KnowledgeEntry {
   id: string;
-  name: string;
-  source: "CWE" | "NVD" | "MITRE" | "Custom";
-  severity: Severity;
-  description: string;
-  usedByAi: string;
-  enabled: boolean;
+  sourceId: string;
+  sourceName?: string;
+  sourceType?: string;
+  cweId: string | null;
+  title: string;
+  severity: string | null;
+  remediation: string | null;
+  content?: string | null;
+  tags?: string[];
+  muted: boolean;
+  usedByAiCount: number;
+  createdAt: string;
 }
 
 /** Scan schedule */
@@ -382,20 +394,16 @@ export interface ScannerEngine {
   version: string;
 }
 
-/** Webhook */
+/** Webhook — matches WebhookRow from Drizzle schema */
 export interface Webhook {
   id: string;
+  workspaceId: string;
   name: string;
-  provider: string;
-  endpoint: string;
+  url: string;
   events: string[];
-  lastDelivery: WebhookDelivery;
-  status: "Active" | "Inactive";
-}
-
-export interface WebhookDelivery {
-  code: number;
-  time: string;
+  active: boolean;
+  lastTriggeredAt: string | null;
+  createdAt: string;
 }
 
 /** SCM provider config */
@@ -411,15 +419,20 @@ export interface ScmProviderConfig {
   lastSync: string | null;
 }
 
-/** Report */
+/** Report — matches ReportRow from Drizzle schema */
 export interface Report {
   id: string;
-  name: string;
-  type: ReportType;
-  range: string;
-  status: "Generated" | "Pending" | "Failed";
-  format: ReportFormat;
-  created: string;
+  workspaceId: string;
+  type: string;
+  title: string;
+  status?: string;
+  format: string | null;
+  filters?: unknown;
+  filePath: string | null;
+  fileSize: number | null;
+  createdAt: string;
+  createdBy: string;
+  createdByName: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -454,7 +467,7 @@ export const VERDICT_VARIANT: Record<AiVerdict, string> = {
   Pending: "amber",
 };
 
-/** Scan status → StatusPill variant */
+/** Scan status → StatusPill variant (supports both lowercase and TitleCase keys) */
 export const SCAN_STATUS_VARIANT: Record<string, string> = {
   queued: "slate",
   running: "blue",
@@ -462,6 +475,12 @@ export const SCAN_STATUS_VARIANT: Record<string, string> = {
   parsing: "blue",
   completed: "teal",
   failed: "red",
+  Queued: "slate",
+  Running: "blue",
+  Processing: "amber",
+  Parsing: "blue",
+  Completed: "teal",
+  Failed: "red",
 };
 
 /** Member role → StatusPill variant */

@@ -18,6 +18,7 @@ vi.mock('@/server/modules/scan/repositories/finding.repository', () => ({
     diffNewFindingsByCodeDiff: vi.fn(),
     updateIsNewByCodeDiff: vi.fn(),
     countGroupsByBranch: vi.fn(),
+    countGroupsByStatusForScan: vi.fn(),
     getPreviousScanId: vi.fn(),
     diffFixedFindingsByBranch: vi.fn(),
   },
@@ -43,13 +44,13 @@ vi.mock('@/server/modules/source-control/scm-api.service', () => ({
 
 vi.mock('@/server/db/client', () => ({
   db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
+    select: vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
           limit: vi.fn().mockResolvedValue([]),
-        })),
-      })),
-    })),
+        }),
+      }),
+    }),
   },
 }));
 
@@ -301,7 +302,9 @@ describe('qualityGateService', () => {
       });
       vi.mocked(findingRepository.updateIsNewByCodeDiff).mockResolvedValue(undefined);
       vi.mocked(findingRepository.countGroupsByBranch).mockResolvedValue(5);
+      vi.mocked(findingRepository.countGroupsByStatusForScan).mockResolvedValue({ dismissed: 0, resolved: 0 } as never);
       vi.mocked(findingRepository.getPreviousScanId).mockResolvedValue(null);
+      vi.mocked(findingRepository.diffFixedFindingsByBranch).mockResolvedValue([]);
       vi.mocked(qualityGateRepository.createResult).mockResolvedValue({ id: 'result-123' });
 
       const result = await qualityGateService.evaluatePrScan(
@@ -353,7 +356,9 @@ describe('qualityGateService', () => {
       });
       vi.mocked(findingRepository.updateIsNewByCodeDiff).mockResolvedValue(undefined);
       vi.mocked(findingRepository.countGroupsByBranch).mockResolvedValue(5);
+      vi.mocked(findingRepository.countGroupsByStatusForScan).mockResolvedValue({ dismissed: 0, resolved: 0 } as never);
       vi.mocked(findingRepository.getPreviousScanId).mockResolvedValue(null);
+      vi.mocked(findingRepository.diffFixedFindingsByBranch).mockResolvedValue([]);
       vi.mocked(qualityGateRepository.createResult).mockResolvedValue({ id: 'result-123' });
 
       const result = await qualityGateService.evaluatePrScan(

@@ -1,7 +1,7 @@
 import { createPrivateKey, createSign } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, sql, isNull, and } from 'drizzle-orm';
 import { db } from '@/server/db/client';
-import { sourceControls } from '@drizzle/schema/source-controls';
+import { sourceControls, sourceControlImports } from '@drizzle/schema/source-controls';
 import { sourceControlRepository } from './source-control.repository';
 import { createSourceControlSchema, updateSourceControlSchema } from '@/commons/schemas';
 import { AppError } from '@/server/http/errors';
@@ -154,12 +154,13 @@ export const sourceControlService = {
     const { sourceControlImportService } = await import('./source-control-import.service');
     await sourceControlImportService.uninstallByConnectionId(userId, id);
 
-    // Delete source_control_repositories
+    // Delete source_control_repositories and source_controls record in a transaction
     const { sourceControlRepositoryService } = await import('./source-control-repository.service');
-    await sourceControlRepositoryService.deleteByConnectionId(id);
+    await db.transaction(async (tx) => {
+      await sourceControlRepositoryService.deleteByConnectionId(id);
+      await sourceControlRepository.delete(id, tx);
+    });
 
-    // Delete the source_controls record
-    await sourceControlRepository.delete(id);
     logger.sourceControl.info('delete completed', { id });
     return existing;
   },
@@ -207,12 +208,22 @@ export const sourceControlService = {
     const { sourceControlRepositoryService } = await import('./source-control-repository.service');
     await sourceControlRepositoryService.upsertMany(id, workspaceId, discovered);
 
-    logger.sourceControl.info('sync completed', { id, discovered: discovered.length });
+    // Count imported repos (repos that have active imports)
+    const imports = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(sourceControlImports)
+      .where(and(
+        eq(sourceControlImports.sourceControlId, id),
+        isNull(sourceControlImports.uninstalledAt),
+      ));
+    const importedCount = imports[0]?.count ?? 0;
+
+    logger.sourceControl.info('sync completed', { id, discovered: discovered.length, imported: importedCount });
     return {
       provider: existing.name,
       discovered: discovered.length,
       repos: discovered.length,
-      imported: 0,
+      imported: importedCount,
       newWebhooks: 0,
     };
   },
@@ -479,7 +490,7 @@ async function discoverGitLabRepositories(sourceControlId: string, credentials: 
 
 async function discoverGiteaRepositories(sourceControlId: string, credentials: CredentialMap, token: string): Promise<DiscoveredRepository[]> {
   const apiUrl = normalizeBaseUrl(stringValue(credentials.apiUrl) || stringValue(credentials.baseUrl));
-  const baseUrl = normalizeBaseUrl(stringValue(credentials.baseUrl));
+  const _baseUrl = normalizeBaseUrl(stringValue(credentials.baseUrl));
   if (!apiUrl) return [];
 
   try {

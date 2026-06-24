@@ -15,7 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!auth.success) return auth.response;
   const { workspaceId, teamId } = await params;
 
-  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.TEAM_MANAGE);
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.TEAM_VIEW);
   if (!workspace.success) return workspace.response;
 
   try {

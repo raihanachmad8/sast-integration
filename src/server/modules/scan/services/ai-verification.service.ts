@@ -8,6 +8,7 @@ import type { AiModelResponse } from '@/commons/types/findings';
 import { db } from '@/server/db/client';
 import { workspaceSettings } from '@drizzle/schema/workspaces';
 import { eq, and } from 'drizzle-orm';
+import { isPrivateOrInternal } from '@/server/lib/ssrf';
 
 /**
  * Error classification for fallback chain decisions.
@@ -310,27 +311,27 @@ export const aiVerificationService = {
       const triedModelIds = new Set<string>();
       const modelsToTry: Array<{ id: string; name: string; provider: string; baseUrl: string; apiKeyEncrypted: string | null; promptPreset: string }> = [];
 
-      if (modelId) {
-        const specifiedModel = await aiVerificationRepository.getModelById(modelId);
-        if (specifiedModel) {
-          modelsToTry.push(specifiedModel);
-          triedModelIds.add(specifiedModel.id);
-        }
+      // Parallel: specified model + primary model + fallback models
+      const [specifiedModel, primaryModel, fallbackModels] = await Promise.all([
+        modelId ? aiVerificationRepository.getModelById(modelId) : Promise.resolve(null),
+        aiVerificationRepository.getPrimaryModel(),
+        allowFallback ? aiVerificationRepository.getFallbackModels(modelId) : Promise.resolve([]),
+      ]);
+
+      if (specifiedModel) {
+        modelsToTry.push(specifiedModel);
+        triedModelIds.add(specifiedModel.id);
       }
 
-      const primaryModel = await aiVerificationRepository.getPrimaryModel();
       if (primaryModel && !triedModelIds.has(primaryModel.id)) {
         modelsToTry.push(primaryModel);
         triedModelIds.add(primaryModel.id);
       }
 
-      if (allowFallback) {
-        const fallbackModels = await aiVerificationRepository.getFallbackModels(modelId);
-        for (const fb of fallbackModels) {
-          if (!triedModelIds.has(fb.id)) {
-            modelsToTry.push(fb);
-            triedModelIds.add(fb.id);
-          }
+      for (const fb of fallbackModels) {
+        if (!triedModelIds.has(fb.id)) {
+          modelsToTry.push(fb);
+          triedModelIds.add(fb.id);
         }
       }
 
@@ -423,20 +424,31 @@ export const aiVerificationService = {
               continue; // Retry same model
             }
 
-            const verification = await aiVerificationRepository.create({
-              findingId,
-              groupId: finding.groupId ?? undefined,
-              modelId: model.id,
-              verdict: aiResponse.verdict,
-              confidence: String(aiResponse.confidence),
-              explanation: aiResponse.explanation,
-              dataFlow: aiResponse.dataFlow,
-              taintSource: aiResponse.taintSource,
-              matchDetail: aiResponse.matchDetail,
-              likelyCwe: aiResponse.likelyCwe,
-              fixSuggestion: aiResponse.fixSuggestion,
-              latencyMs,
-              rawResponse: aiResponse.rawResponse,
+            const verification = await db.transaction(async (tx) => {
+              const v = await aiVerificationRepository.create({
+                findingId,
+                groupId: finding.groupId ?? undefined,
+                modelId: model.id,
+                verdict: aiResponse.verdict,
+                confidence: String(aiResponse.confidence),
+                explanation: aiResponse.explanation,
+                dataFlow: aiResponse.dataFlow,
+                taintSource: aiResponse.taintSource,
+                matchDetail: aiResponse.matchDetail,
+                likelyCwe: aiResponse.likelyCwe,
+                fixSuggestion: aiResponse.fixSuggestion,
+                latencyMs,
+                rawResponse: aiResponse.rawResponse,
+              }, tx);
+
+              // Update group status based on AI verdict
+              if (finding.groupId) {
+                const newStatus = aiResponse.verdict === 'false_positive' ? 'resolved' : 'open';
+                const { findingRepository } = await import('../repositories/finding.repository');
+                await findingRepository.updateGroupStatus(finding.groupId, newStatus, null, tx);
+              }
+
+              return v;
             });
 
             recordModelSuccess(model.id);
@@ -469,13 +481,6 @@ export const aiVerificationService = {
             });
 
             modelSucceeded = true;
-
-            // Update group status based on AI verdict
-            if (finding.groupId) {
-              const newStatus = aiResponse.verdict === 'false_positive' ? 'resolved' : 'open';
-              const { findingRepository } = await import('../repositories/finding.repository');
-              await findingRepository.updateGroupStatus(finding.groupId, newStatus, null);
-            }
 
             return verification;
           } catch (error) {
@@ -711,7 +716,11 @@ export const aiVerificationService = {
     signal?: AbortSignal,
   ): Promise<AiModelResponse> {
     try {
-      const res = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
+      const url = new URL(`${baseUrl.replace(/\/$/, '')}/api/chat`);
+      if (isPrivateOrInternal(url.hostname)) {
+        throw new AppError('AI model URL points to a private/internal address', 400, SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED);
+      }
+      const res = await fetch(url.toString(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -762,7 +771,10 @@ export const aiVerificationService = {
     userPrompt: string,
     signal?: AbortSignal,
   ): Promise<AiModelResponse> {
-    const url = `${baseUrl.replace(/\/$/, '')}/v1/chat/completions`;
+    const urlObj = new URL(`${baseUrl.replace(/\/$/, '')}/v1/chat/completions`);
+    if (isPrivateOrInternal(urlObj.hostname)) {
+      throw new AppError('AI model URL points to a private/internal address', 400, SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED);
+    }
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -771,7 +783,7 @@ export const aiVerificationService = {
     }
 
     try {
-      const res = await fetch(url, {
+      const res = await fetch(urlObj.toString(), {
         method: 'POST',
         headers,
         body: JSON.stringify({

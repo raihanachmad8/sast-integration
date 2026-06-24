@@ -7,7 +7,11 @@ let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
 function getDb() {
   if (!_db) {
-    const queryClient = postgres(env.DATABASE_URL);
+    const queryClient = postgres(env.DATABASE_URL, {
+      max: 20,
+      idle_timeout: 20,
+      connect_timeout: 10,
+    });
     _db = drizzle(queryClient, { schema });
   }
   return _db;

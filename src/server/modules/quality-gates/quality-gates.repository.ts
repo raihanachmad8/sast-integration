@@ -1,8 +1,7 @@
 import { eq } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { db, type Tx } from '@/server/db/client';
 import { qualityGates } from '@drizzle/schema/scans';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+import { logger } from '@/server/lib/logger';
 
 export interface UpsertQualityGateConfigInput {
   threshold: string;
@@ -20,6 +19,7 @@ export interface UpsertQualityGateConfigInput {
 
 export const qualityGatesRepository = {
   async getConfig(workspaceId: string) {
+    logger.scan.debug('getConfig called', { workspaceId });
     const [config] = await db
       .select()
       .from(qualityGates)
@@ -30,14 +30,13 @@ export const qualityGatesRepository = {
   },
 
   async upsertConfig(workspaceId: string, data: UpsertQualityGateConfigInput, tx?: Tx) {
-    const executor = tx ?? db;
-
-    const existing = await this.getConfig(workspaceId);
-
-    if (existing) {
-      const [updated] = await executor
-        .update(qualityGates)
-        .set({
+    logger.scan.debug('upsertConfig called', { workspaceId });
+    try {
+      const executor = tx ?? db;
+      const [result] = await executor
+        .insert(qualityGates)
+        .values({
+          workspaceId,
           threshold: data.threshold,
           failOnCritical: data.failOnCritical,
           failOnHighTp: data.failOnHighTp,
@@ -49,32 +48,29 @@ export const qualityGatesRepository = {
           warnOnPending: data.warnOnPending,
           requireHumanAck: data.requireHumanAck,
           pendingBehavior: data.pendingBehavior,
-          updatedAt: new Date(),
         })
-        .where(eq(qualityGates.workspaceId, workspaceId))
+        .onConflictDoUpdate({
+          target: qualityGates.workspaceId,
+          set: {
+            threshold: data.threshold,
+            failOnCritical: data.failOnCritical,
+            failOnHighTp: data.failOnHighTp,
+            failOnHigh: data.failOnHigh,
+            failOnMedium: data.failOnMedium,
+            failOnLow: data.failOnLow,
+            failOnPending: data.failOnPending,
+            failOnTp: data.failOnTp,
+            warnOnPending: data.warnOnPending,
+            requireHumanAck: data.requireHumanAck,
+            pendingBehavior: data.pendingBehavior,
+            updatedAt: new Date(),
+          },
+        })
         .returning();
-
-      return updated;
+      return result;
+    } catch (error) {
+      logger.scan.error('upsertConfig failed', { error });
+      throw error;
     }
-
-    const [created] = await executor
-      .insert(qualityGates)
-      .values({
-        workspaceId,
-        threshold: data.threshold,
-        failOnCritical: data.failOnCritical,
-        failOnHighTp: data.failOnHighTp,
-        failOnHigh: data.failOnHigh,
-        failOnMedium: data.failOnMedium,
-        failOnLow: data.failOnLow,
-        failOnPending: data.failOnPending,
-        failOnTp: data.failOnTp,
-        warnOnPending: data.warnOnPending,
-        requireHumanAck: data.requireHumanAck,
-        pendingBehavior: data.pendingBehavior,
-      })
-      .returning();
-
-    return created;
   },
 };

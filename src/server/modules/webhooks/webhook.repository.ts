@@ -1,9 +1,6 @@
 import { eq, and, isNull, desc } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { db, type Tx } from '@/server/db/client';
 import { webhooks, webhookDeliveries } from '@drizzle/schema/integrations';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
 export interface CreateWebhookInput {
   workspaceId: string;
   name: string;

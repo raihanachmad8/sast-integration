@@ -3,7 +3,6 @@ import { knowledgeBaseRepository } from './knowledge-base.repository';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
 import { createKnowledgeSourceSchema, updateKnowledgeSourceSchema } from '@/commons/schemas/knowledge-base.schema';
-import { syncEngine } from './sync-engine';
 
 export const knowledgeSourceService = {
   /**
@@ -78,24 +77,4 @@ export const knowledgeSourceService = {
     logger.knowledge.info('deleteSource completed', { sourceId });
   },
 
-  /**
-   * Runs a source sync immediately.
-   * Sets status to 'syncing' during sync, reverts to 'error' on failure.
-   *
-   * @throws {AppError} When the source is missing or sync fails.
-   */
-  async triggerSync(sourceId: string, workspaceId: string) {
-    logger.knowledge.info('triggerSync', { sourceId, workspaceId });
-    await this.getSourceById(sourceId, workspaceId);
-    await knowledgeBaseRepository.updateSourceStatus(sourceId, 'syncing');
-    try {
-      const result = await syncEngine.syncSource(sourceId);
-      logger.knowledge.info('triggerSync completed', { sourceId, created: result.entriesCreated, updated: result.entriesUpdated });
-      return { message: `Synced ${result.entriesCreated + result.entriesUpdated} knowledge entries`, result };
-    } catch (e) {
-      await knowledgeBaseRepository.updateSourceStatus(sourceId, 'error');
-      logger.knowledge.error('triggerSync failed', { sourceId, error: e instanceof Error ? e.message : e });
-      throw e;
-    }
-  },
 };

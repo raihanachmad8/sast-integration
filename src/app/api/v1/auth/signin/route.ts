@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { ApiResponse, buildMeta } from '@/server/http/response';
+import { NextRequest } from 'next/server';
+import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
 import { authService } from '@/server/modules/auth/services/auth.service';
 import { signinSchema } from '@/server/modules/auth/schemas/auth.schema';
@@ -19,10 +19,9 @@ export async function POST(request: NextRequest) {
   const retryAfterMs = rateLimiter.check(rateLimitKey);
   if (retryAfterMs !== null) {
     const retryAfterSec = Math.ceil(retryAfterMs / 1000);
-    return NextResponse.json(
-      { success: false, message: AUTH.ERRORS.RATE_LIMITED, data: null, meta: buildMeta(), error: { code: AUTH.ERROR_CODE.AUTH, details: null } },
-      { status: 429, headers: { 'Retry-After': String(retryAfterSec) } },
-    );
+    const response = ApiResponse.error(AUTH.ERRORS.RATE_LIMITED, AUTH.ERROR_CODE.AUTH, null, 429);
+    response.headers.set('Retry-After', String(retryAfterSec));
+    return response;
   }
 
   try {
@@ -32,18 +31,13 @@ export async function POST(request: NextRequest) {
 
     rateLimiter.reset(rateLimitKey);
 
-    const response = NextResponse.json({
-      success: true,
-      message: AUTH.MESSAGES.SIGNIN_SUCCESS,
-      data: {
-        tokenType: result.tokenType,
-        accessToken: result.accessToken,
-        expiresAt: result.expiresAt,
-        expiresIn: result.expiresIn,
-        user: result.user,
-        workspace: result.workspace,
-      },
-      meta: buildMeta(),
+    const response = ApiResponse.success(AUTH.MESSAGES.SIGNIN_SUCCESS, {
+      tokenType: result.tokenType,
+      accessToken: result.accessToken,
+      expiresAt: result.expiresAt,
+      expiresIn: result.expiresIn,
+      user: result.user,
+      workspace: result.workspace,
     });
 
     setRefreshCookie(response, result.refreshToken);

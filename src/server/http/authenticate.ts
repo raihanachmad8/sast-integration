@@ -7,7 +7,6 @@ import { AUTH } from '@/server/modules/auth/constants';
 
 export interface AuthContext {
   userId: string;
-  email: string;
   sessionId: string;
 }
 
@@ -59,6 +58,6 @@ export async function authenticate(request: NextRequest): Promise<AuthSuccess | 
 
   return {
     success: true,
-    context: { userId: payload.sub, email: payload.email, sessionId: payload.sessionId },
+    context: { userId: payload.sub, sessionId: payload.sessionId },
   };
 }

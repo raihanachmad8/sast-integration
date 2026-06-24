@@ -135,6 +135,7 @@ export function useUpdateWorkspaceMutation() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.list() });
       queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.id) });
+      queryClient.invalidateQueries({ queryKey: authKeys.session() });
     },
   });
 }

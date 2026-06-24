@@ -12,7 +12,7 @@
  */
 
 import type { Job } from 'pg-boss';
-import { sql } from 'drizzle-orm';
+import { sql, inArray } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { scans } from '@drizzle/schema/scans';
 import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
@@ -48,41 +48,61 @@ export async function processScanTimeoutWatchdog(_job: Job) {
 
     logger.queue.warn('scan-timeout-watchdog: found orphaned scans', { count: orphanedScans.length });
 
+    // Batch: get finding counts for all orphaned scans
+    const scanIds = orphanedScans.map((s) => s.id);
+    const findingCounts = await db.execute<{ scanId: string; count: number }>(
+      sql`SELECT "scanId" as "scanId", count(*)::int as count FROM findings WHERE "scanId" IN ${sql`(${sql.join(scanIds.map((id) => sql`${id}`), sql`, `)})`} GROUP BY "scanId"`
+    );
+    const findingCountMap = new Map(findingCounts.map((r) => [r.scanId, r.count]));
+
+    // Separate scans into completed (has findings) vs failed (no findings)
+    const completedScanIds: string[] = [];
+    const failedScanIds: string[] = [];
     for (const scan of orphanedScans) {
-      try {
-        // Check if scan has findings (might have actually completed but stuck)
-        const hasFindings = await db.execute<{ count: number }>(
-          sql`SELECT count(*)::int as count FROM findings WHERE "scanId" = ${scan.id}`
-        );
-        const findingCount = hasFindings[0]?.count ?? 0;
-
-        // If scan has findings, it likely completed parsing but got stuck — mark completed, not failed
-        const targetStatus = findingCount > 0 ? 'completed' : 'failed';
-        const reason = findingCount > 0
-          ? `Scan had ${findingCount} findings — marking as completed (parsing finished but status never updated)`
-          : `Scan timed out after ${TIMEOUT_MINUTES} minutes in "${scan.status}" state. Possible causes: CI/CD pipeline crashed, queue worker died, or server restarted during scan.`;
-
-        await scanRepository.updateStatus(scan.id, targetStatus);
-        await scanRepository.appendProgressEvent(scan.id, {
-          id: randomUUID(),
-          type: targetStatus === 'completed' ? 'completed' : 'failed',
-          description: reason,
-          timestamp: new Date().toISOString(),
-        });
-
-        logger.queue.warn('scan-timeout-watchdog: marked scan', {
-          scanId: scan.id,
-          previousStatus: scan.status,
-          newStatus: targetStatus,
-          findingCount,
-          createdAt: scan.createdAt,
-        });
-      } catch (err) {
-        logger.queue.error('scan-timeout-watchdog: failed to mark scan', {
-          scanId: scan.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
+      const count = findingCountMap.get(scan.id) ?? 0;
+      if (count > 0) {
+        completedScanIds.push(scan.id);
+      } else {
+        failedScanIds.push(scan.id);
       }
+    }
+
+    const now = new Date();
+
+    // Batch update scans with findings → completed
+    if (completedScanIds.length > 0) {
+      await db.update(scans).set({ status: 'completed', completedAt: now })
+        .where(inArray(scans.id, completedScanIds));
+    }
+
+    // Batch update scans without findings → failed
+    if (failedScanIds.length > 0) {
+      await db.update(scans).set({ status: 'failed', completedAt: now })
+        .where(inArray(scans.id, failedScanIds));
+    }
+
+    // Append individual progress events (each scan needs its own description)
+    for (const scan of orphanedScans) {
+      const findingCount = findingCountMap.get(scan.id) ?? 0;
+      const targetStatus = findingCount > 0 ? 'completed' : 'failed';
+      const reason = findingCount > 0
+        ? `Scan had ${findingCount} findings — marking as completed (parsing finished but status never updated)`
+        : `Scan timed out after ${TIMEOUT_MINUTES} minutes in "${scan.status}" state. Possible causes: CI/CD pipeline crashed, queue worker died, or server restarted during scan.`;
+
+      await scanRepository.appendProgressEvent(scan.id, {
+        id: randomUUID(),
+        type: targetStatus === 'completed' ? 'completed' : 'failed',
+        description: reason,
+        timestamp: now.toISOString(),
+      });
+
+      logger.queue.warn('scan-timeout-watchdog: marked scan', {
+        scanId: scan.id,
+        previousStatus: scan.status,
+        newStatus: targetStatus,
+        findingCount,
+        createdAt: scan.createdAt,
+      });
     }
 
     logger.queue.info('scan-timeout-watchdog: completed', { processed: orphanedScans.length });

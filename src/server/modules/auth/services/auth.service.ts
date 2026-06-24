@@ -141,7 +141,7 @@ export const authService = {
       currentRefreshTokenId: refreshTokenId,
     });
 
-    const accessToken = await signAccessToken({ sub: user.id, email: user.email, sessionId });
+    const accessToken = await signAccessToken({ sub: user.id, sessionId });
     const refreshToken = await signRefreshToken({ sessionId, refreshTokenId });
     const expiresAt = new Date(Date.now() + parseExpiry(env.JWT_EXPIRES_IN));
     let workspace = null;
@@ -211,6 +211,7 @@ export const authService = {
    * @throws {AppError} 401 - Invalid/expired session or refresh token reuse detected
    */
   async refresh(sessionId: string, refreshTokenIdFromToken?: string) {
+    const t0 = Date.now();
     logger.auth.info('refresh', { sessionId });
     const session = await authRepository.findSession(sessionId);
     if (!session) throw new AppError(AUTH.ERRORS.INVALID_SESSION, 401, AUTH.ERROR_CODE.AUTH);
@@ -221,7 +222,7 @@ export const authService = {
     if (session.currentRefreshTokenId && refreshTokenIdFromToken) {
       if (session.currentRefreshTokenId !== refreshTokenIdFromToken) {
         await authRepository.deleteSession(sessionId);
-        logger.auth.warn('refresh token reuse detected', { sessionId });
+        logger.auth.warn('refresh token reuse detected', { sessionId, expected: session.currentRefreshTokenId, got: refreshTokenIdFromToken });
         throw new AppError(AUTH.ERRORS.INVALID_SESSION, 401, AUTH.ERROR_CODE.AUTH);
       }
     }
@@ -229,11 +230,11 @@ export const authService = {
     const newRefreshTokenId = randomUUID();
     await authRepository.updateSessionRefreshToken(sessionId, newRefreshTokenId);
 
-    const accessToken = await signAccessToken({ sub: user.id, email: user.email, sessionId });
+    const accessToken = await signAccessToken({ sub: user.id, sessionId });
     const refreshToken = await signRefreshToken({ sessionId, refreshTokenId: newRefreshTokenId });
     const expiresAt = new Date(Date.now() + parseExpiry(env.JWT_EXPIRES_IN));
 
-    logger.auth.info('refresh completed', { sessionId });
+    logger.auth.info('refresh completed', { sessionId, ms: Date.now() - t0 });
     return {
       tokenType: 'Bearer' as const,
       accessToken,
@@ -347,6 +348,17 @@ export const authService = {
     }
     if (invitation.acceptedAt) {
       throw new AppError(AUTH.ERRORS.INVITE_ALREADY_ACCEPTED, 410, AUTH.ERROR_CODE.AUTH);
+    }
+
+    // Verify the logged-in user's email matches the invitation email
+    const user = await authRepository.findUserById(userId);
+    if (!user) throw new AppError(AUTH.ERRORS.USER_NOT_FOUND, 401, AUTH.ERROR_CODE.AUTH);
+    if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
+      throw new AppError(
+        `This invitation was sent to ${invitation.email}. Please sign in with that account.`,
+        403,
+        AUTH.ERROR_CODE.AUTH,
+      );
     }
 
     const result = await db.transaction(async (tx) => {

@@ -1,10 +1,7 @@
 import { eq, desc, and, asc, inArray } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { db, type Tx } from '@/server/db/client';
 import { aiVerifications } from '@drizzle/schema/findings';
 import { models } from '@drizzle/schema/integrations';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
 export const aiVerificationRepository = {
   /**
    * Create an AI verification record.

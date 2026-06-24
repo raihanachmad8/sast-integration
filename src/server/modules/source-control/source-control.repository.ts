@@ -1,9 +1,6 @@
 import { eq, and, isNull } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { db, type Tx } from '@/server/db/client';
 import { sourceControls, sourceControlRepositories, sourceControlImports } from '@drizzle/schema/source-controls';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
 export interface CreateSourceControlInput {
   workspaceId: string;
   provider: string;
@@ -16,6 +13,7 @@ export interface UpdateSourceControlInput {
   provider?: string;
   name?: string;
   credentials?: Record<string, unknown>;
+  lastSyncedAt?: Date | null;
 }
 
 export const sourceControlRepository = {
@@ -29,6 +27,14 @@ export const sourceControlRepository = {
       .select()
       .from(sourceControls)
       .where(eq(sourceControls.workspaceId, workspaceId));
+  },
+
+  /**
+   * List all source control integrations.
+   * @returns Array of all source control records
+   */
+  async listAll() {
+    return db.select().from(sourceControls);
   },
 
   /**

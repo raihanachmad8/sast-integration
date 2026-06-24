@@ -1,14 +1,15 @@
-import { eq, and, desc, sql, inArray, isNull } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { findings, findingGroups } from '@drizzle/schema/findings';
 import { projects } from '@drizzle/schema/projects';
-
 interface ListByWorkspaceParams {
   page?: number;
   pageSize?: number;
   status?: string;
   severity?: string;
   projectId?: string;
+  sort?: string;
+  order?: 'ASC' | 'DESC';
 }
 
 interface BulkUpdatePayload {
@@ -45,6 +46,16 @@ export const findingsRepository = {
 
     const where = and(...conditions);
 
+    const SORT_COLUMNS = {
+      createdAt: findings.createdAt,
+      severity: findings.severity,
+      scanner: findings.scanner,
+    } as const;
+
+    type SortKey = keyof typeof SORT_COLUMNS;
+    const sortColumn = params.sort && params.sort in SORT_COLUMNS ? SORT_COLUMNS[params.sort as SortKey] : findings.createdAt;
+    const sortOrder = params.order === 'ASC' ? asc(sortColumn) : desc(sortColumn);
+
     const [data, countResult] = await Promise.all([
       db
         .select()
@@ -52,7 +63,7 @@ export const findingsRepository = {
         .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
         .innerJoin(projects, eq(findingGroups.projectId, projects.id))
         .where(where)
-        .orderBy(desc(findings.createdAt))
+        .orderBy(sortOrder)
         .limit(pageSize)
         .offset(offset),
       db
@@ -104,7 +115,7 @@ export const findingsRepository = {
   async updateStatus(id: string, status: string) {
     const [updated] = await db
       .update(findings)
-      .set({ updatedAt: new Date() })
+      .set({ status, updatedAt: new Date() })
       .where(eq(findings.id, id))
       .returning();
 

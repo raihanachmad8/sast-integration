@@ -413,10 +413,12 @@ export const managedScanService = {
       const cronExpression = cron || DEFAULT_MANAGED_SCAN_CRON;
       const tz = timezone || 'UTC';
 
-      await db.insert(schedules).values({
-        workspaceId: repo.workspaceId, repositoryId: repositoryId,
-        branch: repo.defaultBranch ?? undefined, cronExpression: cronExpression,
-        timezone: tz, active: true, createdBy: repo.createdBy ?? '',
+      await db.transaction(async (tx) => {
+        await tx.insert(schedules).values({
+          workspaceId: repo.workspaceId, repositoryId: repositoryId,
+          branch: repo.defaultBranch ?? undefined, cronExpression: cronExpression,
+          timezone: tz, active: true, createdBy: repo.createdBy ?? '',
+        });
       });
 
       await enqueue(QUEUE_JOB_NAMES.TRIGGER_SCHEDULED_MANAGED_SCAN, {

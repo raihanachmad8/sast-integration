@@ -2,17 +2,20 @@
 
 import { useState } from 'react';
 import { App, Card, Flex, Tabs, Button, theme } from 'antd';
-import { useConfirm } from '@/commons/components/ConfirmDialog';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { PageHeader } from '@/commons/components/PageHeader';
-import { MemberSummaryCards, MembersTable, InvitationsTable, InviteMemberModal, ChangeRoleModal } from '@/features/members';
-import { useSessionData } from '@/modules/auth/queries';
-import { useMembersQuery, useInvitationsQuery, useRemoveMemberMutation, useRevokeInvitationMutation, useInviteMemberMutation, useUpdateMemberRoleMutation } from '@/modules/members';
-import { LoadingState } from '@/commons/components/LoadingState';
+
 import { ErrorBanner } from '@/commons/components/ErrorBanner';
-import { errorMessage } from '@/lib/api/errors';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PERMISSION } from '@/commons/constants/permissions';
+import { errorMessage } from '@/lib/api/errors';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { useMembersQuery, useInvitationsQuery, useRemoveMemberMutation, useRevokeInvitationMutation, useInviteMemberMutation, useUpdateMemberRoleMutation } from '@/modules/members';
+import { useSessionData } from '@/modules/auth/queries';
 import type { Member } from '@/features/members';
+import { ChangeRoleModal, InviteMemberModal, InvitationsTable, MemberSummaryCards, MembersTable } from '@/features/members';
 
 /**
  * Members management page — invite, manage roles, revoke invitations.
@@ -154,9 +157,13 @@ export default function MembersPage() {
         title="Members"
         description="Invite reviewers and manage workspace members."
         actions={
-          <Button type="primary" icon={<FaIcon icon="fa-user-plus" />} onClick={() => setInviteOpen(true)}>
-            Invite member
-          </Button>
+          <PermissionGate permission={PERMISSION.MEMBER_VIEW}>
+            <PermissionGate permission={PERMISSION.MEMBER_INVITE}>
+              <Button type="primary" icon={<FaIcon icon="fa-user-plus" />} onClick={() => setInviteOpen(true)}>
+                Invite member
+              </Button>
+            </PermissionGate>
+          </PermissionGate>
         }
       />
 

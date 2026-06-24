@@ -20,6 +20,8 @@ import { StatusPill } from '@/commons/components/StatusPill';
 import { useConfirm } from '@/commons/components/ConfirmDialog';
 import { projectUpdateSchema } from '@/commons/schemas/project.schema';
 import { createZodSync } from '@/lib/utils/zod-sync';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PERMISSION } from '@/commons/constants/permissions';
 
 interface ProjectDetailPageProps {
   projectId: string;
@@ -132,18 +134,20 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
         <Card styles={{ body: { padding: token.paddingXL } }}>
           <Flex justify="space-between" align="center" style={{ marginBottom: token.marginLG }}>
             <Typography.Title level={5} style={{ margin: 0 }}>Project Information</Typography.Title>
-            {!isEditing ? (
-              <Button icon={<FaIcon icon="fa-pen" />} onClick={() => setIsEditing(true)}>
-                Edit
-              </Button>
-            ) : (
-              <Flex gap={token.paddingXS}>
-                <Button onClick={() => setIsEditing(false)}>Cancel</Button>
-                <Button type="primary" icon={<FaIcon icon="fa-check" />} onClick={handleSave} loading={updateMutation.isPending}>
-                  Save
+            <PermissionGate permission={PERMISSION.PROJECT_MANAGE}>
+              {!isEditing ? (
+                <Button icon={<FaIcon icon="fa-pen" />} onClick={() => setIsEditing(true)}>
+                  Edit
                 </Button>
-              </Flex>
-            )}
+              ) : (
+                <Flex gap={token.paddingXS}>
+                  <Button onClick={() => setIsEditing(false)}>Cancel</Button>
+                  <Button type="primary" icon={<FaIcon icon="fa-check" />} onClick={handleSave} loading={updateMutation.isPending}>
+                    Save
+                  </Button>
+                </Flex>
+              )}
+            </PermissionGate>
           </Flex>
 
           {isEditing ? (
@@ -248,9 +252,11 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
           { label: project.name },
         ]}
         actions={
-          <Button danger icon={<DeleteOutlined />} onClick={handleDelete} loading={deleteMutation.isPending}>
-            Delete Project
-          </Button>
+          <PermissionGate permission={PERMISSION.PROJECT_MANAGE}>
+            <Button danger icon={<DeleteOutlined />} onClick={handleDelete} loading={deleteMutation.isPending}>
+              Delete Project
+            </Button>
+          </PermissionGate>
         }
       />
 

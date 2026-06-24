@@ -6,6 +6,7 @@ import { authFlowsService } from '@/server/modules/auth/services/auth-flows.serv
 import { AppError } from '@/server/http/errors';
 import { MAIL } from '@/server/modules/mail/constants';
 import { logger } from '@/server/lib/logger';
+import { rateLimiter } from '@/server/modules/auth/services/rate-limiter';
 
 const schema = z.object({ email: z.string().email() });
 
@@ -13,6 +14,13 @@ export async function POST(request: NextRequest) {
   logger.auth.info('forgotPassword');
   const validation = await validateBody(request, schema);
   if (!validation.success) return validation.response;
+
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  const rateLimitKey = `forgot-password:${ip}`;
+  const retryAfterMs = rateLimiter.check(rateLimitKey);
+  if (retryAfterMs !== null) {
+    return ApiResponse.error('Too many requests, try again later', 'RATE_LIMITED', undefined, 429);
+  }
 
   try {
     await authFlowsService.forgotPassword(validation.data.email);

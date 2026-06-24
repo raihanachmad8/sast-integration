@@ -66,7 +66,7 @@ export function ProjectsTable({ onView }: ProjectsTableProps) {
         <div>
           <Typography.Link
             onClick={(e) => { e.stopPropagation(); onView(project); }}
-            style={{ fontWeight: 600 }}
+            style={{ fontWeight: token.fontWeightStrong }}
           >
             {project.name}
           </Typography.Link>

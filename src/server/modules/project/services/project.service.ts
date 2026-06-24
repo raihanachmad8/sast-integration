@@ -1,8 +1,9 @@
+import { db } from '@/server/db/client';
 import { projectRepository } from '../repositories/project.repository';
 import { projectApiTokenRepository } from '../repositories/project-api-token.repository';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 import { AppError } from '@/server/http/errors';
-import { PROJECT, MS_PER_DAY, type RepositoryConnectionType } from '../constants';
+import { PROJECT, MS_PER_DAY } from '../constants';
 import { logger } from '@/server/lib/logger';
 import type { ProjectFormInput as CreateProjectInput, ProjectUpdateInput as UpdateProjectInput } from '@/commons/schemas';
 
@@ -112,23 +113,27 @@ export const projectService = {
       }
     }
 
-    const result = await projectRepository.create({
-      workspaceId,
-      name: input.name,
-      slug: input.slug || this.generateSlug(input.name),
-      description: input.description,
-      platform: input.platform,
-      language: input.language,
-      avatarUrl: input.avatarUrl,
-      createdBy: userId,
-    });
+    const result = await db.transaction(async (tx) => {
+      const project = await projectRepository.create({
+        workspaceId,
+        name: input.name,
+        slug: input.slug || this.generateSlug(input.name),
+        description: input.description,
+        platform: input.platform,
+        language: input.language,
+        avatarUrl: input.avatarUrl,
+        createdBy: userId,
+      }, tx);
 
-    if (input.memberIds?.length) {
-      await projectRepository.setMembers(result.id, input.memberIds);
-    }
-    if (input.teamIds?.length) {
-      await projectRepository.setTeams(result.id, input.teamIds);
-    }
+      if (input.memberIds?.length) {
+        await projectRepository.setMembers(project.id, input.memberIds, tx);
+      }
+      if (input.teamIds?.length) {
+        await projectRepository.setTeams(project.id, input.teamIds, tx);
+      }
+
+      return project;
+    });
 
     logger.project.info('create completed', { projectId: result.id });
     return result;
@@ -176,11 +181,15 @@ export const projectService = {
       updatedBy: userId,
     });
 
-    if (input.memberIds) {
-      await projectRepository.setMembers(projectId, input.memberIds);
-    }
-    if (input.teamIds) {
-      await projectRepository.setTeams(projectId, input.teamIds);
+    if (input.memberIds || input.teamIds) {
+      await db.transaction(async (tx) => {
+        if (input.memberIds) {
+          await projectRepository.setMembers(projectId, input.memberIds, tx);
+        }
+        if (input.teamIds) {
+          await projectRepository.setTeams(projectId, input.teamIds, tx);
+        }
+      });
     }
 
     logger.project.info('update completed', { projectId });

@@ -19,6 +19,7 @@ interface PaginationParams {
 }
 
 const MAX_PER_PAGE = 100;
+const MAX_BODY_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
 /**
  * Parse and validate pagination query parameters.
@@ -41,6 +42,13 @@ export async function validateBody<T>(
   schema: ZodSchema<T>,
 ): Promise<ValidationResult<T> | ValidationFailure> {
   try {
+    const contentLength = request.headers.get('content-length');
+    if (contentLength && parseInt(contentLength, 10) > MAX_BODY_SIZE_BYTES) {
+      return {
+        success: false,
+        response: ApiResponse.error('Request body too large', HTTP.ERROR_CODES.VALIDATION, undefined, 413),
+      };
+    }
     const body = await request.json();
     const data = schema.parse(body);
     return { success: true, data };

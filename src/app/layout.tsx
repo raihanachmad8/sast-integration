@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { AntdProvider } from '@/commons/providers/AntdProvider';
-import '@fortawesome/fontawesome-free/css/all.min.css';
 import './globals.css';
 
 export const metadata: Metadata = {

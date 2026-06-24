@@ -33,7 +33,7 @@ export const qualityGateService = {
 
       if (!gate) {
         gate = await qualityGateRepository.upsert(workspaceId, {
-          threshold: 'high',
+          threshold: 'medium',
           failOnCritical: true,
           failOnHighTp: true,
           failOnHigh: true,
@@ -216,8 +216,10 @@ export const qualityGateService = {
       let changedFiles: ChangedFile[] = [];
       if (scan?.prNumber && scan?.repositoryId) {
         try {
-          const [repo] = await db.select().from(repositories).where(eq(repositories.id, scan.repositoryId)).limit(1);
-          const [sc] = await db.select().from(sourceControls).where(eq(sourceControls.workspaceId, workspaceId)).limit(1);
+          const [[repo], [sc]] = await Promise.all([
+            db.select().from(repositories).where(eq(repositories.id, scan.repositoryId)).limit(1),
+            db.select().from(sourceControls).where(eq(sourceControls.workspaceId, workspaceId)).limit(1),
+          ]);
 
           if (repo && sc?.credentials) {
             const creds = sc.credentials as { baseUrl?: string; token?: string };
@@ -409,10 +411,11 @@ export const qualityGateService = {
       const scan = await scanRepository.getById(scanId);
       if (!scan?.prNumber || !scan?.headBranch || !scan?.baseBranch || !scan?.repositoryId) return;
 
-      const [repo] = await db.select().from(repositories).where(eq(repositories.id, scan.repositoryId)).limit(1);
+      const [[repo], [sc]] = await Promise.all([
+        db.select().from(repositories).where(eq(repositories.id, scan.repositoryId)).limit(1),
+        db.select().from(sourceControls).where(eq(sourceControls.workspaceId, workspaceId)).limit(1),
+      ]);
       if (!repo) return;
-
-      const [sc] = await db.select().from(sourceControls).where(eq(sourceControls.workspaceId, workspaceId)).limit(1);
       if (!sc?.credentials) return;
 
       const creds = sc.credentials as { baseUrl?: string; token?: string; clientId?: string; clientSecret?: string; refreshToken?: string };

@@ -24,7 +24,7 @@ export default function SignupPage() {
   }
 
   const onFinish = (values: Record<string, string>) => {
-    signup.mutate(values as { email: string; password: string; name: string }, {
+    signup.mutate(values as { email: string; password: string; name: string; confirmPassword: string }, {
       onSuccess: () => router.push(ROUTES.AUTH.SIGNIN),
     });
   };

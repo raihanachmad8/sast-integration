@@ -67,12 +67,12 @@ export function SidebarNav({ navSections, activeKey, isMobile, mobileOpen, onNav
                           boxShadow: active ? `0 4px 12px rgba(15,118,110,0.3)` : undefined,
                           color: active ? token.colorTextLightSolid : token.colorSidebarTextDark,
                           cursor: item.href ? 'pointer' : 'default',
-                          fontSize: 13, lineHeight: '18px', padding: `${token.paddingXS}px ${token.paddingSM}px`, textAlign: 'left',
+                          fontSize: token.fontSize, lineHeight: '18px', padding: `${token.paddingXS}px ${token.paddingSM}px`, textAlign: 'left',
                         }}
                       >
                         <FaIcon icon={item.icon} style={{ width: 16, flexShrink: 0, textAlign: 'center' }} />
                         <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
-                        {item.badge && <span style={{ flexShrink: 0, borderRadius: 999, background: token.colorWarningBg, color: token.colorWarningText, fontSize: 10, fontWeight: 800, lineHeight: 1, padding: '3px 6px' }}>{item.badge}</span>}
+                        {item.badge && <span style={{ flexShrink: 0, borderRadius: 999, background: token.colorWarningBg, color: token.colorWarningText, fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, lineHeight: 1, padding: `${token.paddingXXS}px ${token.paddingXS}px` }}>{item.badge}</span>}
                       </button>
                     );
                   })}

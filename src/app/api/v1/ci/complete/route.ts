@@ -56,7 +56,7 @@ import type { InlineReviewComment } from '@/server/modules/source-control/scm-ap
 import { repositoriesRepository } from '@/server/modules/repositories/repositories.repository';
 import { enqueue } from '@/server/modules/queue/queue.service';
 import { sourceControls } from '@drizzle/schema/source-controls';
-import { workspaces } from '@drizzle/schema/workspaces';
+import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 import { db } from '@/server/db/client';
 import { eq } from 'drizzle-orm';
 import { logger } from '@/server/lib/logger';
@@ -95,6 +95,14 @@ export async function POST(request: NextRequest) {
       return ApiResponse.error('Scan not found', 'NOT_FOUND', undefined, 404);
     }
 
+    // IDOR protection: ensure scan belongs to the authenticated workspace
+    if (scan.repositoryId) {
+      const scanRepository_ = await repositoriesRepository.getById(scan.repositoryId, workspaceId);
+      if (!scanRepository_) {
+        return ApiResponse.error('Scan not found', 'NOT_FOUND', undefined, 404);
+      }
+    }
+
     // Idempotency: skip if scan already in terminal state
     if (scan.status === 'completed' || scan.status === 'failed') {
       logger.scan.info('CI/CD complete: scan already in terminal state, skipping', { scanId, status: scan.status });
@@ -105,9 +113,11 @@ export async function POST(request: NextRequest) {
     const validStatuses = ['completed', 'failed'];
     const scanStatus = status && validStatuses.includes(status) ? status : 'completed';
 
+    // TODO: Create scanService.completeScan(scanId, status) to handle status update + progress event + result in one call
     await scanRepository.updateStatus(scanId, scanStatus);
 
     // 2. Append completion event
+    // TODO: Create scanService.appendProgressEvent(scanId, event) for CI progress tracking
     await scanRepository.appendProgressEvent(scanId, {
       id: randomUUID(),
       type: 'completed',
@@ -116,6 +126,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 3. Store summary
+    // TODO: Create scanService.recordScanResult(scanId, summary) for CI result recording
     await scanRepository.createScanResult({
       scanId,
       scanner: 'ci-cd',
@@ -160,6 +171,7 @@ export async function POST(request: NextRequest) {
     if (scan.prNumber && scan.repositoryId && gateResult) {
       try {
         const newFindingsData = (gateResult as { newFindingsData?: Array<{ id?: string; groupId?: string | null }> }).newFindingsData ?? [];
+        // TODO: Create aiVerificationService.getPrimaryModel() to wrap repository call
         const model = await aiVerificationRepository.getPrimaryModel();
 
         if (model && newFindingsData.length > 0) {
@@ -167,6 +179,7 @@ export async function POST(request: NextRequest) {
           const groupIds = [...new Set(newFindingsData.map((f) => f.groupId).filter(Boolean))] as string[];
           const verifiedGroupIds = new Set<string>();
           if (groupIds.length > 0) {
+            // TODO: Create aiVerificationService.hasVerificationBatch(groupIds) to wrap repository call
             const verifiedGroups = await aiVerificationRepository.hasVerificationBatch(groupIds);
             verifiedGroups.forEach((id) => verifiedGroupIds.add(id));
           }
@@ -265,6 +278,7 @@ async function postInlineComments(
   const repository = await repositoriesRepository.getById(scan.repositoryId, workspaceId);
   if (!repository) return null;
 
+  // TODO: Create sourceControlService.getCredentialsWithProvider(workspaceId) that returns full credentials + provider
   const [sourceControl] = await db
     .select()
     .from(sourceControls)
@@ -287,7 +301,8 @@ async function postInlineComments(
   });
   const [owner, repo] = parseRepoName(repository.name);
 
-  const [ws] = await db.select({ slug: workspaces.slug }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+  // Use workspaceRepository instead of raw DB query
+  const ws = await workspaceRepository.findById(workspaceId);
   const workspaceSlug = ws?.slug ?? 'workspace';
 
   // Get new findings from code diff
@@ -338,6 +353,7 @@ async function postInlineComments(
   // Post new inline comments (skip existing)
   if (uniqueFindings.length === 0) return { created: 0, updated: 0 };
 
+  // TODO: Create findingsService.getExistingFingerprints(owner, repo, prNumber) to wrap SCM call
   const existingFingerprints = await scm.listExistingInlineFingerprints(owner, repo, scan.prNumber);
   const newOnlyFindings = uniqueFindings.filter((f) => !existingFingerprints.has(f.fingerprint));
 
@@ -379,6 +395,7 @@ async function postPrCommentAndCommitStatus(
   const repository = await repositoriesRepository.getById(scan.repositoryId, workspaceId);
   if (!repository) return { prComment: null, commitStatus: null };
 
+  // TODO: Create sourceControlService.getCredentialsWithProvider(workspaceId) that returns full credentials + provider
   const [sourceControl] = await db
     .select()
     .from(sourceControls)
@@ -401,12 +418,14 @@ async function postPrCommentAndCommitStatus(
   });
   const [owner, repo] = parseRepoName(repository.name);
 
-  const [ws] = await db.select({ slug: workspaces.slug }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+  // Use workspaceRepository instead of raw DB query
+  const ws = await workspaceRepository.findById(workspaceId);
   const workspaceSlug = ws?.slug ?? 'workspace';
 
   // Post PR summary comment
   let prCommentResult = null;
   try {
+    // TODO: Create qualityGateService.getResultByScanId(scanId) to wrap repository call
     const gateDb = await qualityGateRepository.getResultByScanId(scanId);
     const gateStatus = gateDb?.status ?? gateResult?.status ?? 'pending';
     const newCount = gateDb?.newFindings ?? gateResult?.newFindings ?? 0;
@@ -415,11 +434,13 @@ async function postPrCommentAndCommitStatus(
     const persistentCount = gateDb?.persistentFindings ?? 0;
 
     // Get dismissed/resolved counts
+    // TODO: Create findingsService.countGroupsByStatusForScan(scanId) to wrap repository call
     const statusCounts = await findingRepository.countGroupsByStatusForScan(scanId);
     const dismissedCount = statusCounts.dismissed;
     const resolvedCount = statusCounts.resolved;
 
     // Get new findings for the comment body
+    // TODO: Create findingsService.diffNewFindingsForPr(repositoryId, headBranch, baseBranch) to wrap repository call
     const precomputedFindings = (gateResult as { newFindingsData?: unknown[] })?.newFindingsData;
     const diffData = precomputedFindings !== undefined && precomputedFindings !== null
       ? precomputedFindings

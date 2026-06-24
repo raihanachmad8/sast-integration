@@ -94,7 +94,7 @@ export function AiVerificationBadge({
     <Tooltip
       title={
         <div style={{ maxWidth: 320 }}>
-          <div style={{ fontWeight: 700, marginBottom: token.marginXXS }}>
+          <div style={{ fontWeight: token.fontWeightStrong, marginBottom: token.marginXXS }}>
             AI Verification
           </div>
           <div style={{ marginBottom: token.marginXXS }}>

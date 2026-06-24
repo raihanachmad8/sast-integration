@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, integer, numeric, jsonb, uniqueIndex, primaryKey, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, integer, numeric, jsonb, uniqueIndex, primaryKey, boolean, index } from 'drizzle-orm/pg-core';
 import { users } from './users';
 import { projects } from './projects';
 import { scans } from './scans';
@@ -31,10 +31,17 @@ export const findings = pgTable('findings', {
   rule: varchar('rule', { length: 500 }),
   scanner: varchar('scanner', { length: 50 }),
   message: text('message'),
+  status: varchar('status', { length: 20 }).notNull().default('open'),
   assignedTo: uuid('assigned_to').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('findings_scan_id_idx').on(t.scanId),
+  index('findings_group_id_idx').on(t.groupId),
+  index('findings_severity_idx').on(t.severity),
+  index('findings_status_idx').on(t.status),
+  index('findings_assigned_to_idx').on(t.assignedTo),
+]);
 
 export const aiVerifications = pgTable('ai_verifications', {
   id: uuid('id').primaryKey().defaultRandom(),

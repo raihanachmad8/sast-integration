@@ -4,10 +4,8 @@ import { authenticate } from '@/server/http/authenticate';
 import { requirePermission } from '@/server/modules/workspace/workspace.middleware';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { AppError } from '@/server/http/errors';
-import { db } from '@/server/db/client';
-import { activityLogs } from '@drizzle/schema/integrations';
-import { workspaceMembers } from '@drizzle/schema/workspaces';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { auditRepository } from '@/server/modules/audit/audit.repository';
+import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 
 /**
  * GET /api/v1/activity-logs
@@ -18,7 +16,7 @@ export async function GET(request: NextRequest) {
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
 
-  const perm = await requirePermission(request, auth.context, PERMISSION.AUDIT_READ);
+  const perm = await requirePermission(request, auth.context, PERMISSION.AUDIT_VIEW);
   if (!perm.success) return perm.response;
 
   try {
@@ -26,25 +24,15 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') ?? '50'), 200);
     const offset = parseInt(searchParams.get('offset') ?? '0');
 
-    // Get workspace IDs the user has access to
-    const userWorkspaces = await db
-      .select({ workspaceId: workspaceMembers.workspaceId })
-      .from(workspaceMembers)
-      .where(eq(workspaceMembers.userId, auth.context.userId));
-
-    const workspaceIds = userWorkspaces.map((w) => w.workspaceId);
+    const userWorkspaces = await workspaceRepository.listByUser(auth.context.userId);
+    const workspaceIds = userWorkspaces.map((w) => w.id);
 
     if (workspaceIds.length === 0) {
       return ApiResponse.success('Activity logs retrieved', []);
     }
 
-    const logs = await db
-      .select()
-      .from(activityLogs)
-      .where(inArray(activityLogs.workspaceId, workspaceIds))
-      .orderBy(desc(activityLogs.createdAt))
-      .limit(limit)
-      .offset(offset);
+    const page = Math.floor(offset / limit) + 1;
+    const logs = await auditRepository.listActivityLogs(workspaceIds[0], { page, limit });
 
     return ApiResponse.success('Activity logs retrieved', logs);
   } catch (e) {

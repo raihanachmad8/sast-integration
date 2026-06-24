@@ -6,5 +6,4 @@ export {
   useUpdateKnowledgeEntryMutation,
   useMuteKnowledgeEntryMutation,
   useDeleteKnowledgeEntryMutation,
-  useSyncKnowledgeSourceMutation,
 } from './queries';

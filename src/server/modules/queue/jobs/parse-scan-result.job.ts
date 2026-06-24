@@ -7,9 +7,8 @@ import { parseScanResult } from '@/server/modules/scan/parsers';
 import { getStorageDriver } from '@/server/modules/storage/storage.service';
 import { db } from '@/server/db/client';
 import { models } from '@drizzle/schema/integrations';
-import { repositories } from '@drizzle/schema/source-controls';
 import { findingGroupScans } from '@drizzle/schema/findings';
-import { eq, asc, and, isNull, sql } from 'drizzle-orm';
+import { eq, asc, sql } from 'drizzle-orm';
 import { enqueue } from '@/server/modules/queue/queue.service';
 import type { NewFinding } from '@drizzle/schema/findings';
 
@@ -134,12 +133,9 @@ export async function processParseScanResultJob(job: Job<ParseScanResultJobData>
       // Get workspace from scan -> repository
       const scanData = await scanRepository.getById(scanId);
       const repo = scanData?.repositoryId
-        ? await db.select({ workspaceId: repositories.workspaceId })
-            .from(repositories)
-            .where(and(eq(repositories.id, scanData.repositoryId), isNull(repositories.deletedAt)))
-            .limit(1)
+        ? await scanRepository.getRepositoryById(scanData.repositoryId)
         : null;
-      const workspaceId = repo?.[0]?.workspaceId;
+      const workspaceId = repo?.workspaceId;
 
       if (workspaceId && createdFindings.length > 0) {
         // Get first available model
@@ -153,11 +149,7 @@ export async function processParseScanResultJob(job: Job<ParseScanResultJobData>
           const { aiVerificationRepository } = await import('@/server/modules/scan/repositories/ai-verification.repository');
           const groupIds = [...new Set(createdFindings.map((f) => f.groupId).filter(Boolean))] as string[];
 
-          const verifiedGroupIds = new Set<string>();
-          for (const groupId of groupIds) {
-            const hasVerified = await aiVerificationRepository.hasVerification(groupId);
-            if (hasVerified) verifiedGroupIds.add(groupId);
-          }
+          const verifiedGroupIds = new Set(await aiVerificationRepository.hasVerificationBatch(groupIds));
 
           // Get junction data to filter only NEW findings (isNew=true)
           const junctionData = groupIds.length > 0
@@ -324,10 +316,7 @@ async function checkAndCompleteScan(scanId: string, projectId: string | null, cu
     if (projectId) {
       try {
         if (completedScan.repositoryId) {
-          const [repo] = await db.select({ workspaceId: repositories.workspaceId })
-            .from(repositories)
-            .where(and(eq(repositories.id, completedScan.repositoryId), isNull(repositories.deletedAt)))
-            .limit(1);
+          const repo = await scanRepository.getRepositoryById(completedScan.repositoryId);
 
           if (repo?.workspaceId) {
             const { qualityGateService } = await import('@/server/modules/scan/services/quality-gate.service');

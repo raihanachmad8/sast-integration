@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Find or auto-create repository (atomic — handles concurrent requests safely)
+    // TODO: Create repositoriesService.findOrCreateForCi(workspaceId, projectId, name, url, branch) to centralize CI repo resolution
     const repository = await repositoriesRepository.findOrCreate({
       workspaceId: workspaceId,
       projectId: projectId,
@@ -90,6 +91,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Check for existing scan by commit SHA (reuse if not terminal)
+    // TODO: Create scanService.findReusableByCommit(repositoryId, commit) for CI scan reuse logic
     let scan = null;
     if (resolvedCommit) {
       scan = await scanRepository.findByCommitSha(repository.id, resolvedCommit);
@@ -101,6 +103,7 @@ export async function POST(request: NextRequest) {
 
     if (!scan) {
       // Create scan record (status: queued — tools haven't run yet)
+      // TODO: Create scanService.createForCi(repositoryId, branch, commit, prMetadata) for CI scan creation
       scan = await scanRepository.create({
         repositoryId: repository.id,
         branch: resolvedBranch,
@@ -116,6 +119,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Append triggered progress event
+      // TODO: Create scanService.appendProgressEvent(scanId, event) for CI progress tracking
       await scanRepository.appendProgressEvent(scan.id, {
         id: randomUUID(),
         type: 'triggered',

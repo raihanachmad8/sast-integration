@@ -11,13 +11,14 @@ const { Title } = Typography;
 import { CloseOutlined } from '@ant-design/icons';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { StatusTag } from '@/commons/components/StatusTag';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PERMISSION } from '@/commons/constants/permissions';
 
 interface KnowledgeBaseEntry {
   id: string;
   name: string;
   source: string;
   severity: string;
-  usedByAi: number;
   snippet: string;
   tags?: string[];
   muted?: boolean;
@@ -50,7 +51,7 @@ export function EntryDetailDrawer({ open, entry, onClose, onEdit, onDisable }: E
         <Flex justify="space-between" align="flex-start">
           <div>
             <Title level={2} style={{ margin: 0, fontSize: token.fontSizeXL, fontWeight: token.fontWeightStrong, color: token.colorText }}>{entry.name}</Title>
-            <div style={{ fontSize: token.fontSize, color: token.colorTextSecondary, marginTop: 4 }}>{entry.source} &middot; Used by AI {entry.usedByAi} times</div>
+            <div style={{ fontSize: token.fontSize, color: token.colorTextSecondary, marginTop: 4 }}>{entry.source}</div>
           </div>
           <Button type="text" onClick={onClose} icon={<CloseOutlined />} />
         </Flex>
@@ -81,21 +82,6 @@ export function EntryDetailDrawer({ open, entry, onClose, onEdit, onDisable }: E
           </Card>
         </div>
 
-        {/* Usage analytics */}
-        <Card styles={{ body: { padding: token.paddingMD } }}>
-          <Title level={3} style={{ fontSize: token.fontSize, fontWeight: token.fontWeightStrong, margin: `0 0 ${token.marginSM}`, color: token.colorText }}>Usage analytics</Title>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: token.marginSM }}>
-            <div style={{ textAlign: 'center', padding: token.padding, background: token.colorBgLayout, borderRadius: token.borderRadiusLG }}>
-              <div style={{ fontSize: token.fontSizeHeading4, fontWeight: token.fontWeightStrong, color: token.colorText }}>{entry.usedByAi}</div>
-              <div style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}>Total AI uses</div>
-            </div>
-            <div style={{ textAlign: 'center', padding: token.padding, background: token.colorBgLayout, borderRadius: token.borderRadiusLG }}>
-              <div style={{ fontSize: token.fontSizeHeading4, fontWeight: token.fontWeightStrong, color: entry.muted ? token.colorWarning : token.colorTealAccent }}>{entry.muted ? 'Muted' : 'Active'}</div>
-              <div style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}>Retrieval state</div>
-            </div>
-          </div>
-        </Card>
-
         {/* Description / Content */}
         {entry.snippet && (
           <Card styles={{ body: { padding: token.paddingMD } }}>
@@ -118,12 +104,14 @@ export function EntryDetailDrawer({ open, entry, onClose, onEdit, onDisable }: E
 
         {/* Actions */}
         <Flex gap={token.marginSM}>
-          <Button block onClick={() => { onEdit(entry); onClose(); }}>
-            <FaIcon icon="fa-pen" /> Edit entry
-          </Button>
-          <Button danger block onClick={() => { onDisable(entry); onClose(); }}>
-            <FaIcon icon="fa-volume-xmark" /> {entry.muted ? 'Unmute entry' : 'Mute entry'}
-          </Button>
+          <PermissionGate permission={PERMISSION.KNOWLEDGE_MANAGE}>
+            <Button block onClick={() => { onEdit(entry); onClose(); }}>
+              <FaIcon icon="fa-pen" /> Edit entry
+            </Button>
+            <Button danger block onClick={() => { onDisable(entry); onClose(); }}>
+              <FaIcon icon="fa-volume-xmark" /> {entry.muted ? 'Unmute entry' : 'Mute entry'}
+            </Button>
+          </PermissionGate>
         </Flex>
       </Flex>
     </Drawer>

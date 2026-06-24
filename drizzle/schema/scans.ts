@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, jsonb, timestamp, boolean, integer, text } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, jsonb, timestamp, boolean, integer, text, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { users } from './users';
 import { workspaces } from './workspaces';
 import { repositories } from './source-controls';
@@ -23,7 +23,12 @@ export const scans = pgTable('scans', {
   baseBranch: varchar('base_branch', { length: 100 }),
   headBranch: varchar('head_branch', { length: 100 }),
   prAuthor: varchar('pr_author', { length: 255 }),
-});
+}, (t) => [
+  index('scans_repository_id_idx').on(t.repositoryId),
+  index('scans_status_idx').on(t.status),
+  index('scans_created_at_idx').on(t.createdAt),
+  index('scans_created_by_idx').on(t.createdBy),
+]);
 
 /** A single progress event stored in the scan's progress_events JSONB array. */
 export interface ProgressEvent {
@@ -68,7 +73,9 @@ export const qualityGates = pgTable('quality_gates', {
   pendingBehavior: varchar('pending_behavior', { length: 20 }).default('warn'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [
+  uniqueIndex('quality_gates_workspace_id_idx').on(t.workspaceId),
+]);
 
 export const qualityGateResults = pgTable('quality_gate_results', {
   id: uuid('id').primaryKey().defaultRandom(),

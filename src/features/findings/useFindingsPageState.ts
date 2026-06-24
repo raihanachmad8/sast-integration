@@ -23,7 +23,7 @@ export function useFindingsPageState() {
 
   const scanIdFromUrl = searchParams.get('scanId') || undefined;
 
-  const { params, setPagination, setSearch, setFilter } = useTableParams({
+  const { params, setPagination, setSearch, setFilter, setSort } = useTableParams({
     filterKeys: ['severity', 'verdict', 'status', 'project', 'repository'],
     defaultPageSize: 10,
   });
@@ -38,6 +38,8 @@ export function useFindingsPageState() {
     projectId: params.filters.project || undefined,
     repositoryId: params.filters.repository || undefined,
     scanId: scanIdFromUrl,
+    sort: params.sortKey || undefined,
+    order: params.sortDir ? params.sortDir.toUpperCase() as 'ASC' | 'DESC' : undefined,
   };
 
   const findingsQuery = useFindingsQuery(tableParams);
@@ -53,6 +55,10 @@ export function useFindingsPageState() {
   const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
   const [bulkAssignIds, setBulkAssignIds] = useState<string[]>([]);
   const [bulkAssignee, setBulkAssignee] = useState<string | undefined>(undefined);
+
+  const sort: { key: string; dir: 'asc' | 'desc' } | null = params.sortKey && params.sortDir
+    ? { key: params.sortKey, dir: params.sortDir }
+    : null;
 
   const findings = useMemo(() => {
     const raw = (findingsQuery.data?.data ?? []) as unknown as Array<{
@@ -236,6 +242,10 @@ export function useFindingsPageState() {
     setFilter(key, value);
   }, [setFilter]);
 
+  const handleSortChange = useCallback((sort: { key: string; dir: 'asc' | 'desc' } | null) => {
+    setSort(sort?.key ?? '', sort?.dir ?? '');
+  }, [setSort]);
+
   return {
     findingsQuery,
     findings,
@@ -268,5 +278,7 @@ export function useFindingsPageState() {
     handleTableChange,
     handleTableSearch,
     handleTableFilter,
+    handleSortChange,
+    sort,
   };
 }

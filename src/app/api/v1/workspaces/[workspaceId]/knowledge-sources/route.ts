@@ -17,7 +17,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;
-  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.KNOWLEDGE_READ);
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.KNOWLEDGE_VIEW);
   if (!workspace.success) return workspace.response;
 
   try {

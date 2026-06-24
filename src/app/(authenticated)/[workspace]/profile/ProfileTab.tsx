@@ -56,7 +56,7 @@ export function ProfileTab({ name, email, role, initials, avatarUrl, username, b
               {avatarUrl ? (
                 <Avatar size={72} src={avatarUrl} />
               ) : (
-                <Avatar size={72} style={{ background: token.colorPrimary, fontWeight: 700, fontSize: token.fontSizeHeading3 }}>{initials}</Avatar>
+                <Avatar size={72} style={{ background: token.colorPrimary, fontWeight: token.fontWeightStrong, fontSize: token.fontSizeHeading3 }}>{initials}</Avatar>
               )}
               <div style={{ position: 'absolute', bottom: 0, right: 0, background: token.colorBgContainer, borderRadius: '50%', padding: 4, border: `1px solid ${token.colorBorder}` }}>
                 <FaIcon icon="fa-camera" style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }} />
@@ -66,7 +66,7 @@ export function ProfileTab({ name, email, role, initials, avatarUrl, username, b
           <div style={{ flex: 1, minWidth: 200 }}>
             <Flex align="center" gap={token.paddingSM} wrap="wrap">
               <Text strong style={{ fontSize: token.fontSizeLG }}>{name}</Text>
-              <div style={{ padding: '0 8px', borderRadius: 4, background: token.colorPrimaryBg, color: token.colorPrimary, fontSize: token.fontSizeSM }}>{role}</div>
+              <div style={{ padding: `0 ${token.paddingXS}px`, borderRadius: token.borderRadiusXS, background: token.colorPrimaryBg, color: token.colorPrimary, fontSize: token.fontSizeSM }}>{role}</div>
             </Flex>
             <Text type="secondary">{email}</Text>
           </div>

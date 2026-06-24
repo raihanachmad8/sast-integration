@@ -138,25 +138,4 @@ export function useDeleteKnowledgeEntryMutation(workspaceId: string) {
   });
 }
 
-/**
- * Mutation hook for syncing a knowledge source.
- * Invalidates sources and entries queries on success.
- *
- * @param workspaceId - The workspace ID containing the source.
- *
- * @example
- * ```tsx
- * const syncMutation = useSyncKnowledgeSourceMutation('ws-1');
- * syncMutation.mutate('source-abc');
- * ```
- */
-export function useSyncKnowledgeSourceMutation(workspaceId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (sourceId: string) => knowledgeApi.syncSource(workspaceId, sourceId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: knowledgeKeys.sources(workspaceId) });
-      qc.invalidateQueries({ queryKey: knowledgeKeys.entries(workspaceId) });
-    },
-  });
-}
+

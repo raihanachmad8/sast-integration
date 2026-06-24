@@ -11,12 +11,16 @@ const DEFAULT_RANGE_START = new Date('2002-01-01T00:00:00.000Z');
 const DEFAULT_WINDOW_DAYS = 30;
 const QUEUED_START_TIMEOUT_MS = 120 * 1000;
 const RUNNING_PROGRESS_TIMEOUT_MS = 20 * 60 * 1000;
-const BACKFILL_EXPIRE_SECONDS = 1800; // 30 minutes per window — NVD rate limits mean large windows take time
+const BACKFILL_EXPIRE_SECONDS = 1800;
+const DEFAULT_MAX_DURATION_MS = 60 * 60 * 1000; // 1 hour
+const DEFAULT_MAX_RETRIES = 10; // Max re-enqueue attempts before pausing permanently
 
 const startBackfillSchema = z.object({
   rangeStart: z.coerce.date().optional(),
   rangeEnd: z.coerce.date().optional(),
   windowDays: z.number().int().min(1).max(120).optional(),
+  maxDurationMs: z.number().int().min(60_000).max(24 * 60 * 60 * 1000).optional(),
+  maxRetries: z.number().int().min(1).max(100).optional(),
 });
 
 export interface NvdBackfillJobData {
@@ -43,11 +47,11 @@ export const knowledgeBackfillService = {
   /**
    * Returns backfill jobs for a source, ordered by most recent first.
    */
-  async listJobs(workspaceId: string, sourceId: string) {
-    logger.knowledge.info('listJobs', { workspaceId, sourceId });
-    await assertNvdSource(workspaceId, sourceId);
-    await this.failStaleJobs(workspaceId, sourceId);
-    const jobs = await knowledgeBaseRepository.listBackfillJobs(workspaceId, sourceId);
+  async listJobs(sourceId: string) {
+    logger.knowledge.info('listJobs', { sourceId });
+    await assertNvdSource(sourceId);
+    await this.failStaleJobs(sourceId);
+    const jobs = await knowledgeBaseRepository.listBackfillJobs(sourceId);
     return jobs;
   },
 
@@ -62,42 +66,58 @@ export const knowledgeBackfillService = {
    * Starts an NVD historical backfill.
    * Creates a job record in DB, then enqueues to pg-boss.
    */
-  async start(workspaceId: string, sourceId: string, input: unknown = {}) {
-    logger.knowledge.info('start', { workspaceId, sourceId });
-    const source = await assertNvdSource(workspaceId, sourceId);
-    await this.failStaleJobs(workspaceId, sourceId);
+  async start(sourceId: string, input: unknown = {}) {
+    logger.knowledge.info('start', { sourceId });
+    const source = await assertNvdSource(sourceId);
+    await this.failStaleJobs(sourceId);
     const parsed = startBackfillSchema.parse(input);
     const rangeStart = parsed.rangeStart ?? DEFAULT_RANGE_START;
     const rangeEnd = parsed.rangeEnd ?? new Date();
     const windowDays = parsed.windowDays ?? DEFAULT_WINDOW_DAYS;
+    const maxDurationMs = parsed.maxDurationMs ?? DEFAULT_MAX_DURATION_MS;
+    const maxRetries = parsed.maxRetries ?? DEFAULT_MAX_RETRIES;
 
     if (rangeStart.getTime() >= rangeEnd.getTime()) {
       throw new AppError('Backfill rangeStart must be before rangeEnd', 422, 'VALIDATION_ERROR');
     }
 
-    // Check for existing active job
+    // Check for existing active job (with lock to prevent race condition)
     const activeJob = await this.getActiveJob(sourceId);
     if (activeJob) {
-      if (activeJob.status === 'queued') {
+      // Re-enqueue if queued, then return
+      if (activeJob.status === 'queued' || activeJob.status === 'running' || activeJob.status === 'paused') {
         await enqueue<NvdBackfillJobData>(QUEUE_JOBS.NVD_KNOWLEDGE_BACKFILL, {
           jobId: activeJob.id,
         }, { expireInSeconds: BACKFILL_EXPIRE_SECONDS });
+        logger.knowledge.info('start: existing job found, re-enqueued', { jobId: activeJob.id, status: activeJob.status });
       }
       return activeJob;
     }
 
-    // Insert job record into DB
-    const job = await knowledgeBaseRepository.insertBackfillJob({
-      workspaceId: workspaceId,
-      sourceId: sourceId,
-      sourceType: source.type,
-      status: 'queued',
-      rangeStart: rangeStart,
-      rangeEnd: rangeEnd,
-      cursorStart: rangeStart,
-      windowDays: windowDays,
-      importedCount: 0,
-    });
+    // Insert job record into DB (atomic — uses ON CONFLICT if exists)
+    let job;
+    try {
+      job = await knowledgeBaseRepository.insertBackfillJob({
+        sourceId: sourceId,
+        sourceType: source.type,
+        status: 'queued',
+        rangeStart: rangeStart,
+        rangeEnd: rangeEnd,
+        cursorStart: rangeStart,
+        windowDays: windowDays,
+        maxDurationMs: maxDurationMs,
+        maxRetries: maxRetries,
+        importedCount: 0,
+      });
+    } catch (error) {
+      // If insert fails (race condition), fetch existing job
+      const existingJob = await this.getActiveJob(sourceId);
+      if (existingJob) {
+        logger.knowledge.info('start: race condition detected, using existing job', { jobId: existingJob.id });
+        return existingJob;
+      }
+      throw error;
+    }
 
     // Enqueue to pg-boss
     await enqueue<NvdBackfillJobData>(QUEUE_JOBS.NVD_KNOWLEDGE_BACKFILL, {
@@ -111,10 +131,10 @@ export const knowledgeBackfillService = {
   /**
    * Resumes a failed/queued backfill job from its last cursor position.
    */
-  async resume(workspaceId: string, sourceId: string) {
-    logger.knowledge.info('resume', { workspaceId, sourceId });
-    await assertNvdSource(workspaceId, sourceId);
-    await this.failStaleJobs(workspaceId, sourceId);
+  async resume(sourceId: string) {
+    logger.knowledge.info('resume', { sourceId });
+    await assertNvdSource(sourceId);
+    await this.failStaleJobs(sourceId);
 
     // Find the latest failed or queued job
     const job = await knowledgeBaseRepository.findLatestFailedBackfillJob(sourceId);
@@ -154,6 +174,19 @@ export const knowledgeBackfillService = {
     if (job.status === 'completed') return { status: 'completed' as const, importedCount: job.importedCount, completed: true };
     if (!job.sourceId) throw new AppError('Knowledge backfill job has no source', 400, 'VALIDATION_ERROR');
 
+    // Check time limit
+    const maxDurationMs = job.maxDurationMs ?? DEFAULT_MAX_DURATION_MS;
+    const jobCreatedAt = job.createdAt?.getTime() ?? Date.now();
+    const elapsedMs = Date.now() - jobCreatedAt;
+    if (elapsedMs > maxDurationMs) {
+      await knowledgeBaseRepository.updateBackfillJob(jobId, {
+        status: 'paused',
+        lastError: `Time limit reached (${Math.round(maxDurationMs / 60000)} minutes). Resume to continue.`,
+      });
+      logger.knowledge.info('processJob time limit reached', { jobId, elapsedMs, maxDurationMs });
+      return { status: 'paused' as const, importedCount: job.importedCount, completed: false };
+    }
+
     await knowledgeBaseRepository.updateBackfillJob(jobId, {
       status: 'running',
       startedAt: job.startedAt ?? new Date(),
@@ -187,6 +220,25 @@ export const knowledgeBackfillService = {
       await knowledgeBaseRepository.updateBackfillJob(jobId, {
         cursorStart: nextCursor,
         importedCount: newImportedCount,
+      });
+
+      // Check retry limit before re-enqueue
+      const currentRetryCount = (job.retryCount ?? 0) + 1;
+      const maxRetries = job.maxRetries ?? DEFAULT_MAX_RETRIES;
+
+      if (currentRetryCount >= maxRetries) {
+        await knowledgeBaseRepository.updateBackfillJob(jobId, {
+          status: 'paused',
+          retryCount: currentRetryCount,
+          lastError: `Max retries reached (${maxRetries}). Resume to continue.`,
+        });
+        logger.knowledge.info('processJob max retries reached', { jobId, retryCount: currentRetryCount, maxRetries });
+        return { status: 'paused' as const, importedCount: newImportedCount, completed: false };
+      }
+
+      // Update retry count
+      await knowledgeBaseRepository.updateBackfillJob(jobId, {
+        retryCount: currentRetryCount,
       });
 
       // Re-enqueue for next window
@@ -230,8 +282,8 @@ export const knowledgeBackfillService = {
   /**
    * Fails stale jobs that never started or stopped updating.
    */
-  async failStaleJobs(workspaceId: string, sourceId: string) {
-    const jobs = await knowledgeBaseRepository.listActiveBackfillJobs(workspaceId, sourceId);
+  async failStaleJobs(sourceId: string) {
+    const jobs = await knowledgeBaseRepository.listActiveBackfillJobs(sourceId);
 
     const now = Date.now();
     for (const job of jobs) {
@@ -254,8 +306,8 @@ export const knowledgeBackfillService = {
   },
 };
 
-async function assertNvdSource(workspaceId: string, sourceId: string) {
-  const source = await knowledgeBaseRepository.findSourceByIdForWorkspace(sourceId, workspaceId);
+async function assertNvdSource(sourceId: string) {
+  const source = await knowledgeBaseRepository.findSourceById(sourceId);
   if (!source) throw new AppError('Knowledge source not found', 404, 'NOT_FOUND');
   if (source.type !== 'nvd') throw new AppError('Backfill is only available for NVD sources', 400, 'VALIDATION_ERROR');
   return source;

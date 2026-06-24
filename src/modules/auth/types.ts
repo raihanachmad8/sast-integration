@@ -63,6 +63,8 @@ export interface Workspace {
  * ```
  */
 export interface SessionData {
+  /** Current session ID (from JWT). */
+  sessionId: string;
   /** Authenticated user. */
   user: User;
   /** Current workspace (null if user has no workspace). */

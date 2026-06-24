@@ -111,7 +111,7 @@ export function ScanTable({
         <Flex vertical gap={token.marginXXS}>
           <Typography.Link
             onClick={(e) => { e.stopPropagation(); onRepoClick(row); }}
-            style={{ fontWeight: 600 }}
+            style={{ fontWeight: token.fontWeightStrong }}
           >
             {row.repository}
           </Typography.Link>

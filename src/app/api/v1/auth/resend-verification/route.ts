@@ -5,11 +5,19 @@ import { authFlowsService } from '@/server/modules/auth/services/auth-flows.serv
 import { AppError } from '@/server/http/errors';
 import { MAIL } from '@/server/modules/mail/constants';
 import { logger } from '@/server/lib/logger';
+import { rateLimiter } from '@/server/modules/auth/services/rate-limiter';
 
 export async function POST(request: NextRequest) {
   logger.auth.info('resendVerification');
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
+
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  const rateLimitKey = `resend-verification:${auth.context.userId}:${ip}`;
+  const retryAfterMs = rateLimiter.check(rateLimitKey);
+  if (retryAfterMs !== null) {
+    return ApiResponse.error('Too many requests, try again later', 'RATE_LIMITED', undefined, 429);
+  }
 
   try {
     await authFlowsService.sendVerificationEmail(auth.context.userId);

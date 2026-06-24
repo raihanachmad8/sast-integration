@@ -9,6 +9,8 @@ import { AiVerificationBadge } from './AiVerificationBadge';
 import { FindingAiAnalysisCard } from './FindingAiAnalysisCard';
 import type { ScanFinding } from './types';
 import { StatusTag } from '@/commons/components/StatusTag';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PERMISSION } from '@/commons/constants/permissions';
 
 const { Text, Paragraph } = Typography;
 
@@ -160,12 +162,14 @@ export const FindingItem = React.memo(function FindingItem({ finding, showCode =
 
       {onStatusChange && finding.status === 'open' && (
         <Flex gap={token.paddingSM} style={{ marginTop: token.paddingMD, borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: token.paddingMD }}>
-          <Button size="small" onClick={() => onStatusChange(finding.id, 'dismissed')}>
-            <FaIcon icon="fa-xmark" /> Dismiss
-          </Button>
-          <Button size="small" onClick={() => onStatusChange(finding.id, 'resolved')}>
-            <FaIcon icon="fa-check" /> Mark Resolved
-          </Button>
+          <PermissionGate permission={PERMISSION.FINDING_TRIAGE}>
+            <Button size="small" onClick={() => onStatusChange(finding.id, 'dismissed')}>
+              <FaIcon icon="fa-xmark" /> Dismiss
+            </Button>
+            <Button size="small" onClick={() => onStatusChange(finding.id, 'resolved')}>
+              <FaIcon icon="fa-check" /> Mark Resolved
+            </Button>
+          </PermissionGate>
         </Flex>
       )}
     </div>

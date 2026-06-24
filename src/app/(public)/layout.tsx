@@ -220,7 +220,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                   type="primary"
                   size="small"
                   style={{
-                    fontWeight: 600,
+                    fontWeight: token.fontWeightStrong,
                     height: 32,
                     paddingInline: 16,
                     background: `linear-gradient(135deg, ${token.colorPrimary}, ${token.colorPrimaryHover})`,
@@ -248,7 +248,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: 8,
+                borderRadius: token.borderRadius,
                 transition: 'background 0.18s ease',
               }}
             >
@@ -342,7 +342,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
                     type="primary"
                     block
                     style={{
-                      fontWeight: 600,
+                      fontWeight: token.fontWeightStrong,
                       height: 44,
                       fontSize: token.fontSize,
                       borderRadius: token.borderRadiusLG,

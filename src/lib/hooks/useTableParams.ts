@@ -8,6 +8,8 @@ interface TableParams {
   perPage: number;
   search: string;
   order: string;
+  sortKey: string;
+  sortDir: 'asc' | 'desc' | '';
   filters: Record<string, string>;
 }
 
@@ -27,6 +29,7 @@ interface UseTableParamsReturn<T> {
   setPagination: (page: number, perPage: number) => void;
   setSearch: (search: string) => void;
   setOrder: (order: string) => void;
+  setSort: (key: string, dir: 'asc' | 'desc' | '') => void;
   setFilter: (key: string, value: string) => void;
   setFilters: (filters: Record<string, string>) => void;
   reset: () => void;
@@ -39,12 +42,15 @@ function decode(sp: URLSearchParams, opts: { defaultPageSize: number; searchKey:
   const perPage = Math.max(1, parseInt(sp.get('per_page') ?? String(opts.defaultPageSize), 10) || opts.defaultPageSize);
   const search = sp.get(opts.searchKey) ?? '';
   const order = sp.get(opts.orderKey) ?? '';
+  const sortKey = sp.get('sort') ?? '';
+  const rawDir = sp.get('order') ?? '';
+  const sortDir: 'asc' | 'desc' | '' = rawDir.toUpperCase() === 'ASC' ? 'asc' : rawDir.toUpperCase() === 'DESC' ? 'desc' : '';
   const filters: Record<string, string> = {};
   for (const key of opts.filterKeys) {
     const v = sp.get(key);
     if (v) filters[key] = v;
   }
-  return { page, perPage, search, order, filters };
+  return { page, perPage, search, order, sortKey, sortDir, filters };
 }
 
 function encode(p: TableParams, opts: { defaultPageSize: number; searchKey: string; orderKey: string }, existingParams?: URLSearchParams): string {
@@ -53,6 +59,13 @@ function encode(p: TableParams, opts: { defaultPageSize: number; searchKey: stri
   if (p.perPage !== opts.defaultPageSize) u.set('per_page', String(p.perPage)); else u.delete('per_page');
   if (p.search) u.set(opts.searchKey, p.search); else u.delete(opts.searchKey);
   if (p.order) u.set(opts.orderKey, p.order); else u.delete(opts.orderKey);
+  if (p.sortKey && p.sortDir) {
+    u.set('sort', p.sortKey);
+    u.set('order', p.sortDir.toUpperCase());
+  } else {
+    u.delete('sort');
+    u.delete('order');
+  }
   for (const [k, v] of Object.entries(p.filters)) {
     if (v && v !== 'all') u.set(k, v); else u.delete(k);
   }
@@ -60,7 +73,7 @@ function encode(p: TableParams, opts: { defaultPageSize: number; searchKey: stri
 }
 
 function shallowEqual(a: TableParams, b: TableParams): boolean {
-  if (a.page !== b.page || a.perPage !== b.perPage || a.search !== b.search || a.order !== b.order) return false;
+  if (a.page !== b.page || a.perPage !== b.perPage || a.search !== b.search || a.order !== b.order || a.sortKey !== b.sortKey || a.sortDir !== b.sortDir) return false;
   const aKeys = Object.keys(a.filters);
   const bKeys = Object.keys(b.filters);
   if (aKeys.length !== bKeys.length) return false;
@@ -145,6 +158,13 @@ export function useTableParams<T = unknown>(options: UseTableParamsOptions<T> = 
     pushUrl(next);
   }, [pushUrl]);
 
+  const setSort = useCallback((key: string, dir: 'asc' | 'desc' | '') => {
+    const next = { ...paramsRef.current, sortKey: key, sortDir: dir, page: 1 };
+    setParams(next);
+    paramsRef.current = next;
+    pushUrl(next);
+  }, [pushUrl]);
+
   const setFilter = useCallback((key: string, value: string) => {
     const next = { ...paramsRef.current, filters: { ...paramsRef.current.filters, [key]: value }, page: 1 };
     setParams(next);
@@ -161,7 +181,7 @@ export function useTableParams<T = unknown>(options: UseTableParamsOptions<T> = 
 
   const reset = useCallback(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    const next: TableParams = { page: 1, perPage: defaultPageSize, search: '', order: '', filters: {} };
+    const next: TableParams = { page: 1, perPage: defaultPageSize, search: '', order: '', sortKey: '', sortDir: '', filters: {} };
     setParams(next);
     paramsRef.current = next;
     pushUrl(next);
@@ -187,6 +207,7 @@ export function useTableParams<T = unknown>(options: UseTableParamsOptions<T> = 
     setPagination,
     setSearch,
     setOrder,
+    setSort,
     setFilter,
     setFilters,
     reset,

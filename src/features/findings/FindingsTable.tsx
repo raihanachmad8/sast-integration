@@ -31,6 +31,8 @@ interface FindingsTableProps {
   members?: Array<{ userId: string; name: string; email: string }>;
   projectOptions?: Array<{ value: string; label: string }>;
   repositoryOptions?: Array<{ value: string; label: string }>;
+  sort?: { key: string; dir: 'asc' | 'desc' } | null;
+  onSortChange?: (sort: { key: string; dir: 'asc' | 'desc' } | null) => void;
 }
 
 const SEVERITY_OPTIONS = [
@@ -52,7 +54,7 @@ const STATUS_OPTIONS = [
   { value: 'resolved', label: 'Resolved' },
 ];
 
-export function FindingsTable({ rows, isLoading, total, page, pageSize, search, filterValues, onPageChange, onSearchChange, onFilterChange, onReview, onDismiss, onResolve, onReverify, onAssign, onAssignRow, members, projectOptions = [], repositoryOptions = [] }: FindingsTableProps) {
+export function FindingsTable({ rows, isLoading, total, page, pageSize, search, filterValues, onPageChange, onSearchChange, onFilterChange, onReview, onDismiss, onResolve, onReverify, onAssign, onAssignRow, members, projectOptions = [], repositoryOptions = [], sort, onSortChange }: FindingsTableProps) {
   const { token } = theme.useToken();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -130,14 +132,12 @@ export function FindingsTable({ rows, isLoading, total, page, pageSize, search, 
       key: 'severity',
       header: 'Severity',
       sortable: true,
-      sortValue: (row) => { const order = { critical: 0, high: 1, medium: 2, low: 3, info: 4 }; return order[row.severity as keyof typeof order] ?? 5; },
       render: (row) => <StatusTag type="severity" value={row.severity} />,
     },
     {
       key: 'scanner',
       header: 'Scanner',
       sortable: true,
-      sortValue: (row) => row.scanner,
       render: (row) => <StatusTag type="scanner" value={row.scanner} />,
       hideOnMobile: true,
     },
@@ -145,7 +145,6 @@ export function FindingsTable({ rows, isLoading, total, page, pageSize, search, 
       key: 'verdict',
       header: 'AI verdict',
       sortable: true,
-      sortValue: (row) => { const order = { TP: 0, Pending: 1, FP: 2 }; return order[row.verdict as keyof typeof order] ?? 3; },
       render: (row) => (
         <Flex vertical gap={token.marginXXS}>
           <StatusTag type="verdict" value={row.verdict} />
@@ -251,6 +250,8 @@ export function FindingsTable({ rows, isLoading, total, page, pageSize, search, 
         actions={actions}
         emptyText="No findings found. Run a scan from the Repositories page."
         onChange={onPageChange}
+        sort={sort}
+        onSortChange={onSortChange}
       />
     </>
   );

@@ -3,11 +3,21 @@
 import { useState } from 'react';
 import { App, Button, Flex, theme } from 'antd';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useSessionData } from '@/modules/auth/queries';
-import { PageHeader } from '@/commons/components/PageHeader';
-import { LoadingState } from '@/commons/components/LoadingState';
-import { ErrorState } from '@/commons/components/ErrorState';
 import dynamic from 'next/dynamic';
+
+import { ErrorState } from '@/commons/components/ErrorState';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PERMISSION } from '@/commons/constants/permissions';
+import { useTableParams } from '@/lib/hooks/useTableParams';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+import { useScanListQuery, useScanDetailQuery, useScanFindingsQuery, useTriggerScanMutation, scanApi } from '@/modules/scan';
+import { useRepositoriesQuery } from '@/modules/repositories';
+import { useSessionData } from '@/modules/auth/queries';
+import type { ScanRow, ScanFinding } from '@/features/scan/types';
+import type { ScanDetail, TimelineEvent } from '@/commons/types';
 import { ScanTable, NewScanModal } from '@/features/scan';
 
 const ScanDetailDrawer = dynamic(
@@ -18,13 +28,6 @@ const CICDSetupModal = dynamic(
   () => import('@/features/scan/CICDSetupModal').then((m) => m.CICDSetupModal),
   { ssr: false },
 );
-import type { ScanRow, ScanFinding } from '@/features/scan/types';
-import type { ScanDetail, TimelineEvent } from '@/commons/types';
-import { FaIcon } from '@/commons/components/FaIcon';
-import { useTableParams } from '@/lib/hooks/useTableParams';
-import { useScanListQuery, useScanDetailQuery, useScanFindingsQuery, useTriggerScanMutation, scanApi } from '@/modules/scan';
-import { useRepositoriesQuery } from '@/modules/repositories';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
 
 /**
  * Scan management page for the current workspace.
@@ -141,14 +144,20 @@ export default function ScanPage() {
         title="Scans"
         description="Queue status, scan progress, retry path, and finding navigation."
         actions={
-          <Flex gap={token.paddingSM}>
-            <Button onClick={() => setCicdModalOpen(true)}>
-              <FaIcon icon="fa-link" /> CI/CD Setup
-            </Button>
-            <Button type="primary" onClick={() => setNewScanOpen(true)}>
-              <FaIcon icon="fa-play" /> New scan
-            </Button>
-          </Flex>
+          <PermissionGate permission={PERMISSION.SCAN_VIEW}>
+            <Flex gap={token.paddingSM}>
+              <PermissionGate permission={PERMISSION.SCAN_RUN}>
+                <Button onClick={() => setCicdModalOpen(true)}>
+                  <FaIcon icon="fa-link" /> CI/CD Setup
+                </Button>
+              </PermissionGate>
+              <PermissionGate permission={PERMISSION.SCAN_RUN}>
+                <Button type="primary" onClick={() => setNewScanOpen(true)}>
+                  <FaIcon icon="fa-play" /> New scan
+                </Button>
+              </PermissionGate>
+            </Flex>
+          </PermissionGate>
         }
       />
 

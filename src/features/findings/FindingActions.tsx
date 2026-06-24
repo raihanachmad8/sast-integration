@@ -5,6 +5,8 @@ import { Modal, Select, Button, Typography, Row, Col, Flex, theme } from 'antd';
 import type { Finding } from '@/commons/types';
 import type { AiModelRow } from '@/commons/types/ai-models';
 import { useAiModelsQuery } from '@/modules/ai-models';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PERMISSION } from '@/commons/constants/permissions';
 
 const { Text } = Typography;
 
@@ -59,13 +61,19 @@ export function FindingActions({ finding, onDismiss, onResolve, onReverify, onOp
         <Text style={sectionTitleStyle}>Actions</Text>
         <Row gutter={[token.marginSM, token.marginSM]}>
           <Col span={12}>
-            <Button block danger onClick={() => onDismiss?.(finding.id)}>Dismiss</Button>
+            <PermissionGate permission={PERMISSION.FINDING_TRIAGE}>
+              <Button block danger onClick={() => onDismiss?.(finding.id)}>Dismiss</Button>
+            </PermissionGate>
           </Col>
           <Col span={12}>
-            <Button block type="primary" onClick={() => setResolveOpen(true)}>Resolve</Button>
+            <PermissionGate permission={PERMISSION.FINDING_TRIAGE}>
+              <Button block type="primary" onClick={() => setResolveOpen(true)}>Resolve</Button>
+            </PermissionGate>
           </Col>
           <Col span={12}>
-            <Button block onClick={() => setReverifyOpen(true)}>Re-verify with AI</Button>
+            <PermissionGate permission={PERMISSION.FINDING_OVERRIDE_AI}>
+              <Button block onClick={() => setReverifyOpen(true)}>Re-verify with AI</Button>
+            </PermissionGate>
           </Col>
           {onOpenFullPage && (
             <Col span={12}>

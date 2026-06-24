@@ -18,7 +18,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!auth.success) return auth.response;
   const { workspaceId, modelId } = await params;
 
-  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.AI_MODEL_MANAGE);
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.AI_MODEL_VIEW);
   if (!workspace.success) return workspace.response;
 
   try {

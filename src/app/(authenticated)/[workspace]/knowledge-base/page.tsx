@@ -1,35 +1,31 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { App, Button, Card, Col, Flex, Row, Space, Tag, Typography, theme } from 'antd';
-import { PageHeader } from '@/commons/components/PageHeader';
-import { FaIcon } from '@/commons/components/FaIcon';
-import { DataTable, type DataTableColumn } from '@/commons/components/DataTable';
-import { LoadingState } from '@/commons/components/LoadingState';
+import { App, Card, Col, Flex, Row, Space, Tag, Typography, theme } from 'antd';
+
 import { ErrorState } from '@/commons/components/ErrorState';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { PageHeader } from '@/commons/components/PageHeader';
 import { StatusTag } from '@/commons/components/StatusTag';
-import { useTableParams } from '@/lib/hooks/useTableParams';
-import { useSessionData } from '@/modules/auth/queries';
-import {
-  useKnowledgeBaseQuery,
-  useKnowledgeSourcesQuery,
-  useMuteKnowledgeEntryMutation,
-  useUpdateKnowledgeEntryMutation,
-  useSyncKnowledgeSourceMutation,
-} from '@/modules/knowledge';
+import { DataTable, type DataTableColumn } from '@/commons/components/DataTable';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { PERMISSION } from '@/commons/constants/permissions';
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 import { errorMessage } from '@/lib/api/errors';
-import { EntryDetailDrawer, EditEntryModal } from '@/features/knowledge-base/EntryModals';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { useTableParams } from '@/lib/hooks/useTableParams';
+import { useKnowledgeBaseQuery, useKnowledgeSourcesQuery, useMuteKnowledgeEntryMutation, useUpdateKnowledgeEntryMutation } from '@/modules/knowledge';
+import { useSessionData } from '@/modules/auth/queries';
 import type { KnowledgeEntryRow } from '@/commons/types/knowledge';
 import { FeatureGate } from '@/commons/components/FeatureGate';
-import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
-import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { EditEntryModal, EntryDetailDrawer } from '@/features/knowledge-base/EntryModals';
 
 interface ModalEntry {
   id: string;
   name: string;
   source: string;
   severity: string;
-  usedByAi: number;
   snippet: string;
   tags?: string[];
   muted?: boolean;
@@ -47,7 +43,6 @@ function toModalEntry(entry: KnowledgeEntryRow): ModalEntry {
     name: entry.title,
     source: entry.sourceType ?? 'unknown',
     severity: entry.severity ?? 'medium',
-    usedByAi: entry.usedByAiCount ?? 0,
     snippet: entry.remediation ?? entry.content ?? '',
     tags: entry.tags,
     muted: entry.muted,
@@ -79,11 +74,6 @@ function buildColumns(token: ReturnType<typeof theme.useToken>['token']): DataTa
       header: 'Severity',
       render: (row) => <StatusTag type="severity" value={row.severity} />,
     },
-    {
-      key: 'usedByAi',
-      header: 'Used by AI',
-      render: (row) => <Typography.Text type="secondary">{row.usedByAi}</Typography.Text>,
-    },
   ];
 }
 
@@ -92,15 +82,11 @@ function SourceCard({
   title,
   description,
   entryCount,
-  sourceId,
-  onSync,
 }: {
   type: 'cwe' | 'nvd';
   title: string;
   description: string;
   entryCount: number;
-  sourceId?: string;
-  onSync?: (sourceId: string) => void;
 }) {
   const { token } = theme.useToken();
 
@@ -123,18 +109,7 @@ function SourceCard({
               </Typography.Paragraph>
             </div>
           </Space>
-          <Flex gap={token.marginXS} align="center">
-            {sourceId && onSync && (
-              <Button
-                size="small"
-                icon={<FaIcon icon="fa-sync" />}
-                onClick={() => onSync(sourceId)}
-              >
-                Sync
-              </Button>
-            )}
-            <Tag>Active</Tag>
-          </Flex>
+          <Tag>Active</Tag>
         </Flex>
 
         <Flex gap={token.marginMD}>
@@ -176,6 +151,9 @@ function KnowledgeBasePageContent() {
   const { message } = App.useApp();
   const session = useSessionData();
   const workspaceId = session.data?.workspace?.id ?? '';
+  const { has } = usePermissions();
+  const canRead = has(PERMISSION.KNOWLEDGE_VIEW);
+  const canManage = has(PERMISSION.KNOWLEDGE_MANAGE);
 
   const { params, setPagination, setSearch, setFilter } = useTableParams({
     filterKeys: ['source'],
@@ -195,7 +173,6 @@ function KnowledgeBasePageContent() {
   const sourcesQuery = useKnowledgeSourcesQuery(workspaceId, { page: 1, perPage: 100 });
   const muteMutation = useMuteKnowledgeEntryMutation(workspaceId);
   const updateMutation = useUpdateKnowledgeEntryMutation(workspaceId);
-  const syncMutation = useSyncKnowledgeSourceMutation(workspaceId);
 
   const sources = sourcesQuery.data?.data ?? [];
   const cweSource = sources.find((source) => source.type === 'cwe');
@@ -212,17 +189,6 @@ function KnowledgeBasePageContent() {
   const handleEdit = (_entry: ModalEntry) => {
     setDetailOpen(false);
     setEditOpen(true);
-  };
-
-  const handleSync = (sourceId: string) => {
-    syncMutation.mutate(sourceId, {
-      onSuccess: (result) => {
-        message.success(`Synced ${result.entriesCreated + result.entriesUpdated} entries`);
-        sourcesQuery.refetch();
-        entriesQuery.refetch();
-      },
-      onError: (err) => message.error(errorMessage(err)),
-    });
   };
 
   const handleDisable = (entry: ModalEntry) => {
@@ -254,8 +220,6 @@ function KnowledgeBasePageContent() {
             title="CWE Catalog"
             description="Weakness taxonomy for scanner findings and AI context."
             entryCount={cweSource?.entryCount ?? 0}
-            sourceId={cweSource?.id}
-            onSync={handleSync}
           />
         </Col>
         <Col xs={24} lg={12}>
@@ -264,8 +228,6 @@ function KnowledgeBasePageContent() {
             title="NVD CVE Feed"
             description="Vulnerability feed with historical vulnerability data."
             entryCount={nvdSource?.entryCount ?? 0}
-            sourceId={nvdSource?.id}
-            onSync={handleSync}
           />
         </Col>
       </Row>
@@ -274,7 +236,9 @@ function KnowledgeBasePageContent() {
         source={{ data: entries, meta: { page: params.page, pageSize: params.perPage, total: entriesQuery.data?.meta.total ?? 0 } }}
         columns={buildColumns(token)}
         actions={[
-          { label: 'View', icon: <FaIcon icon="fa-eye" />, onClick: (entry) => handleView(entry) },
+          { label: 'View', icon: <FaIcon icon="fa-eye" />, onClick: (entry) => handleView(entry), show: () => canRead },
+          { label: 'Edit', icon: <FaIcon icon="fa-pen" />, onClick: (entry) => handleEdit(entry), show: () => canManage },
+          { label: 'Disable', icon: <FaIcon icon="fa-ban" />, variant: 'danger' as const, onClick: (entry) => handleDisable(entry), show: () => canManage },
         ]}
         rowKey={(entry) => entry.id}
         emptyText="No knowledge entries found."

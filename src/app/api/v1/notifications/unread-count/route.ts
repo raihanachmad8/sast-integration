@@ -2,9 +2,7 @@ import type { NextRequest } from 'next/server';
 import { ApiResponse } from '@/server/http/response';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { db } from '@/server/db/client';
-import { activityLogs } from '@drizzle/schema/integrations';
-import { eq, count } from 'drizzle-orm';
+import { notificationsService } from '@/server/modules/notifications/notifications.service';
 
 /**
  * GET /api/v1/notifications/unread-count
@@ -15,13 +13,10 @@ export async function GET(request: NextRequest) {
   if (!auth.success) return auth.response;
 
   try {
-    // For now, return total count as "unread" since we don't have a read/unread tracking
-    const [{ total }] = await db
-      .select({ total: count() })
-      .from(activityLogs)
-      .where(eq(activityLogs.userId, auth.context.userId));
+    // Use notificationsService instead of direct DB query
+    const count = await notificationsService.getUnreadCount(auth.context.userId);
 
-    return ApiResponse.success('Unread count retrieved', { count: total });
+    return ApiResponse.success('Unread count retrieved', { count });
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
     return ApiResponse.error('Failed to get unread count', 'INTERNAL_ERROR', undefined, 500);

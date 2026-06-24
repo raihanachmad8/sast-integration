@@ -18,7 +18,9 @@ export const models = pgTable('ai_models', {
   lastTestedAt: timestamp('last_tested_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('ai_models_workspace_id_idx').on(t.workspaceId),
+]);
 
 export const webhooks = pgTable('webhooks', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -34,7 +36,9 @@ export const webhooks = pgTable('webhooks', {
   updatedBy: uuid('updated_by').references(() => users.id),
   deletedAt: timestamp('deleted_at'),
   deletedBy: uuid('deleted_by').references(() => users.id),
-});
+}, (t) => [
+  index('webhooks_workspace_id_idx').on(t.workspaceId),
+]);
 
 export const webhookDeliveries = pgTable('webhook_deliveries', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -46,7 +50,10 @@ export const webhookDeliveries = pgTable('webhook_deliveries', {
   responseBody: text('response_body'),
   durationMs: integer('duration_ms'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('webhook_deliveries_webhook_id_idx').on(t.webhookId),
+  index('webhook_deliveries_created_at_idx').on(t.createdAt),
+]);
 
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -58,7 +65,10 @@ export const auditLogs = pgTable('audit_logs', {
   data: jsonb('data'),
   ipAddress: varchar('ip_address', { length: 45 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('audit_logs_workspace_id_idx').on(t.workspaceId),
+  index('audit_logs_created_at_idx').on(t.createdAt),
+]);
 
 export const activityLogs = pgTable('activity_logs', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -68,7 +78,10 @@ export const activityLogs = pgTable('activity_logs', {
   description: text('description'),
   metadata: jsonb('metadata'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('activity_logs_workspace_id_idx').on(t.workspaceId),
+  index('activity_logs_created_at_idx').on(t.createdAt),
+]);
 
 export const knowledgeSources = pgTable('knowledge_sources', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -104,7 +117,6 @@ export const knowledgeEntries = pgTable('knowledge_entries', {
 
 export const knowledgeBackfillJobs = pgTable('knowledge_backfill_jobs', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id'),
   sourceId: uuid('source_id').references(() => knowledgeSources.id),
   sourceType: varchar('source_type', { length: 50 }).notNull(),
   status: varchar('status', { length: 20 }).notNull().default('queued'),
@@ -112,6 +124,9 @@ export const knowledgeBackfillJobs = pgTable('knowledge_backfill_jobs', {
   rangeEnd: timestamp('range_end').notNull(),
   cursorStart: timestamp('cursor_start').notNull(),
   windowDays: integer('window_days').notNull().default(30),
+  maxDurationMs: integer('max_duration_ms').default(3600000),
+  maxRetries: integer('max_retries').default(10),
+  retryCount: integer('retry_count').default(0),
   importedCount: integer('imported_count').notNull().default(0),
   lastError: text('last_error'),
   startedAt: timestamp('started_at'),

@@ -1,6 +1,8 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { Alert, Typography, theme } from 'antd';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { usePermissions, type PermissionContext } from '@/lib/hooks/usePermissions';
 import type { PermissionKey, Role } from '@/commons/constants/permissions';
 
@@ -127,4 +129,55 @@ export function Can({
   if (minRole && !ctx.isAtLeast(minRole)) return null;
 
   return <>{children(ctx)}</>;
+}
+
+/** Props for the PermissionHint component. */
+interface PermissionHintProps {
+  /** The permission required to access this feature */
+  permission?: PermissionKey;
+  /** Minimum role required */
+  minRole?: Role;
+  /** Custom message to display */
+  message?: string;
+}
+
+/**
+ * Informative hint shown when user lacks permission for a feature.
+ * Use as fallback in PermissionGate for a professional "access denied" experience.
+ *
+ * @example
+ * <PermissionGate permission={PERMISSION.TEAM_MANAGE} fallback={<PermissionHint permission={PERMISSION.TEAM_MANAGE} />}>
+ *   <CreateTeamButton />
+ * </PermissionGate>
+ */
+export function PermissionHint({ permission, minRole, message }: PermissionHintProps) {
+  const { token } = theme.useToken();
+  const ctx = usePermissions();
+
+  if (ctx.isLoading || (!permission && !minRole)) return null;
+
+  // Don't show hint if user actually has the permission
+  if (permission && ctx.has(permission)) return null;
+  if (minRole && ctx.isAtLeast(minRole)) return null;
+
+  const roleLabel = minRole ? minRole.charAt(0).toUpperCase() + minRole.slice(1) : null;
+
+  return (
+    <Alert
+      type="info"
+      showIcon
+      icon={<FaIcon icon="fa-lock" />}
+      title={
+        <Typography.Text style={{ fontSize: token.fontSizeSM }}>
+          {message ?? (
+            <>
+              You need <Typography.Text strong>{roleLabel ?? permission}</Typography.Text> access to use this feature.
+              Contact your workspace owner to request permission.
+            </>
+          )}
+        </Typography.Text>
+      }
+      style={{ borderRadius: token.borderRadius }}
+    />
+  );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { App, Form, Select, Switch, Card, Typography, Row, Col, Flex, Button, Skeleton, theme } from 'antd';
 import { FaIcon } from '@/commons/components/FaIcon';
@@ -11,6 +11,7 @@ import { ENDPOINTS } from '@/commons/constants/endpoints';
 import type { ApiResponse } from '@/commons/types/api';
 import { createZodSync } from '@/lib/utils/zod-sync';
 import { z } from 'zod';
+import { usePermissions } from '@/lib/hooks/usePermissions';
 
 const verificationSchema = z.object({
   confidence: z.string().min(1, 'Confidence threshold is required'),
@@ -29,37 +30,15 @@ interface VerificationSettings {
   cweMismatch: string;
 }
 
-interface ToggleRowProps {
-  label: string;
-  description: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}
-
-function ToggleRow({ label, description, checked, onChange }: ToggleRowProps) {
-  const { token } = theme.useToken();
-  return (
-    <Flex align="flex-start" gap={token.paddingLG}>
-      <Switch size="small" checked={checked} onChange={onChange} style={{ marginTop: 4 }} />
-      <Flex vertical>
-        <Typography.Text strong style={{ fontSize: token.fontSize, color: token.colorText }}>{label}</Typography.Text>
-        <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM, marginTop: 4 }}>{description}</Typography.Text>
-      </Flex>
-    </Flex>
-  );
-}
-
 export function VerificationSettingsCard() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const { workspaceId } = useWorkspace();
   const api = Api({ baseUrl: clientEnv.apiUrl });
+  const { isAtLeast } = usePermissions();
+  const canManage = isAtLeast('manager');
   const [form] = Form.useForm();
-  const [saving, setSaving] = useState(false);
-  const [attachKnowledge, setAttachKnowledge] = useState(true);
-  const [requireConfidence, setRequireConfidence] = useState(true);
-  const [allowFallback, setAllowFallback] = useState(true);
-  const [hasChanges, setHasChanges] = useState(false);
+  const rule = createZodSync(verificationSchema);
 
   const query = useQuery<VerificationSettings>({
     queryKey: ['verification-settings', workspaceId],
@@ -73,11 +52,10 @@ export function VerificationSettingsCard() {
 
   useEffect(() => {
     if (query.data) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAttachKnowledge(query.data.attachKnowledge);
-      setRequireConfidence(query.data.requireConfidence);
-      setAllowFallback(query.data.allowFallback);
       form.setFieldsValue({
+        attachKnowledge: query.data.attachKnowledge,
+        requireConfidence: query.data.requireConfidence,
+        allowFallback: query.data.allowFallback,
         confidence: query.data.confidenceThreshold,
         timeout: query.data.timeout,
         cweMismatch: query.data.cweMismatch,
@@ -91,25 +69,22 @@ export function VerificationSettingsCard() {
     }
   }, [query.error, message]);
 
-  const handleSave = async (values: { confidence: string; timeout: string; cweMismatch: string }) => {
-    if (!workspaceId) return;
-    setSaving(true);
-    try {
-      await api.Put<ApiResponse<null>>(`/api/v1/workspaces/${workspaceId}/settings/verification`, {
-        attachKnowledge,
-        requireConfidence,
-        allowFallback,
+  const handleSave = () => {
+    form.validateFields().then((values) => {
+      if (!workspaceId) return;
+      api.Put<ApiResponse<null>>(`/api/v1/workspaces/${workspaceId}/settings/verification`, {
+        attachKnowledge: values.attachKnowledge,
+        requireConfidence: values.requireConfidence,
+        allowFallback: values.allowFallback,
         confidenceThreshold: values.confidence,
         timeout: values.timeout,
         cweMismatch: values.cweMismatch,
+      }).then(() => {
+        message.success('Verification settings saved');
+      }).catch(() => {
+        message.error('Failed to save settings');
       });
-      message.success('Verification settings saved');
-      setHasChanges(false);
-    } catch {
-      message.error('Failed to save settings');
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   if (query.isLoading) {
@@ -118,51 +93,51 @@ export function VerificationSettingsCard() {
 
   return (
     <Card styles={{ body: { padding: token.paddingXL } }}>
-      <Typography.Title level={3} style={{ fontSize: token.fontSizeLG, fontWeight: token.fontWeightStrong, margin: `0 0 ${token.paddingXL}px` }}>Verification behavior</Typography.Title>
-      <Flex vertical gap={token.paddingXL}>
-        <ToggleRow
-          label="Attach knowledge context"
-          description="Include CWE, NVD, and custom workspace rules in AI verification prompts."
-          checked={attachKnowledge}
-          onChange={(v) => { setAttachKnowledge(v); setHasChanges(true); }}
-        />
-        <ToggleRow
-          label="Require confidence for auto-accept"
-          description="Only auto-suggest accept actions above the configured confidence threshold."
-          checked={requireConfidence}
-          onChange={(v) => { setRequireConfidence(v); setHasChanges(true); }}
-        />
-        <ToggleRow
-          label="Allow fallback on timeout"
-          description="Move to the next model when the primary verifier exceeds timeout."
-          checked={allowFallback}
-          onChange={(v) => { setAllowFallback(v); setHasChanges(true); }}
-        />
-      </Flex>
+      <Typography.Title level={4} style={{ fontSize: token.fontSizeHeading4, fontWeight: token.fontWeightStrong, margin: `0 0 ${token.marginXS}px` }}>Verification behavior</Typography.Title>
+      <Typography.Paragraph style={{ color: token.colorTextSecondary, fontSize: token.fontSize, margin: `0 0 ${token.marginXL}px` }}>
+        Configure how AI verification processes findings and applies verdicts.
+      </Typography.Paragraph>
 
-      <Form form={form} layout="vertical" onValuesChange={() => setHasChanges(true)} onFinish={handleSave}>
-        <Row gutter={[16, 16]} style={{ marginTop: token.paddingXL }}>
-          <Col xs={24} sm={8}>
-            <Form.Item label="Confidence threshold" name="confidence" rules={[validateVerification]}>
-              <Select style={{ width: '100%' }} options={[{ value: '85', label: '85%' }, { value: '90', label: '90%' }, { value: '95', label: '95%' }]} />
-            </Form.Item>
+      <Form form={form} layout="vertical">
+        <Row gutter={[token.paddingXL, token.paddingLG]}>
+          <Col xs={24} md={12}>
+            <Flex vertical gap={token.marginLG}>
+              <Form.Item name="attachKnowledge" valuePropName="checked" label="Attach knowledge context" extra="Include CWE, NVD, and custom workspace rules in AI verification prompts." rules={[rule]}>
+                <Switch disabled={!canManage} />
+              </Form.Item>
+              <Form.Item name="requireConfidence" valuePropName="checked" label="Require confidence for auto-accept" extra="Only auto-suggest accept actions above the configured confidence threshold." rules={[rule]}>
+                <Switch disabled={!canManage} />
+              </Form.Item>
+              <Form.Item name="allowFallback" valuePropName="checked" label="Allow fallback on timeout" extra="Move to the next model when the primary verifier exceeds timeout." rules={[rule]}>
+                <Switch disabled={!canManage} />
+              </Form.Item>
+            </Flex>
           </Col>
-          <Col xs={24} sm={8}>
-            <Form.Item label="Timeout" name="timeout" rules={[validateVerification]}>
-              <Select style={{ width: '100%' }} options={[{ value: '60', label: '60 sec' }, { value: '90', label: '90 sec' }, { value: '120', label: '120 sec' }]} />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={8}>
-            <Form.Item label="CWE mismatch" name="cweMismatch" rules={[validateVerification]}>
-              <Select style={{ width: '100%' }} options={[{ value: 'warn', label: 'Warn' }, { value: 'fail', label: 'Fail' }, { value: 'ignore', label: 'Ignore' }]} />
-            </Form.Item>
+          <Col xs={24} md={12}>
+            <Flex vertical gap={token.marginLG}>
+              <Form.Item label="Confidence threshold" name="confidence" rules={[validateVerification]}>
+                <Select disabled={!canManage} options={[{ value: '85', label: '85%' }, { value: '90', label: '90%' }, { value: '95', label: '95%' }]} />
+              </Form.Item>
+              <Form.Item label="Timeout" name="timeout" rules={[validateVerification]}>
+                <Select disabled={!canManage} options={[{ value: '60', label: '60 sec' }, { value: '90', label: '90 sec' }, { value: '120', label: '120 sec' }]} />
+              </Form.Item>
+              <Form.Item label="CWE mismatch" name="cweMismatch" rules={[validateVerification]}>
+                <Select disabled={!canManage} options={[{ value: 'warn', label: 'Warn' }, { value: 'fail', label: 'Fail' }, { value: 'ignore', label: 'Ignore' }]} />
+              </Form.Item>
+            </Flex>
           </Col>
         </Row>
 
         <Flex justify="flex-end" style={{ marginTop: token.paddingXL }}>
-          <Button type="primary" htmlType="submit" disabled={!hasChanges} loading={saving} icon={<FaIcon icon="fa-check" />}>
-            Save settings
-          </Button>
+          {canManage ? (
+            <Button type="primary" onClick={handleSave} loading={query.isFetching} icon={<FaIcon icon="fa-check" />}>
+              Save settings
+            </Button>
+          ) : (
+            <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+              You need Manager or Owner role to modify verification settings.
+            </Typography.Text>
+          )}
         </Flex>
       </Form>
     </Card>

@@ -8,6 +8,8 @@ import { workspaceUpdateSchema } from '@/commons/schemas';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { ErrorState } from '@/commons/components/ErrorState';
 import { errorMessage } from '@/lib/api/errors';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PERMISSION } from '@/commons/constants/permissions';
 
 const rule = createZodSync(workspaceUpdateSchema);
 
@@ -62,9 +64,11 @@ export function WorkspaceGeneralSettings({ workspaceId }: WorkspaceGeneralSettin
         </Form.Item>
 
         <Flex gap={token.marginMD}>
-          <Button type="primary" htmlType="submit" loading={updateMutation.isPending}>
-            Save changes
-          </Button>
+          <PermissionGate permission={PERMISSION.WORKSPACE_SETTINGS}>
+            <Button type="primary" htmlType="submit" loading={updateMutation.isPending}>
+              Save changes
+            </Button>
+          </PermissionGate>
           <Button onClick={() => form.resetFields()}>
             Reset
           </Button>

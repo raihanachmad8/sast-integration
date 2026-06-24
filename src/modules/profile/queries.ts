@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { profileApi } from './api';
 import { profileKeys } from './keys';
+import { authKeys } from '@/modules/auth/keys';
 import { STALE } from '@/commons/constants/query';
 
 /**
@@ -41,6 +42,7 @@ export function useUpdateProfileMutation() {
       profileApi.update(userId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: profileKeys.all });
+      queryClient.invalidateQueries({ queryKey: authKeys.session() });
     },
   });
 }
@@ -83,23 +85,6 @@ export function useRevokeSessionMutation() {
 }
 
 /**
- * Query hook for fetching the current user's audit log.
- * Returns a chronological list of the user's own actions.
- *
- * @example
- * ```tsx
- * const { data: log, isLoading } = useAuditLogQuery();
- * ```
- */
-export function useAuditLogQuery() {
-  return useQuery({
-    queryKey: [...profileKeys.all, 'audit-log'],
-    queryFn: () => profileApi.getAuditLog(),
-    staleTime: STALE.DEFAULT,
-  });
-}
-
-/**
  * Mutation hook for changing the current user's password.
  * No automatic cache invalidation; requires user to re-authenticate.
  *
@@ -131,6 +116,7 @@ export function useUploadAvatarMutation() {
     mutationFn: (file: File) => profileApi.uploadAvatar(file),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: profileKeys.all });
+      qc.invalidateQueries({ queryKey: authKeys.session() });
     },
   });
 }
@@ -151,6 +137,7 @@ export function useRemoveAvatarMutation() {
     mutationFn: () => profileApi.removeAvatar(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: profileKeys.all });
+      qc.invalidateQueries({ queryKey: authKeys.session() });
     },
   });
 }

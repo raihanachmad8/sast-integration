@@ -5,7 +5,6 @@ import { projects } from '@drizzle/schema/projects';
 import { scans as scansTable } from '@drizzle/schema/scans';
 import { models } from '@drizzle/schema/integrations';
 import { repositories } from '@drizzle/schema/source-controls';
-
 export const dashboardRepository = {
   /**
    * Get aggregated dashboard statistics for a workspace.

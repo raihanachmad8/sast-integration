@@ -2,27 +2,26 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { sourceControls, sourceControlRepositories, sourceControlImports, repositories } from '@drizzle/schema/source-controls';
 import type { SourceControl, SourceControlRepository, SourceControlImport, Repository } from '@drizzle/schema/source-controls';
-
 export const sourceControlImportRepository = {
-  async findConnectionById(id: string): Promise<SourceControl | undefined> {
+  async findConnectionById(id: string): Promise<SourceControl | null> {
     const [connection] = await db
       .select()
       .from(sourceControls)
       .where(eq(sourceControls.id, id))
       .limit(1);
-    return connection;
+    return connection ?? null;
   },
 
-  async findSourceRepoById(id: string): Promise<SourceControlRepository | undefined> {
+  async findSourceRepoById(id: string): Promise<SourceControlRepository | null> {
     const [sourceRepo] = await db
       .select()
       .from(sourceControlRepositories)
       .where(and(eq(sourceControlRepositories.id, id), isNull(sourceControlRepositories.deletedAt)))
       .limit(1);
-    return sourceRepo;
+    return sourceRepo ?? null;
   },
 
-  async findActiveImportBySourceRepoId(sourceRepoId: string): Promise<SourceControlImport | undefined> {
+  async findActiveImportBySourceRepoId(sourceRepoId: string): Promise<SourceControlImport | null> {
     const [existingImport] = await db
       .select()
       .from(sourceControlImports)
@@ -31,14 +30,14 @@ export const sourceControlImportRepository = {
         isNull(sourceControlImports.uninstalledAt),
       ))
       .limit(1);
-    return existingImport;
+    return existingImport ?? null;
   },
 
   /**
    * Find a repository by name and workspace, including soft-deleted ones.
    * Used to detect stale repos that need to be restored or replaced on re-import.
    */
-  async findByNameAndWorkspace(name: string, workspaceId: string): Promise<Repository | undefined> {
+  async findByNameAndWorkspace(name: string, workspaceId: string): Promise<Repository | null> {
     const [repo] = await db
       .select()
       .from(repositories)
@@ -47,7 +46,7 @@ export const sourceControlImportRepository = {
         eq(repositories.workspaceId, workspaceId),
       ))
       .limit(1);
-    return repo;
+    return repo ?? null;
   },
 
   /**
@@ -106,22 +105,22 @@ export const sourceControlImportRepository = {
     return importRecord;
   },
 
-  async findImportById(id: string): Promise<SourceControlImport | undefined> {
+  async findImportById(id: string): Promise<SourceControlImport | null> {
     const [importRecord] = await db
       .select()
       .from(sourceControlImports)
       .where(eq(sourceControlImports.id, id))
       .limit(1);
-    return importRecord;
+    return importRecord ?? null;
   },
 
-  async findRepositoryById(id: string): Promise<Repository | undefined> {
+  async findRepositoryById(id: string): Promise<Repository | null> {
     const [repo] = await db
       .select()
       .from(repositories)
       .where(eq(repositories.id, id))
       .limit(1);
-    return repo;
+    return repo ?? null;
   },
 
   async softDeleteRepository(id: string, userId: string): Promise<void> {

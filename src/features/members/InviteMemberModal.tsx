@@ -52,13 +52,17 @@ export function InviteMemberModal({ open, onConfirm, onCancel, isLoading, error 
     onCancel();
   };
 
+  const handleSubmit = (values: { email: string; role: string }) => {
+    onConfirm(values);
+  };
+
   return (
     <Modal
       title="Invite member"
       open={open}
       destroyOnHidden
       onCancel={handleCancel}
-      onOk={() => form.validateFields().then((values) => onConfirm(values))}
+      onOk={() => form.submit()}
       confirmLoading={isLoading}
       okText="Send invitation"
       okButtonProps={{ style: canSend ? { background: token.colorPrimary, borderColor: token.colorPrimary } : undefined, disabled: !canSend }}
@@ -70,7 +74,7 @@ export function InviteMemberModal({ open, onConfirm, onCancel, isLoading, error 
             errors={inviteErrorFields.map(e => ({ ...e, field: formatFieldLabel(e.field) }))}
           />
         )}
-        <Form form={form} layout="vertical" initialValues={{ email: '', role: ROLE.REVIEWER }}>
+        <Form form={form} layout="vertical" initialValues={{ email: '', role: ROLE.REVIEWER }} onFinish={handleSubmit}>
           <Form.Item
             label="Email address"
             name="email"
@@ -84,6 +88,8 @@ export function InviteMemberModal({ open, onConfirm, onCancel, isLoading, error 
             <Select options={ASSIGNABLE_ROLES} style={{ width: '100%' }} />
           </Form.Item>
           <RolePreview form={form} />
+          {/* Hidden submit button enables Enter-to-submit in the form */}
+          <button type="submit" style={{ display: 'none' }} aria-hidden="true" />
         </Form>
       </Flex>
     </Modal>

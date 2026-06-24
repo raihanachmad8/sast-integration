@@ -60,7 +60,7 @@ export function AuthenticatedShell({ children }: { children: React.ReactNode }) 
     const currentWorkspace = session.data?.workspace;
     if (!currentWorkspace || currentWorkspace.slug !== routeWorkspaceSlug) {
       hasRedirected.current = true;
-      router.replace(ROUTES.CHOOSER);
+      router.replace(`${ROUTES.CHOOSER}?redirect=${encodeURIComponent(pathname)}`);
     }
   }, [pathname, routeWorkspaceSlug, session.data?.workspace, session.isError, session.isFetching, session.isLoading, router]);
 

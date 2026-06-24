@@ -37,7 +37,7 @@ function buildColumns(token: ReturnType<typeof theme.useToken>['token']): DataTa
       sortValue: (row) => row.repositoryName,
       render: (row) => (
         <div>
-          <div style={{ fontWeight: 600 }}>{row.repositoryName}</div>
+          <div style={{ fontWeight: token.fontWeightStrong }}>{row.repositoryName}</div>
           <div style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}>{row.branch}</div>
         </div>
       ),

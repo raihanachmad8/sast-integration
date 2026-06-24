@@ -1,12 +1,9 @@
 import { eq, and, isNull, or, gt } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { db, type Tx } from '@/server/db/client';
 import { projectApiTokens, type ProjectApiToken, type NewProjectApiToken } from '@drizzle/schema/projects';
 import crypto from 'crypto';
-
 const TOKEN_PREFIX = 'sast_p_';
 const TOKEN_RANDOM_BYTES = 32;
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 function generateRawToken(): string {
   const random = crypto.randomBytes(TOKEN_RANDOM_BYTES).toString('base64url');

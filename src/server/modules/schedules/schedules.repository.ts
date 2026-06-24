@@ -1,9 +1,6 @@
 import { eq, and, isNull } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { db, type Tx } from '@/server/db/client';
 import { schedules } from '@drizzle/schema/scans';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
 export interface CreateScheduleInput {
   workspaceId: string;
   repositoryId?: string;

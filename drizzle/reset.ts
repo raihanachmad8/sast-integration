@@ -24,6 +24,10 @@ function quoteIdentifier(value: string) {
 }
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('ERROR: db:reset is not allowed in production');
+    process.exit(1);
+  }
   console.log('Resetting database data...');
 
   const tables = await sql<{ table_name: string }[]>`

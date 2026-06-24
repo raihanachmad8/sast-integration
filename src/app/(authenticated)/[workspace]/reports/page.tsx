@@ -2,30 +2,32 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { Button, Modal, App, Typography, Flex, Select, theme } from 'antd';
+import dynamic from 'next/dynamic';
+
+import { ErrorState } from '@/commons/components/ErrorState';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { PERMISSION } from '@/commons/constants/permissions';
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { errorMessage } from '@/lib/api/errors';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { useTableParams } from '@/lib/hooks/useTableParams';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { useReportsQuery, useGenerateReportMutation, useDeleteReportMutation } from '@/modules/reports';
 import { reportsApi } from '@/modules/reports/api';
-import { PageHeader } from '@/commons/components/PageHeader';
-import { FaIcon } from '@/commons/components/FaIcon';
-import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
-import dynamic from 'next/dynamic';
+import type { ReportRow } from '@/commons/types/reports';
+import { FeatureGate } from '@/commons/components/FeatureGate';
 
 const ReportPreviewModal = dynamic(
   () => import('@/features/reports/ReportPreviewModal'),
   { ssr: false },
 );
-import { StatusPill } from '@/commons/components/StatusPill';
-import { useTableParams } from '@/lib/hooks/useTableParams';
-import { LoadingState } from '@/commons/components/LoadingState';
-import { ErrorState } from '@/commons/components/ErrorState';
-import { PermissionGate } from '@/commons/components/PermissionGate';
-import { useConfirm } from '@/commons/components/ConfirmDialog';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { errorMessage } from '@/lib/api/errors';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
-import type { ReportRow } from '@/commons/types/reports';
-import { FeatureGate } from '@/commons/components/FeatureGate';
-import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
-import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 
 const FORMAT_VARIANT: Record<string, 'teal' | 'blue' | 'amber' | 'red' | 'purple' | 'slate'> = { pdf: 'red', xlsx: 'teal', csv: 'blue' };
 
@@ -107,6 +109,9 @@ function ReportsPageContent() {
   const { token } = theme.useToken();
   const { confirm } = useConfirm();
   const { workspaceId } = useWorkspace();
+  const { has } = usePermissions();
+  const canView = has(PERMISSION.REPORT_VIEW);
+  const canExport = has(PERMISSION.REPORT_EXPORT);
 
   const REPORT_TYPE = { id: 'findings', name: 'Security Report', icon: 'fa-shield-halved', description: 'Full security audit report with findings, severity, CWE, and remediation guidance' };
 
@@ -184,10 +189,10 @@ function ReportsPageContent() {
   const columns = useMemo(() => buildColumns(), []);
 
   const actions = useMemo<ActionConfig<ReportRow>[]>(() => [
-    { label: 'Preview', icon: <FaIcon icon="fa-eye" />, onClick: (report) => handlePreview(report) },
-    { label: 'Download', icon: <FaIcon icon="fa-download" />, onClick: (report) => handleDownload(report) },
-    { label: 'Delete', icon: <FaIcon icon="fa-trash" />, danger: true, onClick: (report) => handleDelete(report) },
-  ], [handlePreview, handleDownload, handleDelete]);
+    { label: 'Preview', icon: <FaIcon icon="fa-eye" />, onClick: (report) => handlePreview(report), show: () => canView },
+    { label: 'Download', icon: <FaIcon icon="fa-download" />, onClick: (report) => handleDownload(report), show: () => canExport },
+    { label: 'Delete', icon: <FaIcon icon="fa-trash" />, danger: true, onClick: (report) => handleDelete(report), show: () => canExport },
+  ], [handlePreview, handleDownload, handleDelete, canView, canExport]);
 
   if (reportsQuery.isLoading) return <LoadingState text="Loading reports..." />;
   if (reportsQuery.isError) return <ErrorState title="Failed to load reports" description={errorMessage(reportsQuery.error)} onRetry={() => reportsQuery.refetch()} />;

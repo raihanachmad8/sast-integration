@@ -167,11 +167,25 @@ export function DataTable<T>({
   );
 
   const antdColumns = useMemo(() => {
+    const isServerSort = !!onSortChange;
     const cols = visibleColumns.map((col) => ({
-      title: (
+      title: col.sortable ? (
+        <span
+          style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
+          onClick={(e) => {
+            if (!isServerSort) return;
+            e.stopPropagation();
+            const currentDir = sort?.key === col.key ? sort.dir : null;
+            const nextDir = currentDir === 'asc' ? 'desc' : currentDir === 'desc' ? null : 'asc';
+            onSortChange(nextDir ? { key: col.key, dir: nextDir } : null);
+          }}
+        >
+          {col.header}
+          <SortIndicator columnKey={col.key} sort={sort} />
+        </span>
+      ) : (
         <span style={{ display: 'inline-flex', alignItems: 'center' }}>
           {col.header}
-          {col.sortable && <SortIndicator columnKey={col.key} sort={sort} />}
         </span>
       ),
       dataIndex: col.key,
@@ -180,7 +194,7 @@ export function DataTable<T>({
       align: col.align,
       width: col.width,
       render: (_value: unknown, record: T, index: number) => col.render(record, index),
-      ...(col.sortable && col.sortValue
+      ...(col.sortable && col.sortValue && !isServerSort
         ? {
             sorter: (a: T, b: T) => {
               const aVal = col.sortValue!(a);
@@ -249,7 +263,7 @@ export function DataTable<T>({
     }
 
     return cols;
-  }, [visibleColumns, actions, sort, actionsVariant, token]);
+  }, [visibleColumns, actions, sort, actionsVariant, token, onSortChange]);
 
   const hasToolbar = searchable || filters.length > 0 || !!toolbar;
 
@@ -309,7 +323,7 @@ export function DataTable<T>({
                 key={filter.key}
                 closable
                 onClose={() => onFilterRemove?.(filter.key)}
-                style={{ borderRadius: 6, margin: 0 }}
+                style={{ borderRadius: token.borderRadiusSM, margin: 0 }}
               >
                 {filter.label}: {filter.value}
               </Tag>

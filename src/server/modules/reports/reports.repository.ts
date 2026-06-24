@@ -1,11 +1,8 @@
 import { eq, and, desc, count, ilike, isNull } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { db, type Tx } from '@/server/db/client';
 import { getOffset } from '@/lib/pagination';
 import { reports } from '@drizzle/schema/reports';
 import { users } from '@drizzle/schema/users';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
 export interface CreateReportInput {
   workspaceId: string;
   type: string;

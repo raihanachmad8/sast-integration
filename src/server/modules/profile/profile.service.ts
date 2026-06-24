@@ -47,12 +47,13 @@ export const profileService = {
    * @throws {AppError} If the upload fails (500)
    */
   async uploadAvatar(userId: string, file: File) {
-    logger.profile.info('uploadAvatar', { userId });
+    logger.profile.info('uploadAvatar: starting', { userId, fileName: file.name, fileType: file.type, fileSize: file.size });
     const avatarUrl = await profileRepository.uploadAvatar(userId, file);
     if (!avatarUrl) {
+      logger.profile.error('uploadAvatar: repository returned null', { userId });
       throw new AppError('Failed to upload avatar', 500, 'INTERNAL_ERROR');
     }
-    logger.profile.info('uploadAvatar completed', { userId });
+    logger.profile.info('uploadAvatar: completed', { userId, avatarUrl });
     return { avatarUrl };
   },
 

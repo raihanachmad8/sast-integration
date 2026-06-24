@@ -16,6 +16,8 @@ import { errorMessage } from '@/lib/api/errors';
 import { formatDate } from '@/lib/utils/formatDate';
 import { useConfirm } from '@/commons/components/ConfirmDialog';
 import { StatusPill } from '@/commons/components/StatusPill';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
+import { PERMISSION } from '@/commons/constants/permissions';
 
 interface ProjectApiTokensProps {
   projectId: string;
@@ -131,37 +133,47 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
 
   return (
     <Flex vertical gap={token.paddingXL}>
-      <Flex justify="space-between" align="center" style={{ marginBottom: token.marginLG }}>
-        <Typography.Title level={5} style={{ margin: 0 }}>API Tokens</Typography.Title>
-        {canManage && (
-          <Button icon={<FaIcon icon="fa-plus" />} onClick={() => setCreateModalOpen(true)}>
-            Create token
-          </Button>
-        )}
-      </Flex>
+      <PermissionGate
+        permission={PERMISSION.PROJECT_MANAGE}
+        fallback={
+          <Flex vertical gap={token.marginMD}>
+            <Typography.Title level={5} style={{ margin: 0 }}>API Tokens</Typography.Title>
+            <PermissionHint permission={PERMISSION.PROJECT_MANAGE} message="API tokens are used for CI/CD integrations. You need Manager or Owner role to manage them." />
+          </Flex>
+        }
+      >
+        <Flex justify="space-between" align="center" style={{ marginBottom: token.marginLG }}>
+          <Typography.Title level={5} style={{ margin: 0 }}>API Tokens</Typography.Title>
+          {canManage && (
+            <Button icon={<FaIcon icon="fa-plus" />} onClick={() => setCreateModalOpen(true)}>
+              Create token
+            </Button>
+          )}
+        </Flex>
 
-      {tokensQuery.isLoading ? (
-        <LoadingState text="Loading tokens..." />
-      ) : tokensQuery.isError ? (
-        <div style={{ textAlign: 'center', padding: token.paddingXL }}>
-          <Typography.Text type="secondary">Failed to load tokens.</Typography.Text>
-        </div>
-      ) : (
-        <DataTable
-          source={{ data: paginated ?? [], meta: { page: params.page, pageSize: params.perPage, total: filtered?.length ?? 0 } }}
-          columns={columns}
-          rowKey={(t) => t.id}
-          actions={actions}
-          actionsVariant="inline"
-          compact
-          searchable
-          searchPlaceholder="Search tokens..."
-          searchValue={params.search}
-          onSearchChange={setSearch}
-          onChange={(p, ps) => setPagination(p, ps)}
-          emptyText="No API tokens"
-        />
-      )}
+        {tokensQuery.isLoading ? (
+          <LoadingState text="Loading tokens..." />
+        ) : tokensQuery.isError ? (
+          <div style={{ textAlign: 'center', padding: token.paddingXL }}>
+            <Typography.Text type="secondary">Failed to load tokens.</Typography.Text>
+          </div>
+        ) : (
+          <DataTable
+            source={{ data: paginated ?? [], meta: { page: params.page, pageSize: params.perPage, total: filtered?.length ?? 0 } }}
+            columns={columns}
+            rowKey={(t) => t.id}
+            actions={actions}
+            actionsVariant="inline"
+            compact
+            searchable
+            searchPlaceholder="Search tokens..."
+            searchValue={params.search}
+            onSearchChange={setSearch}
+            onChange={(p, ps) => setPagination(p, ps)}
+            emptyText="No API tokens"
+          />
+        )}
+      </PermissionGate>
 
       <Modal
         title="Create API token"

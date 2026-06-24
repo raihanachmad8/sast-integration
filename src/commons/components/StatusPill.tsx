@@ -48,7 +48,7 @@ export function StatusPill({ variant, children, closable, onClose }: StatusPillP
       color={VARIANT_COLOR[variant] ?? 'default'}
       closable={closable}
       onClose={onClose}
-      style={{ textTransform: 'uppercase', fontWeight: token.fontWeightStrong, fontSize: token.fontSizeSM, borderRadius: 6 }}
+      style={{ textTransform: 'uppercase', fontWeight: token.fontWeightStrong, fontSize: token.fontSizeSM, borderRadius: token.borderRadiusSM }}
     >
       {children}
     </Tag>

@@ -158,9 +158,12 @@ export const findingService = {
     severity?: string;
     scanner?: string;
     assignedTo?: string;
+    verdict?: string;
     search?: string;
     repositoryId?: string;
     accessibleProjectIds?: string[];
+    sort?: string;
+    order?: 'ASC' | 'DESC';
   } = {}, limit = 50, page = 1) {
     logger.scan.debug('list', { projectId, workspaceId, filters, limit, page });
 
@@ -171,6 +174,8 @@ export const findingService = {
           perPage: limit,
           status: filters.status,
           onlyNew: true,
+          sort: filters.sort,
+          order: filters.order,
         });
         logger.scan.debug('list completed', { projectId, total: result.total });
         return result;
@@ -184,6 +189,9 @@ export const findingService = {
           status: filters.status,
           scanner: filters.scanner,
           repositoryId: filters.repositoryId,
+          verdict: filters.verdict,
+          sort: filters.sort,
+          order: filters.order,
         });
         logger.scan.debug('list completed', { projectId, total: result.total });
         return result;
@@ -198,6 +206,9 @@ export const findingService = {
           scanner: filters.scanner,
           search: filters.search,
           repositoryId: filters.repositoryId,
+          verdict: filters.verdict,
+          sort: filters.sort,
+          order: filters.order,
         });
         logger.scan.debug('list completed', { workspaceId, accessibleProjectIds: filters.accessibleProjectIds.length, total: result.total });
         return result;
@@ -210,6 +221,9 @@ export const findingService = {
         status: filters.status,
         scanner: filters.scanner,
         repositoryId: filters.repositoryId,
+        verdict: filters.verdict,
+        sort: filters.sort,
+        order: filters.order,
       });
       logger.scan.debug('list completed', { workspaceId, total: result.total });
       return result;
@@ -232,11 +246,18 @@ export const findingService = {
         return null;
       }
 
-      // Get group status
-      const group = finding.groupId ? await findingRepository.findGroupById(finding.groupId) : null;
-
-      const verifications = await findingRepository.getVerifications(findingId);
+      // Parallel: group status + verifications (independent after finding is loaded)
+      const [group, verifications] = await Promise.all([
+        finding.groupId ? findingRepository.findGroupById(finding.groupId) : Promise.resolve(null),
+        findingRepository.getVerifications(findingId),
+      ]);
       const latestVerification = verifications[0] ?? null;
+
+      // Parallel: model name + repo name (independent after finding/verifications are loaded)
+      const [model, repo] = await Promise.all([
+        latestVerification?.modelId ? this.getModelName(latestVerification.modelId) : Promise.resolve(''),
+        this.getRepositoryName(finding.scanId),
+      ]);
 
       const result = {
         id: finding.id,
@@ -257,7 +278,7 @@ export const findingService = {
         updatedAt: finding.updatedAt,
         verdict: latestVerification?.verdict === 'true_positive' ? 'TP' : latestVerification?.verdict === 'false_positive' ? 'FP' : 'Pending',
         confidence: latestVerification?.confidence ? Number(latestVerification.confidence) : null,
-        model: latestVerification?.modelId ? await this.getModelName(latestVerification.modelId) : '',
+        model,
         explanation: latestVerification?.explanation ?? null,
         dataFlow: latestVerification?.dataFlow ?? null,
         taintSource: latestVerification?.taintSource ?? null,
@@ -267,7 +288,7 @@ export const findingService = {
         latencyMs: latestVerification?.latencyMs ?? null,
         rawResponse: latestVerification?.rawResponse ?? null,
         file: finding.filePath ?? '',
-        repo: await this.getRepositoryName(finding.scanId),
+        repo,
         cwe: finding.cweId ?? '',
         assignee: finding.assignedTo ?? null,
         lineNumberOrig: finding.lineNumber ?? 0,
@@ -433,9 +454,9 @@ export const findingService = {
 
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-    for (const pr of openPrs) {
+    await Promise.all(openPrs.map(async (pr) => {
       try {
-        if (!pr.credentials || !pr.provider || !pr.prNumber) continue;
+        if (!pr.credentials || !pr.provider || !pr.prNumber) return;
 
         const [owner, repo] = parseRepoName(pr.repoName);
         const scm = createScmApiService(pr.provider, pr.credentials as ScmCredentials);
@@ -467,7 +488,7 @@ export const findingService = {
           error: (err as Error).message,
         });
       }
-    }
+    }));
   },
 
   /**

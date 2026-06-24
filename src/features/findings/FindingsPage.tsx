@@ -1,22 +1,18 @@
 'use client';
 
 import { Button, Flex, theme } from 'antd';
-import { PageHeader } from '@/commons/components/PageHeader';
+
+import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { LoadingState } from '@/commons/components/LoadingState';
-import { ErrorState } from '@/commons/components/ErrorState';
-import dynamic from 'next/dynamic';
-import { FindingsTable } from '@/features/findings';
-
-const FindingDetailDrawer = dynamic(
-  () => import('@/features/findings/FindingDetailDrawer').then((m) => m.FindingDetailDrawer),
-  { ssr: false },
-);
+import { PageHeader } from '@/commons/components/PageHeader';
 import { PermissionGate } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
-import { useFindingsPageState } from './useFindingsPageState';
-import { BulkAssignModal } from './BulkAssignModal';
 import { errorMessage } from '@/lib/api/errors';
+import { FindingsTable } from '@/features/findings';
+import { BulkAssignModal } from './BulkAssignModal';
+import { useFindingsPageState } from './useFindingsPageState';
+import { FindingDetailDrawer } from '@/features/findings/FindingDetailDrawer';
 
 /**
  * Findings management page — browse, filter, review, and triage security findings.
@@ -57,6 +53,7 @@ export default function FindingsPage() {
     handleTableChange,
     handleTableSearch,
     handleTableFilter,
+    handleSortChange,
   } = useFindingsPageState();
 
   if (findingsQuery.isLoading) {
@@ -73,7 +70,7 @@ export default function FindingsPage() {
         title="Findings"
         description="Filter, triage, accept AI verdicts, override decisions, or re-verify with another model."
         actions={
-          <PermissionGate permission={PERMISSION.SCAN_RUN}>
+          <PermissionGate permission={PERMISSION.FINDING_OVERRIDE_AI}>
             <Button type="primary" onClick={handleRunAiVerification}>
               <FaIcon icon="fa-brain" /> Run AI verification
             </Button>
@@ -107,6 +104,8 @@ export default function FindingsPage() {
         members={members.map((m) => ({ userId: m.userId, name: m.name, email: m.email }))}
         projectOptions={PROJECT_OPTIONS}
         repositoryOptions={REPOSITORY_OPTIONS}
+        sort={tableParams.sort && tableParams.order ? { key: tableParams.sort, dir: tableParams.order.toLowerCase() as 'asc' | 'desc' } : null}
+        onSortChange={handleSortChange}
       />
 
       <FindingDetailDrawer

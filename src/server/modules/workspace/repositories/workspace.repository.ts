@@ -1,12 +1,11 @@
 import { eq, and, isNull, gt, inArray } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { db, type Tx } from '@/server/db/client';
 import { workspaces, workspaceMembers } from '@drizzle/schema';
 import { workspaceInvitations } from '@drizzle/schema/auth';
 import { users } from '@drizzle/schema/users';
 import { ROLE } from '@/commons/constants/permissions';
 import { WORKSPACE } from '../constants';
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Role = typeof ROLE[keyof typeof ROLE];
 
 export const workspaceRepository = {

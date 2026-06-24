@@ -41,10 +41,10 @@ export const STALE = {
   DEFAULT: 5 * 60_000,
 
   /**
-   * 30 minutes — for rarely-changing reference data (AI models, scan profiles, quality gates).
+   * 15 minutes — for rarely-changing reference data (AI models, scan profiles, quality gates).
    * Avoids unnecessary refetches for data that changes infrequently.
    */
-  LONG: 30 * 60_000,
+  LONG: 15 * 60_000,
 
   /**
    * Infinity — never auto-refresh (config/settings data).

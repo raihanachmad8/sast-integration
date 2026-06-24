@@ -20,6 +20,8 @@ export interface PermissionContext {
   hasAny: (...permissions: PermissionKey[]) => boolean;
   /** Check if the current role is at least the given minimum role (role hierarchy) */
   isAtLeast: (minRole: Role) => boolean;
+  /** Check if the current role does NOT have a specific permission */
+  notHas: (permission: PermissionKey) => boolean;
   /** Loading state */
   isLoading: boolean;
 }
@@ -53,6 +55,7 @@ export function usePermissions(): PermissionContext {
     has: (permission) => permissions.includes(permission),
     hasAll: (...perms) => perms.every(p => permissions.includes(p)),
     hasAny: (...perms) => perms.some(p => permissions.includes(p)),
+    notHas: (permission) => !permissions.includes(permission),
     isAtLeast: (minRole) => {
       if (!role) return false;
       return (ROLE_HIERARCHY[role] ?? 0) >= (ROLE_HIERARCHY[minRole] ?? 0);

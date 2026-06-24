@@ -2,9 +2,7 @@ import type { NextRequest } from 'next/server';
 import { ApiResponse } from '@/server/http/response';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { db } from '@/server/db/client';
-import { activityLogs } from '@drizzle/schema/integrations';
-import { eq, desc } from 'drizzle-orm';
+import { notificationsService } from '@/server/modules/notifications/notifications.service';
 
 /**
  * GET /api/v1/notifications
@@ -15,17 +13,8 @@ export async function GET(request: NextRequest) {
   if (!auth.success) return auth.response;
 
   try {
-    const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get('limit') ?? '20'), 100);
-    const offset = parseInt(searchParams.get('offset') ?? '0');
-
-    const notifications = await db
-      .select()
-      .from(activityLogs)
-      .where(eq(activityLogs.userId, auth.context.userId))
-      .orderBy(desc(activityLogs.createdAt))
-      .limit(limit)
-      .offset(offset);
+    // Use notificationsService instead of direct DB query
+    const notifications = await notificationsService.list(auth.context.userId);
 
     return ApiResponse.success('Notifications retrieved', notifications);
   } catch (e) {

@@ -51,24 +51,31 @@ export const PERMISSION = {
   REPORT_EXPORT: `${RESOURCES.REPORT}:${ACTIONS.EXPORT}`,
   ARENA_MANAGE: `${RESOURCES.ARENA}:${ACTIONS.MANAGE}`,
   // Workspace
+  MEMBER_VIEW: `${RESOURCES.MEMBER}:${ACTIONS.VIEW}`,
   MEMBER_INVITE: `${RESOURCES.MEMBER}:${ACTIONS.INVITE}`,
   MEMBER_MANAGE: `${RESOURCES.MEMBER}:${ACTIONS.MANAGE}`,
+  TEAM_VIEW: `${RESOURCES.TEAM}:${ACTIONS.VIEW}`,
   TEAM_MANAGE: `${RESOURCES.TEAM}:${ACTIONS.MANAGE}`,
+  PROJECT_VIEW: `${RESOURCES.PROJECT}:${ACTIONS.VIEW}`,
   PROJECT_MANAGE: `${RESOURCES.PROJECT}:${ACTIONS.MANAGE}`,
   // Integrations
+  INTEGRATION_VIEW: `${RESOURCES.INTEGRATION}:${ACTIONS.VIEW}`,
   INTEGRATION_MANAGE: `${RESOURCES.INTEGRATION}:${ACTIONS.MANAGE}`,
   WEBHOOK_MANAGE: `${RESOURCES.WEBHOOK}:${ACTIONS.MANAGE}`,
   SCHEDULE_MANAGE: `${RESOURCES.SCHEDULE}:${ACTIONS.MANAGE}`,
   // Analysis Policy
+  POLICY_VIEW: `${RESOURCES.POLICY}:${ACTIONS.VIEW}`,
   POLICY_MANAGE: `${RESOURCES.POLICY}:${ACTIONS.MANAGE}`,
   SCANNER_MANAGE: `${RESOURCES.SCANNER}:${ACTIONS.MANAGE}`,
+  AI_MODEL_VIEW: `${RESOURCES.AI_MODEL}:${ACTIONS.VIEW}`,
   AI_MODEL_MANAGE: `${RESOURCES.AI_MODEL}:${ACTIONS.MANAGE}`,
   // Intelligence
-  KNOWLEDGE_READ: `${RESOURCES.KNOWLEDGE}:${ACTIONS.READ}`,
+  KNOWLEDGE_VIEW: `${RESOURCES.KNOWLEDGE}:${ACTIONS.READ}`,
   KNOWLEDGE_MANAGE: `${RESOURCES.KNOWLEDGE}:${ACTIONS.MANAGE}`,
   // System
   WORKSPACE_SETTINGS: `${RESOURCES.WORKSPACE}:${ACTIONS.SETTINGS}`,
-  AUDIT_READ: `${RESOURCES.AUDIT}:${ACTIONS.READ}`,
+  WORKSPACE_SETTINGS_VIEW: `${RESOURCES.WORKSPACE}:${ACTIONS.VIEW}`,
+  AUDIT_VIEW: `${RESOURCES.AUDIT}:${ACTIONS.READ}`,
 } as const;
 
 export type PermissionKey = (typeof PERMISSION)[keyof typeof PERMISSION];
@@ -176,10 +183,28 @@ export const PERMISSION_DEFINITIONS: {
     description: "Change roles, revoke access, and manage pending invitations",
   },
   {
+    name: PERMISSION.MEMBER_VIEW,
+    resource: RESOURCES.MEMBER,
+    action: ACTIONS.VIEW,
+    description: "View workspace members and their roles",
+  },
+  {
+    name: PERMISSION.TEAM_VIEW,
+    resource: RESOURCES.TEAM,
+    action: ACTIONS.VIEW,
+    description: "View teams and team members",
+  },
+  {
     name: PERMISSION.TEAM_MANAGE,
     resource: RESOURCES.TEAM,
     action: ACTIONS.MANAGE,
     description: "Create, edit, and delete teams",
+  },
+  {
+    name: PERMISSION.PROJECT_VIEW,
+    resource: RESOURCES.PROJECT,
+    action: ACTIONS.VIEW,
+    description: "View projects and their details",
   },
   {
     name: PERMISSION.PROJECT_MANAGE,
@@ -187,6 +212,12 @@ export const PERMISSION_DEFINITIONS: {
     action: ACTIONS.MANAGE,
     description:
       "Create, edit, and delete projects. Attach repositories and teams",
+  },
+  {
+    name: PERMISSION.INTEGRATION_VIEW,
+    resource: RESOURCES.INTEGRATION,
+    action: ACTIONS.VIEW,
+    description: "View source control provider connections and status",
   },
   {
     name: PERMISSION.INTEGRATION_MANAGE,
@@ -207,6 +238,12 @@ export const PERMISSION_DEFINITIONS: {
     description: "Create and manage recurring scan schedules",
   },
   {
+    name: PERMISSION.POLICY_VIEW,
+    resource: RESOURCES.POLICY,
+    action: ACTIONS.VIEW,
+    description: "View quality gate and scan policy configuration",
+  },
+  {
     name: PERMISSION.POLICY_MANAGE,
     resource: RESOURCES.POLICY,
     action: ACTIONS.MANAGE,
@@ -219,13 +256,19 @@ export const PERMISSION_DEFINITIONS: {
     description: "Configure scanner engines and rules",
   },
   {
+    name: PERMISSION.AI_MODEL_VIEW,
+    resource: RESOURCES.AI_MODEL,
+    action: ACTIONS.VIEW,
+    description: "View AI model configuration and status",
+  },
+  {
     name: PERMISSION.AI_MODEL_MANAGE,
     resource: RESOURCES.AI_MODEL,
     action: ACTIONS.MANAGE,
     description: "Configure AI model chain and prompt presets",
   },
   {
-    name: PERMISSION.KNOWLEDGE_READ,
+    name: PERMISSION.KNOWLEDGE_VIEW,
     resource: RESOURCES.KNOWLEDGE,
     action: ACTIONS.READ,
     description: "View knowledge base sources and entries",
@@ -243,7 +286,13 @@ export const PERMISSION_DEFINITIONS: {
     description: "Edit workspace name, billing, and global configuration",
   },
   {
-    name: PERMISSION.AUDIT_READ,
+    name: PERMISSION.WORKSPACE_SETTINGS_VIEW,
+    resource: RESOURCES.WORKSPACE,
+    action: ACTIONS.VIEW,
+    description: "View workspace settings and configuration",
+  },
+  {
+    name: PERMISSION.AUDIT_VIEW,
     resource: RESOURCES.AUDIT,
     action: ACTIONS.READ,
     description: "View audit logs and activity history",
@@ -265,12 +314,19 @@ export const ROLE_PERMISSIONS: Record<Role, PermissionKey[]> = {
     PERMISSION.REPORT_VIEW,
     PERMISSION.REPORT_EXPORT,
     PERMISSION.ARENA_MANAGE,
+    PERMISSION.MEMBER_VIEW,
     PERMISSION.MEMBER_INVITE,
+    PERMISSION.TEAM_VIEW,
     PERMISSION.TEAM_MANAGE,
+    PERMISSION.PROJECT_VIEW,
     PERMISSION.PROJECT_MANAGE,
     PERMISSION.SCHEDULE_MANAGE,
-    PERMISSION.KNOWLEDGE_READ,
-    PERMISSION.AUDIT_READ,
+    PERMISSION.KNOWLEDGE_VIEW,
+    PERMISSION.INTEGRATION_VIEW,
+    PERMISSION.POLICY_VIEW,
+    PERMISSION.AI_MODEL_VIEW,
+    PERMISSION.WORKSPACE_SETTINGS_VIEW,
+    PERMISSION.AUDIT_VIEW,
   ],
   [ROLE.REVIEWER]: [
     PERMISSION.DASHBOARD_VIEW,
@@ -282,7 +338,14 @@ export const ROLE_PERMISSIONS: Record<Role, PermissionKey[]> = {
     PERMISSION.FINDING_OVERRIDE_AI,
     PERMISSION.REPORT_VIEW,
     PERMISSION.REPORT_EXPORT,
-    PERMISSION.KNOWLEDGE_READ,
+    PERMISSION.MEMBER_VIEW,
+    PERMISSION.TEAM_VIEW,
+    PERMISSION.PROJECT_VIEW,
+    PERMISSION.KNOWLEDGE_VIEW,
+    PERMISSION.INTEGRATION_VIEW,
+    PERMISSION.POLICY_VIEW,
+    PERMISSION.AI_MODEL_VIEW,
+    PERMISSION.WORKSPACE_SETTINGS_VIEW,
   ],
   [ROLE.MEMBER]: [
     PERMISSION.DASHBOARD_VIEW,
@@ -290,6 +353,10 @@ export const ROLE_PERMISSIONS: Record<Role, PermissionKey[]> = {
     PERMISSION.SCAN_VIEW,
     PERMISSION.FINDING_VIEW,
     PERMISSION.REPORT_VIEW,
-    PERMISSION.KNOWLEDGE_READ,
+    PERMISSION.MEMBER_VIEW,
+    PERMISSION.TEAM_VIEW,
+    PERMISSION.PROJECT_VIEW,
+    PERMISSION.KNOWLEDGE_VIEW,
+    PERMISSION.WORKSPACE_SETTINGS_VIEW,
   ],
 };

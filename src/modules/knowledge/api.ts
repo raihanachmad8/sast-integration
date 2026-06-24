@@ -202,15 +202,6 @@ export const knowledgeApi = {
     await _api.Delete<ApiResponse<null>>(ENDPOINTS.KNOWLEDGE_SOURCES.DETAIL(workspaceId, id));
   },
 
-  async syncSource(workspaceId: string, id: string) {
-    const { data } = await _api.Post<ApiResponse<{ sourceId: string; entriesCreated: number; entriesUpdated: number }>>(
-      ENDPOINTS.KNOWLEDGE_SOURCES.SYNC(workspaceId, id),
-      undefined,
-      { timeout: 120_000 }, // NVD sync can take minutes
-    );
-    return data;
-  },
-
   async listBackfillJobs(workspaceId: string, id: string) {
     const { data } = await _api.Get<ApiResponse<RawBackfillJob[]>>(ENDPOINTS.KNOWLEDGE_SOURCES.BACKFILL(workspaceId, id));
     return Array.isArray(data) ? data.map(mapBackfillJob) : [];

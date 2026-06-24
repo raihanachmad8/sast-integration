@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, unique, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean, unique, jsonb, index } from 'drizzle-orm/pg-core';
 import { users } from './users';
 import { workspaces } from './workspaces';
 
@@ -18,7 +18,10 @@ export const projects = pgTable('projects', {
   updatedBy: uuid('updated_by'),
   deletedAt: timestamp('deleted_at'),
   deletedBy: uuid('deleted_by').references(() => users.id),
-}, (t) => [unique().on(t.workspaceId, t.slug)]);
+}, (t) => [
+  unique().on(t.workspaceId, t.slug),
+  index('projects_workspace_id_idx').on(t.workspaceId),
+]);
 
 export const projectMembers = pgTable('project_members', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -26,7 +29,10 @@ export const projectMembers = pgTable('project_members', {
   userId: uuid('user_id').notNull().references(() => users.id),
   role: varchar('role', { length: 20 }).notNull(),
   joinedAt: timestamp('joined_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('project_members_project_id_idx').on(t.projectId),
+  index('project_members_user_id_idx').on(t.userId),
+]);
 
 export const projectTeams = pgTable('project_teams', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -34,7 +40,9 @@ export const projectTeams = pgTable('project_teams', {
   teamId: uuid('team_id').notNull(),
   role: varchar('role', { length: 20 }).notNull(),
   addedAt: timestamp('added_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('project_teams_project_id_idx').on(t.projectId),
+]);
 
 export const environments = pgTable('environments', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -1,30 +1,32 @@
 'use client';
 
-import { Card, Button, Flex, Form, Input, Row, Col, App, Typography, theme } from 'antd';
+import { Card, Button, Flex, Form, Input, Row, Col, App, theme } from 'antd';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { StatusPill } from '@/commons/components/StatusPill';
-import { useSessionsQuery, useAuditLogQuery } from '@/modules/profile';
+import { useSessionsQuery } from '@/modules/profile';
 
 interface SecurityTabProps {
+  currentSessionId?: string;
   isPasswordPending: boolean;
   onPasswordChange: (values: { currentPassword: string; newPassword: string; confirmPassword: string }) => void;
   onRevokeSession: (sessionId: string) => void;
   onConfirmRevoke: (opts: { title: string; content: string; danger: boolean; onOk: () => void }) => void;
 }
 
-export function SecurityTab({ isPasswordPending, onPasswordChange, onRevokeSession, onConfirmRevoke }: SecurityTabProps) {
+export function SecurityTab({ currentSessionId, isPasswordPending, onPasswordChange, onRevokeSession, onConfirmRevoke }: SecurityTabProps) {
   const { token } = theme.useToken();
   const sessionsQuery = useSessionsQuery();
-  const auditLogQuery = useAuditLogQuery();
 
   return (
     <Flex vertical gap={token.paddingXL}>
       <SessionList
         sessionsQuery={sessionsQuery}
+        currentSessionId={currentSessionId}
         onRevokeSession={onRevokeSession}
         onConfirmRevoke={onConfirmRevoke}
       />
 
+      {/* Audit log hidden — API requires workspaceId but query doesn't pass it
       <Card styles={{ body: { padding: 0 } }}>
         <div style={{ padding: `${token.paddingMD}px ${token.paddingLG}px`, borderBottom: `1px solid ${token.colorBorderSecondary}`, fontWeight: token.fontWeightStrong }}>Security audit log</div>
         <Flex vertical>
@@ -46,6 +48,7 @@ export function SecurityTab({ isPasswordPending, onPasswordChange, onRevokeSessi
           ))}
         </Flex>
       </Card>
+      */}
 
       <MfaSection />
 
@@ -54,7 +57,7 @@ export function SecurityTab({ isPasswordPending, onPasswordChange, onRevokeSessi
   );
 }
 
-function SessionList({ sessionsQuery, onRevokeSession, onConfirmRevoke }: { sessionsQuery: ReturnType<typeof useSessionsQuery>; onRevokeSession: (id: string) => void; onConfirmRevoke: (opts: { title: string; content: string; danger: boolean; onOk: () => void }) => void }) {
+function SessionList({ sessionsQuery, currentSessionId, onRevokeSession, onConfirmRevoke }: { sessionsQuery: ReturnType<typeof useSessionsQuery>; currentSessionId?: string; onRevokeSession: (id: string) => void; onConfirmRevoke: (opts: { title: string; content: string; danger: boolean; onOk: () => void }) => void }) {
   const { token } = theme.useToken();
 
   return (
@@ -65,15 +68,22 @@ function SessionList({ sessionsQuery, onRevokeSession, onConfirmRevoke }: { sess
           <div style={{ padding: token.paddingLG, textAlign: 'center', color: token.colorTextSecondary }}>Loading sessions...</div>
         ) : (sessionsQuery.data ?? []).length === 0 ? (
           <div style={{ padding: token.paddingLG, textAlign: 'center', color: token.colorTextSecondary }}>No active sessions</div>
-        ) : (sessionsQuery.data ?? []).map((s, i, arr) => (
-          <Flex key={s.id} justify="space-between" align="center" style={{ padding: `${token.paddingMD}px ${token.paddingLG}px`, borderBottom: i < arr.length - 1 ? `1px solid ${token.colorBorderSecondary}` : undefined }}>
-            <div>
-              <div style={{ fontWeight: token.fontWeightStrong }}>{s.userAgent || 'Unknown device'}</div>
-              <div style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}>{s.ipAddress || 'Unknown'} · {new Date(s.lastActivity).toLocaleString()}</div>
-            </div>
-            <Button size="small" danger onClick={() => onConfirmRevoke({ title: 'Revoke session?', content: `Revoke this session?`, danger: true, onOk: () => onRevokeSession(s.id) })}>Revoke</Button>
-          </Flex>
-        ))}
+        ) : (sessionsQuery.data ?? []).map((s, i, arr) => {
+          const isCurrent = s.id === currentSessionId;
+          return (
+            <Flex key={s.id} justify="space-between" align="center" style={{ padding: `${token.paddingMD}px ${token.paddingLG}px`, borderBottom: i < arr.length - 1 ? `1px solid ${token.colorBorderSecondary}` : undefined }}>
+              <div>
+                <div style={{ fontWeight: token.fontWeightStrong }}>{s.userAgent || 'Unknown device'}</div>
+                <div style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary }}>{s.ipAddress || 'Unknown'} · {new Date(s.lastActivity).toLocaleString()}</div>
+              </div>
+              {isCurrent ? (
+                <span style={{ fontSize: token.fontSizeSM, color: token.colorSuccess, fontWeight: token.fontWeightStrong }}>Current</span>
+              ) : (
+                <Button size="small" danger onClick={() => onConfirmRevoke({ title: 'Revoke session?', content: `Revoke this session?`, danger: true, onOk: () => onRevokeSession(s.id) })}>Revoke</Button>
+              )}
+            </Flex>
+          );
+        })}
       </Flex>
     </Card>
   );

@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { buildMeta } from '@/server/http/response';
+import { NextRequest } from 'next/server';
+import { ApiResponse } from '@/server/http/response';
 import { authService } from '@/server/modules/auth/services/auth.service';
 import { verifyRefreshToken } from '@/server/modules/auth/services/jwt.service';
 import { AUTH } from '@/server/modules/auth/constants';
@@ -26,12 +26,7 @@ export async function POST(request: NextRequest) {
     logger.auth.error('signout failed', { error: e instanceof Error ? e.message : e });
   }
 
-  const response = NextResponse.json({
-    success: true,
-    message: AUTH.MESSAGES.SIGNOUT_SUCCESS,
-    data: null,
-    meta: buildMeta(),
-  });
+  const response = ApiResponse.success(AUTH.MESSAGES.SIGNOUT_SUCCESS, null);
 
   clearRefreshCookie(response);
   logger.auth.info('signout completed');

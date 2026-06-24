@@ -7,9 +7,19 @@ import { managedScanService, type ManagedScanJobData } from '@/server/modules/sc
  * Clones the repository, runs configured scanners, and persists results.
  */
 export async function processRunManagedScanJob(job: Job<ManagedScanJobData>) {
-  logger.queue.debug('processRunManagedScanJob', { scanId: job.data.scanId, repositoryId: job.data.repositoryId });
+  const { scanId, repositoryId } = job.data;
+  logger.queue.debug('processRunManagedScanJob', { scanId, repositoryId });
 
-  await managedScanService.processManagedScanJob(job.data);
-
-  logger.queue.debug('processRunManagedScanJob completed', { scanId: job.data.scanId });
+  try {
+    await managedScanService.processManagedScanJob(job.data);
+    logger.queue.debug('processRunManagedScanJob completed', { scanId });
+  } catch (err) {
+    logger.queue.error('processRunManagedScanJob failed', {
+      scanId,
+      repositoryId,
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack?.slice(0, 500) : undefined,
+    });
+    throw err;
+  }
 }

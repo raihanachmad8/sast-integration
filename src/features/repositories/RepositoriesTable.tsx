@@ -11,6 +11,8 @@ import { useProjectsQuery } from '@/modules/projects/queries';
 import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { useQueryClient } from '@tanstack/react-query';
 import { repositoryKeys } from '@/modules/repositories/keys';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { PERMISSION } from '@/commons/constants/permissions';
 import type { Repository } from '@/commons/types';
 
 interface RepositoriesTableProps {
@@ -42,12 +44,14 @@ const PROVIDER_VARIANT: Record<string, 'blue' | 'teal' | 'purple' | 'slate'> = {
   gitea: 'teal',
 };
 
-export function RepositoriesTable({ onRowClick, onAssignProject }: RepositoriesTableProps) {
+export function RepositoriesTable({ onRowClick, onAssignProject: _onAssignProject }: RepositoriesTableProps) {
   const { token } = theme.useToken();
   const { workspaceId } = useWorkspace();
   const queryClient = useQueryClient();
   const updateMutation = useUpdateRepositoryMutation();
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const { has } = usePermissions();
+  const canManage = has(PERMISSION.REPOSITORY_MANAGE);
 
   const { params, setPagination, setSearch, setFilter } = useTableParams({
     filterKeys: ['status', 'provider', 'project'],
@@ -155,23 +159,31 @@ export function RepositoriesTable({ onRowClick, onAssignProject }: RepositoriesT
           );
         }
         return row.project ? (
-          <Button
-            type="link"
-            size="small"
-            onClick={(e) => { e.stopPropagation(); setEditingProjectId(row.id); }}
-            style={{ padding: 0, height: 'auto', fontSize: token.fontSize, textAlign: 'left' }}
-          >
-            {row.project}
-          </Button>
+          canManage ? (
+            <Button
+              type="link"
+              size="small"
+              onClick={(e) => { e.stopPropagation(); setEditingProjectId(row.id); }}
+              style={{ padding: 0, height: 'auto', fontSize: token.fontSize, textAlign: 'left' }}
+            >
+              {row.project}
+            </Button>
+          ) : (
+            <Typography.Text style={{ fontSize: token.fontSize }}>{row.project}</Typography.Text>
+          )
         ) : (
-          <Button
-            type="link"
-            size="small"
-            onClick={(e) => { e.stopPropagation(); setEditingProjectId(row.id); }}
-            style={{ padding: '0 4px', height: 'auto', fontSize: token.fontSize, color: token.colorTextSecondary, borderStyle: 'dashed', borderWidth: 1, borderColor: token.colorBorderSecondary }}
-          >
-            <FaIcon icon="fa-folder-plus" style={{ marginRight: 4 }} /> Assign
-          </Button>
+          canManage ? (
+            <Button
+              type="link"
+              size="small"
+              onClick={(e) => { e.stopPropagation(); setEditingProjectId(row.id); }}
+              style={{ padding: '0 4px', height: 'auto', fontSize: token.fontSize, color: token.colorTextSecondary, borderStyle: 'dashed', borderWidth: 1, borderColor: token.colorBorderSecondary }}
+            >
+              <FaIcon icon="fa-folder-plus" style={{ marginRight: 4 }} /> Assign
+            </Button>
+          ) : (
+            <Typography.Text type="secondary" style={{ fontSize: token.fontSize }}>—</Typography.Text>
+          )
         );
       },
       hideOnMobile: true,

@@ -126,6 +126,7 @@ export default function ProfilePage() {
             label: <span><FaIcon icon="fa-shield-halved" style={{ marginRight: 8 }} /> Security</span>,
             children: (
               <SecurityTab
+                currentSessionId={session.data?.sessionId}
                 isPasswordPending={changePasswordMutation.isPending}
                 onPasswordChange={handlePasswordChange}
                 onRevokeSession={handleRevokeSession}

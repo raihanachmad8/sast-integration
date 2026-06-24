@@ -6,9 +6,7 @@ import { AppError } from '@/server/http/errors';
 import { validateBody } from '@/server/http/validate';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { db } from '@/server/db/client';
-import { workspaceSettings } from '@drizzle/schema/workspaces';
-import { eq, and } from 'drizzle-orm';
+import { workspaceSettingsRepository } from '@/server/modules/workspace/repositories/workspace-settings.repository';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -31,17 +29,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;
-  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.WORKSPACE_SETTINGS);
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.AI_MODEL_VIEW);
   if (!workspace.success) return workspace.response;
 
   try {
-    const [setting] = await db
-      .select()
-      .from(workspaceSettings)
-      .where(and(eq(workspaceSettings.workspaceId, workspaceId), eq(workspaceSettings.key, SETTINGS_KEY)))
-      .limit(1);
-
-    const value = setting?.value ? JSON.parse(setting.value) : {
+    const value = await workspaceSettingsRepository.getByKey(workspaceId, SETTINGS_KEY);
+    const settings = value ? JSON.parse(value) : {
       attachKnowledge: true,
       requireConfidence: true,
       allowFallback: true,
@@ -50,7 +43,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       cweMismatch: 'warn',
     };
 
-    return ApiResponse.success('Settings retrieved', value);
+    return ApiResponse.success('Settings retrieved', settings);
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
     return ApiResponse.error('Failed to get settings', 'INTERNAL_ERROR', undefined, 500);
@@ -72,26 +65,8 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     const validation = await validateBody(request, verificationSettingsSchema);
     if (!validation.success) return validation.response;
 
-    const [existing] = await db
-      .select()
-      .from(workspaceSettings)
-      .where(and(eq(workspaceSettings.workspaceId, workspaceId), eq(workspaceSettings.key, SETTINGS_KEY)))
-      .limit(1);
-
     const value = JSON.stringify(validation.data);
-
-    if (existing) {
-      await db
-        .update(workspaceSettings)
-        .set({ value, updatedAt: new Date() })
-        .where(eq(workspaceSettings.id, existing.id));
-    } else {
-      await db.insert(workspaceSettings).values({
-        workspaceId,
-        key: SETTINGS_KEY,
-        value,
-      });
-    }
+    await workspaceSettingsRepository.set(workspaceId, SETTINGS_KEY, value);
 
     return ApiResponse.success('Settings saved', validation.data);
   } catch (e) {

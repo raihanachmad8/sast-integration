@@ -2,7 +2,6 @@ import { eq, desc, count } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { getOffset } from '@/lib/pagination';
 import { auditLogs, activityLogs } from '@drizzle/schema/integrations';
-
 export interface ListLogsParams {
   page?: number;
   limit?: number;

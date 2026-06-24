@@ -24,7 +24,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;
-  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.SCANNER_MANAGE);
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.FINDING_OVERRIDE_AI);
   if (!workspace.success) return workspace.response;
 
   try {

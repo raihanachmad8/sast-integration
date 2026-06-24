@@ -1,13 +1,11 @@
 import { eq, desc, count, sql, and, or, ilike, isNull, inArray } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { db, type Tx } from '@/server/db/client';
 import { getOffset } from '@/lib/pagination';
 import { scans, scanResults, scanUploads } from '@drizzle/schema/scans';
 import type { ProgressEvent } from '@drizzle/schema/scans';
 import { repositories } from '@drizzle/schema/source-controls';
 import { findings, findingGroups, aiVerifications, findingGroupScans } from '@drizzle/schema/findings';
 import { logger } from '@/server/lib/logger';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export interface ScanListFilters {
   status?: string;
@@ -92,31 +90,30 @@ export const scanRepository = {
       .orderBy(desc(scans.createdAt))
       .limit(params.perPage).offset(offset);
 
-    // Get findings count for each scan (open groups only)
     const scanIds = data.map((s) => s.id);
-    const findingsCounts = scanIds.length > 0
-      ? await executor.select({
-          scanId: findings.scanId,
-          total: count(),
-          critical: sql<number>`count(*) filter (where ${findings.severity} = 'critical')`.as('critical'),
-        })
-          .from(findings)
-          .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-          .where(and(sql`${findings.scanId} in ${scanIds}`, eq(findingGroups.status, 'open')))
-          .groupBy(findings.scanId)
-      : [];
-
-    // Get AI verification counts for each scan
-    const aiCounts = scanIds.length > 0
-      ? await executor.select({
-          scanId: findings.scanId,
-          verified: count(),
-        })
-          .from(aiVerifications)
-          .innerJoin(findings, eq(aiVerifications.findingId, findings.id))
-          .where(sql`${findings.scanId} in ${scanIds} and ${aiVerifications.verdict} = 'true_positive'`)
-          .groupBy(findings.scanId)
-      : [];
+    const [findingsCounts, aiCounts] = await Promise.all([
+      scanIds.length > 0
+        ? executor.select({
+            scanId: findings.scanId,
+            total: count(),
+            critical: sql<number>`count(*) filter (where ${findings.severity} = 'critical')`.as('critical'),
+          })
+            .from(findings)
+            .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+            .where(and(sql`${findings.scanId} in ${scanIds}`, eq(findingGroups.status, 'open')))
+            .groupBy(findings.scanId)
+        : Promise.resolve([] as { scanId: string; total: number; critical: number }[]),
+      scanIds.length > 0
+        ? executor.select({
+            scanId: findings.scanId,
+            verified: count(),
+          })
+            .from(aiVerifications)
+            .innerJoin(findings, eq(aiVerifications.findingId, findings.id))
+            .where(sql`${findings.scanId} in ${scanIds} and ${aiVerifications.verdict} = 'true_positive'`)
+            .groupBy(findings.scanId)
+        : Promise.resolve([] as { scanId: string; verified: number }[]),
+    ]);
 
     // Merge counts into data
     const findingsMap = new Map(findingsCounts.map((fc) => [fc.scanId, { total: Number(fc.total), critical: Number(fc.critical) }]));
@@ -187,17 +184,6 @@ export const scanRepository = {
    * @returns Array of scan result records
    */
   async getScanResults(scanId: string, tx?: Tx) {
-    const executor = tx ?? db;
-    return executor.select().from(scanResults).where(eq(scanResults.scanId, scanId));
-  },
-
-  /**
-   * List scan results by scan ID (alias for getScanResults).
-   * @param scanId - Scan UUID
-   * @param tx - Optional transaction context
-   * @returns Array of scan result records
-   */
-  async listScanResultsByScanId(scanId: string, tx?: Tx) {
     const executor = tx ?? db;
     return executor.select().from(scanResults).where(eq(scanResults.scanId, scanId));
   },
@@ -454,10 +440,20 @@ export const scanRepository = {
    */
   async deleteScanWithRelations(scanId: string, tx?: Tx) {
     const executor = tx ?? db;
-    await executor.delete(aiVerifications).where(eq(aiVerifications.findingId, sql`(SELECT id FROM ${findings} WHERE scanId = ${scanId})`));
-    await executor.delete(findings).where(eq(findings.scanId, scanId));
-    await executor.delete(scanResults).where(eq(scanResults.scanId, scanId));
-    await executor.delete(scanUploads).where(eq(scanUploads.scanId, scanId));
-    await executor.delete(scans).where(eq(scans.id, scanId));
+    if (tx) {
+      await executor.delete(aiVerifications).where(eq(aiVerifications.findingId, sql`(SELECT id FROM ${findings} WHERE scanId = ${scanId})`));
+      await executor.delete(findings).where(eq(findings.scanId, scanId));
+      await executor.delete(scanResults).where(eq(scanResults.scanId, scanId));
+      await executor.delete(scanUploads).where(eq(scanUploads.scanId, scanId));
+      await executor.delete(scans).where(eq(scans.id, scanId));
+    } else {
+      await db.transaction(async (innerTx) => {
+        await innerTx.delete(aiVerifications).where(eq(aiVerifications.findingId, sql`(SELECT id FROM ${findings} WHERE scanId = ${scanId})`));
+        await innerTx.delete(findings).where(eq(findings.scanId, scanId));
+        await innerTx.delete(scanResults).where(eq(scanResults.scanId, scanId));
+        await innerTx.delete(scanUploads).where(eq(scanUploads.scanId, scanId));
+        await innerTx.delete(scans).where(eq(scans.id, scanId));
+      });
+    }
   },
 };

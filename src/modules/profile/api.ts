@@ -23,11 +23,6 @@ export const profileApi = {
     await _api.Delete<ApiResponse<null>>(ENDPOINTS.AUTH.REVOKE_SESSION(sessionId));
   },
 
-  async getAuditLog() {
-    const { data } = await _api.Get<ApiResponse<{ logs: Array<{ id: string; action: string; timestamp: string; details: string }> }>>(ENDPOINTS.AUTH.AUDIT_LOG);
-    return data;
-  },
-
   async changePassword(data: { currentPassword: string; newPassword: string; confirmPassword: string }) {
     await _api.Put<ApiResponse<null>>(ENDPOINTS.AUTH.CHANGE_PASSWORD, data);
   },
@@ -35,9 +30,7 @@ export const profileApi = {
   async uploadAvatar(file: File) {
     const formData = new FormData();
     formData.append('file', file);
-    const { data } = await _api.Post<ApiResponse<{ avatarUrl: string }>>(`${ENDPOINTS.USERS.ME}/avatar`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const { data } = await _api.Post<ApiResponse<{ avatarUrl: string }>>(`${ENDPOINTS.USERS.ME}/avatar`, formData);
     return data;
   },
 

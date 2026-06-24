@@ -5,9 +5,7 @@ import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/w
 import { PERMISSION } from '@/commons/constants/permissions';
 import { AppError } from '@/server/http/errors';
 import { aiModelsService } from '@/server/modules/ai-models';
-import { db } from '@/server/db/client';
-import { models } from '@drizzle/schema/integrations';
-import { eq, and } from 'drizzle-orm';
+import { aiModelsRepository } from '@/server/modules/ai-models/ai-models.repository';
 import { logger } from '@/server/lib/logger';
 import { isPrivateOrInternal } from '@/server/lib/ssrf';
 
@@ -76,10 +74,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         }
       }
 
-      await db
-        .update(models)
-        .set({ status, lastTestedAt: new Date(), updatedAt: new Date() })
-        .where(and(eq(models.id, modelId), eq(models.workspaceId, workspaceId)));
+      await aiModelsRepository.update(modelId, workspaceId, { status, lastTestedAt: new Date() });
 
       logger.model.info('testAiModel completed', { modelId, status, modelExists });
       return ApiResponse.success(`Model is ${status}`, {
@@ -95,10 +90,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     } catch (fetchErr) {
       clearTimeout(timeout);
 
-      await db
-        .update(models)
-        .set({ status: 'unreachable', lastTestedAt: new Date(), updatedAt: new Date() })
-        .where(and(eq(models.id, modelId), eq(models.workspaceId, workspaceId)));
+      await aiModelsRepository.update(modelId, workspaceId, { status: 'unreachable', lastTestedAt: new Date() });
 
       logger.model.info('testAiModel completed', { modelId, status: 'unreachable' });
       return ApiResponse.success('Model is unreachable', {

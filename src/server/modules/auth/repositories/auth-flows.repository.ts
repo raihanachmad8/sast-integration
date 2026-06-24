@@ -1,8 +1,7 @@
 import { eq, and, gt, sql, isNull } from 'drizzle-orm';
-import { db } from '@/server/db/client';
+import { db, type Tx } from '@/server/db/client';
 import { users, sessions, passwordResetTokens, emailVerificationTokens } from '@drizzle/schema';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+import { logger } from '@/server/lib/logger';
 
 export const authFlowsRepository = {
   /**
@@ -11,6 +10,7 @@ export const authFlowsRepository = {
    * @returns User record or null if not found
    */
   async findUserByEmail(email: string) {
+    logger.auth.debug('findUserByEmail called', { email });
     const [user] = await db.select().from(users).where(and(eq(users.email, email), isNull(users.deletedAt))).limit(1);
     return user ?? null;
   },
@@ -21,6 +21,7 @@ export const authFlowsRepository = {
    * @returns User record or null if not found
    */
   async findUserById(id: string) {
+    logger.auth.debug('findUserById called', { id });
     const [user] = await db.select().from(users).where(and(eq(users.id, id), isNull(users.deletedAt))).limit(1);
     return user ?? null;
   },
@@ -31,6 +32,7 @@ export const authFlowsRepository = {
    * @returns Token record or null if none found
    */
   async findRecentPasswordResetToken(userId: string) {
+    logger.auth.debug('findRecentPasswordResetToken called', { userId });
     const [recent] = await db.select().from(passwordResetTokens)
       .where(and(
         eq(passwordResetTokens.userId, userId),
@@ -44,7 +46,13 @@ export const authFlowsRepository = {
    * @param data - Token data (userId, token, expiresAt)
    */
   async createPasswordResetToken(data: { userId: string; token: string; expiresAt: Date }) {
-    await db.insert(passwordResetTokens).values(data);
+    logger.auth.debug('createPasswordResetToken called', { userId: data.userId });
+    try {
+      await db.insert(passwordResetTokens).values(data);
+    } catch (error) {
+      logger.auth.error('createPasswordResetToken failed', { error });
+      throw error;
+    }
   },
 
   /**
@@ -53,6 +61,7 @@ export const authFlowsRepository = {
    * @returns Token record or null if not found
    */
   async findPasswordResetToken(token: string) {
+    logger.auth.debug('findPasswordResetToken called');
     const [record] = await db.select().from(passwordResetTokens)
       .where(eq(passwordResetTokens.token, token)).limit(1);
     return record ?? null;
@@ -66,9 +75,15 @@ export const authFlowsRepository = {
    * @param tx - Transaction context
    */
   async completePasswordReset(userId: string, passwordHash: string, tokenId: string, tx: Tx) {
-    await tx.update(users).set({ passwordHash }).where(eq(users.id, userId));
-    await tx.delete(sessions).where(eq(sessions.userId, userId));
-    await tx.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, tokenId));
+    logger.auth.debug('completePasswordReset called', { userId, tokenId });
+    try {
+      await tx.update(users).set({ passwordHash }).where(eq(users.id, userId));
+      await tx.delete(sessions).where(eq(sessions.userId, userId));
+      await tx.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, tokenId));
+    } catch (error) {
+      logger.auth.error('completePasswordReset failed', { error });
+      throw error;
+    }
   },
 
   /**
@@ -77,6 +92,7 @@ export const authFlowsRepository = {
    * @returns Token record or null if none found
    */
   async findRecentEmailVerificationToken(userId: string) {
+    logger.auth.debug('findRecentEmailVerificationToken called', { userId });
     const [recent] = await db.select().from(emailVerificationTokens)
       .where(and(
         eq(emailVerificationTokens.userId, userId),
@@ -90,7 +106,13 @@ export const authFlowsRepository = {
    * @param data - Token data (userId, token, expiresAt)
    */
   async createEmailVerificationToken(data: { userId: string; token: string; expiresAt: Date }) {
-    await db.insert(emailVerificationTokens).values(data);
+    logger.auth.debug('createEmailVerificationToken called', { userId: data.userId });
+    try {
+      await db.insert(emailVerificationTokens).values(data);
+    } catch (error) {
+      logger.auth.error('createEmailVerificationToken failed', { error });
+      throw error;
+    }
   },
 
   /**
@@ -99,6 +121,7 @@ export const authFlowsRepository = {
    * @returns Token record or null if not found
    */
   async findEmailVerificationToken(token: string) {
+    logger.auth.debug('findEmailVerificationToken called');
     const [record] = await db.select().from(emailVerificationTokens)
       .where(eq(emailVerificationTokens.token, token)).limit(1);
     return record ?? null;
@@ -110,7 +133,15 @@ export const authFlowsRepository = {
    * @param tokenId - Email verification token UUID
    */
   async completeEmailVerification(userId: string, tokenId: string) {
-    await db.update(users).set({ emailVerifiedAt: new Date() }).where(eq(users.id, userId));
-    await db.update(emailVerificationTokens).set({ verifiedAt: new Date() }).where(eq(emailVerificationTokens.id, tokenId));
+    logger.auth.debug('completeEmailVerification called', { userId, tokenId });
+    try {
+      await db.transaction(async (tx) => {
+        await tx.update(users).set({ emailVerifiedAt: new Date() }).where(eq(users.id, userId));
+        await tx.update(emailVerificationTokens).set({ verifiedAt: new Date() }).where(eq(emailVerificationTokens.id, tokenId));
+      });
+    } catch (error) {
+      logger.auth.error('completeEmailVerification failed', { error });
+      throw error;
+    }
   },
 };
