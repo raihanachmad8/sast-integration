@@ -35,10 +35,7 @@ export const LAYOUT = {
   ICON_LG: 36,
 } as const;
 
-export const SIDEBAR_WIDTH = 260;
-export const SIDEBAR_COLLAPSED_WIDTH = 64;
 export const TOPBAR_HEIGHT = 56;
-export const AVATAR_SIZES = { sm: 28, md: 36, lg: 40 } as const;
 
 export const SIDEBAR_Z_INDEX = { sidebar: 55, overlay: 50, topbar: 30, dropdown: 60 } as const;
 
