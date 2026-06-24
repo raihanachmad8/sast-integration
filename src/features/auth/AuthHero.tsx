@@ -66,14 +66,14 @@ export function AuthHero() {
           <Text strong style={{ fontSize: token.fontSizeLG, color: token.colorTextLightSolid }}>
             SAST Integration
           </Text>
-          <Text style={{ fontSize: token.fontSizeSM, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: token.colorTealDeepBg }}>
+          <Text style={{ fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, textTransform: 'uppercase', letterSpacing: '0.14em', color: token.colorTealDeepBg }}>
             Security Review Console
           </Text>
         </Flex>
       </Flex>
 
       {/* Heading */}
-      <Title level={2} style={{ margin: 0, fontWeight: 700, color: token.colorTextLightSolid }}>
+      <Title level={2} style={{ margin: 0, fontWeight: token.fontWeightStrong, color: token.colorTextLightSolid }}>
         Review scanner findings<br />with clear AI attribution.
       </Title>
       <Text style={{ fontSize: token.fontSize, lineHeight: token.lineHeightLG, color: token.colorTealDeepBg, maxWidth: token.sizeXXL * 8 }}>
