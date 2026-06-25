@@ -1,43 +1,22 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { ROUTES } from '@/commons/constants';
 import { useSessionQuery } from '@/modules/auth/queries';
+import { getCachedWorkspace } from '@/lib/api/client';
+import type { CachedWorkspace } from '@/lib/api/client';
 import { AppShell } from './AppShell';
 import { EmailVerificationBanner } from '@/features/auth/components/EmailVerificationBanner';
 import { LoadingState } from '@/commons/components/LoadingState';
 
 /**
- * Auth-genticated shell wrapper for protected routes.
+ * Authenticated shell wrapper for protected routes.
  *
- * Handles three responsibilities:
- * 1. **Session guard** — redirects to `/auth/signin` if session is invalid or missing.
- * 2. **Workspace guard** — redirects to `/workspaces` if slug doesn't match active workspace.
- * 3. **Layout wrapper** — wraps children in {@link AppShell} with email verification banner.
- *
- * Used by `(authenticated)/[workspace]/layout.tsx` as the root layout for all protected pages.
- *
- * @example
- * ```tsx
- * // In (authenticated)/layout.tsx
- * export default function AuthenticatedLayout({ children }) {
- *   return (
- *     <QueryProvider>
- *       <AuthenticatedShell>{children}</AuthenticatedShell>
- *     </QueryProvider>
- *   );
- * }
- * ```
- *
- * @example
- * ```tsx
- * // Behavior matrix:
- * // /workspaces          → passes through (no shell)
- * // /my-ws/dashboard     → AppShell + children
- * // /invalid-slug        → redirect to /workspaces
- * // unauthenticated      → redirect to /auth/signin
- * ```
+ * Uses localStorage cache for optimistic rendering — if the URL slug matches
+ * the cached workspace, children render immediately while the session validates
+ * async in the background. This eliminates loading flashes on page reload and
+ * navigation between workspace pages.
  */
 export function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -45,6 +24,18 @@ export function AuthenticatedShell({ children }: { children: React.ReactNode }) 
   const session = useSessionQuery();
   const routeWorkspaceSlug = pathname.split('/')[1] ?? '';
   const hasRedirected = useRef(false);
+
+  // Read localStorage after mount to avoid hydration mismatch
+  const [cachedWorkspace, setCachedWorkspace] = useState<CachedWorkspace | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- single read after mount, not a cascade
+    setCachedWorkspace(getCachedWorkspace());
+  }, []);
+
+  const sessionSlug = session.data?.workspace?.slug;
+  const isSlugValid = sessionSlug === routeWorkspaceSlug;
+  const isSlugCached = cachedWorkspace?.slug === routeWorkspaceSlug;
+  const canRenderOptimistically = isSlugCached && !session.isError;
 
   useEffect(() => {
     if (hasRedirected.current) return;
@@ -68,7 +59,15 @@ export function AuthenticatedShell({ children }: { children: React.ReactNode }) 
     return <>{children}</>;
   }
 
-  if (session.isLoading || session.isError || !session.data?.workspace || session.data.workspace.slug !== routeWorkspaceSlug) {
+  if (session.isError) {
+    return <LoadingState text="Signing you in..." fullHeight />;
+  }
+
+  if ((session.isLoading || session.isFetching) && !canRenderOptimistically) {
+    return <LoadingState text="Loading workspace..." fullHeight />;
+  }
+
+  if (!isSlugValid && !isSlugCached) {
     return <LoadingState text="Loading workspace..." fullHeight />;
   }
 

@@ -14,6 +14,7 @@ import {
 } from '@/modules/workspace/queries';
 import { useSessionQuery, useSignoutMutation } from '@/modules/auth/queries';
 import { authKeys } from '@/modules/auth/keys';
+import { setWorkspaceId } from '@/lib/api/client';
 import { WORKSPACE } from '@/server/modules/workspace/constants';
 import { clientEnv } from '@/config/client-env';
 import { ROUTES } from '@/commons/constants';
@@ -47,6 +48,7 @@ export default function WorkspaceChooserPage() {
   const handleSelect = (ws: { id: string; slug: string; name: string; role: string }) => {
     switchMutation.mutate(ws.id, {
       onSuccess: () => {
+        setWorkspaceId(ws.id, ws.slug);
         queryClient.setQueryData(authKeys.session(), (old: Record<string, unknown> | undefined) => {
           if (!old) return old;
           return { ...old, workspace: { id: ws.id, name: ws.name, slug: ws.slug, role: ws.role } };
@@ -66,6 +68,7 @@ export default function WorkspaceChooserPage() {
       onSuccess: (data) => {
         message.success('Invitation accepted! Opening workspace...');
         const ws = workspaces.data?.find((w) => w.id === data.workspaceId);
+        setWorkspaceId(data.workspaceId, ws?.slug);
         queryClient.setQueryData(authKeys.session(), (old: Record<string, unknown> | undefined) => {
           if (!old) return old;
           return {
@@ -122,6 +125,7 @@ export default function WorkspaceChooserPage() {
       { name: 'Personal Workspace', type: WORKSPACE.TYPE.PERSONAL },
       {
         onSuccess: (ws) => {
+          setWorkspaceId(ws.id, ws.slug);
           if (redirectTo && redirectTo.startsWith('/')) {
             router.push(redirectTo);
           } else {

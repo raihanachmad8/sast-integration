@@ -1,9 +1,10 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from './api';
 import { authKeys } from './keys';
-import { setAccessToken, setWorkspaceId, refreshAccessToken } from '@/lib/api/client';
+import { setAccessToken, setWorkspaceId, refreshAccessToken, clearWorkspaceCache } from '@/lib/api/client';
 import { STALE } from '@/commons/constants/query';
 import type { SessionData, SigninResponse, RefreshTokenResponse } from './types';
 import type { ApiResponse } from '@/commons/types/api';
@@ -12,13 +13,6 @@ import type { ApiResponse } from '@/commons/types/api';
  * Query hook for the current user session.
  * Uses fast path (in-memory access token) first, then falls back to refresh.
  * Stale time: 5 minutes.
- *
- * @example
- * ```tsx
- * const { data: session, isLoading } = useSessionQuery();
- * console.log(session?.user.name); // 'Alice Tan'
- * console.log(session?.workspace?.slug); // 'sast-integration'
- * ```
  */
 export function useSessionQuery() {
   const query = useQuery({
@@ -27,14 +21,10 @@ export function useSessionQuery() {
       const existingToken = typeof window !== 'undefined' ? window.__accessToken : undefined;
 
       if (existingToken) {
-        // Fast path: token exists, just fetch session.
-        // If 401, axios interceptor handles refresh + retry automatically.
         const res: ApiResponse<SessionData> = await authApi.me();
         return { ...res.data, accessToken: existingToken };
       }
 
-      // No token in memory: refresh to get one (e.g. page load with httpOnly cookie only)
-      // Uses standalone refreshAccessToken (bypasses interceptor) to avoid double-refresh race.
       const refreshData = await refreshAccessToken() as { data: RefreshTokenResponse };
       const accessToken = refreshData.data.accessToken;
       setAccessToken(accessToken);
@@ -45,10 +35,12 @@ export function useSessionQuery() {
     staleTime: STALE.DEFAULT,
   });
 
-  // Auto-inject workspace ID for API requests when session data changes
-  if (query.data?.workspace?.id) {
-    setWorkspaceId(query.data.workspace.id);
-  }
+  // Sync workspace ID after render (not during) — avoids side effects in render phase
+  useEffect(() => {
+    if (query.data?.workspace?.id) {
+      setWorkspaceId(query.data.workspace.id, query.data.workspace.slug);
+    }
+  }, [query.data?.workspace?.id, query.data?.workspace?.slug]);
 
   return query;
 }
@@ -92,7 +84,7 @@ export function useSigninMutation() {
       authApi.signin(email, password).then((res) => res.data),
     onSuccess: (data: SigninResponse) => {
       setAccessToken(data.accessToken);
-      setWorkspaceId(data.workspace?.id ?? '');
+      setWorkspaceId(data.workspace?.id ?? '', data.workspace?.slug);
       queryClient.setQueryData(authKeys.session(), {
         user: data.user,
         workspace: data.workspace,
@@ -164,6 +156,7 @@ export function useSignoutMutation() {
         // Signout should always clear client state even if server call fails
       }
       setAccessToken('');
+      clearWorkspaceCache();
     },
     onSettled: () => {
       queryClient.setQueryData(authKeys.session(), null);

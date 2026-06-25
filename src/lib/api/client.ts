@@ -79,15 +79,83 @@ export function getAccessToken(): string | undefined {
 
 let currentWorkspaceId: string | null = null;
 
-/** Set the current workspace ID for API requests. */
-export function setWorkspaceId(id: string) {
+const WORKSPACE_CACHE_KEY = 'sast_active_workspace';
+
+export interface CachedWorkspace {
+  id: string;
+  slug: string;
+}
+
+// Stable snapshot cache for useSyncExternalStore
+// Uses a sentinel to distinguish "not yet read" from "empty"
+const NOT_READ = Symbol('NOT_READ');
+let _cachedSnapshot: CachedWorkspace | null | typeof NOT_READ = NOT_READ;
+let _cachedRaw: string | null | typeof NOT_READ = NOT_READ;
+
+function readCachedWorkspace(): CachedWorkspace | null {
+  if (!isBrowser) return null;
+  try {
+    const raw = localStorage.getItem(WORKSPACE_CACHE_KEY);
+    if (raw === _cachedRaw && _cachedSnapshot !== NOT_READ) return _cachedSnapshot;
+    _cachedRaw = raw;
+    _cachedSnapshot = raw ? (JSON.parse(raw) as CachedWorkspace) : null;
+    return _cachedSnapshot;
+  } catch {
+    _cachedRaw = null;
+    _cachedSnapshot = null;
+    return null;
+  }
+}
+
+/** Get cached workspace from localStorage (stable reference for useSyncExternalStore). */
+export function getCachedWorkspace(): CachedWorkspace | null {
+  return readCachedWorkspace();
+}
+
+function writeCachedWorkspace(id: string, slug: string) {
+  if (!isBrowser) return;
+  try {
+    localStorage.setItem(WORKSPACE_CACHE_KEY, JSON.stringify({ id, slug }));
+    _cachedRaw = NOT_READ; // invalidate
+    _cachedSnapshot = NOT_READ;
+  } catch { /* storage full — non-critical */ }
+}
+
+function clearCachedWorkspace() {
+  if (!isBrowser) return;
+  try {
+    localStorage.removeItem(WORKSPACE_CACHE_KEY);
+    _cachedRaw = NOT_READ; // invalidate
+    _cachedSnapshot = NOT_READ;
+  } catch { /* non-critical */ }
+}
+
+/** Set the current workspace ID for API requests and cache to localStorage. */
+export function setWorkspaceId(id: string, slug?: string) {
   currentWorkspaceId = id;
+  if (slug) {
+    writeCachedWorkspace(id, slug);
+  }
 }
 
 /** Get the current workspace ID. */
 export function getWorkspaceId(): string | null {
   return currentWorkspaceId;
 }
+
+/**
+ * Get the cached workspace slug from localStorage.
+ * Returns the last-used workspace slug instantly, without any API call.
+ * Used by AuthenticatedShell for optimistic rendering on page load.
+ */
+export function getCachedWorkspaceSlug(): string | null {
+  return readCachedWorkspace()?.slug ?? null;
+}
+
+/**
+ * Clear workspace cache on signout.
+ */
+export { clearCachedWorkspace as clearWorkspaceCache };
 
 declare global {
   interface Window {

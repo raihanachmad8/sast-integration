@@ -10,6 +10,8 @@ import { SidebarNav } from './SidebarNav';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { useFeatureFlags } from '@/lib/hooks/useFeatureFlag';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { PERMISSION } from '@/commons/constants/permissions';
 
 type NavItem = {
   key: string;
@@ -30,8 +32,8 @@ type NavSection = {
 function getActiveKey(pathname: string) {
   const segment = pathname.split('/').filter(Boolean);
   if (segment.length < 2) return 'dashboard';
-  const page = segment.slice(1).join('/');
-  if (page === '') return 'dashboard';
+  const page = segment[1];
+  if (!page || page === '') return 'dashboard';
   return page;
 }
 
@@ -85,6 +87,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const user = session.data?.user;
   const currentWorkspaceDetails = workspaces.data?.find((ws) => ws.id === currentWorkspace?.id);
 
+  const { has } = usePermissions();
+
   const { flags } = useFeatureFlags([
     FEATURE_FLAG.REPORTS,
     FEATURE_FLAG.ARENA,
@@ -103,7 +107,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const handleSwitch = (wsId: string, slug: string) => {
     setAccountOpen(false);
-    switchMutation.mutate(wsId, { onSuccess: () => router.push(ROUTES.WORKSPACE.DASHBOARD(slug)) });
+    switchMutation.mutate(wsId, {
+      onSuccess: () => {
+        router.push(ROUTES.WORKSPACE.DASHBOARD(slug));
+      },
+    });
   };
 
   const goToWorkspaceChooser = () => { setAccountOpen(false); router.push(ROUTES.CHOOSER); };
@@ -113,6 +121,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!session.data?.accessToken) { router.push(ROUTES.AUTH.SIGNIN); return; }
     signout.mutate(undefined, { onSettled: () => { window.location.href = ROUTES.AUTH.SIGNIN; } });
   };
+
+  const hasAnyScm = [FEATURE_FLAG.SOURCE_CONTROL_GITHUB, FEATURE_FLAG.SOURCE_CONTROL_GITLAB, FEATURE_FLAG.SOURCE_CONTROL_GITEA].some((f) => flags[f]);
 
   const navSections: NavSection[] = [
     {
@@ -132,7 +142,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       title: 'Manage',
       groups: [{
         items: [
-          { key: 'members', label: 'Members', icon: 'fa-users', href: ROUTES.WORKSPACE.MEMBERS(workspaceSlug) },
+          ...(has(PERMISSION.MEMBER_VIEW) ? [{ key: 'members', label: 'Members', icon: 'fa-users', href: ROUTES.WORKSPACE.MEMBERS(workspaceSlug) }] : []),
           ...(flags[FEATURE_FLAG.TEAMS] ? [{ key: 'teams', label: 'Teams', icon: 'fa-people-group', href: ROUTES.WORKSPACE.TEAMS(workspaceSlug) }] : []),
           ...(flags[FEATURE_FLAG.PROJECTS] ? [{ key: 'projects', label: 'Projects', icon: 'fa-diagram-project', href: ROUTES.WORKSPACE.PROJECTS(workspaceSlug) }] : []),
           ...(flags[FEATURE_FLAG.SCHEDULES] ? [{ key: 'schedules', label: 'Schedules', icon: 'fa-calendar-days', href: ROUTES.WORKSPACE.SCHEDULES(workspaceSlug) }] : []),
@@ -144,7 +154,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       groups: [{
         items: [
           { key: 'profile', label: 'Profile', icon: 'fa-user', href: ROUTES.WORKSPACE.PROFILE(workspaceSlug) },
-          ...(flags[FEATURE_FLAG.SOURCE_CONTROL_GITHUB] || flags[FEATURE_FLAG.SOURCE_CONTROL_GITLAB] || flags[FEATURE_FLAG.SOURCE_CONTROL_GITEA]
+          ...(hasAnyScm
             ? [{ key: 'source-control', label: 'Source Control', icon: 'fa-plug', href: ROUTES.WORKSPACE.SOURCE_CONTROL(workspaceSlug) }]
             : []),
           ...(flags[FEATURE_FLAG.WEBHOOKS] ? [{ key: 'webhooks', label: 'Webhooks', icon: 'fa-satellite-dish', href: ROUTES.WORKSPACE.WEBHOOKS(workspaceSlug) }] : []),
@@ -180,11 +190,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Right panel: topbar + content */}
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, overflow: 'hidden' }}>
         {/* Topbar */}
-        <header style={{ zIndex: 30, height: 56, flex: '0 0 56px', borderBottom: `1px solid ${token.colorBorderSecondary}`, background: token.colorBgContainer, backdropFilter: 'blur(12px)' }}>
+        <header style={{ zIndex: 30, height: token.controlHeightLG + token.sizeMD, flex: `0 0 ${token.controlHeightLG + token.sizeMD}px`, borderBottom: `1px solid ${token.colorBorderSecondary}`, background: token.colorBgContainer, backdropFilter: 'blur(12px)' }}>
           <div style={{ display: 'flex', height: '100%', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: token.margin,             padding: `0 ${token.paddingXL}px` }}>
-            <div style={{ display: 'flex', minWidth: 0, alignItems: 'center', gap: 12 }}>
-              <button style={{ display: isMobile ? 'flex' : 'none', width: 36, height: 36, alignItems: 'center', justifyContent: 'center', border: `1px solid ${token.colorBorder}`, borderRadius: token.borderRadius, background: token.colorBgContainer, color: token.colorText, cursor: 'pointer' }} type="button" onClick={() => setMobileOpen(true)} aria-label="Open navigation">
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16 }}>☰</span>
+            <div style={{ display: 'flex', minWidth: 0, alignItems: 'center', gap: token.marginSM }}>
+              <button style={{ display: isMobile ? 'flex' : 'none', width: token.controlHeightSM, height: token.controlHeightSM, alignItems: 'center', justifyContent: 'center', border: `1px solid ${token.colorBorder}`, borderRadius: token.borderRadius, background: token.colorBgContainer, color: token.colorText, cursor: 'pointer' }} type="button" onClick={() => setMobileOpen(true)} aria-label="Open navigation">
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: token.size, height: token.size }}>☰</span>
               </button>
             </div>
 
@@ -198,6 +208,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               onSwitch={handleSwitch}
               onGoToChooser={goToWorkspaceChooser}
               onSignout={handleSignout}
+              onNavigate={(href) => { setAccountOpen(false); router.push(href); }}
             />
           </div>
         </header>

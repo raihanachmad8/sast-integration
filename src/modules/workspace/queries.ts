@@ -7,6 +7,7 @@ import { authKeys } from '@/modules/auth/keys';
 import { STALE } from '@/commons/constants/query';
 import { setWorkspaceId } from '@/lib/api/client';
 import { useSessionQuery } from '@/modules/auth/queries';
+import type { WorkspaceItem } from './types';
 
 export function useWorkspacesQuery() {
   const session = useSessionQuery();
@@ -42,6 +43,12 @@ export function useSwitchWorkspaceMutation() {
       workspaceApi.switchWorkspace(workspaceId).then((res) => res.data),
     onSuccess: (_data, variables) => {
       setWorkspaceId(variables);
+      // Find slug from cached workspace list for localStorage cache
+      const workspaces = queryClient.getQueryData<WorkspaceItem[]>(workspaceKeys.list());
+      const ws = workspaces?.find((w) => w.id === variables);
+      if (ws?.slug) {
+        setWorkspaceId(variables, ws.slug);
+      }
       queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
       queryClient.invalidateQueries({ queryKey: authKeys.session() });
     },
