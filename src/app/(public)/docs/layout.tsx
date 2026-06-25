@@ -5,13 +5,14 @@ import { Layout, Typography, Flex, theme } from 'antd';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  BookOutlined,
   RocketOutlined,
   ApartmentOutlined,
-  ScanOutlined,
-  RobotOutlined,
+  AppstoreOutlined,
+  BookOutlined,
   ApiOutlined,
-  SearchOutlined,
+  SettingOutlined,
+  SafetyOutlined,
+  FileTextOutlined,
   MenuOutlined,
   CloseOutlined,
 } from '@ant-design/icons';
@@ -23,14 +24,23 @@ const { Text } = Typography;
 
 const NAVBAR_HEIGHT = 60;
 
-const ICON_MAP: Record<string, React.ReactNode> = {
-  overview:          <BookOutlined />,
-  'getting-started': <RocketOutlined />,
-  architecture:      <ApartmentOutlined />,
-  scanning:          <ScanOutlined />,
-  'ai-verification': <RobotOutlined />,
-  'api-reference':   <ApiOutlined />,
+const SECTION_ICONS: Record<string, React.ReactNode> = {
+  'Getting Started': <RocketOutlined />,
+  'Architecture':    <ApartmentOutlined />,
+  'Features':        <AppstoreOutlined />,
+  'Guides':          <BookOutlined />,
+  'Integrations':    <ApiOutlined />,
+  'Configuration':   <SettingOutlined />,
+  'Security':        <SafetyOutlined />,
+  'Reference':       <FileTextOutlined />,
 };
+
+const ICON_MAP: Record<string, React.ReactNode> = {};
+DOCS_CONFIG.forEach((section) => {
+  section.items.forEach((item) => {
+    ICON_MAP[item.slug] = SECTION_ICONS[section.label] ?? <FileTextOutlined />;
+  });
+});
 
 function getActiveKey(pathname: string): string {
   if (pathname === '/docs') return 'overview';
@@ -69,26 +79,8 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
   function SidebarNav() {
     return (
       <>
-        {/* Search stub */}
-        <div style={{ padding: `${token.paddingLG}px ${token.paddingLG}px ${token.paddingSM}px` }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: token.paddingXS,
-              padding: `${token.paddingSM}px`,
-              background: token.colorFillQuaternary,
-              borderRadius: token.borderRadiusLG,
-              border: `1px solid ${token.colorBorderSecondary}`,
-            }}
-          >
-            <SearchOutlined style={{ color: token.colorTextQuaternary, fontSize: token.fontSizeSM }} />
-            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>Search docs…</Text>
-          </div>
-        </div>
-
         {/* Nav sections */}
-        <nav style={{ padding: `0 ${token.paddingSM}px ${token.paddingXL}px`, overflowY: 'auto', flex: 1 }}>
+        <nav style={{ padding: `${token.paddingLG}px ${token.paddingSM}px ${token.paddingXL}px`, overflowY: 'auto', flex: 1 }}>
           {DOCS_CONFIG.map((section) => (
             <div key={section.label} style={{ marginBottom: token.marginLG }}>
               <Text

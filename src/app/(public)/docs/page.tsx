@@ -5,24 +5,36 @@ import Link from 'next/link';
 import {
   RocketOutlined,
   ApartmentOutlined,
-  ScanOutlined,
-  RobotOutlined,
-  ApiOutlined,
+  AppstoreOutlined,
   BookOutlined,
+  ApiOutlined,
+  SettingOutlined,
+  SafetyOutlined,
+  FileTextOutlined,
   ArrowRightOutlined,
 } from '@ant-design/icons';
 import { DOCS_CONFIG } from '@/lib/docs/config';
 
 const { Title, Text } = Typography;
 
-const ICONS: Record<string, typeof BookOutlined> = {
-  overview:          BookOutlined,
-  'getting-started': RocketOutlined,
-  architecture:      ApartmentOutlined,
-  scanning:          ScanOutlined,
-  'ai-verification': RobotOutlined,
-  'api-reference':   ApiOutlined,
+const SECTION_ICONS: Record<string, typeof BookOutlined> = {
+  'Getting Started': RocketOutlined,
+  'Architecture':    ApartmentOutlined,
+  'Features':        AppstoreOutlined,
+  'Guides':          BookOutlined,
+  'Integrations':    ApiOutlined,
+  'Configuration':   SettingOutlined,
+  'Security':        SafetyOutlined,
+  'Reference':       FileTextOutlined,
 };
+
+const ICONS: Record<string, typeof BookOutlined> = {};
+DOCS_CONFIG.forEach((section) => {
+  const icon = SECTION_ICONS[section.label] ?? FileTextOutlined;
+  section.items.forEach((item) => {
+    ICONS[item.slug] = icon;
+  });
+});
 
 /**
  * DocsIndexPage — docs hub with a simple hero header and card list

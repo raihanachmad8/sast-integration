@@ -3,9 +3,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button, Typography, theme } from 'antd';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { GithubOutlined } from '@ant-design/icons';
 import { ROUTES } from '@/commons/constants';
 import { GITHUB_REPO_URL } from '@/commons/constants/landing';
+import '../landing.css';
 
 const { Text } = Typography;
 
@@ -65,9 +67,12 @@ function HamburgerIcon({ open, barColor, barBorderRadius }: { open: boolean; bar
  */
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   const { token } = theme.useToken();
+  const pathname = usePathname();
   const [scrolled,   setScrolled]   = useState(false);
   const [menuOpen,   setMenuOpen]   = useState(false);
   const [isMobile,   setIsMobile]   = useState(false);
+
+  const isDocsPage = pathname.startsWith('/docs');
 
   /* ── Scroll listener ─────────────────────────────────── */
   useEffect(() => {
@@ -164,7 +169,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           </Link>
 
           {/* Desktop nav */}
-          {!isMobile && (
+          {!isMobile && !isDocsPage && (
             <nav aria-label="Primary navigation" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               {NAV_LINKS.map((link) => (
                 <a
@@ -203,13 +208,12 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
               <Link href={ROUTES.AUTH.SIGNIN}>
                 <Button
                   ghost
-                  size="small"
                   style={{
                     borderColor: 'rgba(255,255,255,0.28)',
                     color: token.colorTextLightSolid,
                     fontWeight: token.fontWeightStrong,
-                    height: 32,
-                    paddingInline: 14,
+                    height: 36,
+                    paddingInline: 16,
                   }}
                 >
                   Sign in
@@ -218,11 +222,10 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
               <Link href={ROUTES.AUTH.SIGNUP}>
                 <Button
                   type="primary"
-                  size="small"
                   style={{
                     fontWeight: token.fontWeightStrong,
-                    height: 32,
-                    paddingInline: 16,
+                    height: 36,
+                    paddingInline: 18,
                     background: `linear-gradient(135deg, ${token.colorPrimary}, ${token.colorPrimaryHover})`,
                     border: 'none',
                     boxShadow: '0 2px 10px rgba(15,118,110,0.35)',
@@ -258,7 +261,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         </div>
 
         {/* ── Mobile drawer ────────────────────────────────── */}
-        {isMobile && (
+        {isMobile && !isDocsPage && (
           <div
             role="dialog"
             aria-label="Mobile navigation"

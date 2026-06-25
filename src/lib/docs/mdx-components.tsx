@@ -108,6 +108,10 @@ function StyledTD({ children, ...props }: React.ComponentPropsWithoutRef<'td'>) 
 }
 
 /* ─── Heading ─── */
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+}
+
 function Heading({ level, children, ...props }: { level: 1 | 2 | 3 | 4 } & React.ComponentPropsWithoutRef<'h1' | 'h2' | 'h3' | 'h4'>) {
   const { token } = theme.useToken();
   const config = {
@@ -118,9 +122,13 @@ function Heading({ level, children, ...props }: { level: 1 | 2 | 3 | 4 } & React
   };
   const cfg = config[level];
 
+  const textContent = typeof children === 'string' ? children : '';
+  const id = slugify(textContent);
+
   return (
     <Title
       level={level}
+      id={id}
       style={{
         marginTop: cfg.mt,
         marginBottom: cfg.mb,

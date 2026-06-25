@@ -38,11 +38,12 @@ export function DocToc() {
     const headings = root.querySelectorAll('h2, h3');
     const tocItems: TocItem[] = [];
     headings.forEach((h) => {
-      const id = h.textContent?.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '') ?? '';
-      h.id = id;
+      const fallback = h.textContent?.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '') || '';
+      const id = h.id || fallback;
+      if (h.id !== id) h.id = id;
       tocItems.push({
         id,
-        text: h.textContent ?? '',
+        text: h.textContent || '',
         level: h.tagName === 'H2' ? 2 : 3,
       });
     });
@@ -95,7 +96,7 @@ export function DocToc() {
         strong
         style={{
           display: 'block',
-          fontSize: 11,
+          fontSize: token.fontSizeSM,
           textTransform: 'uppercase',
           letterSpacing: '0.1em',
           color: token.colorTextQuaternary,
