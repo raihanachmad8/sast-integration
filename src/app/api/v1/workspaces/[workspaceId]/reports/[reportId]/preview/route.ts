@@ -114,7 +114,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       const webStream = nodeToWebStream(nodeStream);
       const filename = `${report.title.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
 
-      logger.report.info('preview:pdf:inline', { filename, ms: Date.now() - start });
+      logger.report.info('preview:pdf:inline', { filename, filePath: report.filePath, ms: Date.now() - start });
 
       return new Response(webStream, {
         status: 200,

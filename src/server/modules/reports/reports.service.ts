@@ -84,6 +84,15 @@ export const reportsService = {
       const buffer = await this.generateFile(data.type, ext, workspaceId, data.range ?? 'All time');
       logger.report.info('generate:fileGen:done', { reportId: created.id, bufferSize: buffer.length, ms: Date.now() - genStart });
 
+      // Validate buffer
+      if (buffer.length === 0) {
+        throw new AppError('Generated file is empty', 500, 'EMPTY_FILE');
+      }
+      if (ext === 'pdf' && !buffer.slice(0, 5).toString('ascii').startsWith('%PDF')) {
+        logger.report.warn('generate:invalidPdf', { header: buffer.slice(0, 10).toString('ascii') });
+        throw new AppError('Generated PDF is invalid', 500, 'INVALID_PDF');
+      }
+
       // Step 2: Upload to storage
       const dateStr = new Date().toISOString().slice(0, 10);
       const storageKey = `${workspaceId}/reports/${created.id}_${dateStr}.${ext}`;
