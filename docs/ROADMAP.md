@@ -13,7 +13,7 @@
 | Milestone | Version | Focus Area                          | Status     |
 |-----------|---------|-------------------------------------|------------|
 | M1        | v0.1.0  | Project Setup & Architecture        | ✅ Complete |
-| M2        | v0.2.0  | Database Schema & Seeding (41 tables) | ✅ Complete |
+| M2        | v0.2.0  | Database Schema & Seeding (44 tables) | ✅ Complete |
 | M3        | v0.3.0  | Authentication, Sessions & Security | ✅ Complete |
 | M4        | v0.4.0  | Multi-Workspace Management & Collaboration | ✅ Complete |
 | M5        | v0.5.0  | Projects, Repositories & SCM Integration | ✅ Complete |

@@ -179,7 +179,7 @@ Update a source control integration.
 
 ## DELETE /source-controls/:providerId
 
-Delete a source control integration.
+Delete a source control integration permanently.
 
 **Auth:** Bearer token
 **Required Role:** Manager+ (INTEGRATION_MANAGE permission)
@@ -188,6 +188,38 @@ Delete a source control integration.
 | Param | Type | Description |
 |-------|------|-------------|
 | `providerId` | uuid | Source control integration ID |
+
+**Response Data:** No Content (204)
+
+**Status Codes:**
+| Code | Description |
+|------|-------------|
+| 204 | Success |
+| 401 | Unauthorized |
+| 403 | Forbidden |
+| 404 | Source control not found |
+| 500 | Internal Server Error |
+
+---
+
+## PATCH /source-controls/:providerId/disconnect
+
+Disconnect a source control integration by clearing credentials. The provider remains in the list but status changes to "Disconnected". Can be reconnected later.
+
+**Auth:** Bearer token
+**Required Role:** Manager+ (INTEGRATION_MANAGE permission)
+
+**Path Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| `providerId` | uuid | Source control integration ID |
+
+**Request Body:**
+```json
+{
+  "credentials": {}
+}
+```
 
 **Response Data:** No Content (204)
 
