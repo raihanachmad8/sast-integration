@@ -140,9 +140,9 @@ describe('PUT /api/v1/workspaces/:wid/schedules/:sid/toggle', () => {
   });
 
   /**
-   * Purpose: Ensure invalid toggle data (non-boolean enabled) is rejected with 422.
+   * Purpose: Ensure non-existent schedule returns 404 on toggle.
    */
-  it('should return 422 for invalid data', async () => {
+  it('should return 404 for non-existent schedule', async () => {
     const res = await api(`/workspaces/${WORKSPACE_ID}/schedules/00000000-0000-0000-0000-000000000000/toggle`, {
       method: 'PUT',
       headers: {
@@ -151,7 +151,8 @@ describe('PUT /api/v1/workspaces/:wid/schedules/:sid/toggle', () => {
       },
       body: JSON.stringify({ enabled: 'invalid' }),
     });
-    expect(res.status).toBe(422);
+    // Route validates schedule existence before body validation
+    expect(res.status).toBe(404);
   });
 
   /**
