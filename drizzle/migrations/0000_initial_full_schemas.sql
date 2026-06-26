@@ -73,6 +73,14 @@ CREATE TABLE "ai_verifications" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "finding_group_scans" (
+	"scan_id" uuid NOT NULL,
+	"group_id" uuid NOT NULL,
+	"is_new" boolean NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "fgs_scan_group_pk" PRIMARY KEY("scan_id","group_id")
+);
+--> statement-breakpoint
 CREATE TABLE "finding_groups" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"project_id" uuid,
@@ -107,6 +115,7 @@ CREATE TABLE "findings" (
 	"rule" varchar(500),
 	"scanner" varchar(50),
 	"message" text,
+	"status" varchar(20) DEFAULT 'open' NOT NULL,
 	"assigned_to" uuid,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
@@ -159,8 +168,7 @@ CREATE TABLE "workspace_members" (
 	"workspace_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
 	"role" varchar(20) NOT NULL,
-	"joined_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "workspace_members_workspace_id_user_id_unique" UNIQUE("workspace_id","user_id")
+	"joined_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "workspace_settings" (
@@ -179,7 +187,7 @@ CREATE TABLE "workspaces" (
 	"type" varchar(20) NOT NULL,
 	"avatar_url" text,
 	"description" text,
-	"features" jsonb DEFAULT '{}',
+	"features" jsonb DEFAULT '{}'::jsonb,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"created_by" uuid,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
@@ -267,8 +275,7 @@ CREATE TABLE "projects" (
 	"updated_at" timestamp DEFAULT now(),
 	"updated_by" uuid,
 	"deleted_at" timestamp,
-	"deleted_by" uuid,
-	CONSTRAINT "projects_workspace_id_slug_unique" UNIQUE("workspace_id","slug")
+	"deleted_by" uuid
 );
 --> statement-breakpoint
 CREATE TABLE "repositories" (
@@ -359,7 +366,6 @@ CREATE TABLE "audit_logs" (
 --> statement-breakpoint
 CREATE TABLE "knowledge_backfill_jobs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"workspace_id" uuid,
 	"source_id" uuid,
 	"source_type" varchar(50) NOT NULL,
 	"status" varchar(20) DEFAULT 'queued' NOT NULL,
@@ -367,6 +373,9 @@ CREATE TABLE "knowledge_backfill_jobs" (
 	"range_end" timestamp NOT NULL,
 	"cursor_start" timestamp NOT NULL,
 	"window_days" integer DEFAULT 30 NOT NULL,
+	"max_duration_ms" integer DEFAULT 3600000,
+	"max_retries" integer DEFAULT 10,
+	"retry_count" integer DEFAULT 0,
 	"imported_count" integer DEFAULT 0 NOT NULL,
 	"last_error" text,
 	"started_at" timestamp,
@@ -472,7 +481,9 @@ CREATE TABLE "quality_gate_results" (
 	"pending_findings" integer DEFAULT 0,
 	"new_findings" integer DEFAULT 0,
 	"fixed_findings" integer DEFAULT 0,
-	"evaluated_at" timestamp DEFAULT now() NOT NULL
+	"persistent_findings" integer DEFAULT 0,
+	"evaluated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "quality_gate_results_scan_id_unique" UNIQUE("scan_id")
 );
 --> statement-breakpoint
 CREATE TABLE "quality_gates" (
@@ -481,6 +492,11 @@ CREATE TABLE "quality_gates" (
 	"threshold" varchar(20) DEFAULT 'high' NOT NULL,
 	"fail_on_critical" boolean DEFAULT true,
 	"fail_on_high_tp" boolean DEFAULT true,
+	"fail_on_high" boolean DEFAULT true,
+	"fail_on_medium" boolean DEFAULT false,
+	"fail_on_low" boolean DEFAULT false,
+	"fail_on_pending" boolean DEFAULT true,
+	"fail_on_tp" boolean DEFAULT false,
 	"warn_on_pending" boolean DEFAULT true,
 	"require_human_ack" boolean DEFAULT false,
 	"pending_behavior" varchar(20) DEFAULT 'warn',
@@ -589,6 +605,8 @@ ALTER TABLE "workspace_invitations" ADD CONSTRAINT "workspace_invitations_create
 ALTER TABLE "ai_verifications" ADD CONSTRAINT "ai_verifications_finding_id_findings_id_fk" FOREIGN KEY ("finding_id") REFERENCES "public"."findings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_verifications" ADD CONSTRAINT "ai_verifications_group_id_finding_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."finding_groups"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_verifications" ADD CONSTRAINT "ai_verifications_model_id_ai_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."ai_models"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "finding_group_scans" ADD CONSTRAINT "finding_group_scans_scan_id_scans_id_fk" FOREIGN KEY ("scan_id") REFERENCES "public"."scans"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "finding_group_scans" ADD CONSTRAINT "finding_group_scans_group_id_finding_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."finding_groups"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "finding_groups" ADD CONSTRAINT "finding_groups_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "finding_groups" ADD CONSTRAINT "finding_groups_repository_id_repositories_id_fk" FOREIGN KEY ("repository_id") REFERENCES "public"."repositories"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "finding_history" ADD CONSTRAINT "finding_history_finding_id_findings_id_fk" FOREIGN KEY ("finding_id") REFERENCES "public"."findings"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -626,11 +644,11 @@ ALTER TABLE "repositories" ADD CONSTRAINT "repositories_updated_by_users_id_fk" 
 ALTER TABLE "repositories" ADD CONSTRAINT "repositories_deleted_by_users_id_fk" FOREIGN KEY ("deleted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "source_control_imports" ADD CONSTRAINT "source_control_imports_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "source_control_imports" ADD CONSTRAINT "source_control_imports_source_control_id_source_controls_id_fk" FOREIGN KEY ("source_control_id") REFERENCES "public"."source_controls"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "source_control_imports" ADD CONSTRAINT "source_control_imports_source_control_repository_id_source_control_repositories_id_fk" FOREIGN KEY ("source_control_repository_id") REFERENCES "public"."source_control_repositories"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "source_control_imports" ADD CONSTRAINT "source_control_imports_repository_id_repositories_id_fk" FOREIGN KEY ("repository_id") REFERENCES "public"."repositories"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "source_control_imports" ADD CONSTRAINT "source_control_imports_imported_by_users_id_fk" FOREIGN KEY ("imported_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "source_control_repositories" ADD CONSTRAINT "source_control_repositories_source_control_id_source_controls_id_fk" FOREIGN KEY ("source_control_id") REFERENCES "public"."source_controls"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "source_control_imports" ADD CONSTRAINT "sci_srcr_fk" FOREIGN KEY ("source_control_repository_id") REFERENCES "public"."source_control_repositories"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "source_control_repositories" ADD CONSTRAINT "source_control_repositories_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "source_control_repositories" ADD CONSTRAINT "scr_sc_fk" FOREIGN KEY ("source_control_id") REFERENCES "public"."source_controls"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "source_controls" ADD CONSTRAINT "source_controls_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "source_controls" ADD CONSTRAINT "source_controls_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "activity_logs" ADD CONSTRAINT "activity_logs_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -654,7 +672,7 @@ ALTER TABLE "quality_gates" ADD CONSTRAINT "quality_gates_workspace_id_workspace
 ALTER TABLE "scan_results" ADD CONSTRAINT "scan_results_scan_id_scans_id_fk" FOREIGN KEY ("scan_id") REFERENCES "public"."scans"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "scan_uploads" ADD CONSTRAINT "scan_uploads_scan_id_scans_id_fk" FOREIGN KEY ("scan_id") REFERENCES "public"."scans"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "scan_uploads" ADD CONSTRAINT "scan_uploads_project_api_token_id_project_api_tokens_id_fk" FOREIGN KEY ("project_api_token_id") REFERENCES "public"."project_api_tokens"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scan_uploads" ADD CONSTRAINT "scan_uploads_personal_access_token_id_personal_access_tokens_id_fk" FOREIGN KEY ("personal_access_token_id") REFERENCES "public"."personal_access_tokens"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scan_uploads" ADD CONSTRAINT "su_pat_fk" FOREIGN KEY ("personal_access_token_id") REFERENCES "public"."personal_access_tokens"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "scans" ADD CONSTRAINT "scans_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedules" ADD CONSTRAINT "schedules_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "schedules" ADD CONSTRAINT "schedules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -662,10 +680,49 @@ ALTER TABLE "reports" ADD CONSTRAINT "reports_workspace_id_workspaces_id_fk" FOR
 ALTER TABLE "reports" ADD CONSTRAINT "reports_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "storage_files" ADD CONSTRAINT "storage_files_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "storage_files" ADD CONSTRAINT "storage_files_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "ai_verifications_finding_id_idx" ON "ai_verifications" USING btree ("finding_id");--> statement-breakpoint
+CREATE INDEX "ai_verifications_group_id_idx" ON "ai_verifications" USING btree ("group_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "finding_groups_repo_fingerprint_idx" ON "finding_groups" USING btree ("repository_id","fingerprint");--> statement-breakpoint
+CREATE INDEX "finding_groups_status_idx" ON "finding_groups" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "finding_groups_project_id_idx" ON "finding_groups" USING btree ("project_id");--> statement-breakpoint
+CREATE INDEX "findings_scan_id_idx" ON "findings" USING btree ("scan_id");--> statement-breakpoint
+CREATE INDEX "findings_group_id_idx" ON "findings" USING btree ("group_id");--> statement-breakpoint
+CREATE INDEX "findings_severity_idx" ON "findings" USING btree ("severity");--> statement-breakpoint
+CREATE INDEX "findings_status_idx" ON "findings" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "findings_assigned_to_idx" ON "findings" USING btree ("assigned_to");--> statement-breakpoint
+CREATE INDEX "findings_scanner_idx" ON "findings" USING btree ("scanner");--> statement-breakpoint
+CREATE UNIQUE INDEX "workspace_members_workspace_user_idx" ON "workspace_members" USING btree ("workspace_id","user_id");--> statement-breakpoint
+CREATE INDEX "team_members_team_id_idx" ON "team_members" USING btree ("team_id");--> statement-breakpoint
+CREATE INDEX "team_members_user_id_idx" ON "team_members" USING btree ("user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "team_members_team_user_idx" ON "team_members" USING btree ("team_id","user_id");--> statement-breakpoint
+CREATE INDEX "teams_workspace_id_idx" ON "teams" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX "project_members_project_id_idx" ON "project_members" USING btree ("project_id");--> statement-breakpoint
+CREATE INDEX "project_members_user_id_idx" ON "project_members" USING btree ("user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "project_members_project_user_idx" ON "project_members" USING btree ("project_id","user_id");--> statement-breakpoint
+CREATE INDEX "project_teams_project_id_idx" ON "project_teams" USING btree ("project_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "project_teams_project_team_idx" ON "project_teams" USING btree ("project_id","team_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "projects_workspace_slug_idx" ON "projects" USING btree ("workspace_id","slug");--> statement-breakpoint
+CREATE INDEX "projects_workspace_id_idx" ON "projects" USING btree ("workspace_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "repositories_workspace_name_idx" ON "repositories" USING btree ("workspace_id","name") WHERE "repositories"."deleted_at" is null;--> statement-breakpoint
+CREATE INDEX "repositories_project_id_idx" ON "repositories" USING btree ("project_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "source_control_repositories_ctrl_name_idx" ON "source_control_repositories" USING btree ("source_control_id","name");--> statement-breakpoint
 CREATE UNIQUE INDEX "source_control_repositories_ctrl_extid_idx" ON "source_control_repositories" USING btree ("source_control_id","external_id");--> statement-breakpoint
+CREATE INDEX "source_controls_workspace_id_idx" ON "source_controls" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX "activity_logs_workspace_id_idx" ON "activity_logs" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX "activity_logs_created_at_idx" ON "activity_logs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "audit_logs_workspace_id_idx" ON "audit_logs" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX "audit_logs_created_at_idx" ON "audit_logs" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "knowledge_backfill_source_status_idx" ON "knowledge_backfill_jobs" USING btree ("source_id","status");--> statement-breakpoint
 CREATE UNIQUE INDEX "knowledge_entries_source_cwe_idx" ON "knowledge_entries" USING btree ("source_id","cwe_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "knowledge_sources_global_type_idx" ON "knowledge_sources" USING btree ("type") WHERE "knowledge_sources"."workspace_id" IS NULL;
+CREATE UNIQUE INDEX "knowledge_sources_global_type_idx" ON "knowledge_sources" USING btree ("type") WHERE "knowledge_sources"."workspace_id" IS NULL;--> statement-breakpoint
+CREATE INDEX "ai_models_workspace_id_idx" ON "ai_models" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX "webhook_deliveries_webhook_id_idx" ON "webhook_deliveries" USING btree ("webhook_id");--> statement-breakpoint
+CREATE INDEX "webhook_deliveries_created_at_idx" ON "webhook_deliveries" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "webhooks_workspace_id_idx" ON "webhooks" USING btree ("workspace_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "quality_gates_workspace_id_idx" ON "quality_gates" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX "scans_repository_id_idx" ON "scans" USING btree ("repository_id");--> statement-breakpoint
+CREATE INDEX "scans_status_idx" ON "scans" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "scans_created_at_idx" ON "scans" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "scans_created_by_idx" ON "scans" USING btree ("created_by");--> statement-breakpoint
+CREATE INDEX "scans_branch_idx" ON "scans" USING btree ("branch");--> statement-breakpoint
+CREATE INDEX "scans_head_branch_idx" ON "scans" USING btree ("head_branch");

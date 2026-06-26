@@ -1,4 +1,5 @@
 import { ApiResponse } from '@/server/http/response';
+import { logger } from '@/server/lib/logger';
 
 /**
  * Catch-all route for unmatched /api/v1/* paths.

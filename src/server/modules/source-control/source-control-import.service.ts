@@ -1,5 +1,6 @@
 import { logger } from '@/server/lib/logger';
 import { AppError } from '@/server/http/errors';
+import { env } from '@/server/env';
 import { createWebhook, deleteWebhook } from './webhook-provisioner';
 import { toCredentials } from './helpers';
 import crypto from 'crypto';
@@ -83,7 +84,7 @@ export const sourceControlImportService = {
     let webhookResult: { webhookId: string; webhookSecret: string } | null = null;
     const credentials = toCredentials(connection.credentials);
     const webhookSecret = crypto.randomBytes(32).toString('hex');
-    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appBaseUrl = env.APP_URL;
     const webhookUrl = `${appBaseUrl}/api/v1/source-control/webhooks/${connection.provider}`;
 
     try {

@@ -1,89 +1,89 @@
 'use client';
 
+import { Typography, Row, Col, Flex, theme } from 'antd';
 import {
-  Typography,
-  Row,
-  Col,
-  Flex,
-  Tag,
-  theme,
-} from 'antd';
-import {
-  SecurityScanOutlined,
+  AppstoreOutlined,
   RobotOutlined,
+  BranchesOutlined,
+  DatabaseOutlined,
   TeamOutlined,
-  ApiOutlined,
   BarChartOutlined,
-  SafetyCertificateOutlined,
-  CheckCircleFilled,
+  CheckOutlined,
 } from '@ant-design/icons';
-import { LANDING_TOKENS } from '@/commons/constants/landing-tokens';
 
 const { Title, Text } = Typography;
 
-const FEATURES = [
+interface Feature {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  accent: string;
+  accentBg: string;
+  highlights: string[];
+}
+
+const FEATURES: Feature[] = [
   {
-    icon: <SecurityScanOutlined />,
-    title: 'Multi-Engine Scanning',
+    icon: <AppstoreOutlined />,
+    title: '6 Scanner Engines',
     description:
-      'Orchestrate Semgrep, Gitleaks, Flawfinder, and Cppcheck through a unified pipeline with configurable policies and Docker-isolated runners.',
-    highlights: ['Parallel scanner execution', 'Custom ruleset management', 'Container-isolated runners'],
-    accent: LANDING_TOKENS.accent.tealDark,
+      'Semgrep, Gitleaks, Flawfinder, Cppcheck, Clang-Tidy, and GCC Fanalyzer run in parallel inside Docker-isolated containers.',
+    accent: '#0f766e',
     accentBg: '#f0fdfa',
+    highlights: ['C/C++ focused ruleset', 'Docker-isolated runners', 'Parallel execution'],
   },
   {
     icon: <RobotOutlined />,
-    title: 'AI-First Verification',
+    title: 'QLoRA AI Verification',
     description:
-      'QLoRA fine-tuned LLMs independently classify every finding as true or false positive with reasoned explanations, data-flow tracing, and CWE mapping.',
-    highlights: ['70%+ verdict accuracy', 'Data flow tracing', 'CWE mapping & remediation'],
-    accent: LANDING_TOKENS.accent.purpleDark,
+      'A fine-tuned LLM assesses each finding with full data-flow context — classifying true/false positives automatically.',
+    accent: '#7c3aed',
     accentBg: '#f5f3ff',
+    highlights: ['Fine-tuned on security data', 'Context-aware analysis', '70%+ false positive reduction'],
+  },
+  {
+    icon: <BranchesOutlined />,
+    title: 'Git Source Control',
+    description:
+      'Connect GitHub, GitLab, or Gitea repositories. Automated scans trigger on every push, PR, or scheduled interval.',
+    accent: '#0ea5e9',
+    accentBg: '#f0f9ff',
+    highlights: ['GitHub & GitLab & Gitea', 'Webhook-triggered scans', 'PR annotations'],
+  },
+  {
+    icon: <DatabaseOutlined />,
+    title: 'Quality Gates',
+    description:
+      'Block pull requests automatically when critical unverified findings are detected. Enforce security standards before merge.',
+    accent: '#f59e0b',
+    accentBg: '#fffbeb',
+    highlights: ['PR blocking enforcement', 'Configurable thresholds', 'CI/CD integration'],
   },
   {
     icon: <TeamOutlined />,
-    title: 'Enterprise-Grade RBAC',
+    title: 'Team Workspaces',
     description:
-      'Multi-tenant workspaces with four role levels and 24 granular permissions. Audit logging, SSO-ready, and compliance-friendly architecture.',
-    highlights: ['Owner / Manager / Reviewer / Member', '24 granular permissions', 'Full audit trail'],
-    accent: '#0ea5e9',
-    accentBg: '#f0f9ff',
-  },
-  {
-    icon: <ApiOutlined />,
-    title: 'CI/CD Integration',
-    description:
-      'Trigger scans automatically on every push or pull request via GitHub Actions, GitLab CI, or Gitea Actions. Set quality gates to block insecure merges.',
-    highlights: ['GitHub / GitLab / Gitea webhooks', 'Quality gate enforcement', 'PR status checks'],
-    accent: LANDING_TOKENS.accent.yellow,
-    accentBg: '#fffbeb',
+      'Workspace-based RBAC with 24 granular permissions. Invite members, assign roles, and manage projects across teams.',
+    accent: '#10b981',
+    accentBg: '#f0fdf4',
+    highlights: ['24 granular permissions', 'Multi-workspace support', 'Role-based access'],
   },
   {
     icon: <BarChartOutlined />,
-    title: 'Real-time Analytics',
+    title: 'Report & Export',
     description:
-      'Live vulnerability trends, severity distribution charts, scanner performance metrics, and full scan history — all in a single interactive dashboard.',
-    highlights: ['Severity trend charts', 'Scanner engine metrics', 'Exportable scan history'],
-    accent: '#10b981',
-    accentBg: '#f0fdf4',
+      'Export SARIF, PDF, or JSON reports with full traceability. Track trends, compliance posture, and remediation progress.',
+    accent: '#ea580c',
+    accentBg: '#fff7ed',
+    highlights: ['SARIF · PDF · JSON', 'Trend analytics', 'Compliance tracking'],
   },
-  {
-    icon: <SafetyCertificateOutlined />,
-    title: 'Compliance Reports',
-    description:
-      'Generate audit-ready SARIF, PDF, and JSON reports with full CWE classifications, remediation guidance, and suppression history for compliance reviews.',
-    highlights: ['SARIF / PDF / JSON export', 'CWE classification', 'Suppression audit log'],
-    accent: '#ec4899',
-    accentBg: '#fdf2f8',
-  },
-] as const;
+];
 
 /**
  * LandingFeatures — six feature cards in a responsive 3×2 grid.
  *
- * Each card renders an accent-coloured icon container,
- * feature title, description, and a short highlight checklist.
- * Cards lift on hover via the `lp-card-hover` CSS utility.
+ * Each card reflects an actual platform capability with a unique accent
+ * color and a short highlight checklist for scannability.
  */
 export function LandingFeatures() {
   const { token } = theme.useToken();
@@ -92,73 +92,70 @@ export function LandingFeatures() {
     <section
       id="features"
       style={{
-        padding: 'clamp(80px, 12vw, 120px) clamp(24px, 5vw, 64px)',
-        background: token.colorBgLayout,
+        padding: 'clamp(80px, 12vw, 120px) clamp(16px, 4vw, 40px)',
+        background: 'white',
       }}
     >
       {/* Section header */}
-      <Flex vertical align="center" style={{ marginBottom: token.marginXXL }}>
-        <Tag
+      <Flex vertical align="center" style={{ marginBottom: 64, textAlign: 'center' }}>
+        <div
           style={{
-            borderRadius: 100,
-            marginBottom: token.marginSM,
-            padding: '3px 14px',
-            fontSize: 12,
-            fontWeight: token.fontWeightStrong,
-            letterSpacing: '0.04em',
-            border: `1px solid ${token.colorPrimaryBorder}`,
-            color: token.colorPrimary,
+            display: 'inline-block',
             background: token.colorPrimaryBg,
+            color: token.colorPrimary,
+            padding: '5px 16px',
+            borderRadius: 50,
+            fontSize: 12,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '1.2px',
+            marginBottom: 18,
+            border: `1.5px solid ${token.colorPrimaryBorder}`,
           }}
         >
-          PLATFORM FEATURES
-        </Tag>
+          PLATFORM CAPABILITIES
+        </div>
         <Title
           level={2}
           style={{
             margin: 0,
-            textAlign: 'center',
-            fontSize: 'clamp(28px, 4vw, 40px)',
-            fontWeight: 800,
-            letterSpacing: '-0.025em',
+            fontSize: 'clamp(26px, 3.5vw, 44px)',
+            fontWeight: 900,
+            letterSpacing: '-0.03em',
+            color: '#0f172a',
+            marginBottom: 14,
           }}
         >
-          Everything your security team needs
+          Built for Serious Security
         </Title>
         <Text
-          type="secondary"
           style={{
-            maxWidth: 500,
-            textAlign: 'center',
-            fontSize: token.fontSizeLG,
-            marginTop: token.marginXS,
-            lineHeight: 1.65,
+            maxWidth: 580,
+            fontSize: 17,
+            lineHeight: 1.75,
+            color: '#64748b',
           }}
         >
-          From multi-engine scanning to AI verification — one platform for the
-          entire vulnerability management workflow.
+          A purpose-built platform combining multiple SAST engines with AI-powered
+          verification — designed specifically for C/C++ security analysis.
         </Text>
       </Flex>
 
       {/* Feature grid */}
-      <Row
-        gutter={[token.marginLG, token.marginLG]}
-        justify="center"
-        style={{ maxWidth: 1140, margin: '0 auto' }}
-      >
+      <Row gutter={[20, 20]} justify="center" style={{ maxWidth: 1200, margin: '0 auto' }}>
         {FEATURES.map((f) => (
           <Col key={f.title} xs={24} sm={12} lg={8}>
             <div
               className="lp-card-hover"
               style={{
                 height: '100%',
-                borderRadius: token.borderRadiusLG,
-                border: `1px solid ${token.colorBorderSecondary}`,
-                background: token.colorBgContainer,
-                padding: '28px 28px 24px',
+                borderRadius: 16,
+                border: `1.5px solid #e2e8f0`,
+                background: 'white',
+                padding: '28px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 16,
+                gap: 14,
                 cursor: 'default',
               }}
             >
@@ -166,16 +163,17 @@ export function LandingFeatures() {
               <div
                 className="lp-feature-icon"
                 style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 14,
+                  width: 48,
+                  height: 48,
+                  borderRadius: 12,
                   background: f.accentBg,
                   color: f.accent,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: 24,
+                  fontSize: 22,
                   flexShrink: 0,
+                  border: `1.5px solid ${f.accent}22`,
                 }}
               >
                 {f.icon}
@@ -184,40 +182,47 @@ export function LandingFeatures() {
               {/* Title */}
               <Title
                 level={4}
-                style={{ margin: 0, fontWeight: 700, letterSpacing: '-0.015em' }}
+                style={{
+                  margin: 0,
+                  fontSize: 17,
+                  fontWeight: 800,
+                  letterSpacing: '-0.02em',
+                  color: '#0f172a',
+                }}
               >
                 {f.title}
               </Title>
 
               {/* Description */}
-              <Text
-                type="secondary"
-                style={{ lineHeight: 1.7, fontSize: token.fontSize, flex: 1 }}
-              >
+              <Text style={{ lineHeight: 1.7, fontSize: 14, color: '#64748b', flex: 1 }}>
                 {f.description}
               </Text>
 
               {/* Highlights */}
-              <div
-                style={{
-                  paddingTop: 16,
-                  borderTop: `1px solid ${token.colorBorderSecondary}`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                }}
-              >
+              <Flex vertical gap={5}>
                 {f.highlights.map((h) => (
-                  <Flex key={h} align="center" gap={8}>
-                    <CheckCircleFilled
-                      style={{ color: f.accent, fontSize: 13, flexShrink: 0 }}
-                    />
-                    <Text style={{ fontSize: token.fontSizeSM, fontWeight: 500 }}>
+                  <Flex key={h} align="center" gap={7}>
+                    <div
+                      style={{
+                        width: 16,
+                        height: 16,
+                        borderRadius: '50%',
+                        background: f.accentBg,
+                        border: `1px solid ${f.accent}30`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <CheckOutlined style={{ fontSize: 9, color: f.accent }} />
+                    </div>
+                    <Text style={{ fontSize: 12, color: '#475569', fontWeight: 500 }}>
                       {h}
                     </Text>
                   </Flex>
                 ))}
-              </div>
+              </Flex>
             </div>
           </Col>
         ))}

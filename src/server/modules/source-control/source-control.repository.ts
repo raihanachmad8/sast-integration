@@ -1,6 +1,7 @@
 import { eq, and, isNull } from 'drizzle-orm';
 import { db, type Tx } from '@/server/db/client';
 import { sourceControls, sourceControlRepositories, sourceControlImports } from '@drizzle/schema/source-controls';
+import { logger } from '@/server/lib/logger';
 export interface CreateSourceControlInput {
   workspaceId: string;
   provider: string;
@@ -34,7 +35,7 @@ export const sourceControlRepository = {
    * @returns Array of all source control records
    */
   async listAll() {
-    return db.select().from(sourceControls);
+    return db.select().from(sourceControls).limit(500);
   },
 
   /**

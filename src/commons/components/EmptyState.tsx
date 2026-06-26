@@ -26,7 +26,7 @@ export function EmptyState({ icon, title, text, action }: EmptyStateProps) {
         description={
           <div>
             {icon && (
-              <div style={{ fontSize: 32, marginBottom: token.marginSM, color: token.colorTextQuaternary }}>
+              <div style={{ fontSize: token.fontSizeHeading2, marginBottom: token.marginSM, color: token.colorTextQuaternary }}>
                 <FaIcon icon={icon} />
               </div>
             )}

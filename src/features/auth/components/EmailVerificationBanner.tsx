@@ -47,7 +47,7 @@ export function EmailVerificationBanner() {
       title="Please verify your email address"
       description="Your email has not been verified yet. You can still use the platform, but some features may be limited until verification is complete."
       action={
-        <Button size="small" type="primary" onClick={handleResend}>
+        <Button type="primary" onClick={handleResend}>
           Resend verification email
         </Button>
       }

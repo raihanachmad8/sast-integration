@@ -1,0 +1,121 @@
+/* Landing Page Global Styles */
+
+:root {
+  --lp-primary:     #0f766e;
+  --lp-primary-mid: #14b8a6;
+  --lp-primary-lt:  #5eead4;
+  --lp-dark:        #0f172a;
+  --lp-gray:        #64748b;
+  --lp-light:       #f8fafc;
+}
+
+/* ─── Card hover lift ─────────────────────────────────── */
+.lp-card-hover {
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lp-card-hover:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.10);
+}
+
+/* ─── Feature icon scale on card hover ────────────────── */
+.lp-feature-icon {
+  transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.lp-card-hover:hover .lp-feature-icon {
+  transform: scale(1.12) rotate(-4deg);
+}
+
+/* ─── Nav link hover ──────────────────────────────────── */
+.lp-nav-link {
+  position: relative;
+  text-decoration: none !important;
+  transition: color 0.2s ease !important;
+}
+
+.lp-nav-link:hover {
+  color: var(--lp-primary) !important;
+}
+
+/* ─── Footer link hover ───────────────────────────────── */
+.lp-link {
+  text-decoration: none;
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+.lp-link:hover {
+  color: rgba(255, 255, 255, 0.95) !important;
+  opacity: 1 !important;
+}
+
+/* ─── Dot grid background ─────────────────────────────── */
+.lp-grid-bg {
+  background-image: radial-gradient(circle, rgba(15, 118, 110, 0.12) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* ─── Step connector line (How It Works) ─────────────── */
+@media (max-width: 767px) {
+  .lp-step-connector {
+    display: none;
+  }
+}
+
+/* ─── Step card animation ─────────────────────────────── */
+.lp-step-card {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.3s ease;
+}
+
+.lp-step-card:hover {
+  transform: scale(1.08);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+}
+
+/* ─── Pulse animation for decorative elements ─────────── */
+@keyframes lp-pulse {
+  0%, 100% { opacity: 0.25; transform: scale(1);    }
+  50%       { opacity: 0.45; transform: scale(1.06); }
+}
+
+.lp-pulse {
+  animation: lp-pulse 9s ease-in-out infinite;
+}
+
+/* ─── Fade-in from below ──────────────────────────────── */
+@keyframes lp-fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+.lp-fade-up {
+  animation: lp-fade-up 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ─── Scrollable comparison table ────────────────────── */
+.lp-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+
+.lp-table-scroll::-webkit-scrollbar       { height: 4px; }
+.lp-table-scroll::-webkit-scrollbar-track { background: transparent; }
+.lp-table-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+/* ─── Smooth scroll ───────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ─── Navbar mobile responsive fix ──────────────────────── */
+@media (max-width: 480px) {
+  .lp-nav-wrap {
+    padding: 0 16px !important;
+  }
+}

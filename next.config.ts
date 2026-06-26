@@ -34,9 +34,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   // pdfkit & exceljs ship binary/font assets that must NOT be bundled by Turbopack.
   // Marking them as server externals makes Next.js load them from node_modules at runtime.
-  serverExternalPackages: ['pdfkit', 'exceljs'],
+  serverExternalPackages: ['pdfkit', 'exceljs', 'pino'],
   transpilePackages: ['antd', '@ant-design/icons'],
   images: {
     remotePatterns: [

@@ -21,6 +21,7 @@ export async function getQueue() {
     connectionString: env.DATABASE_URL,
     schema: QUEUE_SCHEMA,
     max: QUEUE_MAX_CONNECTIONS,
+    connectionTimeoutMillis: 30000,
   });
 
   boss.on('error', (error: Error) => {

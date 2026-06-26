@@ -1,7 +1,7 @@
 'use client';
 
 import { Flex, theme } from 'antd';
-import { ProjectsPage } from '@/features/projects/ProjectsPage';
+import { ProjectsPage } from '@/features/projects';
 import { FeatureGate } from '@/commons/components/FeatureGate';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
 import { PageHeader } from '@/commons/components/PageHeader';

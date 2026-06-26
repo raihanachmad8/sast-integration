@@ -22,6 +22,22 @@ interface ProjectListCardProps {
   workspaceSlug: string;
 }
 
+/**
+ * Compact card listing projects with name and creation date, used in workspace overview.
+ *
+ * Handles loading and error states internally. Clicking a row navigates to the project detail page.
+ *
+ * @param props - {@link ProjectListCardProps}
+ * @returns JSX element rendering the project list card with loading/error states.
+ *
+ * @example
+ * <ProjectListCard
+ *   projects={projectList}
+ *   isLoading={false}
+ *   isError={false}
+ *   workspaceSlug="my-workspace"
+ * />
+ */
 export function ProjectListCard({ projects, isLoading, isError, workspaceSlug }: ProjectListCardProps) {
   const { token } = theme.useToken();
   const router = useRouter();
@@ -56,10 +72,10 @@ export function ProjectListCard({ projects, isLoading, isError, workspaceSlug }:
               align: 'right',
               render: () => (
                 <Flex justify="flex-end" gap={token.paddingSM}>
-                  <Button size="small" onClick={() => router.push(`/${workspaceSlug}/scan`)}>
+                  <Button onClick={() => router.push(`/${workspaceSlug}/scan`)}>
                     <FaIcon icon="fa-eye" /> Scan Management
                   </Button>
-                  <Button size="small" onClick={() => router.push(`/${workspaceSlug}/repositories`)}>
+                  <Button onClick={() => router.push(`/${workspaceSlug}/repositories`)}>
                     View Repos &amp; Policies
                   </Button>
                 </Flex>

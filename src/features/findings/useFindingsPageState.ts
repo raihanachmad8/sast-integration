@@ -6,9 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { App } from 'antd';
 import { useSessionData } from '@/modules/auth/queries';
 import { useFindingsQuery, useUpdateFindingMutation, useRunAiVerificationMutation, useBulkUpdateFindingsMutation, findingsApi } from '@/modules/findings';
-import { useMembersQuery } from '@/modules/members';
-import { useProjectsQuery } from '@/modules/projects';
-import { useRepositoriesQuery } from '@/modules/repositories';
+import { useLazyFilterOptions } from '@/lib/hooks/useLazyFilterOptions';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import type { Finding } from '@/commons/types';
 import type { FindingListParams } from '@/modules/findings/types';
@@ -43,9 +41,10 @@ export function useFindingsPageState() {
   };
 
   const findingsQuery = useFindingsQuery(tableParams);
-  const membersQuery = useMembersQuery(session.data?.workspace?.id ?? '');
-  const projectsQuery = useProjectsQuery({ page: 1, perPage: 200 });
-  const repositoriesQuery = useRepositoriesQuery({ page: 1, perPage: 200 });
+  const { members, memberOptions: MEMBER_OPTIONS, projectOptions: PROJECT_OPTIONS, repoOptions: REPOSITORY_OPTIONS } = useLazyFilterOptions({
+    workspaceId: session.data?.workspace?.id ?? '',
+    search: params.search || '',
+  });
   const updateStatusMutation = useUpdateFindingMutation();
   const verifyMutation = useRunAiVerificationMutation();
   const bulkUpdateMutation = useBulkUpdateFindingsMutation();
@@ -98,10 +97,6 @@ export function useFindingsPageState() {
     }));
   }, [findingsQuery.data]);
   const totalCount = findingsQuery.data?.meta?.total ?? 0;
-  const members = useMemo(() => (membersQuery.data?.data ?? []) as unknown as Array<{ userId: string; name: string; email: string }>, [membersQuery.data]);
-  const MEMBER_OPTIONS = useMemo(() => members.map((m) => ({ value: m.userId, label: `${m.name} (${m.email})` })), [members]);
-  const PROJECT_OPTIONS = useMemo(() => (projectsQuery.data?.data ?? []).map((p) => ({ value: p.id, label: p.name })), [projectsQuery.data]);
-  const REPOSITORY_OPTIONS = useMemo(() => (repositoriesQuery.data?.data ?? []).map((r) => ({ value: r.id, label: r.name })), [repositoriesQuery.data]);
 
   const handleRunAiVerification = useCallback(() => {
     const pending = findings.filter((f) => f.verdict === 'Pending');

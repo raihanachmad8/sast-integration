@@ -1,6 +1,7 @@
 import { and, eq, count, or, ilike, sql, desc, inArray } from 'drizzle-orm';
 import { db, type Tx } from '@/server/db/client';
 import { knowledgeEntries, knowledgeSources, knowledgeBackfillJobs } from '@drizzle/schema/integrations';
+import { logger } from '@/server/lib/logger';
 const entrySelectFields = {
   id: knowledgeEntries.id,
   sourceId: knowledgeEntries.sourceId,

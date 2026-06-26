@@ -16,7 +16,7 @@ export function StatCard({ label, value, icon, color, variant = 'number' }: Stat
     <Card size="small" style={{ height: '100%' }}>
       <Flex align="center" gap={token.paddingMD}>
         {icon && (
-          <Flex align="center" justify="center" style={{ width: 40, height: 40, borderRadius: token.borderRadiusLG, backgroundColor: color ? `${color}15` : token.colorBgLayout }}>
+          <Flex align="center" justify="center" style={{ width: token.sizeXL, height: token.sizeXL, borderRadius: token.borderRadiusLG, backgroundColor: color ? `${color}15` : token.colorBgLayout }}>
             {icon}
           </Flex>
         )}

@@ -5,6 +5,7 @@ import { SCANNER_COMMANDS } from '@/server/modules/scan/scanners';
 import { SUPPORTED_SCANNERS } from '@/server/modules/scan/constants';
 import { checkScannerAvailability } from '@/server/modules/scan/scanner-availability';
 import { AppError } from '@/server/http/errors';
+import { logger } from '@/server/lib/logger';
 
 /**
  * GET /api/v1/scanner-engines
@@ -12,6 +13,7 @@ import { AppError } from '@/server/http/errors';
  * List all supported scanner engines with their configuration and availability status.
  */
 export async function GET(_request: NextRequest) {
+  logger.scan.info('get scanner engines');
   const auth = await authenticate(_request);
   if (!auth.success) return auth.response;
 

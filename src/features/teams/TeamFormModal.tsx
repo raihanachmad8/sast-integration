@@ -20,6 +20,23 @@ function slugify(text: string) {
   return text.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-');
 }
 
+/**
+ * Modal form for creating or editing a team with name, description, and member assignment.
+ *
+ * Auto-generates a slug from the team name and supports selecting multiple members.
+ *
+ * @param props - {@link TeamFormModalProps}
+ * @returns JSX element rendering the team create/edit modal.
+ *
+ * @example
+ * <TeamFormModal
+ *   open={true}
+ *   team={existingTeam}
+ *   onCancel={() => setOpen(false)}
+ *   onConfirm={(input) => saveTeam(input)}
+ *   isLoading={false}
+ * />
+ */
 export function TeamFormModal({ open, team, onCancel, onConfirm, isLoading }: TeamFormModalProps) {
   const { token } = theme.useToken();
   const [form] = Form.useForm();

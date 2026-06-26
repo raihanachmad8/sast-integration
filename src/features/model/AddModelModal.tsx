@@ -3,9 +3,9 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Modal, Input, Select, Form, App, theme, Flex, Typography, Tooltip } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
-import { MODAL_WIDTH } from '@/commons/constants/layout';
+import { MODAL_WIDTH, MODEL_ROLE } from '@/commons/constants/layout';
 import { FaIcon } from '@/commons/components/FaIcon';
-import { PROVIDERS, ROLE_OPTIONS, PROFILE_TYPE_OPTIONS } from './providers';
+import { PROVIDERS, ROLE_OPTIONS, PROFILE_TYPE_OPTIONS, PROVIDER } from './providers';
 import { createAiModelSchema } from '@/commons/schemas/ai-model.schema';
 import { createZodSync } from '@/lib/utils/zod-sync';
 
@@ -15,6 +15,21 @@ interface AddModelModalProps {
   onSave: (values: Record<string, unknown>) => void;
 }
 
+/**
+ * Modal form for adding a new AI model configuration — provider, name, API key, role, and profile.
+ *
+ * Supports fetching available models from the provider endpoint and validates via Zod schema.
+ *
+ * @param props - {@link AddModelModalProps}
+ * @returns JSX element rendering the add model modal.
+ *
+ * @example
+ * <AddModelModal
+ *   open={true}
+ *   onClose={() => setOpen(false)}
+ *   onSave={(values) => createModel(values)}
+ * />
+ */
 export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
   const { message } = App.useApp();
   const { token } = theme.useToken();
@@ -98,9 +113,9 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
       onCancel={onClose}
       okText="Add"
       width={MODAL_WIDTH.MD}
-      afterOpenChange={(visible) => { if (visible && selectedProvider === 'openai-compatible') { const url = form.getFieldValue('baseUrl'); if (url) handleFetchModels(url); } }}
+      afterOpenChange={(visible) => { if (visible && selectedProvider === PROVIDER.OPENAI_COMPATIBLE) { const url = form.getFieldValue('baseUrl'); if (url) handleFetchModels(url); } }}
     >
-      <Form form={form} layout="vertical" initialValues={{ name: '', provider: 'openai-compatible', baseUrl: '', role: 'fallback' }}>
+      <Form form={form} layout="vertical" initialValues={{ name: '', provider: 'openai-compatible', baseUrl: '', role: MODEL_ROLE.FALLBACK }}>
         <Flex vertical gap={token.paddingMD} style={{ padding: `${token.paddingSM} 0` }}>
 
           {/* Provider */}
@@ -115,7 +130,7 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
               onChange={handleProviderChange}
               optionRender={(option) => (
                 <Flex align="center" gap={token.marginSM}>
-                  <FaIcon icon={option.data.icon as string} style={{ width: 16, color: token.colorTextSecondary }} />
+                  <FaIcon icon={option.data.icon as string} style={{ width: token.size, color: token.colorTextSecondary }} />
                   <Typography.Text>{option.label}</Typography.Text>
                 </Flex>
               )}
@@ -160,11 +175,11 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
             label="API Key"
             name="apiKey"
             rules={[rule]}
-            extra={selectedProvider === 'ollama' ? 'Ollama does not require an API key' : undefined}
+            extra={selectedProvider === PROVIDER.OLLAMA ? 'Ollama does not require an API key' : undefined}
           >
             <Input.Password
-              placeholder={selectedProvider === 'ollama' ? 'Not required for local Ollama' : 'Enter your API key'}
-              disabled={selectedProvider === 'ollama'}
+              placeholder={selectedProvider === PROVIDER.OLLAMA ? 'Not required for local Ollama' : 'Enter your API key'}
+              disabled={selectedProvider === PROVIDER.OLLAMA}
             />
           </Form.Item>
 

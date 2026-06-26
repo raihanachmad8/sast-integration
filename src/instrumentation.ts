@@ -83,7 +83,8 @@ export async function register() {
       ]);
       logger.queue.info('Scheduled all background jobs');
     } catch (e) {
-      logger.queue.error('Failed to schedule background jobs', { error: (e as Error).message });
+      logger.queue.error('Failed to initialize queue (will retry on next request)', { error: (e as Error).message });
+      // Don't crash - queue will retry on first job enqueue
     }
 
     // ── Phase 5: Graceful shutdown ──

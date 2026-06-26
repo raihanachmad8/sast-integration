@@ -15,6 +15,8 @@ type RouteContext = { params: Promise<{ workspaceId: string; projectId: string }
  * Returns deduplicated list — direct project membership takes precedence over team membership.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
 

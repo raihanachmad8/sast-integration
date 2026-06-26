@@ -25,6 +25,21 @@ const STATUS_FILTER_OPTIONS = [
   { value: 'expired', label: 'Expired' },
 ];
 
+/**
+ * Paginated data table for listing workspace invitations with status filter and revoke action.
+ *
+ * Uses the shared DataTable with server-side pagination and permission-gated revoke.
+ *
+ * @param props - {@link InvitationsTableProps}
+ * @returns JSX element rendering the invitations data table.
+ *
+ * @example
+ * <InvitationsTable
+ *   workspaceId="ws_123"
+ *   onRevoke={(id) => revokeInvitation(id)}
+ *   tabId="invitations"
+ * />
+ */
 export function InvitationsTable({ workspaceId, onRevoke, tabId }: InvitationsTableProps) {
   const { isAtLeast } = usePermissions();
   const canManage = isAtLeast('manager');

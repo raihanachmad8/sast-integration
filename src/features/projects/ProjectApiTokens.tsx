@@ -23,6 +23,17 @@ interface ProjectApiTokensProps {
   projectId: string;
 }
 
+/**
+ * API token management panel for a project — list, create, and revoke tokens.
+ *
+ * Provides a paginated table of tokens with creation modal and revoke confirmation.
+ *
+ * @param props - {@link ProjectApiTokensProps}
+ * @returns JSX element rendering the API tokens table and management UI.
+ *
+ * @example
+ * <ProjectApiTokens projectId="proj_123" />
+ */
 export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
   const { confirm } = useConfirm();
   const { message } = App.useApp();

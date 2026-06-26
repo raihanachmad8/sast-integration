@@ -3,6 +3,15 @@ import { APP_BASE_URL } from '@/commons/constants/app';
 
 const cbUrl = (id: string) => `${APP_BASE_URL}/api/v1/source-control/callback/${id}`;
 
+/**
+ * Step-by-step setup guide for connecting GitHub via App, OAuth, or personal access token.
+ *
+ * @returns {@link SetupGuide} configuration object for the GitHub provider.
+ *
+ * @example
+ * // Used internally by SetupGuideDrawer
+ * const guide = GITHUB_GUIDE;
+ */
 export const GITHUB_GUIDE: SetupGuide = {
   title: 'GitHub setup',
   docsUrl: 'https://docs.github.com/en/apps/creating-github-apps',

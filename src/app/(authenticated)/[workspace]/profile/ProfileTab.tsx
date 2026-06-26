@@ -71,7 +71,7 @@ export function ProfileTab({ name, email, role, initials, avatarUrl, username, b
             <Text type="secondary">{email}</Text>
           </div>
           {avatarUrl && (
-            <Button size="small" danger icon={<FaIcon icon="fa-trash" />} onClick={() => onConfirmRemove({ title: 'Remove avatar?', danger: true, onOk: onAvatarRemove })}>
+            <Button danger icon={<FaIcon icon="fa-trash" />} onClick={() => onConfirmRemove({ title: 'Remove avatar?', danger: true, onOk: onAvatarRemove })}>
               Remove
             </Button>
           )}

@@ -59,7 +59,7 @@ export function TabBar({ tabs, activeKey, onChange, id }: TabBarProps) {
           icon={tab.icon ? <FaIcon icon={tab.icon} /> : undefined}
         >
           {tab.label}
-          {tab.count !== undefined && <Badge count={tab.count} size="small" style={{ marginLeft: 6 }} />}
+          {tab.count !== undefined && <Badge count={tab.count} size="small" style={{ marginLeft: token.marginXS }} />}
         </Button>
       ))}
     </div>

@@ -27,6 +27,17 @@ interface ProjectDetailPageProps {
   projectId: string;
 }
 
+/**
+ * Full-page project detail view with tabs for overview, settings, and API tokens.
+ *
+ * Loads the project by ID and provides inline editing, team/repository assignment, and deletion.
+ *
+ * @param props - {@link ProjectDetailPageProps}
+ * @returns JSX element rendering the project detail page with loading/error states.
+ *
+ * @example
+ * <ProjectDetailPage projectId="proj_123" />
+ */
 export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
   const { message } = App.useApp();
   const router = useRouter();

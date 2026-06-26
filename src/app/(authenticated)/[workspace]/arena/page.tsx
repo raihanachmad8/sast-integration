@@ -4,7 +4,9 @@ import { Card, Flex, Typography, theme } from 'antd';
 import { PageHeader } from '@/commons/components/PageHeader';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { FeatureGate } from '@/commons/components/FeatureGate';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { PERMISSION } from '@/commons/constants/permissions';
 import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 
 /**
@@ -30,6 +32,7 @@ export default function ArenaPage() {
         </Flex>
       }
     >
+      <PermissionGate permission={PERMISSION.ARENA_VIEW} fallback={<PermissionHint permission={PERMISSION.ARENA_VIEW} />}>
       <Flex vertical gap={token.paddingXL}>
         <PageHeader title="Arena" description="Compare AI model performance on the same findings." />
         <Card styles={{ body: { padding: token.paddingXL, textAlign: 'center' } }}>
@@ -53,6 +56,7 @@ export default function ArenaPage() {
           </Flex>
         </Card>
       </Flex>
+      </PermissionGate>
     </FeatureGate>
   );
 }

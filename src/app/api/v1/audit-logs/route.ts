@@ -6,6 +6,7 @@ import { PERMISSION } from '@/commons/constants/permissions';
 import { AppError } from '@/server/http/errors';
 import { auditRepository } from '@/server/modules/audit/audit.repository';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { logger } from '@/server/lib/logger';
 
 /**
  * GET /api/v1/audit-logs
@@ -13,6 +14,8 @@ import { workspaceRepository } from '@/server/modules/workspace/repositories/wor
  * Requires `audit:read` permission in the active workspace.
  */
 export async function GET(request: NextRequest) {
+  logger.audit.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
 

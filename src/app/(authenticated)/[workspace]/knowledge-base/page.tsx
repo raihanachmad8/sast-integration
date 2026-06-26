@@ -7,10 +7,12 @@ import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
+import { PermissionGate } from '@/commons/components/PermissionGate';
 import { StatusTag } from '@/commons/components/StatusTag';
 import { DataTable, type DataTableColumn } from '@/commons/components/DataTable';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
 import { PERMISSION } from '@/commons/constants/permissions';
+import { KB_SOURCE_TYPE } from '@/commons/constants/layout';
 import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 import { errorMessage } from '@/lib/api/errors';
 import { usePermissions } from '@/lib/hooks/usePermissions';
@@ -19,7 +21,7 @@ import { useKnowledgeBaseQuery, useKnowledgeSourcesQuery, useMuteKnowledgeEntryM
 import { useSessionData } from '@/modules/auth/queries';
 import type { KnowledgeEntryRow } from '@/commons/types/knowledge';
 import { FeatureGate } from '@/commons/components/FeatureGate';
-import { EditEntryModal, EntryDetailDrawer } from '@/features/knowledge-base/EntryModals';
+import { EditEntryModal, EntryDetailDrawer } from '@/features/knowledge-base';
 
 interface ModalEntry {
   id: string;
@@ -98,9 +100,9 @@ function SourceCard({
             <Flex
               align="center"
               justify="center"
-              style={{ width: 40, height: 40, borderRadius: token.borderRadius, background: token.colorBgLayout }}
+              style={{ width: token.sizeXL, height: token.sizeXL, borderRadius: token.borderRadius, background: token.colorBgLayout }}
             >
-              <FaIcon icon={type === 'nvd' ? 'fa-database' : 'fa-shield-halved'} />
+              <FaIcon icon={type === KB_SOURCE_TYPE.NVD ? 'fa-database' : 'fa-shield-halved'} />
             </Flex>
             <div>
               <Typography.Text strong>{title}</Typography.Text>
@@ -152,7 +154,6 @@ function KnowledgeBasePageContent() {
   const session = useSessionData();
   const workspaceId = session.data?.workspace?.id ?? '';
   const { has } = usePermissions();
-  const canRead = has(PERMISSION.KNOWLEDGE_VIEW);
   const canManage = has(PERMISSION.KNOWLEDGE_MANAGE);
 
   const { params, setPagination, setSearch, setFilter } = useTableParams({
@@ -160,7 +161,7 @@ function KnowledgeBasePageContent() {
     defaultPageSize: 10,
   });
 
-  const selectedSource = params.filters.source === 'cwe' || params.filters.source === 'nvd'
+  const selectedSource = params.filters.source === KB_SOURCE_TYPE.CWE || params.filters.source === KB_SOURCE_TYPE.NVD
     ? params.filters.source
     : undefined;
 
@@ -175,8 +176,8 @@ function KnowledgeBasePageContent() {
   const updateMutation = useUpdateKnowledgeEntryMutation(workspaceId);
 
   const sources = sourcesQuery.data?.data ?? [];
-  const cweSource = sources.find((source) => source.type === 'cwe');
-  const nvdSource = sources.find((source) => source.type === 'nvd');
+  const cweSource = sources.find((source) => source.type === KB_SOURCE_TYPE.CWE);
+  const nvdSource = sources.find((source) => source.type === KB_SOURCE_TYPE.NVD);
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -207,7 +208,8 @@ function KnowledgeBasePageContent() {
   if (sourcesQuery.isError) return <ErrorState title="Failed to load knowledge sources" description={errorMessage(sourcesQuery.error)} onRetry={() => sourcesQuery.refetch()} />;
 
   return (
-    <Flex vertical gap={token.paddingXL}>
+    <PermissionGate permission={PERMISSION.KNOWLEDGE_VIEW}>
+      <Flex vertical gap={token.paddingXL}>
       <PageHeader
         title="Knowledge Base"
         description="CWE and NVD knowledge used by AI verification."
@@ -236,7 +238,7 @@ function KnowledgeBasePageContent() {
         source={{ data: entries, meta: { page: params.page, pageSize: params.perPage, total: entriesQuery.data?.meta.total ?? 0 } }}
         columns={buildColumns(token)}
         actions={[
-          { label: 'View', icon: <FaIcon icon="fa-eye" />, onClick: (entry) => handleView(entry), show: () => canRead },
+          { label: 'View', icon: <FaIcon icon="fa-eye" />, onClick: (entry) => handleView(entry) },
           { label: 'Edit', icon: <FaIcon icon="fa-pen" />, onClick: (entry) => handleEdit(entry), show: () => canManage },
           { label: 'Disable', icon: <FaIcon icon="fa-ban" />, variant: 'danger' as const, onClick: (entry) => handleDisable(entry), show: () => canManage },
         ]}
@@ -280,5 +282,6 @@ function KnowledgeBasePageContent() {
         }}
       />
     </Flex>
+    </PermissionGate>
   );
 }

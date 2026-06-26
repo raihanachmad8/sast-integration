@@ -7,6 +7,7 @@ import { createSourceControlSchema } from '@/commons/schemas';
 import { AppError } from '@/server/http/errors';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { PERMISSION } from '@/commons/constants/permissions';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -15,6 +16,8 @@ type RouteContext = { params: Promise<{ workspaceId: string }> };
  * List all source control integrations in a workspace.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;
@@ -36,6 +39,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  * Returns redirectUrl for OAuth/App installation flow.
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('post request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const userId = getUserId(auth.context);

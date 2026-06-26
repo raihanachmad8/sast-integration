@@ -1,7 +1,7 @@
 'use client';
 
 import { Row, Col, theme } from 'antd';
-import { AuthHero } from '@/features/auth/AuthHero';
+import { AuthHero } from '@/features/auth';
 
 export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { token } = theme.useToken();

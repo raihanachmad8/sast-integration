@@ -2,6 +2,7 @@ import { eq, and, desc, asc, sql, inArray, isNull } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { findings, findingGroups } from '@drizzle/schema/findings';
 import { projects } from '@drizzle/schema/projects';
+import { logger } from '@/server/lib/logger';
 interface ListByWorkspaceParams {
   page?: number;
   pageSize?: number;

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { normalizeFilePath } from '../parsers/path-normalizer';
+import { logger } from '@/server/lib/logger';
 
 /**
  * Generates a stable, deterministic fingerprint for a finding.

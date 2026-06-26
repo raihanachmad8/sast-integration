@@ -79,7 +79,7 @@ function SessionList({ sessionsQuery, currentSessionId, onRevokeSession, onConfi
               {isCurrent ? (
                 <span style={{ fontSize: token.fontSizeSM, color: token.colorSuccess, fontWeight: token.fontWeightStrong }}>Current</span>
               ) : (
-                <Button size="small" danger onClick={() => onConfirmRevoke({ title: 'Revoke session?', content: `Revoke this session?`, danger: true, onOk: () => onRevokeSession(s.id) })}>Revoke</Button>
+                <Button danger onClick={() => onConfirmRevoke({ title: 'Revoke session?', content: `Revoke this session?`, danger: true, onOk: () => onRevokeSession(s.id) })}>Revoke</Button>
               )}
             </Flex>
           );

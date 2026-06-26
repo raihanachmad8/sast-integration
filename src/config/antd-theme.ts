@@ -101,7 +101,7 @@ export const antdTheme: ThemeConfig = {
     colorFillQuaternary: '#00000003',
 
     // ─── Typography ────────────────────────────────────────────────
-    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+    fontFamily: "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
     fontSize: 14,
     fontSizeSM: 12,
     fontSizeLG: 16,

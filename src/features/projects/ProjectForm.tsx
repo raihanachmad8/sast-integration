@@ -15,6 +15,17 @@ interface ProjectFormProps {
   project?: Project | null;
 }
 
+/**
+ * Inline form for creating or editing a project with Zod-validated fields.
+ *
+ * Navigates to the project detail page on successful creation/update.
+ *
+ * @param props - {@link ProjectFormProps}
+ * @returns JSX element rendering the project form with submit button.
+ *
+ * @example
+ * <ProjectForm project={existingProject} />
+ */
 export function ProjectForm({ project }: ProjectFormProps) {
   const { message } = App.useApp();
   const router = useRouter();

@@ -68,6 +68,21 @@ const envSchema = z
     CLOUDINARY_API_KEY: z.string().optional(),
     CLOUDINARY_API_SECRET: z.string().optional(),
     CLOUDINARY_FOLDER: z.string().optional(),
+
+    // Operational
+    LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+    LOG_DESTINATION: z.enum(["console", "file", "both"]).default("console"),
+    LOG_DIR: z.string().default("logs"),
+    LOG_ROTATION: z.enum(["daily", "none"]).default("daily"),
+    AI_VERIFY_BATCH_SIZE: z.coerce.number().int().min(1).max(20).default(5),
+    ALLOW_LOCAL_AI_MODELS: z
+      .string()
+      .default("true")
+      .transform((v) => v === "true"),
+    RATE_LIMIT_ENABLED: z
+      .string()
+      .default("true")
+      .transform((v) => v !== "false"),
   })
   .superRefine((data, ctx) => {
     if (data.MAIL_PROVIDER === MAIL.PROVIDER.SMTP && !data.SMTP_HOST) {

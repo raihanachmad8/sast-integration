@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
+import { logger } from '@/server/lib/logger';
 
 // ═══════════════════════════════════════════════════════════════════
 // Enterprise SAST Excel Workbook Generator

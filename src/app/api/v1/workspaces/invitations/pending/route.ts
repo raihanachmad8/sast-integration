@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   if (!auth.success) return auth.response;
 
   try {
-    const user = await authRepository.findById(auth.context.userId);
+    const user = await authRepository.findUserById(auth.context.userId);
     if (!user) return ApiResponse.error('User not found', 'NOT_FOUND', undefined, 404);
     const invitations = await workspaceService.listPendingInvitations(user.email);
     logger.workspace.info('listPendingInvitations completed', { count: invitations.length });

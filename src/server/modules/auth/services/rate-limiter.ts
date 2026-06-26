@@ -6,7 +6,16 @@
  * Disable for testing: set RATE_LIMIT_ENABLED=false in .env
  */
 
-const RATE_LIMIT_ENABLED = process.env.RATE_LIMIT_ENABLED !== 'false';
+import { logger } from '@/server/lib/logger';
+
+let _rateLimitEnabled: boolean | null = null;
+
+function isRateLimitEnabled(): boolean {
+  if (_rateLimitEnabled !== null) return _rateLimitEnabled;
+  const raw = process.env.RATE_LIMIT_ENABLED;
+  _rateLimitEnabled = raw !== 'false';
+  return _rateLimitEnabled;
+}
 
 const RATE_LIMIT = {
   MAX_ATTEMPTS: 5,
@@ -43,7 +52,7 @@ export const rateLimiter = {
    * @returns `null` if allowed, or `retryAfterMs` if blocked.
    */
   check(key: string): number | null {
-    if (!RATE_LIMIT_ENABLED) return null;
+    if (!isRateLimitEnabled()) return null;
 
     const record = store.get(key);
     if (!record) return null;
@@ -53,6 +62,7 @@ export const rateLimiter = {
     // Locked out
     if (record.lockedUntil) {
       if (now < record.lockedUntil) {
+        logger.auth.warn('Rate limit: locked out', { key, remainingMs: record.lockedUntil - now });
         return record.lockedUntil - now;
       }
       // Lock expired — reset
@@ -73,7 +83,7 @@ export const rateLimiter = {
    * Record a failed attempt. Locks out after MAX_ATTEMPTS.
    */
   recordFailure(key: string): void {
-    if (!RATE_LIMIT_ENABLED) return;
+    if (!isRateLimitEnabled()) return;
 
     const now = Date.now();
     const record = store.get(key);
@@ -86,6 +96,7 @@ export const rateLimiter = {
     record.count += 1;
     if (record.count >= RATE_LIMIT.MAX_ATTEMPTS) {
       record.lockedUntil = now + RATE_LIMIT.LOCKOUT_MS;
+      logger.auth.warn('Rate limit: max attempts reached, locked out', { key, attempts: record.count });
     }
   },
 

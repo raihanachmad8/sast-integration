@@ -22,9 +22,9 @@ function TechBadge({ name, icon, role, accentColor, bgColor }: TechBadgeProps) {
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
-        padding: '14px 16px',
-        borderRadius: 12,
+        gap: token.marginSM,
+        padding: `${token.paddingSM}px ${token.paddingSM}px`,
+        borderRadius: token.borderRadiusSM,
         background: token.colorBgContainer,
         border: `1px solid ${token.colorBorderSecondary}`,
         cursor: 'default',
@@ -33,9 +33,9 @@ function TechBadge({ name, icon, role, accentColor, bgColor }: TechBadgeProps) {
     >
       <div
         style={{
-          width: 40,
-          height: 40,
-          borderRadius: 10,
+          width: token.sizeXL,
+          height: token.sizeXL,
+          borderRadius: token.borderRadiusSM,
           background: bgColor,
           color: accentColor,
           display: 'flex',
@@ -51,7 +51,7 @@ function TechBadge({ name, icon, role, accentColor, bgColor }: TechBadgeProps) {
         <Text strong style={{ fontSize: 14, display: 'block', lineHeight: 1.3, letterSpacing: '-0.01em' }}>
           {name}
         </Text>
-        <Text type="secondary" style={{ fontSize: 11.5, lineHeight: 1.3 }}>
+        <Text type="secondary" style={{ fontSize: 12, lineHeight: 1.3 }}>
           {role}
         </Text>
       </div>
@@ -87,7 +87,7 @@ export function LandingTrust() {
   return (
     <section
       style={{
-        padding: 'clamp(72px, 10vw, 100px) clamp(24px, 5vw, 64px)',
+        padding: 'clamp(72px, 10vw, 100px) clamp(16px, 4vw, 64px)',
         background: token.colorBgLayout,
         borderTop: `1px solid ${token.colorBorderSecondary}`,
       }}
@@ -141,7 +141,7 @@ export function LandingTrust() {
           <Text
             type="secondary"
             style={{
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 700,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -166,7 +166,7 @@ export function LandingTrust() {
           <Text
             type="secondary"
             style={{
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 700,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',

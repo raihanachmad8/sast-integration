@@ -1,26 +1,23 @@
 'use client';
 
-import { Button, Typography, Flex, Space, theme } from 'antd';
+import { Button, Typography, Flex, theme } from 'antd';
 import Link from 'next/link';
-import { ArrowRightOutlined, GithubOutlined, CheckCircleFilled } from '@ant-design/icons';
+import { ArrowRightOutlined, BookOutlined, CheckCircleFilled } from '@ant-design/icons';
 import { ROUTES } from '@/commons/constants';
-import { LANDING_COLORS, GITHUB_REPO_URL } from '@/commons/constants/landing';
-import { LANDING_TOKENS } from '@/commons/constants/landing-tokens';
 
 const { Title, Paragraph, Text } = Typography;
 
-const CTA_HIGHLIGHTS = [
-  'Deploy in minutes with Docker Compose',
-  'No vendor lock-in — fully self-hosted',
-  '100% open source under MIT license',
+const TRUST_ITEMS = [
+  'No credit card required',
+  'Self-hostable via Docker',
+  'MIT licensed',
 ] as const;
 
 /**
- * LandingCTA — full-width gradient call-to-action section.
+ * LandingCTA — full-width teal gradient call-to-action section.
  *
- * Uses the primary teal gradient with dot-grid texture overlay
- * and ambient glow orbs for visual depth.
- * Renders two action buttons and three trust highlights below.
+ * Accurately describes the platform's deployment model and license.
+ * Horizontal padding clamped for safe mobile rendering.
  */
 export function LandingCTA() {
   const { token } = theme.useToken();
@@ -28,173 +25,145 @@ export function LandingCTA() {
   return (
     <section
       style={{
-        padding: 'clamp(90px, 14vw, 130px) clamp(24px, 5vw, 64px)',
+        padding: 'clamp(72px, 12vw, 112px) clamp(16px, 4vw, 40px)',
         textAlign: 'center',
-        background: `linear-gradient(
-          135deg,
-          #042721 0%,
-          #064e40 25%,
-          ${token.colorPrimary} 55%,
-          ${token.colorPrimaryHover} 80%,
-          #0e8a7d 100%
-        )`,
+        background: `linear-gradient(135deg, ${token.colorPrimary} 0%, #115e59 100%)`,
         position: 'relative',
         overflow: 'hidden',
       }}
     >
-      {/* Decorative dot overlay */}
+      {/* Decorative orb — top right */}
       <div
+        className="lp-pulse"
         aria-hidden="true"
         style={{
           position: 'absolute',
-          inset: 0,
-          opacity: 0.055,
-          backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)',
-          backgroundSize: '30px 30px',
+          top: '-40%',
+          right: '-8%',
+          width: 520,
+          height: 520,
+          borderRadius: '50%',
+          background: 'rgba(255, 255, 255, 0.08)',
           pointerEvents: 'none',
         }}
       />
 
-      {/* Ambient glow orbs */}
+      {/* Decorative orb — bottom left */}
       <div
         className="lp-pulse"
         aria-hidden="true"
         style={{
           position: 'absolute',
-          top: '-30%',
-          right: '-10%',
-          width: 600,
-          height: 600,
+          bottom: '-28%',
+          left: '-6%',
+          width: 380,
+          height: 380,
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(94,234,212,0.15) 0%, transparent 65%)',
+          background: 'rgba(255, 255, 255, 0.05)',
           pointerEvents: 'none',
-        }}
-      />
-      <div
-        className="lp-pulse"
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          bottom: '-30%',
-          left: '-10%',
-          width: 500,
-          height: 500,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(167,139,250,0.12) 0%, transparent 65%)',
-          pointerEvents: 'none',
-          animationDelay: '2s',
+          animationDelay: '3s',
         }}
       />
 
       <Flex
         vertical
         align="center"
-        style={{ maxWidth: 620, margin: '0 auto', position: 'relative' }}
+        style={{ maxWidth: 760, margin: '0 auto', position: 'relative', zIndex: 1 }}
       >
+        {/* Eyebrow */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '5px 16px',
+            borderRadius: 50,
+            fontSize: 12,
+            fontWeight: 600,
+            background: 'rgba(255,255,255,0.14)',
+            color: 'rgba(255,255,255,0.95)',
+            border: '1.5px solid rgba(255,255,255,0.22)',
+            marginBottom: 24,
+          }}
+        >
+          🛡️ Start securing your C/C++ codebase today
+        </div>
+
         {/* Headline */}
         <Title
           level={2}
           style={{
             margin: 0,
-            color: LANDING_TOKENS.bg.white,
-            fontSize: 'clamp(30px, 5vw, 48px)',
-            fontWeight: 800,
+            color: 'white',
+            fontSize: 'clamp(24px, 4vw, 46px)',
+            fontWeight: 900,
             letterSpacing: '-0.03em',
             lineHeight: 1.12,
           }}
         >
-          Ready to secure your codebase?
+          Ready to Eliminate False Positives?
         </Title>
 
-        {/* Body copy */}
+        {/* Body */}
         <Paragraph
           style={{
-            fontSize: 'clamp(16px, 2vw, 19px)',
-            color: LANDING_COLORS.white.text,
-            margin: `${token.marginMD}px 0 ${token.marginXL}px`,
-            lineHeight: 1.7,
+            fontSize: 'clamp(14px, 1.8vw, 18px)',
+            color: 'rgba(255, 255, 255, 0.85)',
+            margin: '18px 0 36px',
+            lineHeight: 1.75,
           }}
         >
-          Deploy SAST Integration in minutes with a single{' '}
-          <code
-            style={{
-              background: 'rgba(255,255,255,0.15)',
-              borderRadius: 5,
-              padding: '2px 8px',
-              fontFamily: 'monospace',
-              fontSize: '0.9em',
-            }}
-          >
-            docker-compose up
-          </code>
-          .{' '}
-          Self-hosted, open source, and purpose-built for security-first development teams.
+          Deploy SAST Integration in minutes with Docker. Connect your GitHub, GitLab,
+          or Gitea repositories and get AI-verified scan results on your first commit.
         </Paragraph>
 
         {/* Action buttons */}
-        <Space size={12} wrap>
+        <Flex gap={12} wrap justify="center">
           <Link href={ROUTES.AUTH.SIGNUP}>
             <Button
               size="large"
               icon={<ArrowRightOutlined />}
               style={{
-                background: LANDING_TOKENS.bg.white,
+                background: 'white',
                 color: token.colorPrimary,
                 border: 'none',
                 fontWeight: 700,
-                height: 52,
+                height: 50,
                 paddingInline: 32,
                 fontSize: 15,
                 borderRadius: 10,
-                boxShadow: '0 4px 20px rgba(255,255,255,0.2)',
+                boxShadow: '0 6px 20px rgba(0,0,0,0.18)',
               }}
             >
               Get Started Free
             </Button>
           </Link>
-          <a
-            href={GITHUB_REPO_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <Link href={ROUTES.DOCS.INDEX}>
             <Button
               size="large"
-              icon={<GithubOutlined />}
+              icon={<BookOutlined />}
               ghost
               style={{
-                height: 52,
+                fontWeight: 600,
+                height: 50,
                 paddingInline: 28,
                 fontSize: 15,
                 borderRadius: 10,
-                borderColor: LANDING_COLORS.white.muted,
-                color: LANDING_TOKENS.bg.white,
-                fontWeight: 500,
+                borderColor: 'rgba(255,255,255,0.45)',
+                color: 'white',
               }}
             >
-              View on GitHub
+              Read the Docs
             </Button>
-          </a>
-        </Space>
+          </Link>
+        </Flex>
 
-        {/* Trust highlights */}
-        <Flex
-          wrap="wrap"
-          gap={20}
-          justify="center"
-          style={{ marginTop: token.marginXL }}
-        >
-          {CTA_HIGHLIGHTS.map((item) => (
-            <Flex key={item} align="center" gap={7}>
-              <CheckCircleFilled
-                style={{ color: 'rgba(94,234,212,0.85)', fontSize: 14 }}
-              />
-              <Text
-                style={{
-                  color: LANDING_COLORS.white.text,
-                  fontSize: 13.5,
-                  fontWeight: 500,
-                }}
-              >
+        {/* Trust indicators */}
+        <Flex gap={24} wrap justify="center" style={{ marginTop: 28 }}>
+          {TRUST_ITEMS.map((item) => (
+            <Flex key={item} align="center" gap={6}>
+              <CheckCircleFilled style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13 }} />
+              <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>
                 {item}
               </Text>
             </Flex>

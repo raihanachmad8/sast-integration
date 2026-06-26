@@ -11,6 +11,8 @@ import { MAIL } from '@/server/modules/mail/constants';
 import { logger } from '@/server/lib/logger';
 
 export async function GET(request: NextRequest) {
+  logger.auth.info('get request');
+
   const token = request.nextUrl.searchParams.get('token');
   if (!token) {
     return ApiResponse.error('Token is required', 'VALIDATION_ERROR', undefined, 422);

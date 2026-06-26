@@ -7,6 +7,7 @@ import { validateBody } from '@/server/http/validate';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { aiVerificationService } from '@/server/modules/scan';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -21,6 +22,8 @@ const aiVerifySchema = z.object({
  * Batch AI verification for findings in a scan.
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('post request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;

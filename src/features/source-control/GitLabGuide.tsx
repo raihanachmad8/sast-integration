@@ -3,6 +3,15 @@ import { APP_BASE_URL } from '@/commons/constants/app';
 
 const cbUrl = (id: string) => `${APP_BASE_URL}/api/v1/source-control/callback/${id}`;
 
+/**
+ * Step-by-step setup guide for connecting GitLab via OAuth application or personal access token.
+ *
+ * @returns {@link SetupGuide} configuration object for the GitLab provider.
+ *
+ * @example
+ * // Used internally by SetupGuideDrawer
+ * const guide = GITLAB_GUIDE;
+ */
 export const GITLAB_GUIDE: SetupGuide = {
   title: 'GitLab setup',
   docsUrl: 'https://docs.gitlab.com/ee/integration/oauth_provider.html',

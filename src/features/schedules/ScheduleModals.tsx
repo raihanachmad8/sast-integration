@@ -26,6 +26,22 @@ interface EditScheduleModalProps {
   onSave: (values: { repositoryId: string; branch: string; cronExpression: string; timezone: string }) => void;
 }
 
+/**
+ * Modal form for editing an existing scan schedule with repository, branch, cron, and timezone fields.
+ *
+ * Pre-fills fields from the existing schedule and validates via Zod schema.
+ *
+ * @param props - {@link EditScheduleModalProps}
+ * @returns JSX element rendering the edit schedule modal.
+ *
+ * @example
+ * <EditScheduleModal
+ *   open={true}
+ *   schedule={existingSchedule}
+ *   onClose={() => setOpen(false)}
+ *   onSave={(values) => updateSchedule(values)}
+ * />
+ */
 export function EditScheduleModal({ open, schedule, onClose, onSave }: EditScheduleModalProps) {
   const { message } = App.useApp();
   const { token } = theme.useToken();
@@ -85,6 +101,21 @@ interface AddScheduleModalProps {
   onSave: (values: { repositoryId: string; branch: string; cronExpression: string; timezone: string }) => void;
 }
 
+/**
+ * Modal form for creating a new scan schedule with repository, branch, cron, and timezone fields.
+ *
+ * Validates via Zod schema and resets form on successful save.
+ *
+ * @param props - {@link AddScheduleModalProps}
+ * @returns JSX element rendering the add schedule modal.
+ *
+ * @example
+ * <AddScheduleModal
+ *   open={true}
+ *   onClose={() => setOpen(false)}
+ *   onSave={(values) => createSchedule(values)}
+ * />
+ */
 export function AddScheduleModal({ open, onClose, onSave }: AddScheduleModalProps) {
   const { message } = App.useApp();
   const { token } = theme.useToken();

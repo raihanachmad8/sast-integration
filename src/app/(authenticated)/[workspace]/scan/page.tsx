@@ -9,16 +9,16 @@ import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
-import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { useScanListQuery, useScanDetailQuery, useScanFindingsQuery, useTriggerScanMutation, scanApi } from '@/modules/scan';
 import { useRepositoriesQuery } from '@/modules/repositories';
 import { useSessionData } from '@/modules/auth/queries';
-import type { ScanRow, ScanFinding } from '@/features/scan/types';
 import type { ScanDetail, TimelineEvent } from '@/commons/types';
 import { ScanTable, NewScanModal } from '@/features/scan';
+import type { ScanRow, ScanFinding } from '@/features/scan/types';
 
 const ScanDetailDrawer = dynamic(
   () => import('@/features/scan/ScanDetailDrawer').then((m) => m.ScanDetailDrawer),
@@ -139,6 +139,7 @@ export default function ScanPage() {
   }
 
   return (
+    <PermissionGate permission={PERMISSION.SCAN_VIEW} fallback={<PermissionHint permission={PERMISSION.SCAN_VIEW} />}>
     <Flex vertical gap={token.paddingXL}>
       <PageHeader
         title="Scans"
@@ -253,5 +254,6 @@ export default function ScanPage() {
         workspaceSlug={workspaceSlug}
       />
     </Flex>
+    </PermissionGate>
   );
 }

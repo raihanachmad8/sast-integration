@@ -50,7 +50,7 @@ export function MemberSelect({ members, value, onChange, placeholder = 'Select r
   };
 
   const popoverContent = (
-    <div style={{ width: 300 }}>
+    <div style={{ width: token.sizeXXL * 6 }}>
       <Input
         prefix={<SearchOutlined style={{ color: token.colorTextSecondary }} />}
         placeholder="Search members..."
@@ -67,7 +67,7 @@ export function MemberSelect({ members, value, onChange, placeholder = 'Select r
             danger
             block
             onClick={() => handleSelect(null)}
-            style={{ justifyContent: 'flex-start', height: 40, marginBottom: token.marginXS }}
+            style={{ justifyContent: 'flex-start', height: token.controlHeightLG, marginBottom: token.marginXS }}
           >
             Unassign
           </Button>
@@ -75,7 +75,7 @@ export function MemberSelect({ members, value, onChange, placeholder = 'Select r
         </>
       )}
 
-      <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+      <div style={{ maxHeight: token.sizeXXL * 5, overflowY: 'auto' }}>
         {filtered.length === 0 ? (
           <Flex justify="center" style={{ padding: token.paddingLG }}>
             <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>No members found</Typography.Text>
@@ -89,7 +89,7 @@ export function MemberSelect({ members, value, onChange, placeholder = 'Select r
               onClick={() => handleSelect(m.userId)}
               style={{
                 justifyContent: 'flex-start',
-                height: 44,
+                height: token.controlHeight,
                 background: value === m.userId ? token.colorPrimaryBg : 'transparent',
                 borderRadius: token.borderRadiusSM,
                 marginBottom: token.marginXXS,
@@ -97,7 +97,7 @@ export function MemberSelect({ members, value, onChange, placeholder = 'Select r
             >
               <Flex align="center" gap={token.marginSM} style={{ width: '100%' }}>
                 <Avatar
-                  size={32}
+                  size={token.sizeXL}
                   style={{
                     background: m.color,
                     fontSize: token.fontSizeSM,
@@ -128,11 +128,11 @@ export function MemberSelect({ members, value, onChange, placeholder = 'Select r
       content={popoverContent}
       getPopupContainer={(trigger) => trigger.parentElement ?? document.body}
     >
-      <Button block style={{ justifyContent: selected ? 'flex-start' : 'center', height: 40 }}>
+      <Button block style={{ justifyContent: selected ? 'flex-start' : 'center', height: token.controlHeightLG }}>
         {selected ? (
           <Flex align="center" gap={token.marginSM}>
             <Avatar
-              size={24}
+              size={token.sizeLG}
               style={{
                 background: selected.color,
                 fontSize: token.fontSizeSM,

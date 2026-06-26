@@ -1,8 +1,11 @@
 import { ApiResponse } from '@/server/http/response';
 import { db } from '@/server/db/client';
 import { sql } from 'drizzle-orm';
+import { logger } from '@/server/lib/logger';
 
 export async function GET() {
+  logger.scan.info('get request');
+
   const checks: Record<string, string> = { app: 'healthy' };
 
   try {

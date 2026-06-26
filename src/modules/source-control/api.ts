@@ -120,4 +120,8 @@ export const sourceControlApi = {
   async deleteProvider(workspaceId: string, id: string): Promise<void> {
     await _api.Delete<ApiResponse<null>>(ENDPOINTS.SOURCE_CONTROLS.DETAIL(workspaceId, id));
   },
+
+  async disconnectProvider(workspaceId: string, id: string): Promise<void> {
+    await _api.Patch<ApiResponse<null>>(ENDPOINTS.SOURCE_CONTROLS.DETAIL(workspaceId, id), { credentials: {} });
+  },
 };

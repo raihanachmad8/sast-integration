@@ -8,6 +8,7 @@ import { findingService } from '@/server/modules/scan';
 import { parsePagination } from '@/server/http/validate';
 import { projectRepository } from '@/server/modules/project/repositories/project.repository';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -17,6 +18,8 @@ type RouteContext = { params: Promise<{ workspaceId: string }> };
  * Repositories with null projectId are visible to all workspace members.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;

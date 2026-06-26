@@ -5,6 +5,7 @@ import { AppError } from '@/server/http/errors';
 import { db } from '@/server/db/client';
 import { sessions } from '@drizzle/schema/users';
 import { eq, and } from 'drizzle-orm';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ sessionId: string }> };
 
@@ -13,6 +14,8 @@ type RouteContext = { params: Promise<{ sessionId: string }> };
  * Revoke (delete) a specific session.
  */
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  logger.auth.info('delete request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
 

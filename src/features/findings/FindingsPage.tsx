@@ -9,17 +9,15 @@ import { PageHeader } from '@/commons/components/PageHeader';
 import { PermissionGate } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { errorMessage } from '@/lib/api/errors';
-import { FindingsTable } from '@/features/findings';
-import { BulkAssignModal } from './BulkAssignModal';
+import { FindingsTable, BulkAssignModal, FindingDetailDrawer } from '@/features/findings';
 import { useFindingsPageState } from './useFindingsPageState';
-import { FindingDetailDrawer } from '@/features/findings/FindingDetailDrawer';
 
 /**
  * Findings management page — browse, filter, review, and triage security findings.
  *
  * Routes: `/{workspaceSlug}/findings`
  */
-export default function FindingsPage() {
+export function FindingsPage() {
   const { token } = theme.useToken();
   const {
     findingsQuery,

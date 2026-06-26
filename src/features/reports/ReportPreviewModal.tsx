@@ -13,10 +13,11 @@ import {
 import { format } from 'date-fns';
 import dynamic from 'next/dynamic';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
+import { REPORT_FORMAT } from '@/commons/constants/layout';
 import { reportsApi } from '@/modules/reports/api';
 import type { ReportRow } from '@/commons/types/reports';
 
-const PdfViewer = dynamic(() => import('./PdfViewer'), { ssr: false, loading: () => <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 420 }}><Spin description="Memuat PDF..." /></div> });
+const PdfViewer = dynamic(() => import('./PdfViewer').then((m) => m.PdfViewer), { ssr: false, loading: () => <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 420 }}><Spin description="Memuat PDF..." /></div> });
 
 /* ── helpers ──────────────────────────────────────────── */
 
@@ -88,6 +89,23 @@ export interface ReportPreviewModalProps {
 
 /* ── component ──────────────────────────────────────── */
 
+/**
+ * Modal for previewing a report with tabbed PDF viewer and metadata details.
+ *
+ * Loads the report PDF via API and displays it alongside report metadata (type, project, dates).
+ *
+ * @param props - {@link ReportPreviewModalProps}
+ * @returns JSX element rendering the report preview modal with PDF viewer and details tabs.
+ *
+ * @example
+ * <ReportPreviewModal
+ *   open={true}
+ *   report={reportRow}
+ *   workspaceId="ws_123"
+ *   onClose={() => setOpen(false)}
+ *   onDownload={(r) => downloadReport(r)}
+ * />
+ */
 const ReportPreviewModal = React.memo(function ReportPreviewModal({
   open,
   report,
@@ -167,8 +185,8 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
 
   useEffect(() => {
     if (open && report) {
-      if (ext === 'pdf') loadPdf();
-      else if (ext === 'xlsx') loadExcel();
+      if (ext === REPORT_FORMAT.PDF) loadPdf();
+      else if (ext === REPORT_FORMAT.XLSX) loadExcel();
     }
 
     return () => {
@@ -192,8 +210,8 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
 
   if (!report) return null;
 
-  const loading = ext === 'pdf' ? pdfLoading : excelLoading;
-  const error = ext === 'pdf' ? pdfError : excelError;
+  const loading = ext === REPORT_FORMAT.PDF ? pdfLoading : excelLoading;
+  const error = ext === REPORT_FORMAT.PDF ? pdfError : excelError;
   const reportDate = report.createdAt
     ? format(new Date(report.createdAt), 'dd MMM yyyy, HH:mm')
     : '-';
@@ -205,7 +223,7 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
       open={open}
       title={
         <span style={{ fontSize: token.fontSize }}>
-          <Icon style={{ marginRight: token.marginXXS, color: ext === 'pdf' ? token.colorError : token.colorSuccess }} />
+          <Icon style={{ marginRight: token.marginXXS, color: ext === REPORT_FORMAT.PDF ? token.colorError : token.colorSuccess }} />
           {report.title}
         </span>
       }
@@ -259,37 +277,37 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
             background: token.colorBgLayout,
             borderRadius: token.borderRadius,
             overflow: 'hidden',
-            minHeight: 420,
+            minHeight: token.sizeXXL * 8.75,
             display: 'flex',
             flexDirection: 'column',
           }}
         >
           {loading && (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: token.sizeXXL * 8.33 }}>
               <Spin description="Memuat preview..." />
             </div>
           )}
 
           {error && (
-            <div style={{ padding: 32, textAlign: 'center' }}>
+            <div style={{ padding: token.paddingXL, textAlign: 'center' }}>
               <Typography.Text type="danger">{error}</Typography.Text>
               <br />
-              <Button size="small" icon={<ReloadOutlined />} style={{ marginTop: 8 }} onClick={ext === 'pdf' ? loadPdf : loadExcel}>
+              <Button icon={<ReloadOutlined />} style={{ marginTop: token.marginXS }} onClick={ext === REPORT_FORMAT.PDF ? loadPdf : loadExcel}>
                 Coba lagi
               </Button>
             </div>
           )}
 
-          {!loading && !error && ext === 'pdf' && pdfData && (
+          {!loading && !error && ext === REPORT_FORMAT.PDF && pdfData && (
             <PdfViewer data={pdfData} />
           )}
 
-          {!loading && !error && ext === 'pdf' && !pdfData && (
-            <div style={{ padding: 32, textAlign: 'center', color: token.colorTextTertiary }}>Preview tidak tersedia</div>
+          {!loading && !error && ext === REPORT_FORMAT.PDF && !pdfData && (
+            <div style={{ padding: token.paddingXL, textAlign: 'center', color: token.colorTextTertiary }}>Preview tidak tersedia</div>
           )}
 
-          {!loading && !error && ext === 'xlsx' && currentSheet && (
-            <div style={{ maxHeight: 420, overflow: 'auto' }}>
+          {!loading && !error && ext === REPORT_FORMAT.XLSX && currentSheet && (
+            <div style={{ maxHeight: token.sizeXXL * 8.75, overflow: 'auto' }}>
               {excelData && excelData.sheets.length > 1 && (
                 <div style={{ display: 'flex', gap: token.marginXXS, padding: `${token.paddingXS}px ${token.paddingXS}px`, borderBottom: `1px solid ${token.colorBorderSecondary}`, background: token.colorBgContainer, position: 'sticky', top: 0, zIndex: 1 }}>
                   {excelData.sheets.map((sheet, idx) => (
@@ -369,12 +387,12 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
             </div>
           )}
 
-          {!loading && !error && ext === 'xlsx' && !currentSheet && (
-            <div style={{ padding: 32, textAlign: 'center', color: token.colorTextTertiary }}>Tidak ada data</div>
+          {!loading && !error && ext === REPORT_FORMAT.XLSX && !currentSheet && (
+            <div style={{ padding: token.paddingXL, textAlign: 'center', color: token.colorTextTertiary }}>Tidak ada data</div>
           )}
 
-          {!loading && !error && !['pdf', 'xlsx'].includes(ext) && (
-            <div style={{ padding: 32, textAlign: 'center', color: token.colorTextTertiary }}>
+          {!loading && !error && ![REPORT_FORMAT.PDF, REPORT_FORMAT.XLSX].includes(ext as typeof REPORT_FORMAT.PDF) && (
+            <div style={{ padding: token.paddingXL, textAlign: 'center', color: token.colorTextTertiary }}>
               Preview tidak tersedia untuk format {ext.toUpperCase()}
             </div>
           )}
@@ -409,4 +427,4 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
   );
 });
 
-export default ReportPreviewModal;
+export { ReportPreviewModal };

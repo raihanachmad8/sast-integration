@@ -5,7 +5,7 @@ import { App, Button, Select, Switch, Card, Typography, Form, Row, Col, Flex, th
 import { PageHeader } from '@/commons/components/PageHeader';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { useQualityGateConfigQuery, useUpdateQualityGateMutation } from '@/modules/quality-gates';
-import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { ErrorState } from '@/commons/components/ErrorState';
@@ -46,8 +46,8 @@ function QualityGatesPageContent() {
   const { token } = theme.useToken();
   const gatesQuery = useQualityGateConfigQuery();
   const updateMutation = useUpdateQualityGateMutation();
-  const { isAtLeast } = usePermissions();
-  const canManage = isAtLeast('manager');
+  const { has } = usePermissions();
+  const canManage = has(PERMISSION.POLICY_MANAGE);
   const [form] = Form.useForm();
   const rule = createZodSync(qualityGateConfigSchema);
 
@@ -84,6 +84,7 @@ function QualityGatesPageContent() {
   if (gatesQuery.isError) return <ErrorState title="Failed to load config" description="Could not load quality gate configuration." />;
 
   return (
+    <PermissionGate permission={PERMISSION.POLICY_VIEW} fallback={<PermissionHint permission={PERMISSION.POLICY_VIEW} />}>
     <Flex vertical gap={token.paddingXL}>
       <PageHeader
         title="Quality Gates"
@@ -96,7 +97,7 @@ function QualityGatesPageContent() {
       />
 
       <Form form={form} layout="vertical">
-        <Card styles={{ body: { padding: token.paddingLG } }}>
+        <Card styles={{ body: { padding: token.paddingXL } }}>
           <Typography.Title level={4} style={{ fontSize: token.fontSizeHeading4, fontWeight: token.fontWeightStrong, margin: `0 0 ${token.marginXS}px` }}>Default PR gate</Typography.Title>
           <Typography.Paragraph style={{ color: token.colorTextSecondary, fontSize: token.fontSize, margin: `0 0 ${token.marginXL}px` }}>
             These rules apply to all pull request scans unless overridden by a project-level gate.
@@ -133,7 +134,7 @@ function QualityGatesPageContent() {
         </Card>
       </Form>
 
-      <Card styles={{ body: { padding: token.paddingLG } }}>
+      <Card styles={{ body: { padding: token.paddingXL } }}>
         <Typography.Title level={4} style={{ fontSize: token.fontSizeHeading4, fontWeight: token.fontWeightStrong, margin: `0 0 ${token.marginSM}px` }}>Evaluations</Typography.Title>
         <Flex vertical align="center" style={{ color: token.colorTextSecondary, padding: token.paddingXL }}>
           <FaIcon icon="fa-clipboard-check" style={{ fontSize: token.fontSizeHeading1, marginBottom: token.marginMD, opacity: 0.4 }} />
@@ -141,5 +142,6 @@ function QualityGatesPageContent() {
         </Flex>
       </Card>
     </Flex>
+    </PermissionGate>
   );
 }

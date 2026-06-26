@@ -7,7 +7,7 @@ import { useSignupMutation } from '@/modules/auth/queries';
 import { clientEnv } from '@/config/client-env';
 import { ROUTES } from '@/commons/constants';
 import { useRouter } from 'next/navigation';
-import { AuthForm, AuthField } from '@/features/auth/AuthForm';
+import { AuthForm, AuthField } from '@/features/auth';
 import { createZodSync } from '@/lib/utils/zod-sync';
 import { signupSchema } from '@/commons/schemas';
 

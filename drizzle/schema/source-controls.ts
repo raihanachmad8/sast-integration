@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, jsonb, timestamp, text, boolean, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, jsonb, timestamp, text, boolean, uniqueIndex, index, foreignKey } from 'drizzle-orm/pg-core';
 import { isNull } from 'drizzle-orm';
 import { users } from './users';
 import { workspaces } from './workspaces';
@@ -19,7 +19,7 @@ export const sourceControls = pgTable('source_controls', {
 
 export const sourceControlRepositories = pgTable('source_control_repositories', {
   id: uuid('id').primaryKey().defaultRandom(),
-  sourceControlId: uuid('source_control_id').notNull().references(() => sourceControls.id, { onDelete: 'cascade' }),
+  sourceControlId: uuid('source_control_id').notNull(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
   externalId: varchar('external_id', { length: 255 }),
   name: varchar('name', { length: 255 }).notNull(),
@@ -34,13 +34,18 @@ export const sourceControlRepositories = pgTable('source_control_repositories', 
 }, (t) => [
   uniqueIndex('source_control_repositories_ctrl_name_idx').on(t.sourceControlId, t.name),
   uniqueIndex('source_control_repositories_ctrl_extid_idx').on(t.sourceControlId, t.externalId),
+  foreignKey({
+    columns: [t.sourceControlId],
+    foreignColumns: [sourceControls.id],
+    name: 'scr_sc_fk',
+  }).onDelete('cascade'),
 ]);
 
 export const sourceControlImports = pgTable('source_control_imports', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
   sourceControlId: uuid('source_control_id').notNull().references(() => sourceControls.id),
-  sourceControlRepositoryId: uuid('source_control_repository_id').notNull().references(() => sourceControlRepositories.id),
+  sourceControlRepositoryId: uuid('source_control_repository_id').notNull(),
   repositoryId: uuid('repository_id').references(() => repositories.id),
   webhookExternalId: varchar('webhook_external_id', { length: 255 }),
   webhookSecret: varchar('webhook_secret', { length: 255 }),
@@ -50,7 +55,13 @@ export const sourceControlImports = pgTable('source_control_imports', {
   uninstalledAt: timestamp('uninstalled_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+}, (t) => [
+  foreignKey({
+    columns: [t.sourceControlRepositoryId],
+    foreignColumns: [sourceControlRepositories.id],
+    name: 'sci_srcr_fk',
+  }),
+]);
 
 export const repositories = pgTable('repositories', {
   id: uuid('id').primaryKey().defaultRandom(),

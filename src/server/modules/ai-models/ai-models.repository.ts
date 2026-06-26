@@ -1,6 +1,7 @@
 import { eq, and, asc } from 'drizzle-orm';
 import { db, type Tx } from '@/server/db/client';
 import { models } from '@drizzle/schema/integrations';
+import { logger } from '@/server/lib/logger';
 
 export interface CreateAiModelInput {
   workspaceId: string;

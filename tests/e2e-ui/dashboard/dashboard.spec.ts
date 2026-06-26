@@ -48,11 +48,11 @@ test.describe('Dashboard Page', () => {
     const findingsLink = page.getByRole('link', { name: /findings/i })
       .or(page.getByRole('button', { name: /findings/i }))
       .or(page.locator('text=/View findings/i'));
-    if (await findingsLink.first().isVisible({ timeout: 5000 }).catch(() => false)) {
-      await findingsLink.first().click();
-      await expect.poll(() => new URL(page.url()).pathname, { timeout: 10000 }).toContain('/findings');
-      await page.waitForLoadState('networkidle');
-    }
+    test.skip(await findingsLink.first().isVisible({ timeout: 5000 }).catch(() => false) === false, 'No findings link on dashboard');
+
+    await findingsLink.first().click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 10000 }).toContain('/findings');
+    await page.waitForLoadState('networkidle');
   });
 
   /**
@@ -66,11 +66,11 @@ test.describe('Dashboard Page', () => {
     const scansLink = page.getByRole('link', { name: /scans/i })
       .or(page.getByRole('button', { name: /scans|view all/i }))
       .or(page.locator('text=/View all/i'));
-    if (await scansLink.first().isVisible({ timeout: 5000 }).catch(() => false)) {
-      await scansLink.first().click();
-      await expect.poll(() => new URL(page.url()).pathname, { timeout: 10000 }).toContain('/scan');
-      await page.waitForLoadState('networkidle');
-    }
+    test.skip(await scansLink.first().isVisible({ timeout: 5000 }).catch(() => false) === false, 'No scans link on dashboard');
+
+    await scansLink.first().click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 10000 }).toContain('/scan');
+    await page.waitForLoadState('networkidle');
   });
 
   /**

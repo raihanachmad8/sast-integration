@@ -68,6 +68,8 @@ import { ciCompleteSchema } from '@/commons/schemas/ci.schema';
 const COMMIT_STATUS_CONTEXT = 'sast-integration/gate';
 
 export async function POST(request: NextRequest) {
+  logger.scan.info('post request');
+
   const auth = await authenticateCiCd(request);
   if (!auth.success) return auth.response;
 

@@ -39,6 +39,8 @@ async function getFindingWorkspaceId(findingId: string): Promise<string | null> 
  * Get a single finding with AI verifications.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId, findingId } = await params;
@@ -75,6 +77,8 @@ const updateFindingSchema = z.object({
  * Update finding status, verdict, or assignment.
  */
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('patch request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const userId = auth.context.userId;

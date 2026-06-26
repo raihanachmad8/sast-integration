@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, App, Drawer, Flex, Table, Tag, Typography, theme } from 'antd';
+import { Button, App, Drawer, Flex, Tag, Typography, theme } from 'antd';
 import { useQuery } from '@tanstack/react-query';
 import { useSessionData } from '@/modules/auth/queries';
 import { useWebhooksQuery, useCreateWebhookMutation, useUpdateWebhookMutation, useDeleteWebhookMutation, useTestWebhookMutation } from '@/modules/webhooks';
@@ -12,11 +12,12 @@ import { DataTable, makeSource } from '@/commons/components/DataTable';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { ErrorBanner } from '@/commons/components/ErrorBanner';
 import { useTableParams } from '@/lib/hooks/useTableParams';
-import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
+import { WEBHOOK_STATUS } from '@/commons/constants/layout';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { errorMessage } from '@/lib/api/errors';
 import { useConfirm } from '@/commons/components/ConfirmDialog';
-import { WebhookFormModal } from '@/features/webhooks/WebhookFormModal';
+import { WebhookFormModal } from '@/features/webhooks';
 import type { WebhookRow } from '@/commons/types/webhooks';
 import { FeatureGate } from '@/commons/components/FeatureGate';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
@@ -90,6 +91,7 @@ function WebhooksPageContent() {
   }
 
   return (
+    <PermissionGate permission={PERMISSION.WEBHOOK_VIEW} fallback={<PermissionHint permission={PERMISSION.WEBHOOK_VIEW} />}>
     <Flex vertical gap={token.paddingXL}>
       <PageHeader
         title="Webhooks"
@@ -186,6 +188,7 @@ function WebhooksPageContent() {
         loading={updateMutation.isPending}
       />
     </Flex>
+    </PermissionGate>
   );
 }
 
@@ -211,17 +214,15 @@ function WebhookDeliveryHistory({ webhookId }: { webhookId: string }) {
   if (!query.data?.length) return <Flex vertical align="center" style={{ color: token.colorTextSecondary, padding: token.paddingXL }}>No deliveries yet.</Flex>;
 
   return (
-    <Table
-      dataSource={query.data}
-      rowKey="id"
-      size="small"
-      pagination={{ pageSize: 10 }}
+    <DataTable
+      source={{ data: query.data, meta: { page: 1, pageSize: 10, total: query.data.length } }}
+      rowKey={(row) => row.id}
       columns={[
-        { title: 'Event', dataIndex: 'event', key: 'event', render: (v: string) => <Tag>{v}</Tag> },
-        { title: 'Status', dataIndex: 'status', key: 'status', render: (v: string) => <StatusPill variant={v === 'success' ? 'teal' : v === 'failed' ? 'red' : 'amber'}>{v}</StatusPill> },
-        { title: 'HTTP', dataIndex: 'responseStatus', key: 'responseStatus', render: (v: number | null) => v ?? '—' },
-        { title: 'Duration', dataIndex: 'durationMs', key: 'durationMs', render: (v: number | null) => v ? `${v}ms` : '—' },
-        { title: 'Time', dataIndex: 'createdAt', key: 'createdAt', render: (v: string) => new Date(v).toLocaleString() },
+        { key: 'event', header: 'Event', render: (row) => <Tag>{row.event}</Tag> },
+        { key: 'status', header: 'Status', render: (row) => <StatusPill variant={row.status === WEBHOOK_STATUS.SUCCESS ? 'teal' : row.status === WEBHOOK_STATUS.FAILED ? 'red' : 'amber'}>{row.status}</StatusPill> },
+        { key: 'responseStatus', header: 'HTTP', render: (row) => row.responseStatus ?? '—' },
+        { key: 'durationMs', header: 'Duration', render: (row) => row.durationMs ? `${row.durationMs}ms` : '—' },
+        { key: 'createdAt', header: 'Time', render: (row) => new Date(row.createdAt).toLocaleString() },
       ]}
     />
   );

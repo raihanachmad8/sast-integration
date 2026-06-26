@@ -2,7 +2,6 @@
 
 import { Tag, Tooltip, Typography, theme } from 'antd';
 import { FaIcon } from '@/commons/components/FaIcon';
-import { ENTITY_COLORS } from '@/commons/constants/tokens';
 import type { AiVerdictDb } from './types';
 
 const { Text } = Typography;

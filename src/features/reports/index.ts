@@ -1,1 +1,2 @@
-export { default as ReportPreviewModal } from './ReportPreviewModal';
+export { ReportPreviewModal } from './ReportPreviewModal';
+export { PdfViewer } from './PdfViewer';

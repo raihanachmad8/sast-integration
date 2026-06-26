@@ -2,6 +2,7 @@ import { eq, desc, and, asc, inArray } from 'drizzle-orm';
 import { db, type Tx } from '@/server/db/client';
 import { aiVerifications } from '@drizzle/schema/findings';
 import { models } from '@drizzle/schema/integrations';
+import { logger } from '@/server/lib/logger';
 export const aiVerificationRepository = {
   /**
    * Create an AI verification record.

@@ -1,5 +1,6 @@
 import { workspaceRepository } from './repositories/workspace.repository';
 import { AppError } from '@/server/http/errors';
+import { logger } from '@/server/lib/logger';
 
 /**
  * Assert that the user is a member of the workspace.

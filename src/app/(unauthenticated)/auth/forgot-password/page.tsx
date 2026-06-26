@@ -3,7 +3,7 @@
 import { Input, Result } from 'antd';
 import { useMutation } from '@tanstack/react-query';
 import { API_BASE, ROUTES } from '@/commons/constants';
-import { AuthForm, AuthField } from '@/features/auth/AuthForm';
+import { AuthForm, AuthField } from '@/features/auth';
 
 export default function ForgotPasswordPage() {
   const mutation = useMutation({

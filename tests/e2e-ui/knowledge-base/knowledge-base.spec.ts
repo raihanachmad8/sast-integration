@@ -15,7 +15,6 @@ test.describe('Knowledge Base Page', () => {
   test('should render knowledge base page', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/knowledge-base`);
     await page.waitForLoadState('networkidle');
     await expect(page.locator('body')).toBeVisible();
@@ -28,7 +27,6 @@ test.describe('Knowledge Base Page', () => {
   test('should show knowledge base content or empty state', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/knowledge-base`);
     await page.waitForLoadState('networkidle');
 
@@ -49,7 +47,6 @@ test.describe('Knowledge Base Page', () => {
   test('should create a new knowledge base entry', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/knowledge-base`);
     await page.waitForLoadState('networkidle');
 
@@ -108,7 +105,6 @@ test.describe('Knowledge Base Page', () => {
   test('should edit an existing knowledge base entry', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/knowledge-base`);
     await page.waitForLoadState('networkidle');
 
@@ -139,28 +135,28 @@ test.describe('Knowledge Base Page', () => {
     });
 
     const firstRow = page.locator('tbody tr').first();
-    if (await firstRow.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await firstRow.getByRole('button', { name: 'View' }).click();
+    test.skip(await firstRow.isVisible({ timeout: 5000 }).catch(() => false) === false, 'No knowledge base entries present');
 
-      const drawer = page.locator('.ant-drawer');
-      await expect(drawer).toBeVisible({ timeout: 5000 });
+    await firstRow.getByRole('button', { name: 'View' }).click();
 
-      const editButton = drawer.getByRole('button', { name: /Edit entry/i });
-      if (await editButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await editButton.click();
+    const drawer = page.locator('.ant-drawer');
+    await expect(drawer).toBeVisible({ timeout: 5000 });
 
-        const modal = page.getByRole('dialog', { name: /Edit entry/i });
-        await expect(modal).toBeVisible({ timeout: 5000 });
+    const editButton = drawer.getByRole('button', { name: /Edit entry/i });
+    test.skip(await editButton.isVisible({ timeout: 3000 }).catch(() => false) === false, 'Edit entry button not found');
 
-        await page.getByLabel('Title').clear();
-        await page.getByLabel('Title').fill(updatedTitle);
+    await editButton.click();
 
-        await page.getByRole('button', { name: 'Save' }).click();
-        await expect(modal).not.toBeVisible({ timeout: 10000 });
+    const modal = page.getByRole('dialog', { name: /Edit entry/i });
+    await expect(modal).toBeVisible({ timeout: 5000 });
 
-        await expect(page.getByText(updatedTitle)).toBeVisible({ timeout: 10000 });
-      }
-    }
+    await page.getByLabel('Title').clear();
+    await page.getByLabel('Title').fill(updatedTitle);
+
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(modal).not.toBeVisible({ timeout: 10000 });
+
+    await expect(page.getByText(updatedTitle)).toBeVisible({ timeout: 10000 });
   });
 
   /**
@@ -172,7 +168,6 @@ test.describe('Knowledge Base Page', () => {
   test('should delete a knowledge base entry', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/knowledge-base`);
     await page.waitForLoadState('networkidle');
 
@@ -188,25 +183,25 @@ test.describe('Knowledge Base Page', () => {
     });
 
     const firstRow = page.locator('tbody tr').first();
-    if (await firstRow.isVisible({ timeout: 5000 }).catch(() => false)) {
-      const entryName = await firstRow.locator('td').first().textContent();
+    test.skip(await firstRow.isVisible({ timeout: 5000 }).catch(() => false) === false, 'No knowledge base entries present');
 
-      await firstRow.getByRole('button', { name: 'View' }).click();
+    const entryName = await firstRow.locator('td').first().textContent();
 
-      const drawer = page.locator('.ant-drawer');
-      await expect(drawer).toBeVisible({ timeout: 5000 });
+    await firstRow.getByRole('button', { name: 'View' }).click();
 
-      const deleteButton = drawer.getByRole('button', { name: /Mute entry|Delete/i });
-      if (await deleteButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await deleteButton.click();
+    const drawer = page.locator('.ant-drawer');
+    await expect(drawer).toBeVisible({ timeout: 5000 });
 
-        const confirmButton = page.getByRole('button', { name: /Delete|Confirm|OK|Yes/i });
-        if (await confirmButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-          await confirmButton.click();
-        }
+    const deleteButton = drawer.getByRole('button', { name: /Mute entry|Delete/i });
+    test.skip(await deleteButton.isVisible({ timeout: 3000 }).catch(() => false) === false, 'Delete button not found');
 
-        await expect(page.getByText(entryName ?? '')).not.toBeVisible({ timeout: 10000 });
-      }
+    await deleteButton.click();
+
+    const confirmButton = page.getByRole('button', { name: /Delete|Confirm|OK|Yes/i });
+    if (await confirmButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await confirmButton.click();
     }
+
+    await expect(page.getByText(entryName ?? '')).not.toBeVisible({ timeout: 10000 });
   });
 });

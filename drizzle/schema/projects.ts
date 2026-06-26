@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, boolean, unique, jsonb, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, boolean, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { users } from './users';
 import { workspaces } from './workspaces';
 
@@ -19,7 +19,7 @@ export const projects = pgTable('projects', {
   deletedAt: timestamp('deleted_at'),
   deletedBy: uuid('deleted_by').references(() => users.id),
 }, (t) => [
-  unique().on(t.workspaceId, t.slug),
+  uniqueIndex('projects_workspace_slug_idx').on(t.workspaceId, t.slug),
   index('projects_workspace_id_idx').on(t.workspaceId),
 ]);
 
@@ -32,6 +32,7 @@ export const projectMembers = pgTable('project_members', {
 }, (t) => [
   index('project_members_project_id_idx').on(t.projectId),
   index('project_members_user_id_idx').on(t.userId),
+  uniqueIndex('project_members_project_user_idx').on(t.projectId, t.userId),
 ]);
 
 export const projectTeams = pgTable('project_teams', {
@@ -42,6 +43,7 @@ export const projectTeams = pgTable('project_teams', {
   addedAt: timestamp('added_at').defaultNow().notNull(),
 }, (t) => [
   index('project_teams_project_id_idx').on(t.projectId),
+  uniqueIndex('project_teams_project_team_idx').on(t.projectId, t.teamId),
 ]);
 
 export const environments = pgTable('environments', {

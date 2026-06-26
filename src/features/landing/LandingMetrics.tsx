@@ -114,7 +114,7 @@ export function LandingMetrics() {
     <section
       id="metrics"
       style={{
-        padding: 'clamp(80px, 12vw, 120px) clamp(24px, 5vw, 64px)',
+        padding: 'clamp(80px, 12vw, 120px) clamp(16px, 4vw, 64px)',
         background: LANDING_TOKENS.bg.dark,
         position: 'relative',
         overflow: 'hidden',
@@ -229,7 +229,7 @@ export function LandingMetrics() {
                 </Text>
                 <Text
                   style={{
-                    fontSize: 11,
+                    fontSize: 12,
                     color: 'rgba(255,255,255,0.38)',
                     letterSpacing: '0.02em',
                   }}

@@ -11,233 +11,205 @@ App runs at http://localhost:3000
 
 ---
 
-## Docker
+## Docker Deployment Options
 
-### Build & Run
-
-```bash
-docker-compose up -d
-```
-
-### docker-compose.yml
-
-```yaml
-services:
-  app:
-    build: .
-    ports:
-      - 3000:3000
-    env_file: .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  postgres:
-    image: postgres:16-alpine
-    ports:
-      - 5432:5432
-    environment:
-      POSTGRES_DB: sast_integration
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: [CMD-SHELL, pg_isready -U postgres]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-volumes:
-  pgdata:
-```
-
-### Dockerfile
-
-```dockerfile
-FROM node:20-alpine AS base
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-FROM base AS deps
-WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
-
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN pnpm build
-
-FROM base AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
-EXPOSE 3000
-CMD ["node", "server.js"]
-```
-
----
-
-## Gitea + Actions Runner
-
-Jalankan Gitea (Git server) + Gitea Actions Runner (CI executor) via Docker Compose terpisah.
-
-### Quick Start
+### Option 1: Docker Run (Simplest)
 
 ```bash
-# 1. Pastikan .env punya RUNNER_TOKEN
-#    Token didapat dari Gitea → Site Administration → Actions → Runners
-echo "RUNNER_TOKEN=<your-token>" >> .env
+# Build image
+docker build -t sast-integration .
 
-# 2. Jalankan Gitea + Runner
-docker compose -f docker-compose.runner.yml up -d
+# Run with .env file
+docker run -d --name sast-app -p 3000:3000 --env-file .env sast-integration
 
-# 3. Akses Gitea
-#    http://localhost:4000
+# Run with inline env vars
+docker run -d --name sast-app -p 3000:3000 \
+  -e DATABASE_URL="postgresql://user:pass@host:5432/dbname" \
+  -e JWT_SECRET="your-32-char-secret-here" \
+  -e APP_URL="https://your-domain.com" \
+  -e NEXT_PUBLIC_APP_URL="https://your-domain.com" \
+  -e NEXT_PUBLIC_API_URL="https://your-domain.com/api/v1" \
+  sast-integration
+
+# Run with host network (for local PostgreSQL)
+docker run -d --name sast-app --network host --env-file .env sast-integration
+
+# Run with scanners
+docker build --build-arg INCLUDE_SCANNERS=true -t sast-integration .
+docker run -d --name sast-app -p 3000:3000 --env-file .env sast-integration
 ```
 
-### Architecture
+### Option 2: Docker Compose
 
-```
-┌─────────────────────────────────────────────────┐
-│                 Docker Network                  │
-│              (sast-integration_gitea-net)        │
-│                                                 │
-│  ┌──────────┐  ┌────────────┐  ┌─────────────┐ │
-│  │ gitea-db │  │   gitea    │  │   runner    │ │
-│  │ (postgres)│  │  :4000     │  │ (act_runner)│ │
-│  └──────────┘  └────────────┘  └──────┬──────┘ │
-│                                        │        │
-│                              ┌─────────▼──────┐ │
-│                              │  Job Container  │ │
-│                              │  (ubuntu-latest)│ │
-│                              │  clone via      │ │
-│                              │  gitea:4000     │ │
-│                              └────────────────┘ │
-└─────────────────────────────────────────────────┘
+```bash
+# Simple (external database)
+docker compose up -d
+
+# With local PostgreSQL
+docker compose -f docker-compose.yml up -d
 ```
 
-### Files
+### Option 3: Manual Docker Commands
 
-| File | Description |
-|------|-------------|
-| `docker-compose.runner.yml` | Compose Gitea + PostgreSQL + Runner |
-| `runner-config.yaml` | Runner config (mounted ke container) |
+```bash
+# Build
+docker build -t sast-integration .
 
-### Key Configuration
+# Create network
+docker network create sast-network
 
-**ROOT_URL** harus `http://localhost:4000` untuk akses browser. Runner sudah di-configure untuk override clone URL via `GITHUB_SERVER_URL=http://gitea:4000` di `runner-config.yaml`.
+# Run PostgreSQL (if local)
+docker run -d --name sast-db \
+  --network sast-network \
+  -e POSTGRES_DB=sast_db \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 \
+  postgres:16-alpine
 
-**Runner network** di-set ke `sast-integration_gitea-net` supaya job container satu network dengan Gitea.
-
-### Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| Runner offline di admin panel | Cek `docker logs sast-gitea-runner` — pastikan registration token valid |
-| `actions/checkout` gagal clone | Pastikan `runner-config.yaml` punya `GITHUB_SERVER_URL=http://gitea:4000` di `container.options` |
-| ROOT_URL warning di Gitea | ROOT_URL harus `http://localhost:4000` — jangan diubah ke `gitea:4000` |
-| Runner hilang setelah restart | Pastikan `gitea-runner-data` volume ter-mount di compose |
-| Job container tidak bisa akses Gitea | Pastikan `container.network` di runner config = `sast-integration_gitea-net` |
+# Run app
+docker run -d --name sast-app \
+  --network sast-network \
+  -p 3000:3000 \
+  -e DATABASE_URL="postgresql://postgres:postgres@db:5432/sast_db" \
+  -e JWT_SECRET="your-secret-key-minimum-32-characters" \
+  -e APP_URL="http://localhost:3000" \
+  -e NEXT_PUBLIC_APP_URL="http://localhost:3000" \
+  -e NEXT_PUBLIC_API_URL="http://localhost:3000/api/v1" \
+  sast-integration
+```
 
 ---
 
 ## Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| DATABASE_URL | Yes | — | PostgreSQL connection string |
-| JWT_SECRET | Yes | — | Secret for JWT signing (jose). Must not be a default/example value in production |
-| APP_URL | Yes | http://localhost:3000 | Application base URL. Must not be localhost in production |
-| WORKSPACE_MODE | No | multiple | `single` = one org workspace, invitation-only; `multiple` = open self-signup + per-user workspaces |
-| MAIL_PROVIDER | No | console | `console` (dev) or `smtp`. `console` is rejected in production |
-| OWNER_EMAIL / OWNER_PASSWORD / OWNER_NAME | No* | owner@sast.local / ChangeMe123! / Owner | Bootstrap owner for `db:seed`. *Required (non-default) in production |
-| ORG_NAME / ORG_SLUG | No | SAST Organization / sast-org | Seeded org workspace (single mode) |
-| PORT | No | 3000 | Server port |
-| NODE_ENV | No | development | Environment mode |
-| LOG_LEVEL | No | info | Log level: debug, info, warn, error |
-| RATE_LIMIT_ENABLED | No | true | Set to `false` to disable rate limiting (for testing/development) |
-| NVD_API_KEY | No | — | NVD API key (optional but recommended — higher rate limits) |
-| SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / SMTP_FROM | No* | localhost / 1025 / — / — / noreply@sast.local | SMTP config. *Required when `MAIL_PROVIDER=smtp` |
-| SEMGREP_RULES_DIR | No | ./rules/semgrep | Custom Semgrep rules directory |
-| FEATURE_FLAG_* | No | true | Feature flags (see `.env.example` for full list) |
-| STORAGE_PROVIDER | No | local | File storage provider (`local`, `s3`, or `cloudinary`) — see [STORAGE.md](STORAGE.md) |
-| S3_BUCKET / AWS_REGION / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / S3_ENDPOINT | No* | sast-uploads / us-east-1 / — / — / — | S3/MinIO config. *Required when `STORAGE_PROVIDER=s3` |
-| CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET / CLOUDINARY_FOLDER | No* | — / — / — / sast | Cloudinary config. *Required when `STORAGE_PROVIDER=cloudinary` |
+### Required
 
-> **Production hardening**: env validation fails fast on boot if `JWT_SECRET` is a known example value, `APP_URL` points to localhost, or `MAIL_PROVIDER=console`.
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | `postgresql://user:pass@host:5432/db` | PostgreSQL connection string |
+| `JWT_SECRET` | `random-32+chars` | JWT signing secret |
+| `APP_URL` | `https://your-domain.com` | Server-side app URL |
+| `NEXT_PUBLIC_APP_URL` | `https://your-domain.com` | Client-side app URL |
+| `NEXT_PUBLIC_API_URL` | `https://your-domain.com/api/v1` | Client-side API URL |
+| `OWNER_EMAIL` | `admin@domain.com` | Initial owner email |
+| `OWNER_PASSWORD` | `secure-password` | Initial owner password |
 
-> **Note**: `REGISTRATION_MODE` was removed — registration is derived from `WORKSPACE_MODE` (single → invite-only, multiple → open).
+### Optional
 
-> **Note**: This project uses custom JWT via `jose` for authentication and `pg-boss` for job queues (uses the same DATABASE_URL). No Redis or NextAuth required.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3000` | Server port |
+| `WORKSPACE_MODE` | `multiple` | `single` or `multiple` |
+| `MAIL_PROVIDER` | `console` | `console` or `smtp` |
+| `NVD_API_KEY` | — | NVD API key |
+| `STORAGE_PROVIDER` | `local` | `local`, `s3`, `cloudinary` |
+| `APP_MEMORY_LIMIT` | `1G` | Docker memory limit |
+| `APP_CPU_LIMIT` | `1` | Docker CPU limit |
 
-Copy `.env.example` to `.env` and fill in values.
-
----
-
-## Database Migrations
+### Override Environment Variables
 
 ```bash
-# Generate migration from schema changes
-pnpm db:generate
+# Override single variable
+docker run -e DATABASE_URL="new-url" sast-integration
 
-# Apply pending migrations
-pnpm db:migrate
+# Override from file
+docker run --env-file .env.prod sast-integration
 
-# Push schema directly (development only)
-pnpm db:push
+# Override multiple variables
+docker run \
+  -e DATABASE_URL="postgresql://..." \
+  -e JWT_SECRET="new-secret" \
+  -e APP_URL="https://prod.domain.com" \
+  sast-integration
+```
 
-# Open Drizzle Studio
-pnpm db:studio
+### .env File Example
+
+```bash
+# .env
+DATABASE_URL=postgresql://user:pass@host:5432/dbname
+JWT_SECRET=your-secret-key-minimum-32-characters
+APP_URL=https://your-domain.com
+NEXT_PUBLIC_APP_URL=https://your-domain.com
+NEXT_PUBLIC_API_URL=https://your-domain.com/api/v1
+OWNER_EMAIL=admin@yourdomain.com
+OWNER_PASSWORD=secure-password
 ```
 
 ---
 
-## Health Check
+## Cloud Database
 
-```
-GET /api/v1/health
-```
+### Neon
 
-Response:
-
-```json
-{ "success": true, "message": "OK", "data": { "status": "healthy", "version": "0.1.0" } }
+```bash
+DATABASE_URL=postgresql://user:pass@ep-xxx.region.aws.neon.tech/dbname?sslmode=require
 ```
 
----
+**Notes:**
+- Use `sslmode=require` (not `verify-full`) for Docker compatibility
+- Neon free tier pauses after inactivity
 
-## Queue Worker
+### Supabase
 
-Background job processing for scan execution uses pg-boss (PostgreSQL-based).
-Workers are registered automatically on server startup via `src/instrumentation.ts`.
-
-**Registered workers:**
-- `parse-scan-result` — Parse raw scan output into findings
-- `run-managed-scan` — Execute managed scan on repository
-- `trigger-scheduled-managed-scan` — Trigger scheduled scans
-- `ai-verify-finding` — AI verification of findings
-- `cleanup-old-scan-files` — Cleanup old scan files from storage
-- `nvd-knowledge-backfill` — Backfill NVD knowledge base
-- `sync-source-control` — Sync repositories from source control (scheduled every 30 minutes)
-- `scan-timeout-watchdog` — Detect and clean up timed-out scans (scheduled every 5 minutes)
-
-> **Note:** Queue runs in-process with Next.js. No separate worker command needed. `sync-source-control` runs every 30 minutes and `scan-timeout-watchdog` runs every 5 minutes automatically.
+```bash
+DATABASE_URL=postgresql://postgres:password@db.xxx.supabase.co:5432/postgres
+```
 
 ---
 
 ## Production Checklist
 
-- [ ] All environment variables set
-- [ ] Database migrations applied
-- [ ] NODE_ENV=production
-- [ ] JWT_SECRET is a strong random value (32+ chars)
-- [ ] Health check returns 200
+- [ ] `DATABASE_URL` set to production database
+- [ ] `JWT_SECRET` is a strong random value (32+ chars)
+- [ ] `APP_URL` points to your domain (not localhost)
+- [ ] `NEXT_PUBLIC_APP_URL` matches `APP_URL`
+- [ ] `NEXT_PUBLIC_API_URL` points to `/api/v1` endpoint
+- [ ] `OWNER_EMAIL` and `OWNER_PASSWORD` set
+- [ ] Database migrations applied (`pnpm db:push`)
+- [ ] Initial seed run (`pnpm db:seed`)
 - [ ] HTTPS configured (reverse proxy)
-- [ ] Rate limiting enabled
-- [ ] Error monitoring connected (Sentry)
-- [ ] Backup strategy for PostgreSQL
-- [ ] Log aggregation configured
+- [ ] Health check returns 200
+
+---
+
+## Gitea + Actions Runner
+
+```bash
+# 1. Set runner token in .env
+echo "RUNNER_TOKEN=<your-token>" >> .env
+
+# 2. Start Gitea + Runner
+docker compose -f docker-compose.runner.yml up -d
+
+# 3. Access Gitea at http://localhost:4000
+```
+
+---
+
+## Queue Workers
+
+Background jobs run in-process:
+
+| Worker | Schedule | Purpose |
+|--------|----------|---------|
+| parse-scan-result | On-demand | Parse scan output |
+| run-managed-scan | On-demand | Execute managed scans |
+| ai-verify-finding | On-demand | AI verification |
+| sync-source-control | Every 30 min | Sync SCM repos |
+| scan-timeout-watchdog | Every 5 min | Clean timed-out scans |
+| cleanup-old-scan-files | Daily 2am | Cleanup old files |
+| sync-knowledge-base | Every 6 hours | Sync NVD/CWE data |
+
+---
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Database timeout | Check `DATABASE_URL`, use `sslmode=require` for Neon |
+| Queue init fails | Database may be sleeping — first request wakes it |
+| Build fails | Check `.dockerignore`, ensure `node_modules` excluded |
+| Health check 500 | Check logs: `docker logs <container>` |
+| Port in use | Change `PORT` env var or stop other services |

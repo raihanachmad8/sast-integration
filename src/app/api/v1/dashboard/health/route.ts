@@ -8,6 +8,8 @@ import { dashboardService } from '@/server/modules/dashboard/dashboard.service';
 import { logger } from '@/server/lib/logger';
 
 export async function GET(request: NextRequest) {
+  logger.dashboard.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
 

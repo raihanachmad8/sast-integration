@@ -17,6 +17,23 @@ interface ProjectFormModalProps {
   isLoading?: boolean;
 }
 
+/**
+ * Modal form for creating or editing a project with Zod-validated name and description fields.
+ *
+ * Pre-fills fields when editing an existing project.
+ *
+ * @param props - {@link ProjectFormModalProps}
+ * @returns JSX element rendering the project create/edit modal.
+ *
+ * @example
+ * <ProjectFormModal
+ *   open={true}
+ *   project={existingProject}
+ *   onCancel={() => setOpen(false)}
+ *   onConfirm={(input) => saveProject(input)}
+ *   isLoading={false}
+ * />
+ */
 export function ProjectFormModal({ open, project, onCancel, onConfirm, isLoading }: ProjectFormModalProps) {
   const { token } = theme.useToken();
   const [form] = Form.useForm();

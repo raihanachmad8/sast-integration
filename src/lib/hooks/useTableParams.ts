@@ -80,6 +80,20 @@ function shallowEqual(a: TableParams, b: TableParams): boolean {
   return aKeys.every((k) => a.filters[k] === b.filters[k]);
 }
 
+/**
+ * Hook that syncs table pagination, search, sort, and filter state with URL search params.
+ *
+ * Provides setters that update the URL, and optionally filters client-side data.
+ *
+ * @param options - Configuration for page size, search/sort keys, filter keys, and optional client-side filtering.
+ * @returns Table params, setter functions, and optionally filtered/paginated data.
+ *
+ * @example
+ * const { params, setPagination, setSearch, setFilter } = useTableParams({
+ *   filterKeys: ['status'],
+ *   defaultPageSize: 10,
+ * });
+ */
 export function useTableParams<T = unknown>(options: UseTableParamsOptions<T> = {}) {
   const {
     defaultPageSize = 10,

@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { Drawer, Typography, Flex, theme } from 'antd';
+import React, { Suspense } from 'react';
+import { Drawer, Typography, Flex, Spin, theme } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
 import { CodeBlock } from '@/commons/components/CodeBlock';
 import { AiAnalysisCard } from '@/commons/components/AiAnalysisCard';
@@ -26,6 +26,26 @@ interface FindingDetailDrawerProps {
   onAssign?: (findingId: string, assignee: string | null) => void;
 }
 
+/**
+ * Drawer displaying full finding details including code snippet, AI analysis, scanner output, and actions.
+ *
+ * Provides member assignment, dismiss/resolve/reverify actions, and a link to the full finding page.
+ *
+ * @param props - {@link FindingDetailDrawerProps}
+ * @returns JSX element rendering the finding detail drawer with all analysis sections.
+ *
+ * @example
+ * <FindingDetailDrawer
+ *   open={true}
+ *   finding={finding}
+ *   members={memberList}
+ *   onClose={() => setOpen(false)}
+ *   onDismiss={(id) => dismissFinding(id)}
+ *   onResolve={(id) => resolveFinding(id)}
+ *   onReverify={(id, model) => reverifyFinding(id, model)}
+ *   onAssign={(findingId, assignee) => assignFinding(findingId, assignee)}
+ * />
+ */
 export const FindingDetailDrawer = React.memo(function FindingDetailDrawer({
   open,
   onClose,
@@ -64,12 +84,13 @@ export const FindingDetailDrawer = React.memo(function FindingDetailDrawer({
 
   return (
     <Drawer
+      destroyOnClose
       title={
         <Flex vertical gap={token.marginSM}>
           <Flex gap={token.marginXS} wrap="wrap">
             <StatusTag type="verdict" value={finding.verdict} />
             {finding.model && (
-              <Text style={{ color: token.colorTextSecondary, background: token.colorFillQuaternary, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: token.borderRadiusSM, margin: 0, padding: '0 8px' }}>
+              <Text style={{ color: token.colorTextSecondary, background: token.colorFillQuaternary, border: `1px solid ${token.colorBorderSecondary}`, borderRadius: token.borderRadiusSM, margin: 0, padding: `0 ${token.paddingXS}px` }}>
                 {finding.model}
               </Text>
             )}
@@ -101,43 +122,47 @@ export const FindingDetailDrawer = React.memo(function FindingDetailDrawer({
 
         {/* Source Code — only show if we have a code snippet */}
         {finding.codeSnippet && (
-          <Flex vertical gap={token.marginSM}>
-            <Flex justify="space-between" align="center">
-              <Text style={sectionTitleStyle}>Source code</Text>
-              {finding.file && (
-                <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  {finding.file}{finding.lineNumber != null ? `:${finding.lineNumber}` : ''}
-                </Text>
-              )}
+          <Suspense fallback={<Spin size="small" />}>
+            <Flex vertical gap={token.marginSM}>
+              <Flex justify="space-between" align="center">
+                <Text style={sectionTitleStyle}>Source code</Text>
+                {finding.file && (
+                  <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                    {finding.file}{finding.lineNumber != null ? `:${finding.lineNumber}` : ''}
+                  </Text>
+                )}
+              </Flex>
+              <CodeBlock
+                lines={(() => {
+                  const allLines = finding.codeSnippet.split('\n');
+                  const targetLine = finding.lineNumber ?? 1;
+                  return allLines.map((line, i) => ({
+                    num: targetLine + i,
+                    code: line,
+                    highlight: i === 0,
+                  }));
+                })()}
+              />
             </Flex>
-            <CodeBlock
-              lines={(() => {
-                const allLines = finding.codeSnippet.split('\n');
-                const targetLine = finding.lineNumber ?? 1;
-                return allLines.map((line, i) => ({
-                  num: targetLine + i,
-                  code: line,
-                  highlight: i === 0,
-                }));
-              })()}
-            />
-          </Flex>
+          </Suspense>
         )}
 
         {/* AI Analysis — only show if AI verification has run */}
         {finding.verdict && finding.verdict !== 'Pending' && (
-          <AiAnalysisCard
-            model={finding.model}
-            verdict={finding.verdict}
-            reasoning={finding.explanation ?? 'Analysis pending.'}
-            cwe={normalizedFinding.cwe}
-            matchDetail={finding.matchDetail}
-            likelyCwe={finding.likelyCwe}
-            dataFlow={finding.dataFlow}
-            taintSource={finding.taintSource}
-            remediation={finding.fixSuggestion ?? 'Remediation pending.'}
-            knowledgeUses={0}
-          />
+          <Suspense fallback={<Spin size="small" />}>
+            <AiAnalysisCard
+              model={finding.model}
+              verdict={finding.verdict}
+              reasoning={finding.explanation ?? 'Analysis pending.'}
+              cwe={normalizedFinding.cwe}
+              matchDetail={finding.matchDetail}
+              likelyCwe={finding.likelyCwe}
+              dataFlow={finding.dataFlow}
+              taintSource={finding.taintSource}
+              remediation={finding.fixSuggestion ?? 'Remediation pending.'}
+              knowledgeUses={0}
+            />
+          </Suspense>
         )}
 
         {/* Assignee */}

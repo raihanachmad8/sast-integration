@@ -1,3 +1,8 @@
+export const PROVIDER = {
+  OLLAMA: 'ollama',
+  OPENAI_COMPATIBLE: 'openai-compatible',
+} as const;
+
 export const PROVIDERS = [
   {
     value: 'openai',

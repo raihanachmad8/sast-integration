@@ -20,6 +20,23 @@ interface TeamDetailDrawerProps {
   onEdit: (team: Team) => void;
 }
 
+/**
+ * Drawer displaying team details including members, statistics, and assigned projects.
+ *
+ * Provides edit and delete actions with confirmation dialog for the selected team.
+ *
+ * @param props - {@link TeamDetailDrawerProps}
+ * @returns JSX element rendering the team detail drawer.
+ *
+ * @example
+ * <TeamDetailDrawer
+ *   open={true}
+ *   team={team}
+ *   members={teamMembers}
+ *   onClose={() => setOpen(false)}
+ *   onEdit={(t) => openEditModal(t)}
+ * />
+ */
 export function TeamDetailDrawer({ open, team, members, onClose, onEdit }: TeamDetailDrawerProps) {
   const { modal } = App.useApp();
   const { confirm } = useConfirm();
@@ -60,8 +77,8 @@ export function TeamDetailDrawer({ open, team, members, onClose, onEdit }: TeamD
       title={
         <Flex align="center" gap={token.paddingMD}>
           <div style={{ 
-            width: 40, 
-            height: 40, 
+            width: token.sizeXL, 
+            height: token.sizeXL, 
             borderRadius: token.borderRadiusLG, 
             background: token.colorPrimaryBg, 
             color: token.colorPrimary, 

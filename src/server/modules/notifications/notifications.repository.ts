@@ -1,6 +1,7 @@
 import { eq, and, isNull, count } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { notifications } from '@drizzle/schema/auth';
+import { logger } from '@/server/lib/logger';
 export const notificationsRepository = {
   /**
    * List all notifications for a user, ordered by unread first then by creation date.

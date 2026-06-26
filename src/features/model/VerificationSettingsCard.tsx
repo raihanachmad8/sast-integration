@@ -30,6 +30,16 @@ interface VerificationSettings {
   cweMismatch: string;
 }
 
+/**
+ * Settings card for configuring AI verification behavior — confidence threshold, timeout, and fallback options.
+ *
+ * Loads current settings from the API, provides a form to update them, and gates editing by role.
+ *
+ * @returns JSX element rendering the verification settings card with form controls.
+ *
+ * @example
+ * <VerificationSettingsCard />
+ */
 export function VerificationSettingsCard() {
   const { message } = App.useApp();
   const { token } = theme.useToken();

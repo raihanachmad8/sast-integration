@@ -18,6 +18,8 @@ const testEventSchema = z.object({
  * Accepts a test webhook event and returns confirmation.
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('post request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;

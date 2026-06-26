@@ -1,6 +1,7 @@
 import { eq, and, isNull, desc } from 'drizzle-orm';
 import { db, type Tx } from '@/server/db/client';
 import { webhooks, webhookDeliveries } from '@drizzle/schema/integrations';
+import { logger } from '@/server/lib/logger';
 export interface CreateWebhookInput {
   workspaceId: string;
   name: string;

@@ -14,6 +14,7 @@ import { findingService } from '@/server/modules/scan/services/finding.service';
 import { db } from '@/server/db/client';
 import { findingGroups } from '@drizzle/schema/findings';
 import { eq } from 'drizzle-orm';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string; findingId: string }> };
 
@@ -27,6 +28,8 @@ const verifyFindingSchema = z.object({
  * After verification, re-evaluates quality gate for the associated scan.
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('post request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId, findingId } = await params;

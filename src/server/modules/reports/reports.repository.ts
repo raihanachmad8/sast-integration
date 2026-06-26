@@ -3,6 +3,7 @@ import { db, type Tx } from '@/server/db/client';
 import { getOffset } from '@/lib/pagination';
 import { reports } from '@drizzle/schema/reports';
 import { users } from '@drizzle/schema/users';
+import { logger } from '@/server/lib/logger';
 export interface CreateReportInput {
   workspaceId: string;
   type: string;

@@ -22,6 +22,7 @@ export {
   useUninstallRepositoryMutation,
   useSendSourceControlTestEventMutation,
   useDeleteSourceControlMutation,
+  useDisconnectSourceControlMutation,
 } from './queries';
 export type {
   ScmProviderConnection,

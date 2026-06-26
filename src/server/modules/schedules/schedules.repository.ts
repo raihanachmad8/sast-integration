@@ -1,6 +1,7 @@
 import { eq, and, isNull } from 'drizzle-orm';
 import { db, type Tx } from '@/server/db/client';
 import { schedules } from '@drizzle/schema/scans';
+import { logger } from '@/server/lib/logger';
 export interface CreateScheduleInput {
   workspaceId: string;
   repositoryId?: string;

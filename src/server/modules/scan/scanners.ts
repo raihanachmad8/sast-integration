@@ -36,7 +36,7 @@ import { execSync } from 'node:child_process';
 import { env } from '@/server/env';
 
 /** Resolved path to the local semgrep rules directory. Uses forward slashes for cross-platform compatibility with semgrep CLI. */
-const SEMGREP_RULES_DIR = env.SEMGREP_RULES_DIR ?? '';
+const getSemgrepRulesDir = () => env.SEMGREP_RULES_DIR ?? '';
 
 /** Configuration for a single scanner's CLI command. */
 export interface ScannerCommandConfig {
@@ -109,8 +109,8 @@ export const SCANNER_COMMANDS: Record<ScannerId, ScannerCommandConfig> = {
         '--disable-version-check',
         '--no-git-ignore',
         '--skip-unknown-extensions',
-        '--config', SEMGREP_RULES_DIR
-          ? SEMGREP_RULES_DIR.split(path.sep).join('/')
+        '--config', getSemgrepRulesDir()
+          ? getSemgrepRulesDir().split(path.sep).join('/')
           : 'p/default',
         '--config', 'p/security-audit',
         targetDir,

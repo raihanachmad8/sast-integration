@@ -5,6 +5,7 @@ import { db } from '@/server/db/client';
 import { knowledgeEntries, knowledgeSources } from '@drizzle/schema/integrations';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
+import { env } from '@/server/env';
 
 export interface SyncResult {
   sourceId: string;
@@ -37,7 +38,7 @@ function wait(ms: number) {
 }
 
 function getNvdPageDelay(): number {
-  return process.env.NVD_API_KEY ? NVD_BACKOFF_WITH_KEY_MS : NVD_INITIAL_BACKOFF_MS;
+  return env.NVD_API_KEY ? NVD_BACKOFF_WITH_KEY_MS : NVD_INITIAL_BACKOFF_MS;
 }
 
 function severityFromCvss(score: number | null): SyncEntryData['severity'] {
@@ -81,7 +82,7 @@ function isTransientStatus(status: number): boolean {
 
 async function fetchNvdPage(url: URL, retries = 0): Promise<{ totalResults: number; vulnerabilities: Array<Record<string, unknown>> }> {
   const headers: Record<string, string> = {};
-  const apiKey = process.env.NVD_API_KEY;
+  const apiKey = env.NVD_API_KEY;
   if (apiKey) {
     headers['apiKey'] = apiKey;
   }
@@ -292,7 +293,7 @@ export const syncEngine = {
     const [source] = await db.select().from(knowledgeSources).where(eq(knowledgeSources.id, sourceId)).limit(1);
     if (!source) throw new AppError('Knowledge source not found', 404, 'NOT_FOUND');
 
-    if (source.type === 'nvd' && !process.env.NVD_API_KEY) {
+    if (source.type === 'nvd' && !env.NVD_API_KEY) {
       logger.knowledge.warn('NVD sync without API key — rate limits are strict (5 req/30s). Set NVD_API_KEY for faster sync.');
     }
 

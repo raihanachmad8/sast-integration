@@ -26,6 +26,8 @@ const bulkUpdateSchema = z.object({
  * Bulk update findings (status, assignment).
  */
 export async function PUT(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('put request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const userId = auth.context.userId;

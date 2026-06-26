@@ -5,12 +5,13 @@ import { Button, App, Flex, Typography, theme } from 'antd';
 import { PageHeader } from '@/commons/components/PageHeader';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { DataTable, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
-import { RulesDrawer } from '@/features/scanner-engines/ScannerModals';
+import { RulesDrawer } from '@/features/scanner-engines';
 import { useScannerEnginesQuery } from '@/modules/scanner-engines';
-import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { ErrorState } from '@/commons/components/ErrorState';
 import { PERMISSION } from '@/commons/constants/permissions';
+import { SCANNER_STATUS } from '@/commons/constants/layout';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { FeatureGate } from '@/commons/components/FeatureGate';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
@@ -41,7 +42,7 @@ function mapEngine(e: { name: string; command: string; format: string; status: s
     name: e.name,
     icon: meta.icon,
     capability: meta.capability,
-    status: e.status === 'ready' ? 'Ready' : 'Not installed',
+    status: e.status === 'ready' ? SCANNER_STATUS.READY : SCANNER_STATUS.NOT_INSTALLED,
     rules: e.status === 'ready' ? 'Active' : 'Not configured',
     enabled: e.status === 'ready',
   };
@@ -66,7 +67,7 @@ function buildColumns(_token: ReturnType<typeof theme.useToken>['token']): DataT
     {
       key: 'status',
       header: 'Status',
-      render: (row) => <StatusPill variant={row.status === 'Ready' ? 'teal' : 'amber'}>{row.status}</StatusPill>,
+      render: (row) => <StatusPill variant={row.status === SCANNER_STATUS.READY ? 'teal' : 'amber'}>{row.status}</StatusPill>,
     },
     {
       key: 'rules',
@@ -139,6 +140,7 @@ function ScannerEnginesPageContent() {
   );
 
   return (
+    <PermissionGate permission={PERMISSION.SCANNER_VIEW} fallback={<PermissionHint permission={PERMISSION.SCANNER_VIEW} />}>
     <Flex vertical gap={token.paddingXL}>
       <PageHeader
         title="Scanner Engines"
@@ -164,5 +166,6 @@ function ScannerEnginesPageContent() {
 
       <RulesDrawer open={rulesOpen} scanner={selectedScanner} onClose={() => setRulesOpen(false)} />
     </Flex>
+    </PermissionGate>
   );
 }

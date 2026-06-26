@@ -2,6 +2,7 @@
 
 import { Timeline, Typography, Empty, Flex, theme } from 'antd';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { BORDER_RADIUS } from '@/commons/constants/layout';
 import type { TimelineEvent, TimelineEventType } from './types';
 
 const { Text } = Typography;
@@ -10,6 +11,17 @@ interface ScanTimelineProps {
   events: TimelineEvent[];
 }
 
+/**
+ * Timeline component displaying scan lifecycle events (triggered, queued, cloning, scanning, etc.).
+ *
+ * Shows each event with an icon, color, and timestamp in a vertical timeline layout.
+ *
+ * @param props - {@link ScanTimelineProps}
+ * @returns JSX element rendering the scan event timeline, or an Empty state if no events exist.
+ *
+ * @example
+ * <ScanTimeline events={[{ type: 'triggered', timestamp: '2025-01-01T00:00:00Z' }]} />
+ */
 export function ScanTimeline({ events }: ScanTimelineProps) {
   const { token } = theme.useToken();
 
@@ -41,9 +53,9 @@ export function ScanTimeline({ events }: ScanTimelineProps) {
       icon: (
         <div
           style={{
-            width: 28,
-            height: 28,
-            borderRadius: '50%',
+            width: token.sizeMS,
+            height: token.sizeMS,
+            borderRadius: BORDER_RADIUS.CIRCLE,
             background: config.color,
             display: 'flex',
             alignItems: 'center',

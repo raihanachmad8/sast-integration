@@ -347,7 +347,7 @@ async function discoverRepositories(sourceControlId: string, sourceControl: Sour
   const token = stringValue(credentials.token);
   const provider = sourceControl.provider as ScmProvider;
 
-  logger.sourceControl.info('discoverRepositories', { provider, connectionType, hasToken: !!token, credentialKeys: Object.keys(credentials) });
+  logger.sourceControl.info('discoverRepositories', { provider, connectionType, hasToken: !!token, credentialKeys: Object.keys(credentials), baseUrl: credentials.baseUrl, apiUrl: credentials.apiUrl });
 
   if (provider === 'github') {
     if (connectionType === 'github-app') return discoverGitHubAppRepositories(credentials);
@@ -503,6 +503,15 @@ async function discoverGiteaRepositories(sourceControlId: string, credentials: C
       defaultBranch: stringValue(row.default_branch) || 'main',
     })).filter(hasRepositoryIdentity);
   } catch (e) {
+    // If 403, token lacks required scopes
+    if (e instanceof AppError && e.statusCode === 403) {
+      logger.sourceControl.error('discoverGiteaRepositories: permission denied — check token scopes', { sourceControlId });
+      throw new AppError(
+        'Gitea token missing required scopes. Regenerate token with: user (Read), repository (Read & Write), issue (Read & Write).',
+        403,
+        'SOURCE_CONTROL_SYNC_FAILED',
+      );
+    }
     // If 401, try to refresh token
     if (e instanceof AppError && e.statusCode === 401) {
       logger.sourceControl.info('discoverGiteaRepositories: token expired, attempting refresh', { sourceControlId });
@@ -583,7 +592,11 @@ async function fetchJson<T>(url: string, headers: Record<string, string>, method
   const response = await fetch(url, { method, headers, cache: 'no-store' });
   if (!response.ok) {
     const status = response.status;
-    const detail = status === 401 ? 'authentication failed (token expired or invalid)' : `provider returned ${status}`;
+    const body = await response.text().catch(() => '');
+    logger.sourceControl.error('fetchJson failed', { url, status, method, body: body.slice(0, 500), headerKeys: Object.keys(headers) });
+    const detail = status === 401 ? 'authentication failed (token expired or invalid)'
+      : status === 403 ? `permission denied — ${body.slice(0, 200)}`
+      : `provider returned ${status}`;
     throw new AppError(`Source control sync failed: ${detail}`, status === 401 ? 401 : 502, 'SOURCE_CONTROL_SYNC_FAILED');
   }
   return response.json() as Promise<T>;

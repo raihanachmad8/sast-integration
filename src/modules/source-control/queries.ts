@@ -146,3 +146,17 @@ export function useDeleteSourceControlMutation() {
     },
   });
 }
+
+export function useDisconnectSourceControlMutation() {
+  const queryClient = useQueryClient();
+  const { workspaceId } = useWorkspace();
+  return useMutation({
+    mutationFn: (id: string) => {
+      if (!workspaceId) throw new Error('No workspace selected');
+      return sourceControlApi.disconnectProvider(workspaceId, id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: sourceControlKeys.providers() });
+    },
+  });
+}

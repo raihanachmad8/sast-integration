@@ -5,6 +5,7 @@ import { AppError } from '@/server/http/errors';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { sourceControlService } from '@/server/modules/source-control/source-control.service';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string; repoId: string }> };
 
@@ -13,6 +14,8 @@ type RouteContext = { params: Promise<{ workspaceId: string; repoId: string }> }
  * List branches for a repository from its SCM provider (Gitea/GitHub/GitLab).
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
 

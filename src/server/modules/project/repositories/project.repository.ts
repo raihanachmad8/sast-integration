@@ -7,6 +7,7 @@ import { teams, teamMembers } from '@drizzle/schema/teams';
 
 
 import { sourceControlImports, sourceControls } from '@drizzle/schema/source-controls';
+import { logger } from '@/server/lib/logger';
 
 export const projectRepository = {
   /** List all projects for a workspace (with soft delete filter) */

@@ -6,6 +6,7 @@ export { ScanDetailDrawer } from './ScanDetailDrawer';
 export { FindingItem } from './FindingItem';
 export { AiVerificationBadge } from './AiVerificationBadge';
 export { ScanTimeline } from './ScanTimeline';
+export { FindingAiAnalysisCard } from './FindingAiAnalysisCard';
 
 // Re-export shared types from commons
 export type {

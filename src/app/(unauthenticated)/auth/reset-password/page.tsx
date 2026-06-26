@@ -95,7 +95,7 @@ function ResetForm() {
       <Form layout="vertical" onFinish={(v) => mutation.mutate(v)} autoComplete="off" requiredMark={false} style={{ marginTop: antdToken.paddingXL }}>
         <Form.Item
           name="password"
-          label={<span style={{ fontWeight: antdToken.fontWeightStrong, fontSize: antdToken.fontSizeSM }}>New password</span>}
+          label={<span style={{ fontWeight: antdToken.fontWeightStrong, fontSize: antdToken.fontSize }}>New password</span>}
           rules={[rule]}
         >
           <Input.Password placeholder="Minimum 8 characters" size="large" autoComplete="new-password" onChange={(e) => setPasswordValue(e.target.value)} />
@@ -104,7 +104,7 @@ function ResetForm() {
 
         <Form.Item
           name="confirmPassword"
-          label={<span style={{ fontWeight: antdToken.fontWeightStrong, fontSize: antdToken.fontSizeSM }}>Confirm password</span>}
+          label={<span style={{ fontWeight: antdToken.fontWeightStrong, fontSize: antdToken.fontSize }}>Confirm password</span>}
           dependencies={['password']}
           rules={[rule]}
         >
@@ -118,7 +118,7 @@ function ResetForm() {
         </Form.Item>
       </Form>
 
-      <div style={{ marginTop: antdToken.paddingMD, textAlign: 'center', fontSize: antdToken.fontSizeSM }}>
+      <div style={{ marginTop: antdToken.paddingMD, textAlign: 'center', fontSize: antdToken.fontSize }}>
         <Text type="secondary">
           <Link href={ROUTES.AUTH.SIGNIN} style={{ fontWeight: antdToken.fontWeightStrong, color: antdToken.colorPrimary }}>Back to sign in</Link>
         </Text>

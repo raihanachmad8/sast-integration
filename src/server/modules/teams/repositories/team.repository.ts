@@ -3,6 +3,7 @@ import { db } from '@/server/db/client';
 import { teams, teamMembers } from '@drizzle/schema/teams';
 import { users } from '@drizzle/schema/users';
 import { projectTeams, projects } from '@drizzle/schema/projects';
+import { logger } from '@/server/lib/logger';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 

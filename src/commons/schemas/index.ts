@@ -14,3 +14,4 @@ export * from './auth.schema';
 export * from './scan.schema';
 export * from './knowledge-custom-rule.schema';
 export * from './source-control-import.schema';
+export * from './ci.schema';

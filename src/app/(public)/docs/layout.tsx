@@ -18,11 +18,12 @@ import {
 } from '@ant-design/icons';
 import { DOCS_CONFIG } from '@/lib/docs/config';
 import { DocToc } from './doc-toc';
+import { DocsSearchModal } from './DocsSearchModal';
 
 const { Sider, Content } = Layout;
 const { Text } = Typography;
 
-const NAVBAR_HEIGHT = 60;
+const NAVBAR_HEIGHT = 56;
 
 const SECTION_ICONS: Record<string, React.ReactNode> = {
   'Getting Started': <RocketOutlined />,
@@ -48,12 +49,35 @@ function getActiveKey(pathname: string): string {
   return segment || 'overview';
 }
 
+/** Brand shield used in the drawer header. */
+function ShieldIcon() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}
+
 /**
- * DocsLayout — simple sidebar + full-width content shell.
+ * DocsLayout — sidebar + content + TOC shell.
  *
- * Desktop: persistent 272 px sidebar, content fills remaining width.
- * Mobile: sidebar collapses to 0; a sticky bar with a menu button
- * opens a slide-in drawer. Content is always full width.
+ * Desktop: persistent 268px sidebar, content fills remaining width, TOC on right.
+ * Mobile: sidebar collapses; sticky bar with menu button opens slide-in drawer.
+ *
+ * Sidebar features:
+ * - Branded header with logo + version badge
+ * - Section labels with uppercase styling
+ * - Active items with left border accent indicator
+ * - Smooth hover transitions
  */
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
   const { token } = theme.useToken();
@@ -75,29 +99,36 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
     return () => { document.body.style.overflow = ''; };
   }, [drawerOpen]);
 
-  /** Shared sidebar nav rendered both in the desktop Sider and the mobile drawer. */
   function SidebarNav() {
     return (
       <>
-        {/* Nav sections */}
-        <nav style={{ padding: `${token.paddingLG}px ${token.paddingSM}px ${token.paddingXL}px`, overflowY: 'auto', flex: 1 }}>
+        {/* Navigation */}
+        <nav
+          style={{
+            padding: `${token.paddingLG}px ${token.paddingSM}px ${token.paddingXL}px`,
+            overflowY: 'auto',
+            flex: 1,
+          }}
+        >
           {DOCS_CONFIG.map((section) => (
-            <div key={section.label} style={{ marginBottom: token.marginLG }}>
+            <div key={section.label} style={{ marginBottom: token.marginMD }}>
+              {/* Section label */}
               <Text
                 strong
                 style={{
                   display: 'block',
-                  fontSize: token.fontSizeSM - 1,
+                  fontSize: 10,
                   textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  color: token.colorTextQuaternary,
-                  padding: `0 ${token.paddingXS}px`,
-                  marginBottom: token.paddingXS,
+                  letterSpacing: '0.12em',
+                  color: token.colorTextTertiary,
+                  padding: `${token.paddingXS}px ${token.paddingSM}px`,
+                  marginBottom: 2,
+                  fontWeight: 700,
                 }}
               >
                 {section.label}
               </Text>
-              <Flex vertical gap={token.paddingXXS}>
+              <Flex vertical gap={1}>
                 {section.items.map((item) => {
                   const isActive = activeKey === item.slug;
                   return (
@@ -109,20 +140,29 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                         display: 'flex',
                         alignItems: 'center',
                         gap: token.paddingSM,
-                        padding: `${token.paddingXS}px ${token.paddingXS}px`,
+                        padding: `${token.paddingXS}px ${token.paddingSM}px`,
                         borderRadius: token.borderRadiusSM,
                         textDecoration: 'none',
                         fontSize: token.fontSize,
-                        fontWeight: isActive ? token.fontWeightStrong : 'normal',
-                        color: isActive ? token.colorPrimary : token.colorText,
+                        fontWeight: isActive ? 600 : 400,
+                        color: isActive ? token.colorPrimary : token.colorTextSecondary,
                         background: isActive ? token.colorPrimaryBg : 'transparent',
-                        transition: `background ${token.motionDurationMid} ease, color ${token.motionDurationMid} ease`,
+                        borderLeft: isActive ? `3px solid ${token.colorPrimary}` : '3px solid transparent',
+                        transition: `background ${token.motionDurationMid} ease, color ${token.motionDurationMid} ease, border-left-color ${token.motionDurationMid} ease`,
                       }}
                     >
-                      <span style={{ fontSize: token.fontSizeLG, opacity: isActive ? 1 : 0.5, flexShrink: 0 }}>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          opacity: isActive ? 1 : 0.45,
+                          flexShrink: 0,
+                          color: isActive ? token.colorPrimary : token.colorText,
+                          transition: `opacity ${token.motionDurationMid} ease`,
+                        }}
+                      >
                         {ICON_MAP[item.slug]}
                       </span>
-                      {item.title}
+                      <span style={{ flex: 1, lineHeight: 1.5 }}>{item.title}</span>
                     </Link>
                   );
                 })}
@@ -130,19 +170,6 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
             </div>
           ))}
         </nav>
-
-        {/* Footer */}
-        <div
-          style={{
-            padding: `${token.paddingSM}px ${token.paddingLG}px`,
-            borderTop: `1px solid ${token.colorBorderSecondary}`,
-            flexShrink: 0,
-          }}
-        >
-          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            SAST Integration v0.4.0
-          </Text>
-        </div>
       </>
     );
   }
@@ -156,9 +183,9 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
           background: token.colorBgContainer,
         }}
       >
-        {/* Desktop sidebar */}
         <Sider
-          width={272}
+          width={268}
+          trigger={null}
           style={{
             background: token.colorBgContainer,
             borderRight: `1px solid ${token.colorBorderSecondary}`,
@@ -176,12 +203,10 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
             if (!broken) setDrawerOpen(false);
           }}
         >
-          {/* eslint-disable-next-line react-hooks/static-components -- shared nav needs parent scope */}
           <SidebarNav />
         </Sider>
 
         <Content style={{ display: 'flex', alignItems: 'flex-start', minWidth: 0 }}>
-          {/* Mobile sticky breadcrumb bar */}
           {isMobile && (
             <div
               style={{
@@ -191,10 +216,11 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                 width: '100%',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
-                padding: '10px 20px',
+                gap: 12,
+                padding: '8px 16px',
                 background: token.colorBgContainer,
                 borderBottom: `1px solid ${token.colorBorderSecondary}`,
+                minHeight: 44,
               }}
             >
               <button
@@ -204,7 +230,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  background: token.colorFillQuaternary,
+                  background: token.colorFillTertiary,
                   border: `1px solid ${token.colorBorderSecondary}`,
                   borderRadius: token.borderRadiusSM,
                   padding: '5px 12px',
@@ -223,7 +249,6 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
             </div>
           )}
 
-          {/* Article + ToC */}
           <Flex align="flex-start" style={{ width: '100%', minWidth: 0 }}>
             <div
               data-docs-content
@@ -240,75 +265,71 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         </Content>
       </Layout>
 
-      {/* Mobile drawer */}
+      {isMobile && drawerOpen && (
+        <div
+          aria-hidden="true"
+          onClick={() => setDrawerOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 299,
+            background: 'rgba(0,0,0,0.38)',
+          }}
+        />
+      )}
       {isMobile && (
-        <>
-          {drawerOpen && (
-            <div
-              aria-hidden="true"
-              onClick={() => setDrawerOpen(false)}
-              style={{
-                position: 'fixed',
-                inset: 0,
-                zIndex: 299,
-                background: 'rgba(0,0,0,0.40)',
-              }}
-            />
-          )}
+        <div
+          role="dialog"
+          aria-label="Documentation navigation"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            bottom: 0,
+            zIndex: 300,
+            width: 268,
+            background: token.colorBgContainer,
+            boxShadow: '4px 0 28px rgba(0,0,0,0.12)',
+            transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+            transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
           <div
-            role="dialog"
-            aria-label="Documentation navigation"
             style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              bottom: 0,
-              zIndex: 300,
-              width: 272,
-              background: token.colorBgContainer,
-              boxShadow: '4px 0 24px rgba(0,0,0,0.15)',
-              transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
-              transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
               display: 'flex',
-              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              padding: '14px 20px',
+              borderBottom: `1px solid ${token.colorBorderSecondary}`,
+              flexShrink: 0,
             }}
           >
-            <div
+            <button
+              aria-label="Close navigation"
+              onClick={() => setDrawerOpen(false)}
               style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 6,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '14px 20px',
-                borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                flexShrink: 0,
+                color: token.colorTextSecondary,
+                fontSize: token.fontSizeLG,
+                borderRadius: token.borderRadiusSM,
               }}
             >
-              <Text strong style={{ fontSize: token.fontSize }}>Documentation</Text>
-              <button
-                aria-label="Close navigation"
-                onClick={() => setDrawerOpen(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 6,
-                  display: 'flex',
-                  alignItems: 'center',
-                  color: token.colorTextSecondary,
-                  fontSize: token.fontSizeLG,
-                  borderRadius: token.borderRadiusSM,
-                }}
-              >
-                <CloseOutlined />
-              </button>
-            </div>
-            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              {/* eslint-disable-next-line react-hooks/static-components -- shared nav needs parent scope */}
-              <SidebarNav />
-            </div>
+              <CloseOutlined />
+            </button>
           </div>
-        </>
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <SidebarNav />
+          </div>
+        </div>
       )}
+      <DocsSearchModal />
     </>
   );
 }

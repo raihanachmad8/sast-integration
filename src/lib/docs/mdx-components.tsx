@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Typography, Alert, theme } from 'antd';
+import { CODE_BLOCK, INLINE_CODE, FONT_SIZE } from './tokens';
 
 const { Title, Paragraph } = Typography;
 
@@ -11,16 +12,16 @@ function PreBlock({ children, ...props }: React.ComponentPropsWithoutRef<'pre'>)
   return (
     <pre
       style={{
-        background: token.colorCodeBg,
-        color: token.colorCodeText,
+        background: CODE_BLOCK.bg,
+        color: CODE_BLOCK.text,
         borderRadius: token.borderRadiusLG,
         padding: `${token.paddingLG}px ${token.paddingXL}px`,
         overflowX: 'auto',
         fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-        fontSize: token.fontSizeSM,
+        fontSize: CODE_BLOCK.fontSize,
         lineHeight: 1.8,
         margin: `${token.marginLG}px 0`,
-        border: `1px solid ${token.colorBorderSecondary}`,
+        border: `1px solid ${CODE_BLOCK.border}`,
       }}
       {...props}
     >
@@ -36,13 +37,13 @@ function InlineCode({ children, className }: { children: React.ReactNode; classN
   return (
     <code
       style={{
-        background: token.colorFillQuaternary,
-        border: `1px solid ${token.colorBorderSecondary}`,
+        background: INLINE_CODE.bg,
+        border: `1px solid ${INLINE_CODE.border}`,
         borderRadius: token.borderRadiusXS,
         padding: `${token.paddingXXS}px ${token.paddingXS}px`,
         fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-        fontSize: '0.875em',
-        color: token.colorError,
+        fontSize: INLINE_CODE.fontSize,
+        color: INLINE_CODE.text,
       }}
     >
       {children}

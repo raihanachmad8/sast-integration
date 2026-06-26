@@ -73,7 +73,7 @@ export function AuthForm({
       </Form>
 
       {footerLink && (
-        <div style={{ marginTop: token.marginLG, textAlign: 'center', fontSize: token.fontSizeSM }}>
+        <div style={{ marginTop: token.marginLG, textAlign: 'center', fontSize: token.fontSize }}>
           <Text type="secondary">
             {footerLink.text}{' '}
             <Link href={footerLink.href} style={{ fontWeight: token.fontWeightStrong, color: token.colorPrimary }}>
@@ -107,7 +107,7 @@ export function AuthField({
   return (
     <Form.Item
       name={name}
-      label={<span style={{ fontWeight: token.fontWeightStrong, fontSize: token.fontSizeSM }}>{label}</span>}
+      label={<span style={{ fontWeight: token.fontWeightStrong, fontSize: token.fontSize }}>{label}</span>}
       rules={rules}
       dependencies={dependencies}
     >

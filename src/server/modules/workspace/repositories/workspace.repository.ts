@@ -5,6 +5,7 @@ import { workspaceInvitations } from '@drizzle/schema/auth';
 import { users } from '@drizzle/schema/users';
 import { ROLE } from '@/commons/constants/permissions';
 import { WORKSPACE } from '../constants';
+import { logger } from '@/server/lib/logger';
 
 type Role = typeof ROLE[keyof typeof ROLE];
 

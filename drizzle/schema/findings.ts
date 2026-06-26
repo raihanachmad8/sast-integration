@@ -16,6 +16,8 @@ export const findingGroups = pgTable('finding_groups', {
   lastSeenAt: timestamp('last_seen_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('finding_groups_repo_fingerprint_idx').on(t.repositoryId, t.fingerprint),
+  index('finding_groups_status_idx').on(t.status),
+  index('finding_groups_project_id_idx').on(t.projectId),
 ]);
 
 export const findings = pgTable('findings', {
@@ -41,6 +43,7 @@ export const findings = pgTable('findings', {
   index('findings_severity_idx').on(t.severity),
   index('findings_status_idx').on(t.status),
   index('findings_assigned_to_idx').on(t.assignedTo),
+  index('findings_scanner_idx').on(t.scanner),
 ]);
 
 export const aiVerifications = pgTable('ai_verifications', {
@@ -59,7 +62,10 @@ export const aiVerifications = pgTable('ai_verifications', {
   latencyMs: integer('latency_ms'),
   rawResponse: text('raw_response'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => [
+  index('ai_verifications_finding_id_idx').on(t.findingId),
+  index('ai_verifications_group_id_idx').on(t.groupId),
+]);
 
 export const findingHistory = pgTable('finding_history', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -83,7 +89,7 @@ export const findingGroupScans = pgTable('finding_group_scans', {
   isNew: boolean('is_new').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
-  primaryKey({ columns: [t.scanId, t.groupId] }),
+  primaryKey({ name: 'fgs_scan_group_pk', columns: [t.scanId, t.groupId] }),
 ]);
 
 export type FindingGroupScan = typeof findingGroupScans.$inferSelect;

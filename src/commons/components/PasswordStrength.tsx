@@ -44,7 +44,7 @@ export function PasswordStrength({ value }: PasswordStrengthProps) {
     <div style={{ marginTop: token.marginXS }}>
       <div style={{ display: 'flex', gap: token.marginXXS }}>
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} style={{ flex: 1, height: 3, borderRadius: token.borderRadiusXS, background: i <= score ? color : token.colorBorderSecondary, transition: 'background 200ms' }} />
+          <div key={i} style={{ flex: 1, height: token.lineWidth, borderRadius: token.borderRadiusXS, background: i <= score ? color : token.colorBorderSecondary, transition: 'background 200ms' }} />
         ))}
       </div>
       {label && <div style={{ fontSize: token.fontSizeSM, color, marginTop: token.marginXXS, fontWeight: token.fontWeightStrong }}>{label}</div>}

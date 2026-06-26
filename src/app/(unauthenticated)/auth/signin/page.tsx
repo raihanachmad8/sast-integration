@@ -7,7 +7,7 @@ import { useSigninMutation } from '@/modules/auth/queries';
 import { clientEnv } from '@/config/client-env';
 import { ROUTES } from '@/commons/constants';
 import { useSearchParams } from 'next/navigation';
-import { AuthForm, AuthField } from '@/features/auth/AuthForm';
+import { AuthForm, AuthField } from '@/features/auth';
 import { createZodSync } from '@/lib/utils/zod-sync';
 import { signinSchema } from '@/commons/schemas';
 
@@ -59,7 +59,7 @@ function SigninForm() {
       </AuthField>
 
       <div style={{ marginTop: -8, marginBottom: token.marginXS, textAlign: 'right' }}>
-        <Link href={ROUTES.AUTH.FORGOT_PASSWORD} style={{ fontSize: token.fontSizeSM, color: token.colorPrimary }}>
+        <Link href={ROUTES.AUTH.FORGOT_PASSWORD} style={{ fontSize: token.fontSize, color: token.colorPrimary }}>
           Forgot password?
         </Link>
       </div>

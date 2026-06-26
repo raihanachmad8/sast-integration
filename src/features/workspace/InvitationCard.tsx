@@ -4,6 +4,8 @@ import { Card, Button, Typography, Tag, Flex, Space, theme } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { FaIcon } from '@/commons/components/FaIcon';
 import type { PendingInvitation } from '@/modules/workspace/types';
+import { getInitials } from '@/lib/utils/getInitials';
+import { roleLabel } from '@/lib/utils/roleLabel';
 
 const { Text } = Typography;
 
@@ -13,22 +15,6 @@ interface InvitationCardProps {
   onDecline: (invitationId: string) => void;
   isAccepting?: boolean;
   isDeclining?: boolean;
-}
-
-function getInitials(name: string) {
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
-
-  return initials || 'W';
-}
-
-function formatRole(role: string) {
-  return role.charAt(0).toUpperCase() + role.slice(1);
 }
 
 /**
@@ -49,8 +35,8 @@ export function InvitationCard({ invitation, onAccept, onDecline, isAccepting, i
             align="center"
             justify="center"
             style={{
-              width: 44,
-              height: 44,
+              width: token.controlHeight,
+              height: token.controlHeight,
               borderRadius: token.borderRadiusLG,
               background: token.colorWarningBg,
               color: token.colorWarning,
@@ -80,7 +66,7 @@ export function InvitationCard({ invitation, onAccept, onDecline, isAccepting, i
       <Flex vertical gap={token.marginXS} style={{ marginTop: token.marginLG, fontSize: token.fontSizeLG }}>
         <Space size={token.marginXS}>
           <FaIcon icon="fa-user-shield" style={{ color: token.colorTextSecondary, fontSize: token.fontSizeLG }} />
-          <Text style={{ color: token.colorTextSecondary }}>{formatRole(invitation.role)} permissions</Text>
+          <Text style={{ color: token.colorTextSecondary }}>{roleLabel(invitation.role)} permissions</Text>
         </Space>
         <Space size={token.marginXS}>
           <FaIcon icon="fa-clock" style={{ color: token.colorTextSecondary, fontSize: token.fontSizeLG }} />

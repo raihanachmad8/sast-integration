@@ -27,6 +27,22 @@ const SCANNER_DEFS = [
   { value: 'gcc-fanalyzer', label: 'GCC Fanalyzer', icon: 'fa-chart-line', desc: 'C/C++ Static' },
 ];
 
+/**
+ * Modal for creating a new scan with repository, branch, and scanner selection.
+ *
+ * Validates input via Zod schema and queries available scanners and repository branches.
+ *
+ * @param props - {@link NewScanModalProps}
+ * @returns JSX element rendering the new scan creation modal.
+ *
+ * @example
+ * <NewScanModal
+ *   open={true}
+ *   onClose={() => setOpen(false)}
+ *   onConfirm={(config) => startScan(config)}
+ *   repositories={[{ id: '1', name: 'repo', branch: 'main', provider: 'github', connectionType: ['app'] }]}
+ * />
+ */
 export function NewScanModal({ open, onClose, onConfirm, repositories }: NewScanModalProps) {
   const { token } = theme.useToken();
   const [form] = Form.useForm();

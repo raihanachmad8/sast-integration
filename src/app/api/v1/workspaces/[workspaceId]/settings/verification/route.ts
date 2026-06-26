@@ -7,6 +7,7 @@ import { validateBody } from '@/server/http/validate';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { workspaceSettingsRepository } from '@/server/modules/workspace/repositories/workspace-settings.repository';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -26,6 +27,8 @@ const verificationSettingsSchema = z.object({
  * Get verification settings for a workspace.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;
@@ -55,10 +58,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  * Update verification settings for a workspace.
  */
 export async function PUT(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('put request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;
-  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.WORKSPACE_SETTINGS);
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.WORKSPACE_SETTINGS_MANAGE);
   if (!workspace.success) return workspace.response;
 
   try {

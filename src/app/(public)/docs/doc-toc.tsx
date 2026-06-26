@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { theme, Typography, Flex } from 'antd';
+import { FONT_SIZE } from '@/lib/docs/tokens';
 
 const { Text } = Typography;
 
@@ -12,19 +13,21 @@ interface TocItem {
 }
 
 /**
- * Docs Table of Contents — reads heading elements (h2, h3) from the content area
- * and renders a sticky outline. Active heading is highlighted based on scroll position.
- * Automatically hidden on narrow screens.
+ * Docs Table of Contents — dynamically reads heading elements (h1, h2, h3)
+ * from the content area and renders a sticky outline panel.
+ * The active heading is highlighted based on scroll position via IntersectionObserver.
+ *
+ * Automatically hidden on narrow screens (< 900px).
  */
 export function DocToc() {
   const { token } = theme.useToken();
-  const [items, setItems] = useState<TocItem[]>([]);
+  const [items,    setItems]    = useState<TocItem[]>([]);
   const [activeId, setActiveId] = useState<string>('');
-  const [visible, setVisible] = useState(false);
+  const [visible,  setVisible]  = useState(false);
   const itemsRef = useRef<TocItem[]>([]);
 
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1100px)');
+    const mq = window.matchMedia('(min-width: 900px)');
     const update = () => setVisible(mq.matches);
     update();
     mq.addEventListener('change', update);
@@ -35,19 +38,17 @@ export function DocToc() {
     const root = document.querySelector('[data-docs-content]');
     if (!root) return;
 
-    const headings = root.querySelectorAll('h2, h3');
+    // Dynamically read all heading levels: h1, h2, h3
+    const headings = root.querySelectorAll('h1, h2, h3');
     const tocItems: TocItem[] = [];
     headings.forEach((h) => {
       const fallback = h.textContent?.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '') || '';
       const id = h.id || fallback;
       if (h.id !== id) h.id = id;
-      tocItems.push({
-        id,
-        text: h.textContent || '',
-        level: h.tagName === 'H2' ? 2 : 3,
-      });
+      const level = parseInt(h.tagName.charAt(1), 10);
+      tocItems.push({ id, text: h.textContent || '', level });
     });
-    // DOM read + state sync — only update if items actually changed
+
     if (JSON.stringify(itemsRef.current) !== JSON.stringify(tocItems)) {
       itemsRef.current = tocItems;
       setItems(tocItems);
@@ -83,12 +84,12 @@ export function DocToc() {
       aria-label="Table of contents"
       style={{
         position: 'sticky',
-        top: 88,
-        width: 200,
+        top: 72,
+        width: 220,
         flexShrink: 0,
         maxHeight: 'calc(100vh - 120px)',
         overflowY: 'auto',
-        paddingLeft: token.paddingLG,
+        padding: `${token.paddingSM}px 0 ${token.paddingSM}px ${token.paddingLG}px`,
         borderLeft: `1px solid ${token.colorBorderSecondary}`,
       }}
     >
@@ -96,40 +97,48 @@ export function DocToc() {
         strong
         style={{
           display: 'block',
-          fontSize: token.fontSizeSM,
+          fontSize: FONT_SIZE.xs,
           textTransform: 'uppercase',
-          letterSpacing: '0.1em',
-          color: token.colorTextQuaternary,
+          letterSpacing: '0.12em',
+          color: token.colorTextTertiary,
           marginBottom: token.marginSM,
+          fontWeight: 700,
         }}
       >
         On this page
       </Text>
 
-      <Flex vertical gap={token.marginXXS}>
-        {items.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => handleClick(item.id)}
-            style={{
-              display: 'block',
-              width: '100%',
-              textAlign: 'left',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: `${token.paddingXXS}px 0 ${token.paddingXXS}px ${item.level === 3 ? 16 : 0}px`,
-              fontSize: token.fontSizeSM,
-              fontWeight: activeId === item.id ? 600 : 400,
-              color: activeId === item.id ? token.colorPrimary : token.colorTextSecondary,
-              transition: `color ${token.motionDurationFast} ease`,
-              lineHeight: 1.6,
-            }}
-          >
-            {item.text}
-          </button>
-        ))}
+      <Flex vertical gap={1}>
+        {items.map((item) => {
+          const isActive = activeId === item.id;
+          // Indent based on heading level: h1=0, h2=8, h3=16
+          const indent = (item.level - 1) * 8;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => handleClick(item.id)}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                background: 'none',
+                border: 'none',
+                borderLeft: isActive ? `2px solid ${token.colorPrimary}` : '2px solid transparent',
+                cursor: 'pointer',
+                padding: `${token.paddingXXS + 1}px 0 ${token.paddingXXS + 1}px ${indent}px`,
+                fontSize: item.level === 1 ? FONT_SIZE.sm : FONT_SIZE.xs,
+                fontWeight: isActive ? 600 : 400,
+                color: isActive ? token.colorPrimary : token.colorTextSecondary,
+                transition: `color ${token.motionDurationFast} ease, border-left-color ${token.motionDurationFast} ease`,
+                lineHeight: 1.6,
+                marginLeft: -1,
+              }}
+            >
+              {item.text}
+            </button>
+          );
+        })}
       </Flex>
     </nav>
   );

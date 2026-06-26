@@ -64,7 +64,7 @@ export function WorkspaceGeneralSettings({ workspaceId }: WorkspaceGeneralSettin
         </Form.Item>
 
         <Flex gap={token.marginMD}>
-          <PermissionGate permission={PERMISSION.WORKSPACE_SETTINGS}>
+          <PermissionGate permission={PERMISSION.WORKSPACE_SETTINGS_MANAGE}>
             <Button type="primary" htmlType="submit" loading={updateMutation.isPending}>
               Save changes
             </Button>

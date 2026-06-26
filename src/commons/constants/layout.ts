@@ -35,6 +35,73 @@ export const LAYOUT = {
   ICON_LG: 36,
 } as const;
 
+/* ── Border radius patterns ─────────────────────────────────── */
+export const BORDER_RADIUS = {
+  CIRCLE: '50%',
+  PILL: 999,
+} as const;
+
+/* ── Report file formats ────────────────────────────────────── */
+export const REPORT_FORMAT = {
+  PDF: 'pdf',
+  XLSX: 'xlsx',
+  CSV: 'csv',
+} as const;
+
+/* ── Scan statuses & origins ─────────────────────────────────── */
+export const SCAN_STATUS = {
+  RUNNING: 'Running',
+  COMPLETED: 'Completed',
+  FAILED: 'Failed',
+  PENDING: 'Pending',
+} as const;
+
+export const SCAN_ORIGIN = {
+  MANAGED: 'managed',
+  EXTERNAL_UPLOAD: 'external_upload',
+} as const;
+
+/* ── Source control statuses ──────────────────────────────────── */
+export const SCM_STATUS = {
+  CONNECTED: 'Connected',
+  PENDING: 'Pending',
+  DISCONNECTED: 'Disconnected',
+} as const;
+
+/* ── Scanner engine statuses ─────────────────────────────────── */
+export const SCANNER_STATUS = {
+  READY: 'Ready',
+  NOT_INSTALLED: 'Not installed',
+} as const;
+
+/* ── Webhook delivery statuses ────────────────────────────────── */
+export const WEBHOOK_STATUS = {
+  SUCCESS: 'success',
+  FAILED: 'failed',
+  PENDING: 'pending',
+  ACTIVE: 'active',
+} as const;
+
+/* ── Knowledge base source types ──────────────────────────────── */
+export const KB_SOURCE_TYPE = {
+  NVD: 'nvd',
+  CWE: 'cwe',
+} as const;
+
+/* ── AI model roles ───────────────────────────────────────────── */
+export const MODEL_ROLE = {
+  PRIMARY: 'primary',
+  FALLBACK: 'fallback',
+} as const;
+
+/* ── Tab keys ─────────────────────────────────────────────────── */
+export const TAB_KEY = {
+  MEMBERS: 'members',
+  PENDING: 'pending',
+  SETTINGS: 'settings',
+  OVERVIEW: 'overview',
+} as const;
+
 export const TOPBAR_HEIGHT = 56;
 
 export const SIDEBAR_Z_INDEX = { sidebar: 55, overlay: 50, topbar: 30, dropdown: 60 } as const;

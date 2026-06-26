@@ -21,6 +21,22 @@ interface FindingItemProps {
   onStatusChange?: (findingId: string, status: ScanFinding['status']) => void;
 }
 
+/**
+ * Expandable finding item card with code snippet, AI analysis, and status actions.
+ *
+ * Renders severity, rule, file location, and optional code/AI sections that expand on click.
+ *
+ * @param props - {@link FindingItemProps}
+ * @returns JSX element rendering a single finding with expandable detail sections.
+ *
+ * @example
+ * <FindingItem
+ *   finding={scanFinding}
+ *   showCode={true}
+ *   showAi={true}
+ *   onStatusChange={(id, status) => updateFindingStatus(id, status)}
+ * />
+ */
 export const FindingItem = React.memo(function FindingItem({ finding, showCode = false, showAi = false, onStatusChange }: FindingItemProps) {
   const { token } = theme.useToken();
   const [codeExpanded, setCodeExpanded] = useState(showCode);
@@ -44,26 +60,26 @@ export const FindingItem = React.memo(function FindingItem({ finding, showCode =
           <StatusTag type="scanner" value={finding.scanner} />
           {finding.isNew === true && (
             <span style={{
-              padding: '0 6px',
-              fontSize: 11,
+              padding: `0 ${token.paddingXS}px`,
+              fontSize: token.fontSizeSM,
               fontWeight: token.fontWeightStrong,
               color: token.colorWarning,
               background: token.colorWarningBg,
               border: `1px solid ${token.colorWarningBorder}`,
               borderRadius: token.borderRadiusSM,
-              lineHeight: '20px',
+              lineHeight: `${token.controlHeightSM}px`,
             }}>New</span>
           )}
           {finding.isNew === false && (
             <span style={{
-              padding: '0 6px',
-              fontSize: 11,
+              padding: `0 ${token.paddingXS}px`,
+              fontSize: token.fontSizeSM,
               fontWeight: token.fontWeightStrong,
               color: token.colorTextSecondary,
               background: token.colorFillSecondary,
               border: `1px solid ${token.colorBorderSecondary}`,
               borderRadius: token.borderRadiusSM,
-              lineHeight: '20px',
+              lineHeight: `${token.controlHeightSM}px`,
             }}>Pre-existing</span>
           )}
           {finding.groundTruth && (
@@ -103,7 +119,7 @@ export const FindingItem = React.memo(function FindingItem({ finding, showCode =
 
       {finding.codeSnippet && (
         <div style={{ marginTop: token.paddingMD }}>
-          <Button size="small" onClick={() => setCodeExpanded(!codeExpanded)}>
+          <Button onClick={() => setCodeExpanded(!codeExpanded)}>
             <FaIcon icon={codeExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} /> {codeExpanded ? 'Hide code' : 'Show code'}
           </Button>
 
@@ -118,7 +134,7 @@ export const FindingItem = React.memo(function FindingItem({ finding, showCode =
                 fontSize: token.fontSizeSM,
                 fontFamily: token.fontFamilyCode,
                 overflow: 'auto',
-                maxHeight: 240,
+                maxHeight: token.sizeXXL * 5,
                 lineHeight: 1.8,
                 color: token.colorCodeText,
               }}
@@ -146,7 +162,7 @@ export const FindingItem = React.memo(function FindingItem({ finding, showCode =
 
       {modelAnalyses.length > 0 && (
         <div style={{ marginTop: token.paddingMD }}>
-          <Button size="small" onClick={() => setAiExpanded(!aiExpanded)}>
+          <Button onClick={() => setAiExpanded(!aiExpanded)}>
             <FaIcon icon={aiExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} /> {aiExpanded ? 'Hide AI analysis' : `Show AI analysis (${modelAnalyses.length} models)`}
           </Button>
 
@@ -163,10 +179,10 @@ export const FindingItem = React.memo(function FindingItem({ finding, showCode =
       {onStatusChange && finding.status === 'open' && (
         <Flex gap={token.paddingSM} style={{ marginTop: token.paddingMD, borderTop: `1px solid ${token.colorBorderSecondary}`, paddingTop: token.paddingMD }}>
           <PermissionGate permission={PERMISSION.FINDING_TRIAGE}>
-            <Button size="small" onClick={() => onStatusChange(finding.id, 'dismissed')}>
+            <Button onClick={() => onStatusChange(finding.id, 'dismissed')}>
               <FaIcon icon="fa-xmark" /> Dismiss
             </Button>
-            <Button size="small" onClick={() => onStatusChange(finding.id, 'resolved')}>
+            <Button onClick={() => onStatusChange(finding.id, 'resolved')}>
               <FaIcon icon="fa-check" /> Mark Resolved
             </Button>
           </PermissionGate>

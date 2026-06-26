@@ -1,4 +1,5 @@
 import { logger } from '@/server/lib/logger';
+import { env } from '@/server/env';
 import { db } from '@/server/db/client';
 import { type NewFinding, findings, findingGroups, findingGroupScans } from '@drizzle/schema/findings';
 import { generateFindingFingerprint } from './finding.fingerprint';
@@ -452,7 +453,7 @@ export const findingService = {
       prCount: openPrs.length,
     });
 
-    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appBaseUrl = env.APP_URL;
 
     await Promise.all(openPrs.map(async (pr) => {
       try {

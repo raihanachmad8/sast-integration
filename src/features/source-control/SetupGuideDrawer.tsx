@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { Button, Drawer, Typography, Flex, Input, Tag, Space, theme, App } from 'antd';
 import { CloseOutlined, LinkOutlined, CopyOutlined } from '@ant-design/icons';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { BORDER_RADIUS } from '@/commons/constants/layout';
 import { GITHUB_GUIDE } from './GitHubGuide';
 import { GITLAB_GUIDE } from './GitLabGuide';
 import { GITEA_GUIDE } from './GiteaGuide';
@@ -65,7 +66,7 @@ export function SetupGuideDrawer({ open, onClose, providerId, onConnect }: Setup
     <Drawer
       title={
         <Flex align="center" gap={token.paddingSM} style={{ minWidth: 0 }}>
-          <FaIcon icon={icon} style={{ fontSize: token.fontSizeLG, flexShrink: 0 }} />
+          <FaIcon icon={icon} style={{ fontSize: token.fontSizeXL, flexShrink: 0 }} />
           <Typography.Title level={4} style={{ margin: 0, minWidth: 0 }}>{guide.title}</Typography.Title>
         </Flex>
       }
@@ -98,18 +99,18 @@ export function SetupGuideDrawer({ open, onClose, providerId, onConnect }: Setup
                   transition: 'all 120ms ease',
                 }}
               >
-                <Typography.Text strong style={{ fontSize: token.fontSize, color: isActive ? token.colorPrimary : token.colorText, display: 'block', marginBottom: 4 }}>
+                <Typography.Text strong style={{ fontSize: token.fontSizeLG, color: isActive ? token.colorPrimary : token.colorText, display: 'block', marginBottom: token.marginXS }}>
                   {mode.label}
                 </Typography.Text>
-                <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                <Typography.Text type="secondary" style={{ fontSize: token.fontSize }}>
                   {mode.desc}
                 </Typography.Text>
               </button>
             );
           })}
         </Flex>
-        <Button type="link" size="small" href={guide.docsUrl} target="_blank" icon={<LinkOutlined />} style={{ padding: 0, fontSize: token.fontSizeSM, alignSelf: 'flex-start' }}>
-          Full docs
+        <Button type="link" href={guide.docsUrl} target="_blank" icon={<LinkOutlined />} style={{ padding: 0, fontSize: token.fontSize, alignSelf: 'flex-start' }}>
+          View full documentation
         </Button>
       </Flex>
 
@@ -119,30 +120,30 @@ export function SetupGuideDrawer({ open, onClose, providerId, onConnect }: Setup
           <Flex key={si} gap={token.paddingMD} align="flex-start" style={{ border: `1px solid ${token.colorBorderSecondary}`, borderRadius: token.borderRadiusLG, padding: token.paddingLG }}>
             <Tag
               color={token.colorPrimary}
-              style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, flexShrink: 0, margin: 0, lineHeight: '28px', textAlign: 'center' }}
+              style={{ width: token.sizeLG, height: token.sizeLG, borderRadius: BORDER_RADIUS.CIRCLE, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: token.fontSize, fontWeight: token.fontWeightStrong, flexShrink: 0, margin: 0, lineHeight: `${token.sizeLG}px`, textAlign: 'center' }}
             >
               {si + 1}
             </Tag>
-            <Flex vertical gap={token.paddingXS} style={{ flex: 1, minWidth: 0 }}>
-              <Typography.Text strong>{step.label}</Typography.Text>
-              <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{step.detail}</Typography.Text>
+            <Flex vertical gap={token.paddingSM} style={{ flex: 1, minWidth: 0 }}>
+              <Typography.Text strong style={{ fontSize: token.fontSizeLG }}>{step.label}</Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: token.fontSize }}>{step.detail}</Typography.Text>
 
               {step.link && (
-                <Button type="link" size="small" href={step.link.url} target="_blank" icon={<LinkOutlined />} style={{ padding: 0, fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong }}>
+                <Button type="link" href={step.link.url} target="_blank" icon={<LinkOutlined />} style={{ padding: 0, fontSize: token.fontSize, fontWeight: token.fontWeightStrong, alignSelf: 'flex-start' }}>
                   {step.link.label}
                 </Button>
               )}
 
               {step.copyFields?.map((field) => (
                 <Flex key={field.label} vertical gap={token.paddingXS}>
-                  <Typography.Text type="secondary" strong style={{ fontSize: token.fontSizeSM }}>{field.label}</Typography.Text>
+                  <Typography.Text type="secondary" strong style={{ fontSize: token.fontSize }}>{field.label}</Typography.Text>
                   <Space.Compact style={{ width: '100%' }}>
                     <Input
                       readOnly
                       value={field.value}
-                      style={{ fontFamily: 'monospace', fontSize: token.fontSizeSM }}
+                      style={{ fontFamily: 'monospace', fontSize: token.fontSize }}
                     />
-                    <Button onClick={() => handleCopy(field.value)} icon={<CopyOutlined />} />
+                    <Button onClick={() => handleCopy(field.value)} icon={<CopyOutlined />}>Copy</Button>
                   </Space.Compact>
                 </Flex>
               ))}
@@ -151,7 +152,7 @@ export function SetupGuideDrawer({ open, onClose, providerId, onConnect }: Setup
         ))}
 
         {/* Connect button */}
-        <Button type="primary" block size="large" onClick={() => { onClose(); onConnect?.(providerName); }} icon={<FaIcon icon="fa-plug" />} style={{ marginTop: token.paddingMD }}>
+        <Button type="primary" block size="large" onClick={() => { onClose(); onConnect?.(providerName); }} icon={<FaIcon icon="fa-plug" />} style={{ height: token.controlHeightLG, fontWeight: token.fontWeightStrong }}>
           Connect {providerName}
         </Button>
       </Flex>

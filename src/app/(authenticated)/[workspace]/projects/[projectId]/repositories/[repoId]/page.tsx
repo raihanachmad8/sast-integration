@@ -7,7 +7,6 @@ import {
   Button,
   Card,
   Space,
-  Table,
   Typography,
   App,
   Flex,
@@ -25,8 +24,10 @@ import { LoadingState } from '@/commons/components/LoadingState';
 import { ErrorBanner } from '@/commons/components/ErrorBanner';
 import { errorMessage } from '@/lib/api/errors';
 import { StatusPill } from '@/commons/components/StatusPill';
+import { DataTable, makeSource } from '@/commons/components/DataTable';
 import { FeatureGate } from '@/commons/components/FeatureGate';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { SCAN_ORIGIN } from '@/commons/constants/layout';
 import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 
 const { Text } = Typography;
@@ -193,50 +194,22 @@ function RepositoryDetailScanPageContent() {
           )}
 
           <Card title="Scan History" style={{ marginTop: token.marginXXL }} size="small">
-            <Table
-              rowKey="id"
-              size="middle"
-              dataSource={scans}
-              pagination={{ pageSize: 12 }}
-              locale={{ emptyText: 'No scans recorded for this repository yet.' }}
-              scroll={{ x: 600 }}
+            <DataTable
+              source={{ data: scans, meta: { page: 1, pageSize: 12, total: scans.length } }}
+              rowKey={(row) => row.id}
               columns={[
-                {
-                  title: 'Origin',
-                  dataIndex: 'origin',
-                  render: (value: string) => (
-                    <StatusPill variant={value === 'managed' ? 'purple' : 'teal'}>
-                      {value === 'managed' ? 'Managed' : 'External Upload'}
-                    </StatusPill>
-                  ),
-                },
-                {
-                  title: 'Trigger',
-                  dataIndex: 'triggerSource',
-                  render: (v) => v || '-',
-                },
-                {
-                  title: 'Branch',
-                  dataIndex: 'branch',
-                  render: (v) => v || '-',
-                },
-                {
-                  title: 'Commit',
-                  dataIndex: 'commitSha',
-                  render: (value) =>
-                    value ? <Text code style={{ fontSize: token.fontSizeSM }}>{String(value).slice(0, 12)}</Text> : '-',
-                },
-                {
-                  title: 'Status',
-                  dataIndex: 'status',
-                  render: (value) => <StatusPill variant="slate">{value}</StatusPill>,
-                },
-                {
-                  title: 'Created',
-                  dataIndex: 'createdAt',
-                  render: (value) => (value ? new Date(value).toLocaleString() : '-'),
-                },
+                { key: 'origin', header: 'Origin', render: (row) => (
+                  <StatusPill variant={row.origin === SCAN_ORIGIN.MANAGED ? 'purple' : 'teal'}>
+                    {row.origin === SCAN_ORIGIN.MANAGED ? 'Managed' : 'External Upload'}
+                  </StatusPill>
+                )},
+                { key: 'triggerSource', header: 'Trigger', render: (row) => row.triggerSource || '-' },
+                { key: 'branch', header: 'Branch', render: (row) => row.branch || '-' },
+                { key: 'commitSha', header: 'Commit', render: (row) => row.commitSha ? <Text code style={{ fontSize: token.fontSizeSM }}>{String(row.commitSha).slice(0, 12)}</Text> : '-' },
+                { key: 'status', header: 'Status', render: (row) => <StatusPill variant="slate">{row.status}</StatusPill> },
+                { key: 'createdAt', header: 'Created', render: (row) => row.createdAt ? new Date(row.createdAt).toLocaleString() : '-' },
               ]}
+              emptyText="No scans recorded for this repository yet."
             />
           </Card>
 

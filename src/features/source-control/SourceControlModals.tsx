@@ -2,10 +2,26 @@
 
 import { Button, Modal, Select, Form, Typography, Card, Flex, theme } from 'antd';
 import { MODAL_WIDTH } from '@/commons/constants/layout';
-import { ConfigureModal as ConfigureProviderModal } from './ConfigureModal';
+
 
 interface ImportRepoModalProps { open: boolean; repoFullName: string; onClose: () => void; onSave: () => void; }
 
+/**
+ * Confirmation modal for importing a repository to the workspace.
+ *
+ * Displays the repository full name and provides import/cancel actions.
+ *
+ * @param props - {@link ImportRepoModalProps}
+ * @returns JSX element rendering the import repository confirmation modal.
+ *
+ * @example
+ * <ImportRepoModal
+ *   open={true}
+ *   repoFullName="org/repo"
+ *   onClose={() => setOpen(false)}
+ *   onSave={() => importRepo()}
+ * />
+ */
 export function ImportRepoModal({ open, repoFullName, onClose, onSave }: ImportRepoModalProps) {
   return (
     <Modal
@@ -72,5 +88,3 @@ export function SyncResultsModal({ open, results, onClose }: SyncResultsModalPro
     </Modal>
   );
 }
-
-export { ConfigureProviderModal };

@@ -28,6 +28,22 @@ const SECRETS = [
   { name: 'SAST_API_KEY', desc: 'API token untuk autentikasi CI/CD', example: 'sast_xxxxxxxxxxxx' },
 ];
 
+/**
+ * Multi-step modal for setting up CI/CD integration with GitHub Actions, GitLab CI, or Gitea Actions.
+ *
+ * Generates platform-specific workflow YAML and provides copy-to-clipboard for secrets configuration.
+ *
+ * @param props - {@link CICDSetupModalProps}
+ * @returns JSX element rendering the CI/CD setup modal with platform selection and step-by-step instructions.
+ *
+ * @example
+ * <CICDSetupModal
+ *   open={true}
+ *   onClose={() => setOpen(false)}
+ *   repository={{ id: '1', name: 'my-repo', provider: 'github' }}
+ *   workspaceSlug="my-workspace"
+ * />
+ */
 export const CICDSetupModal = React.memo(function CICDSetupModal({ open, onClose, repository, workspaceSlug }: CICDSetupModalProps) {
   const { token } = theme.useToken();
   const { message } = App.useApp();
@@ -165,7 +181,7 @@ jobs:
                 description: (
                   <Flex vertical gap={token.paddingXS}>
                     <Text type="secondary">Copy <Text code>{platform.file}</Text> to your repository</Text>
-                    <Button size="small" onClick={copyYamlContent} icon={<FaIcon icon="fa-copy" />}>
+                    <Button onClick={copyYamlContent} icon={<FaIcon icon="fa-copy" />}>
                       Copy YAML
                     </Button>
                   </Flex>

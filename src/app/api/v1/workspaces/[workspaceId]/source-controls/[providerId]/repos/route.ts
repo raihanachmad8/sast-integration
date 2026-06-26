@@ -6,6 +6,7 @@ import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/w
 import { PERMISSION } from '@/commons/constants/permissions';
 import { sourceControlRepositoryService } from '@/server/modules/source-control/source-control-repository.service';
 import { sourceControlImportRepository } from '@/server/modules/source-control/source-control-import.repository';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string; providerId: string }> };
 
@@ -14,6 +15,8 @@ type RouteContext = { params: Promise<{ workspaceId: string; providerId: string 
  * List discovered repositories from a source control provider with import status.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId, providerId } = await params;

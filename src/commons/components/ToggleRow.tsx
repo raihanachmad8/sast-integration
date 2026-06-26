@@ -14,10 +14,10 @@ export function ToggleRow({ label, description, checked, defaultChecked, onChang
   const { token } = theme.useToken();
   return (
     <Flex align="flex-start" gap={token.paddingLG}>
-      <Switch size="small" checked={checked} defaultChecked={defaultChecked} onChange={onChange} style={{ marginTop: 4 }} />
+      <Switch size="small" checked={checked} defaultChecked={defaultChecked} onChange={onChange} style={{ marginTop: token.marginXXS }} />
       <Flex vertical>
         <Typography.Text strong style={{ fontSize: token.fontSize, color: token.colorText }}>{label}</Typography.Text>
-        <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM, marginTop: 4 }}>{description}</Typography.Text>
+        <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM, marginTop: token.marginXXS }}>{description}</Typography.Text>
       </Flex>
     </Flex>
   );

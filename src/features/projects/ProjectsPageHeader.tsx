@@ -10,6 +10,17 @@ interface ProjectsPageHeaderProps {
   onNewProject: () => void;
 }
 
+/**
+ * Page header for the projects list page with a "New project" action button.
+ *
+ * Wraps the shared PageHeader component with project-specific title and permission-gated create button.
+ *
+ * @param props - {@link ProjectsPageHeaderProps}
+ * @returns JSX element rendering the projects page header.
+ *
+ * @example
+ * <ProjectsPageHeader onNewProject={() => openModal()} />
+ */
 export function ProjectsPageHeader({ onNewProject }: ProjectsPageHeaderProps) {
   const { token } = theme.useToken();
   return (

@@ -6,7 +6,7 @@ import { FeatureGate } from '@/commons/components/FeatureGate';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
 import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 import { PageHeader } from '@/commons/components/PageHeader';
-import { ProjectDetailPage } from '@/features/projects/ProjectDetailPage';
+import { ProjectDetailPage } from '@/features/projects';
 
 /**
  * Route handler for viewing project details.

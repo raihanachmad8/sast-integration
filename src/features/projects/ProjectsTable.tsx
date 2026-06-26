@@ -18,6 +18,17 @@ interface ProjectsTableProps {
   onView: (project: Project) => void;
 }
 
+/**
+ * Paginated data table for listing projects with repository, team, and member filters.
+ *
+ * Uses the shared DataTable with server-side pagination and row click to view details.
+ *
+ * @param props - {@link ProjectsTableProps}
+ * @returns JSX element rendering the projects data table.
+ *
+ * @example
+ * <ProjectsTable onView={(project) => openDetail(project)} />
+ */
 export function ProjectsTable({ onView }: ProjectsTableProps) {
   const { token } = theme.useToken();
 

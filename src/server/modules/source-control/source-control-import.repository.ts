@@ -2,6 +2,7 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { db } from '@/server/db/client';
 import { sourceControls, sourceControlRepositories, sourceControlImports, repositories } from '@drizzle/schema/source-controls';
 import type { SourceControl, SourceControlRepository, SourceControlImport, Repository } from '@drizzle/schema/source-controls';
+import { logger } from '@/server/lib/logger';
 export const sourceControlImportRepository = {
   async findConnectionById(id: string): Promise<SourceControl | null> {
     const [connection] = await db

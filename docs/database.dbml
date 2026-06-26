@@ -1,0 +1,664 @@
+// SAST Integration Database Schema
+// Generated from drizzle/schema/*
+
+// ============================================
+// 1. Authentication & Users
+// ============================================
+
+Table users {
+  id uuid [pk, default: `gen_random_uuid()`]
+  email varchar(255) [not null, unique]
+  password_hash text [not null]
+  name varchar(255) [not null]
+  avatar_url text [null]
+  username varchar(50) [null]
+  bio text [null]
+  timezone varchar(50) [null]
+  language varchar(10) [null]
+  two_factor_secret text [null]
+  two_factor_confirmed_at timestamp [null]
+  email_verified_at timestamp [null]
+  current_workspace_id uuid [null]
+  remember_token varchar(100) [null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp [null]
+  deleted_by uuid [null]
+}
+
+Table sessions {
+  id varchar(255) [pk]
+  user_id uuid [not null, ref: > users.id]
+  ip_address varchar(45) [null]
+  user_agent text [null]
+  last_activity timestamp [not null]
+  expires_at timestamp [not null]
+  current_refresh_token_id varchar(64) [null]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table user_settings {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  key varchar(255) [not null]
+  value text [null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+// ============================================
+// 2. Workspaces & Members
+// ============================================
+
+Table workspaces {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar(255) [not null]
+  slug varchar(255) [not null, unique]
+  type varchar(20) [not null] // 'personal' | 'organization'
+  avatar_url text [null]
+  description text [null]
+  features jsonb [null, default: `'{}'`]
+  created_at timestamp [not null, default: `now()`]
+  created_by uuid [null, ref: > users.id]
+  updated_at timestamp [not null, default: `now()`]
+  updated_by uuid [null, ref: > users.id]
+  deleted_at timestamp [null]
+  deleted_by uuid [null, ref: > users.id]
+}
+
+Table workspace_members {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  user_id uuid [not null, ref: > users.id]
+  role varchar(20) [not null] // 'owner' | 'manager' | 'reviewer' | 'member'
+  joined_at timestamp [not null, default: `now()`]
+  
+  indexes {
+    (workspace_id, user_id) [unique]
+  }
+}
+
+Table workspace_settings {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  key varchar(255) [not null]
+  value text [null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table workspace_invitations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  email varchar(255) [not null]
+  role varchar(20) [not null]
+  token varchar(255) [not null, unique]
+  accepted_at timestamp [null]
+  created_at timestamp [not null, default: `now()`]
+  created_by uuid [null, ref: > users.id]
+  expires_at timestamp [not null]
+}
+
+// ============================================
+// 3. Teams
+// ============================================
+
+Table teams {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  name varchar(255) [not null]
+  slug varchar(255) [not null]
+  description text [null]
+  created_at timestamp [not null, default: `now()`]
+  created_by uuid [null, ref: > users.id]
+  updated_at timestamp [not null, default: `now()`]
+  updated_by uuid [null, ref: > users.id]
+  deleted_at timestamp [null]
+  deleted_by uuid [null, ref: > users.id]
+}
+
+Table team_members {
+  id uuid [pk, default: `gen_random_uuid()`]
+  team_id uuid [not null, ref: > teams.id]
+  user_id uuid [not null, ref: > users.id]
+  role varchar(20) [not null] // 'admin' | 'contributor'
+  joined_at timestamp [not null, default: `now()`]
+}
+
+// ============================================
+// 4. Projects
+// ============================================
+
+Table projects {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  name varchar(255) [not null]
+  slug varchar(255) [not null]
+  platform varchar(50) [null]
+  language varchar(50) [null]
+  avatar_url text [null]
+  description text [null]
+  lead varchar(255) [null]
+  created_at timestamp [default: `now()`]
+  created_by uuid [null]
+  updated_at timestamp [default: `now()`]
+  updated_by uuid [null]
+  deleted_at timestamp [null]
+  deleted_by uuid [null, ref: > users.id]
+  
+  indexes {
+    (workspace_id, slug) [unique]
+  }
+}
+
+Table project_members {
+  id uuid [pk, default: `gen_random_uuid()`]
+  project_id uuid [not null, ref: > projects.id]
+  user_id uuid [not null, ref: > users.id]
+  role varchar(20) [not null]
+  joined_at timestamp [not null, default: `now()`]
+}
+
+Table project_teams {
+  id uuid [pk, default: `gen_random_uuid()`]
+  project_id uuid [not null, ref: > projects.id]
+  team_id uuid [not null]
+  role varchar(20) [not null]
+  added_at timestamp [not null, default: `now()`]
+}
+
+Table environments {
+  id uuid [pk, default: `gen_random_uuid()`]
+  project_id uuid [not null, ref: > projects.id]
+  name varchar(100) [not null]
+  type varchar(20) [not null]
+  is_default boolean [default: false]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table project_api_tokens {
+  id uuid [pk, default: `gen_random_uuid()`]
+  project_id uuid [not null, ref: > projects.id, delete: cascade]
+  created_by uuid [not null, ref: > users.id]
+  name varchar(255) [not null]
+  token_sha256 varchar(64) [not null, unique]
+  token_prefix varchar(20) [null]
+  permissions jsonb [not null, default: `'["scans:upload"]'`]
+  last_used_at timestamp [null]
+  created_at timestamp [not null, default: `now()`]
+  expires_at timestamp [null]
+  revoked_at timestamp [null]
+  revoked_by uuid [null, ref: > users.id]
+}
+
+// ============================================
+// 5. Source Control & Repositories
+// ============================================
+
+Table source_controls {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  provider varchar(20) [not null] // 'github' | 'gitlab' | 'gitea'
+  name varchar(255) [not null]
+  credentials jsonb [null]
+  created_at timestamp [not null, default: `now()`]
+  created_by uuid [null, ref: > users.id]
+  last_synced_at timestamp [null]
+  
+  indexes {
+    (workspace_id) [name: 'source_controls_workspace_id_idx']
+  }
+}
+
+Table repositories {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  project_id uuid [null, ref: > projects.id]
+  external_id varchar(255) [null]
+  provider varchar(20) [null]
+  name varchar(255) [not null]
+  url varchar(500) [not null]
+  default_branch varchar(100) [default: 'main']
+  connection_type text [not null, default: `'{"scm"}'`]
+  import_mode varchar(20) [default: 'manual']
+  auto_scan boolean [default: false]
+  last_synced_at timestamp [null]
+  created_at timestamp [not null, default: `now()`]
+  created_by uuid [null, ref: > users.id]
+  updated_at timestamp [not null, default: `now()`]
+  updated_by uuid [null, ref: > users.id]
+  deleted_at timestamp [null]
+  deleted_by uuid [null, ref: > users.id]
+}
+
+Table source_control_repositories {
+  id uuid [pk, default: `gen_random_uuid()`]
+  source_control_id uuid [not null, ref: > source_controls.id, delete: cascade]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  external_id varchar(255) [null]
+  name varchar(255) [not null]
+  full_name varchar(500) [not null]
+  url varchar(500) [null]
+  default_branch varchar(100) [default: 'main']
+  visibility varchar(20) [default: 'private']
+  synced_at timestamp [default: `now()`]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  deleted_at timestamp [null]
+  
+  indexes {
+    (source_control_id, name) [unique, name: 'source_control_repositories_ctrl_name_idx']
+    (source_control_id, external_id) [unique, name: 'source_control_repositories_ctrl_extid_idx']
+  }
+}
+
+Table source_control_imports {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  source_control_id uuid [not null, ref: > source_controls.id]
+  source_control_repository_id uuid [not null, ref: > source_control_repositories.id]
+  repository_id uuid [null, ref: > repositories.id]
+  webhook_external_id varchar(255) [null]
+  webhook_secret varchar(255) [null]
+  webhook_status varchar(20) [default: 'pending']
+  imported_by uuid [null, ref: > users.id]
+  imported_at timestamp [null]
+  uninstalled_at timestamp [null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+// ============================================
+// 6. Scans & Results
+// ============================================
+
+Table scans {
+  id uuid [pk, default: `gen_random_uuid()`]
+  repository_id uuid [null]
+  commit_sha varchar(40) [null]
+  branch varchar(100) [null]
+  origin varchar(30) [not null, default: 'managed'] // 'managed' | 'external'
+  trigger_source varchar(30) [null] // 'manual' | 'schedule' | 'webhook' | 'ci'
+  status varchar(20) [not null, default: 'pending'] // 'pending' | 'running' | 'completed' | 'failed'
+  started_at timestamp [null]
+  completed_at timestamp [null]
+  progress_events jsonb [not null, default: `'[]'`]
+  created_at timestamp [not null, default: `now()`]
+  created_by uuid [null, ref: > users.id]
+  pr_number integer [null]
+  base_branch varchar(100) [null]
+  head_branch varchar(100) [null]
+  pr_author varchar(255) [null]
+}
+
+Table scan_results {
+  id uuid [pk, default: `gen_random_uuid()`]
+  scan_id uuid [not null, ref: > scans.id]
+  scanner varchar(50) [not null]
+  format varchar(20) [null]
+  file_key text [null]
+  file_size integer [null]
+  parsed_summary jsonb [null]
+  created_at timestamp [default: `now()`]
+}
+
+Table scan_uploads {
+  id uuid [pk, default: `gen_random_uuid()`]
+  repository_id uuid [null]
+  project_id uuid [null]
+  scan_id uuid [null, ref: > scans.id]
+  branch varchar(100) [null]
+  commit_sha varchar(40) [null]
+  uploaded_by uuid [null]
+  source varchar(30) [null]
+  metadata jsonb [null]
+  project_api_token_id uuid [null, ref: > project_api_tokens.id, delete: set null]
+  personal_access_token_id uuid [null, delete: set null]
+  created_at timestamp [default: `now()`]
+}
+
+Table commit_statuses {
+  id uuid [pk, default: `gen_random_uuid()`]
+  scan_id uuid [not null, ref: > scans.id]
+  repository_id uuid [not null, ref: > repositories.id]
+  commit_sha varchar(40) [not null]
+  status varchar(20) [not null] // 'pending' | 'success' | 'failure' | 'error'
+  context varchar(100) [not null]
+  description text [null]
+  target_url text [null]
+  provider varchar(20) [not null]
+  external_id varchar(100) [null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table quality_gates {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  threshold varchar(20) [not null, default: 'high']
+  fail_on_critical boolean [default: true]
+  fail_on_high_tp boolean [default: true]
+  warn_on_pending boolean [default: true]
+  require_human_ack boolean [default: false]
+  pending_behavior varchar(20) [default: 'warn']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table quality_gate_results {
+  id uuid [pk, default: `gen_random_uuid()`]
+  scan_id uuid [null, ref: > scans.id]
+  gate_id uuid [null, ref: > quality_gates.id]
+  status varchar(20) [not null] // 'pass' | 'fail' | 'warn'
+  blocking_findings integer [default: 0]
+  pending_findings integer [default: 0]
+  new_findings integer [default: 0]
+  fixed_findings integer [default: 0]
+  evaluated_at timestamp [not null, default: `now()`]
+}
+
+Table schedules {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  repository_id uuid [null]
+  branch varchar(100) [null]
+  timezone varchar(50) [default: 'UTC']
+  cron_expression varchar(100) [not null]
+  active boolean [default: true]
+  last_run_at timestamp [null]
+  next_run_at timestamp [null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  created_by uuid [null, ref: > users.id]
+  deleted_at timestamp [null]
+}
+
+// ============================================
+// 7. Findings & AI Verification
+// ============================================
+
+Table finding_groups {
+  id uuid [pk, default: `gen_random_uuid()`]
+  project_id uuid [null, ref: > projects.id]
+  repository_id uuid [null, ref: > repositories.id]
+  fingerprint varchar(64) [not null]
+  title varchar(500) [null]
+  first_seen_at timestamp [not null, default: `now()`]
+  last_seen_at timestamp [not null, default: `now()`]
+  
+  indexes {
+    (repository_id, fingerprint) [unique, name: 'finding_groups_repo_fingerprint_idx']
+  }
+}
+
+Table findings {
+  id uuid [pk, default: `gen_random_uuid()`]
+  scan_id uuid [not null, ref: > scans.id]
+  group_id uuid [null, ref: > finding_groups.id]
+  cwe_id varchar(20) [null]
+  severity varchar(20) [not null] // 'critical' | 'high' | 'medium' | 'low' | 'info'
+  status varchar(20) [not null, default: 'open'] // 'open' | 'fixed' | 'false_positive' | 'ignored'
+  active boolean [not null, default: true]
+  file_path varchar(500) [null]
+  line_number integer [null]
+  code_snippet text [null]
+  description text [null]
+  rule varchar(500) [null]
+  scanner varchar(50) [null]
+  message text [null]
+  assigned_to uuid [null, ref: > users.id]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table ai_verifications {
+  id uuid [pk, default: `gen_random_uuid()`]
+  finding_id uuid [null, ref: > findings.id]
+  model_id uuid [null, ref: > ai_models.id]
+  verdict varchar(20) [not null] // 'true_positive' | 'false_positive' | 'error'
+  confidence numeric(3,2) [null]
+  explanation text [null]
+  data_flow text [null]
+  taint_source text [null]
+  match_detail text [null]
+  likely_cwe jsonb [null]
+  fix_suggestion text [null]
+  latency_ms integer [null]
+  raw_response text [null]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table comments {
+  id uuid [pk, default: `gen_random_uuid()`]
+  finding_id uuid [not null, ref: > findings.id]
+  parent_id uuid [null]
+  content text [not null]
+  created_at timestamp [not null, default: `now()`]
+  created_by uuid [null, ref: > users.id]
+  updated_at timestamp [not null, default: `now()`]
+  updated_by uuid [null, ref: > users.id]
+  deleted_at timestamp [null]
+  deleted_by uuid [null, ref: > users.id]
+}
+
+Table finding_history {
+  id uuid [pk, default: `gen_random_uuid()`]
+  finding_id uuid [not null, ref: > findings.id]
+  field varchar(50) [not null]
+  old_value text [null]
+  new_value text [null]
+  created_at timestamp [not null, default: `now()`]
+  created_by uuid [null, ref: > users.id]
+}
+
+// ============================================
+// 8. Integrations
+// ============================================
+
+Table ai_models {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  name varchar(100) [not null]
+  provider varchar(50) [not null]
+  base_url varchar(500) [not null]
+  api_key_encrypted text [null]
+  role varchar(20) [not null, default: 'fallback'] // 'primary' | 'fallback'
+  priority integer [not null, default: 1]
+  prompt_preset varchar(20) [not null, default: 'strict']
+  custom_system_prompt text [null]
+  status varchar(20) [default: 'unreachable'] // 'reachable' | 'unreachable'
+  last_tested_at timestamp [null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table webhooks {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  name varchar(255) [null]
+  url varchar(500) [not null]
+  events jsonb [not null]
+  secret varchar(255) [not null]
+  active boolean [default: true]
+  created_at timestamp [not null, default: `now()`]
+  created_by uuid [null, ref: > users.id]
+  updated_at timestamp [not null, default: `now()`]
+  updated_by uuid [null, ref: > users.id]
+  deleted_at timestamp [null]
+  deleted_by uuid [null, ref: > users.id]
+}
+
+Table webhook_deliveries {
+  id uuid [pk, default: `gen_random_uuid()`]
+  webhook_id uuid [not null, ref: > webhooks.id, delete: cascade]
+  event varchar(100) [not null]
+  status varchar(20) [not null]
+  response_status integer [null]
+  request_body jsonb [null]
+  response_body text [null]
+  duration_ms integer [null]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table audit_logs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  user_id uuid [null, ref: > users.id]
+  action varchar(100) [not null]
+  resource_type varchar(50) [null]
+  resource_id uuid [null]
+  data jsonb [null]
+  ip_address varchar(45) [null]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table activity_logs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  user_id uuid [null, ref: > users.id]
+  type varchar(50) [not null]
+  description text [null]
+  metadata jsonb [null]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table knowledge_sources {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [null, ref: > workspaces.id]
+  name varchar(100) [not null]
+  type varchar(50) [not null]
+  url varchar(500) [null]
+  status varchar(20) [default: 'disconnected']
+  entry_count integer [default: 0]
+  last_synced_at timestamp [null]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table knowledge_entries {
+  id uuid [pk, default: `gen_random_uuid()`]
+  source_id uuid [not null, ref: > knowledge_sources.id]
+  cwe_id varchar(20) [null]
+  title varchar(500) [not null]
+  content text [null]
+  severity varchar(20) [null]
+  remediation text [null]
+  tags jsonb [null]
+  muted boolean [default: false]
+  used_by_ai_count integer [default: 0]
+  references jsonb [null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+  
+  indexes {
+    (source_id, cwe_id) [unique, name: 'knowledge_entries_source_cwe_idx']
+  }
+}
+
+Table knowledge_backfill_jobs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [null]
+  source_id uuid [null, ref: > knowledge_sources.id]
+  source_type varchar(50) [not null]
+  status varchar(20) [not null, default: 'queued']
+  range_start timestamp [not null]
+  range_end timestamp [not null]
+  cursor_start timestamp [not null]
+  window_days integer [not null, default: 30]
+  imported_count integer [not null, default: 0]
+  last_error text [null]
+  started_at timestamp [null]
+  completed_at timestamp [null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+  
+  indexes {
+    (source_id, status) [name: 'knowledge_backfill_jobs_source_status_idx']
+  }
+}
+
+// ============================================
+// 9. Reports & Storage
+// ============================================
+
+Table reports {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  type varchar(50) [not null]
+  title varchar(255) [not null]
+  status varchar(20) [not null, default: 'generated']
+  filters jsonb [null]
+  file_path varchar(500) [null]
+  file_size integer [null]
+  format varchar(20) [null]
+  created_at timestamp [not null, default: `now()`]
+  created_by uuid [null, ref: > users.id]
+  expires_at timestamp [null]
+}
+
+Table storage_files {
+  id uuid [pk, default: `gen_random_uuid()`]
+  workspace_id uuid [not null, ref: > workspaces.id]
+  file_name varchar(255) [not null]
+  file_path varchar(500) [not null]
+  file_size integer [not null]
+  mime_type varchar(100) [null]
+  storage_provider varchar(50) [not null, default: 'local']
+  storage_key varchar(500) [null]
+  metadata jsonb [null]
+  created_at timestamp [not null, default: `now()`]
+  created_by uuid [null, ref: > users.id]
+  expires_at timestamp [null]
+}
+
+// ============================================
+// 10. Auth Tokens & Notifications
+// ============================================
+
+Table password_reset_tokens {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  token varchar(255) [not null, unique]
+  used_at timestamp [null]
+  created_at timestamp [not null, default: `now()`]
+  expires_at timestamp [not null]
+}
+
+Table email_verification_tokens {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  token varchar(255) [not null, unique]
+  verified_at timestamp [null]
+  created_at timestamp [not null, default: `now()`]
+  expires_at timestamp [not null]
+}
+
+Table personal_access_tokens {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  name varchar(255) [not null]
+  token varchar(64) [not null, unique]
+  abilities jsonb [null]
+  last_used_at timestamp [null]
+  created_at timestamp [not null, default: `now()`]
+  expires_at timestamp [null]
+  revoked_at timestamp [null]
+  revoked_by uuid [null, ref: > users.id]
+}
+
+Table notifications {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  type varchar(100) [not null]
+  title varchar(255) [not null]
+  data jsonb [null]
+  read_at timestamp [null]
+  created_at timestamp [not null, default: `now()`]
+}
+
+// ============================================
+// 11. Role Permissions (Code-derived)
+// ============================================
+
+// Permissions are derived from ROLE_PERMISSIONS in permissions.ts
+// Roles: owner, manager, reviewer, member
+// 35 permissions mapped to roles

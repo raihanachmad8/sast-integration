@@ -7,6 +7,7 @@ import { updateSourceControlSchema } from '@/commons/schemas';
 import { AppError } from '@/server/http/errors';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { PERMISSION } from '@/commons/constants/permissions';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string; providerId: string }> };
 
@@ -15,6 +16,8 @@ type RouteContext = { params: Promise<{ workspaceId: string; providerId: string 
  * Get a single source control integration.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId, providerId } = await params;
@@ -43,6 +46,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
  * Update a source control integration (legacy support).
  */
 export async function PUT(request: NextRequest, context: RouteContext) {
+  logger.workspace.info('put request');
+
   return updateSourceControl(request, context);
 }
 
@@ -91,6 +96,8 @@ function resolveReturnTo(request: NextRequest) {
  * Delete a source control integration.
  */
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('delete request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const userId = getUserId(auth.context);

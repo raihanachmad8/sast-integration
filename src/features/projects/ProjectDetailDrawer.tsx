@@ -20,6 +20,22 @@ interface ProjectDetailDrawerProps {
   onEdit: (project: Project) => void;
 }
 
+/**
+ * Drawer displaying project details including description, status, teams, and repositories.
+ *
+ * Provides edit and delete actions with confirmation dialog for the selected project.
+ *
+ * @param props - {@link ProjectDetailDrawerProps}
+ * @returns JSX element rendering the project detail drawer.
+ *
+ * @example
+ * <ProjectDetailDrawer
+ *   open={true}
+ *   project={project}
+ *   onClose={() => setOpen(false)}
+ *   onEdit={(p) => openEditModal(p)}
+ * />
+ */
 export function ProjectDetailDrawer({ open, project, onClose, onEdit }: ProjectDetailDrawerProps) {
   const { modal } = App.useApp();
   const { confirm } = useConfirm();

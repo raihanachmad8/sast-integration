@@ -18,6 +18,20 @@ interface TeamsTableProps {
   onEdit: (team: Team) => void;
 }
 
+/**
+ * Paginated data table for listing teams with project filter and row actions.
+ *
+ * Uses the shared DataTable with server-side pagination and permission-gated edit action.
+ *
+ * @param props - {@link TeamsTableProps}
+ * @returns JSX element rendering the teams data table.
+ *
+ * @example
+ * <TeamsTable
+ *   onView={(team) => openDetail(team)}
+ *   onEdit={(team) => openEdit(team)}
+ * />
+ */
 export function TeamsTable({ onView, onEdit }: TeamsTableProps) {
   const { token } = theme.useToken();
   const { has } = usePermissions();

@@ -23,6 +23,23 @@ interface WebhookFormModalProps {
   loading?: boolean;
 }
 
+/**
+ * Modal form for creating or editing a webhook with name, URL, and event subscriptions.
+ *
+ * Validates via Zod schema and supports both create and edit modes.
+ *
+ * @param props - {@link WebhookFormModalProps}
+ * @returns JSX element rendering the webhook create/edit modal.
+ *
+ * @example
+ * <WebhookFormModal
+ *   open={true}
+ *   mode="create"
+ *   onSubmit={(values) => saveWebhook(values)}
+ *   onCancel={() => setOpen(false)}
+ *   loading={false}
+ * />
+ */
 export function WebhookFormModal({ open, mode, initialValues, onSubmit, onCancel, loading }: WebhookFormModalProps) {
   const [form] = Form.useForm();
   const { token } = theme.useToken();

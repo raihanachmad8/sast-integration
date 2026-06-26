@@ -130,6 +130,78 @@ async function fetchAiEnrichment(findingId: string, groupId: string | null, exec
   return { ...latestVerification, modelName: model?.name };
 }
 
+/**
+ * Batch-fetch AI enrichment for multiple findings in 2 queries instead of N*2.
+ * Returns a Map<findingId, enrichment data>.
+ */
+async function fetchAiEnrichmentBatch(
+  rows: Array<{ id: string; groupId: string | null }>,
+  executor: typeof db | Tx,
+): Promise<Map<string, { verdict: string; modelName: string | undefined; confidence: string | null; explanation: string | null; fixSuggestion: string | null; dataFlow: string | null; taintSource: string | null; matchDetail: string | null; likelyCwe: unknown }>> {
+  if (rows.length === 0) return new Map();
+
+  const findingIds = rows.map(r => r.id);
+
+  // 1 query: get latest verification per finding
+  const allVerifications = await executor
+    .select({
+      findingId: aiVerifications.findingId,
+      groupId: aiVerifications.groupId,
+      verdict: aiVerifications.verdict,
+      confidence: aiVerifications.confidence,
+      explanation: aiVerifications.explanation,
+      fixSuggestion: aiVerifications.fixSuggestion,
+      dataFlow: aiVerifications.dataFlow,
+      taintSource: aiVerifications.taintSource,
+      matchDetail: aiVerifications.matchDetail,
+      likelyCwe: aiVerifications.likelyCwe,
+      modelId: aiVerifications.modelId,
+      createdAt: aiVerifications.createdAt,
+    })
+    .from(aiVerifications)
+    .where(inArray(aiVerifications.findingId, findingIds));
+
+  // Keep only latest per finding (group by findingId, pick newest)
+  const latestByFinding = new Map<string, typeof allVerifications[0]>();
+  for (const row of allVerifications) {
+    if (!row.findingId) continue;
+    const existing = latestByFinding.get(row.findingId);
+    if (!existing || (row.createdAt && row.createdAt > (existing.createdAt ?? new Date(0)))) {
+      latestByFinding.set(row.findingId, row);
+    }
+  }
+
+  // Collect unique model IDs
+  const modelIds = [...new Set([...latestByFinding.values()].map(v => v.modelId).filter(Boolean))] as string[];
+
+  // 1 query: get all model names
+  const modelNameMap = new Map<string, string>();
+  if (modelIds.length > 0) {
+    const modelRows = await executor.select({ id: models.id, name: models.name })
+      .from(models)
+      .where(inArray(models.id, modelIds));
+    for (const m of modelRows) modelNameMap.set(m.id, m.name);
+  }
+
+  // Build result map
+  const result = new Map<string, { verdict: string; modelName: string | undefined; confidence: string | null; explanation: string | null; fixSuggestion: string | null; dataFlow: string | null; taintSource: string | null; matchDetail: string | null; likelyCwe: unknown }>();
+  for (const [findingId, v] of latestByFinding) {
+    result.set(findingId, {
+      verdict: v.verdict === 'true_positive' ? 'TP' : v.verdict === 'false_positive' ? 'FP' : 'Pending',
+      modelName: v.modelId ? modelNameMap.get(v.modelId) : undefined,
+      confidence: v.confidence ?? null,
+      explanation: v.explanation ?? null,
+      fixSuggestion: v.fixSuggestion ?? null,
+      dataFlow: v.dataFlow ?? null,
+      taintSource: v.taintSource ?? null,
+      matchDetail: v.matchDetail ?? null,
+      likelyCwe: v.likelyCwe ?? null,
+    });
+  }
+
+  return result;
+}
+
 export const findingRepository = {
   /**
    * Bulk insert findings.
@@ -277,21 +349,11 @@ export const findingRepository = {
         .limit(params.perPage).offset(offset);
     }
 
-    const enrichedData = await Promise.all(data.map(async (row) => {
-      const ai = await fetchAiEnrichment(row.id, row.groupId ?? null, executor);
-      return {
-        ...row,
-        verdict: ai ? (ai.verdict === 'true_positive' ? 'TP' : ai.verdict === 'false_positive' ? 'FP' : 'Pending') : 'Pending',
-        model: ai?.modelName ?? null,
-        confidence: ai?.confidence ?? null,
-        explanation: ai?.explanation ?? null,
-        fixSuggestion: ai?.fixSuggestion ?? null,
-        dataFlow: ai?.dataFlow ?? null,
-        taintSource: ai?.taintSource ?? null,
-        matchDetail: ai?.matchDetail ?? null,
-        likelyCwe: ai?.likelyCwe ?? null,
-      };
-    }));
+    const enrichmentMap = await fetchAiEnrichmentBatch(data.map(r => ({ id: r.id, groupId: r.groupId ?? null })), executor);
+    const enrichedData = data.map((row) => {
+      const ai = enrichmentMap.get(row.id);
+      return { ...row, verdict: ai?.verdict ?? 'Pending', model: ai?.modelName ?? null, confidence: ai?.confidence ?? null, explanation: ai?.explanation ?? null, fixSuggestion: ai?.fixSuggestion ?? null, dataFlow: ai?.dataFlow ?? null, taintSource: ai?.taintSource ?? null, matchDetail: ai?.matchDetail ?? null, likelyCwe: ai?.likelyCwe ?? null };
+    });
 
     // Use filteredTotal when verdict filter is active, otherwise use DB count
     const total = hasVerdictFilter
@@ -414,21 +476,11 @@ export const findingRepository = {
         .limit(params.perPage).offset(offset);
     }
 
-    const enrichedData = await Promise.all(data.map(async (row) => {
-      const ai = await fetchAiEnrichment(row.id, row.groupId ?? null, executor);
-      return {
-        ...row,
-        verdict: ai ? (ai.verdict === 'true_positive' ? 'TP' : ai.verdict === 'false_positive' ? 'FP' : 'Pending') : 'Pending',
-        model: ai?.modelName ?? null,
-        confidence: ai?.confidence ?? null,
-        explanation: ai?.explanation ?? null,
-        fixSuggestion: ai?.fixSuggestion ?? null,
-        dataFlow: ai?.dataFlow ?? null,
-        taintSource: ai?.taintSource ?? null,
-        matchDetail: ai?.matchDetail ?? null,
-        likelyCwe: ai?.likelyCwe ?? null,
-      };
-    }));
+    const enrichmentMap = await fetchAiEnrichmentBatch(data.map(r => ({ id: r.id, groupId: r.groupId ?? null })), executor);
+    const enrichedData = data.map((row) => {
+      const ai = enrichmentMap.get(row.id);
+      return { ...row, verdict: ai?.verdict ?? 'Pending', model: ai?.modelName ?? null, confidence: ai?.confidence ?? null, explanation: ai?.explanation ?? null, fixSuggestion: ai?.fixSuggestion ?? null, dataFlow: ai?.dataFlow ?? null, taintSource: ai?.taintSource ?? null, matchDetail: ai?.matchDetail ?? null, likelyCwe: ai?.likelyCwe ?? null };
+    });
 
     const total = hasVerdictFilter
       ? filteredTotal
@@ -567,21 +619,11 @@ export const findingRepository = {
         .limit(params.perPage).offset(offset);
     }
 
-    const enrichedData = await Promise.all(data.map(async (row) => {
-      const ai = await fetchAiEnrichment(row.id, row.groupId ?? null, executor);
-      return {
-        ...row,
-        verdict: ai ? (ai.verdict === 'true_positive' ? 'TP' : ai.verdict === 'false_positive' ? 'FP' : 'Pending') : 'Pending',
-        model: ai?.modelName ?? null,
-        confidence: ai?.confidence ?? null,
-        explanation: ai?.explanation ?? null,
-        fixSuggestion: ai?.fixSuggestion ?? null,
-        dataFlow: ai?.dataFlow ?? null,
-        taintSource: ai?.taintSource ?? null,
-        matchDetail: ai?.matchDetail ?? null,
-        likelyCwe: ai?.likelyCwe ?? null,
-      };
-    }));
+    const enrichmentMap = await fetchAiEnrichmentBatch(data.map(r => ({ id: r.id, groupId: r.groupId ?? null })), executor);
+    const enrichedData = data.map((row) => {
+      const ai = enrichmentMap.get(row.id);
+      return { ...row, verdict: ai?.verdict ?? 'Pending', model: ai?.modelName ?? null, confidence: ai?.confidence ?? null, explanation: ai?.explanation ?? null, fixSuggestion: ai?.fixSuggestion ?? null, dataFlow: ai?.dataFlow ?? null, taintSource: ai?.taintSource ?? null, matchDetail: ai?.matchDetail ?? null, likelyCwe: ai?.likelyCwe ?? null };
+    });
 
     const total = hasVerdictFilter
       ? filteredTotal
@@ -695,21 +737,11 @@ export const findingRepository = {
         .limit(params.perPage).offset(offset);
     }
 
-    const enrichedData = await Promise.all(data.map(async (row) => {
-      const ai = await fetchAiEnrichment(row.id, row.groupId ?? null, executor);
-      return {
-        ...row,
-        verdict: ai ? (ai.verdict === 'true_positive' ? 'TP' : ai.verdict === 'false_positive' ? 'FP' : 'Pending') : 'Pending',
-        model: ai?.modelName ?? null,
-        confidence: ai?.confidence ?? null,
-        explanation: ai?.explanation ?? null,
-        fixSuggestion: ai?.fixSuggestion ?? null,
-        dataFlow: ai?.dataFlow ?? null,
-        taintSource: ai?.taintSource ?? null,
-        matchDetail: ai?.matchDetail ?? null,
-        likelyCwe: ai?.likelyCwe ?? null,
-      };
-    }));
+    const enrichmentMap = await fetchAiEnrichmentBatch(data.map(r => ({ id: r.id, groupId: r.groupId ?? null })), executor);
+    const enrichedData = data.map((row) => {
+      const ai = enrichmentMap.get(row.id);
+      return { ...row, verdict: ai?.verdict ?? 'Pending', model: ai?.modelName ?? null, confidence: ai?.confidence ?? null, explanation: ai?.explanation ?? null, fixSuggestion: ai?.fixSuggestion ?? null, dataFlow: ai?.dataFlow ?? null, taintSource: ai?.taintSource ?? null, matchDetail: ai?.matchDetail ?? null, likelyCwe: ai?.likelyCwe ?? null };
+    });
 
     const countConditions = [eq(findings.scanId, scanId)];
     if (params.status) countConditions.push(eq(findingGroups.status, params.status));

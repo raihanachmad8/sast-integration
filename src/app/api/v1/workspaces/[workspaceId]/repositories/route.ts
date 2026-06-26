@@ -6,6 +6,7 @@ import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/w
 import { PERMISSION } from '@/commons/constants/permissions';
 import { AppError } from '@/server/http/errors';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -18,6 +19,8 @@ type RouteContext = { params: Promise<{ workspaceId: string }> };
  * No param — all repos.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;

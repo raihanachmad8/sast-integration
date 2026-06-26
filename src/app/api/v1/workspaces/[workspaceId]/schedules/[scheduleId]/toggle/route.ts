@@ -14,6 +14,8 @@ type RouteContext = { params: Promise<{ workspaceId: string; scheduleId: string 
  * Toggle schedule enabled/disabled.
  */
 export async function PUT(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('put request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId, scheduleId } = await params;

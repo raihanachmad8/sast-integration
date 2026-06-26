@@ -5,7 +5,7 @@ import { FeatureGate } from '@/commons/components/FeatureGate';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
 import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 import { PageHeader } from '@/commons/components/PageHeader';
-import { NewTeamPage } from '@/features/teams/NewTeamPage';
+import { NewTeamPage } from '@/features/teams';
 
 /**
  * Route handler for creating a new team.

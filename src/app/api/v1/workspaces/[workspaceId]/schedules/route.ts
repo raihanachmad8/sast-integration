@@ -16,6 +16,8 @@ type RouteContext = { params: Promise<{ workspaceId: string }> };
  * List schedules for a workspace.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;
@@ -45,6 +47,8 @@ const createScheduleSchema = z.object({
  * Create a new schedule.
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('post request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;

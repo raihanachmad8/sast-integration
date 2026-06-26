@@ -3,12 +3,15 @@ import { ApiResponse } from '@/server/http/response';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
 import { notificationsService } from '@/server/modules/notifications/notifications.service';
+import { logger } from '@/server/lib/logger';
 
 /**
  * GET /api/v1/notifications
  * List notifications for the current user (using activity_logs as notification source).
  */
 export async function GET(request: NextRequest) {
+  logger.notifications.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
 

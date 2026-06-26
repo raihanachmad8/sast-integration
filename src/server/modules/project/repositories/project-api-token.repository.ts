@@ -2,6 +2,7 @@ import { eq, and, isNull, or, gt } from 'drizzle-orm';
 import { db, type Tx } from '@/server/db/client';
 import { projectApiTokens, type ProjectApiToken, type NewProjectApiToken } from '@drizzle/schema/projects';
 import crypto from 'crypto';
+import { logger } from '@/server/lib/logger';
 const TOKEN_PREFIX = 'sast_p_';
 const TOKEN_RANDOM_BYTES = 32;
 

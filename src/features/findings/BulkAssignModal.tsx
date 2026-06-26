@@ -11,6 +11,24 @@ interface BulkAssignModalProps {
   onChange: (value: string) => void;
 }
 
+/**
+ * Modal for bulk-assigning selected findings to a reviewer.
+ *
+ * Provides a member select dropdown and confirm/cancel actions.
+ *
+ * @param props - {@link BulkAssignModalProps}
+ * @returns JSX element rendering the bulk assign modal.
+ *
+ * @example
+ * <BulkAssignModal
+ *   open={true}
+ *   bulkAssignee={selectedMember}
+ *   memberOptions={[{ value: 'u1', label: 'John Doe' }]}
+ *   onOk={() => assignAll()}
+ *   onCancel={() => setOpen(false)}
+ *   onChange={(val) => setSelectedMember(val)}
+ * />
+ */
 export function BulkAssignModal({ open, bulkAssignee, memberOptions, onOk, onCancel, onChange }: BulkAssignModalProps) {
   const { token } = theme.useToken();
 

@@ -6,6 +6,7 @@ import { FaIcon } from '@/commons/components/FaIcon';
 import { DataTable, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { StatusTag } from '@/commons/components/StatusTag';
+import { SCAN_STATUS, SCAN_ORIGIN } from '@/commons/constants/layout';
 import type { ScanRow } from './types';
 
 interface ScanTableProps {
@@ -50,6 +51,32 @@ const ORIGIN_OPTIONS = [
   { value: 'external_upload', label: 'External Upload' },
 ];
 
+/**
+ * Paginated data table for listing scans with search, status/stage/origin filters, and row actions.
+ *
+ * Uses the shared DataTable component with server-side pagination.
+ *
+ * @param props - {@link ScanTableProps}
+ * @returns JSX element rendering the scan data table with filters and actions.
+ *
+ * @example
+ * <ScanTable
+ *   rows={scanRows}
+ *   totalCount={100}
+ *   page={1}
+ *   pageSize={10}
+ *   onPaginationChange={(p, s) => setPagination(p, s)}
+ *   search=""
+ *   onSearchChange={setSearch}
+ *   statusFilter=""
+ *   onStatusFilterChange={setStatusFilter}
+ *   stageFilter=""
+ *   onStageFilterChange={setStageFilter}
+ *   originFilter=""
+ *   onOriginFilterChange={setOriginFilter}
+ *   onRepoClick={(row) => openRepo(row)}
+ * />
+ */
 export function ScanTable({
   rows,
   totalCount,
@@ -120,9 +147,9 @@ export function ScanTable({
               {row.repoSub}
             </Typography.Text>
             <Flex align="center" gap={token.marginXXS}>
-              <FaIcon icon={row.origin === 'managed' ? 'fa-robot' : 'fa-cloud-arrow-up'} style={{ fontSize: token.fontSizeSM }} />
-              <StatusPill variant={row.origin === 'managed' ? 'teal' : 'slate'}>
-                {row.origin === 'managed' ? 'Managed' : 'Upload'}
+              <FaIcon icon={row.origin === SCAN_ORIGIN.MANAGED ? 'fa-robot' : 'fa-cloud-arrow-up'} style={{ fontSize: token.fontSizeSM }} />
+              <StatusPill variant={row.origin === SCAN_ORIGIN.MANAGED ? 'teal' : 'slate'}>
+                {row.origin === SCAN_ORIGIN.MANAGED ? 'Managed' : 'Upload'}
               </StatusPill>
             </Flex>
           </Flex>
@@ -163,7 +190,7 @@ export function ScanTable({
       sortable: true,
       sortValue: (row) => row.findings,
       render: (row) => {
-        const isTerminal = row.status === 'Completed' || row.status === 'Failed';
+        const isTerminal = row.status === SCAN_STATUS.COMPLETED || row.status === SCAN_STATUS.FAILED;
         if (!isTerminal && row.findings === 0) {
           return <Typography.Text type="secondary">—</Typography.Text>;
         }
@@ -194,13 +221,13 @@ export function ScanTable({
     {
       label: 'Retry',
       icon: <FaIcon icon="fa-rotate-right" />,
-      show: (row) => row.status === 'Failed',
+      show: (row) => row.status === SCAN_STATUS.FAILED,
       onClick: (row) => onRetry?.(row),
     },
     {
       label: 'View findings',
       icon: <FaIcon icon="fa-eye" />,
-      show: (row) => row.status !== 'Failed',
+      show: (row) => row.status !== SCAN_STATUS.FAILED,
       onClick: (row) => onViewFindings?.(row),
     },
   ];

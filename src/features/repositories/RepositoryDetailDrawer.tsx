@@ -25,6 +25,23 @@ const PROVIDER_CONFIG: Record<string, { icon: string; label: string }> = {
   gitea: { icon: 'fa-code-branch', label: 'Gitea' },
 };
 
+/**
+ * Drawer displaying repository details including provider, connection status, and scan history.
+ *
+ * Provides actions to run a new scan or view scan history for the selected repository.
+ *
+ * @param props - {@link RepositoryDetailDrawerProps}
+ * @returns JSX element rendering the repository detail drawer with metadata and action buttons.
+ *
+ * @example
+ * <RepositoryDetailDrawer
+ *   open={true}
+ *   onClose={() => setOpen(false)}
+ *   repository={repo}
+ *   onRunScan={(id) => startScan(id)}
+ *   onViewHistory={(id) => goToHistory(id)}
+ * />
+ */
 export function RepositoryDetailDrawer({ open, onClose, repository, onRunScan, onViewHistory }: RepositoryDetailDrawerProps) {
   const { token } = theme.useToken();
 

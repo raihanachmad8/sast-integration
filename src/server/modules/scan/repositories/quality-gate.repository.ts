@@ -1,6 +1,7 @@
 import { eq, desc } from 'drizzle-orm';
 import { db, type Tx } from '@/server/db/client';
 import { qualityGates, qualityGateResults } from '@drizzle/schema/scans';
+import { logger } from '@/server/lib/logger';
 export const qualityGateRepository = {
   /**
    * Find quality gate configuration for a workspace.

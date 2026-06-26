@@ -586,7 +586,7 @@ export const aiVerificationService = {
         status: 'open',
       });
 
-      const BATCH_SIZE = 5;
+      const BATCH_SIZE = Number(process.env.AI_VERIFY_BATCH_SIZE ?? 5);
       let verified = 0;
       let failed = 0;
 
@@ -716,9 +716,16 @@ export const aiVerificationService = {
     signal?: AbortSignal,
   ): Promise<AiModelResponse> {
     try {
+      if (!baseUrl || !/^https?:\/\//.test(baseUrl)) {
+        throw new AppError(
+          `Ollama baseUrl is invalid: "${baseUrl}". Set it to http://localhost:11434 in AI model settings.`,
+          400,
+          SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED,
+        );
+      }
       const url = new URL(`${baseUrl.replace(/\/$/, '')}/api/chat`);
-      if (isPrivateOrInternal(url.hostname)) {
-        throw new AppError('AI model URL points to a private/internal address', 400, SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED);
+      if (isPrivateOrInternal(url.hostname, process.env.ALLOW_LOCAL_AI_MODELS === 'true')) {
+        throw new AppError('AI model URL points to a private/internal address. Set ALLOW_LOCAL_AI_MODELS=true in .env for local Ollama.', 400, SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED);
       }
       const res = await fetch(url.toString(), {
         method: 'POST',
@@ -772,8 +779,8 @@ export const aiVerificationService = {
     signal?: AbortSignal,
   ): Promise<AiModelResponse> {
     const urlObj = new URL(`${baseUrl.replace(/\/$/, '')}/v1/chat/completions`);
-    if (isPrivateOrInternal(urlObj.hostname)) {
-      throw new AppError('AI model URL points to a private/internal address', 400, SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED);
+    if (isPrivateOrInternal(urlObj.hostname, process.env.ALLOW_LOCAL_AI_MODELS === 'true')) {
+      throw new AppError('AI model URL points to a private/internal address. Set ALLOW_LOCAL_AI_MODELS=true in .env for local models.', 400, SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED);
     }
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

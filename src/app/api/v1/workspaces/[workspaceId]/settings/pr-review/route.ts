@@ -14,6 +14,8 @@ type RouteContext = { params: Promise<{ workspaceId: string }> };
  * Get PR review settings for a workspace.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;
@@ -35,6 +37,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  * Update PR review settings for a workspace.
  */
 export async function PUT(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('put request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;

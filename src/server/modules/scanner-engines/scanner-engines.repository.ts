@@ -1,3 +1,5 @@
+import { logger } from '@/server/lib/logger';
+
 export interface ScannerEngineRecord {
   id: string;
   name: string;

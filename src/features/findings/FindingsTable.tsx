@@ -54,6 +54,28 @@ const STATUS_OPTIONS = [
   { value: 'resolved', label: 'Resolved' },
 ];
 
+/**
+ * Paginated data table for listing findings with severity/verdict/status filters, bulk actions, and sorting.
+ *
+ * Supports row selection for bulk dismiss/resolve/reverify/assign, and inline per-row actions.
+ *
+ * @param props - {@link FindingsTableProps}
+ * @returns JSX element rendering the findings data table with filters, bulk actions, and sort controls.
+ *
+ * @example
+ * <FindingsTable
+ *   rows={findingRows}
+ *   isLoading={false}
+ *   total={50}
+ *   page={1}
+ *   pageSize={10}
+ *   filterValues={{}}
+ *   onPageChange={(p, s) => setPagination(p, s)}
+ *   onSearchChange={setSearch}
+ *   onFilterChange={(k, v) => setFilter(k, v)}
+ *   onReview={(row) => openReview(row)}
+ * />
+ */
 export function FindingsTable({ rows, isLoading, total, page, pageSize, search, filterValues, onPageChange, onSearchChange, onFilterChange, onReview, onDismiss, onResolve, onReverify, onAssign, onAssignRow, members, projectOptions = [], repositoryOptions = [], sort, onSortChange }: FindingsTableProps) {
   const { token } = theme.useToken();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -201,23 +223,23 @@ export function FindingsTable({ rows, isLoading, total, page, pageSize, search, 
   ];
 
   const bulkBar = selectedIds.size > 0 ? (
-    <Flex align="center" gap={token.marginXS} style={{ padding: `${token.paddingXXS}px ${token.paddingMD}px`, borderBottom: `1px solid ${token.colorBorderSecondary}`, background: token.colorBgLayout, minHeight: 38 }}>
+    <Flex align="center" gap={token.marginXS} style={{ padding: `${token.paddingXXS}px ${token.paddingMD}px`, borderBottom: `1px solid ${token.colorBorderSecondary}`, background: token.colorBgLayout, minHeight: token.controlHeightSM }}>
       <Text type="secondary" strong style={{ fontSize: token.fontSizeSM }}>{selectedIds.size} selected</Text>
       <PermissionGate permission={PERMISSION.FINDING_TRIAGE}>
-        <Button type="primary" size="small" onClick={() => { onDismiss?.([...selectedIds]); setSelectedIds(new Set()); }}>
+        <Button type="primary" onClick={() => { onDismiss?.([...selectedIds]); setSelectedIds(new Set()); }}>
           <FaIcon icon="fa-check" /> Dismiss
         </Button>
-        <Button size="small" onClick={() => { onResolve?.([...selectedIds]); setSelectedIds(new Set()); }}>
+        <Button onClick={() => { onResolve?.([...selectedIds]); setSelectedIds(new Set()); }}>
           <FaIcon icon="fa-circle-check" /> Resolve
         </Button>
       </PermissionGate>
       <PermissionGate permission={PERMISSION.SCAN_RUN}>
-        <Button size="small" onClick={() => { onReverify?.([...selectedIds]); setSelectedIds(new Set()); }}>
+        <Button onClick={() => { onReverify?.([...selectedIds]); setSelectedIds(new Set()); }}>
           <FaIcon icon="fa-brain" /> Re-verify
         </Button>
       </PermissionGate>
       <PermissionGate permission={PERMISSION.FINDING_TRIAGE}>
-        <Button size="small" onClick={() => { onAssign?.([...selectedIds]); setSelectedIds(new Set()); }}>
+        <Button onClick={() => { onAssign?.([...selectedIds]); setSelectedIds(new Set()); }}>
           <FaIcon icon="fa-user-plus" /> Assign
         </Button>
       </PermissionGate>

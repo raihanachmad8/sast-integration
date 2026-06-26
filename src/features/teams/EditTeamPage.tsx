@@ -8,6 +8,18 @@ import { LoadingState } from '@/commons/components/LoadingState';
 import { ErrorState } from '@/commons/components/ErrorState';
 import { errorMessage } from '@/lib/api/errors';
 
+/**
+ * Full-page team editor with the TeamForm component.
+ *
+ * Loads the team by ID and renders the TeamForm for editing.
+ *
+ * @param props - Component props.
+ * @param props.teamId - The unique identifier of the team to edit.
+ * @returns JSX element rendering the team edit page with loading/error states.
+ *
+ * @example
+ * <EditTeamPage teamId="team_456" />
+ */
 export function EditTeamPage({ teamId }: { teamId: string }) {
   const { token } = theme.useToken();
   const teamQuery = useTeamQuery(teamId);

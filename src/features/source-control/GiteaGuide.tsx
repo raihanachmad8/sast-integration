@@ -1,5 +1,14 @@
 import type { SetupGuide } from './SetupGuideDrawer';
 
+/**
+ * Step-by-step setup guide for connecting Gitea via personal access token.
+ *
+ * @returns {@link SetupGuide} configuration object for the Gitea provider.
+ *
+ * @example
+ * // Used internally by SetupGuideDrawer
+ * const guide = GITEA_GUIDE;
+ */
 export const GITEA_GUIDE: SetupGuide = {
   title: 'Gitea setup',
   docsUrl: 'https://docs.gitea.com/usage/integrations/gitea',
@@ -22,7 +31,7 @@ export const GITEA_GUIDE: SetupGuide = {
       {
         label: 'Required token scopes',
         detail: 'Select only the scopes needed for SAST integration. Minimal permissions reduce security risk.',
-        checks: ['repository: Read and Write — list repos, read code, setup webhooks', 'issue: Read and Write — read PR/MR and post quality gate comments'],
+        checks: ['user: Read — required to list your repositories', 'repository: Read and Write — read code, setup webhooks', 'issue: Read and Write — post quality gate comments on PRs'],
       },
       {
         label: 'Configure in SAST Integration',

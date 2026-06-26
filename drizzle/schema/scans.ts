@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, jsonb, timestamp, boolean, integer, text, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, jsonb, timestamp, boolean, integer, text, uniqueIndex, index, foreignKey } from 'drizzle-orm/pg-core';
 import { users } from './users';
 import { workspaces } from './workspaces';
 import { repositories } from './source-controls';
@@ -28,6 +28,8 @@ export const scans = pgTable('scans', {
   index('scans_status_idx').on(t.status),
   index('scans_created_at_idx').on(t.createdAt),
   index('scans_created_by_idx').on(t.createdBy),
+  index('scans_branch_idx').on(t.branch),
+  index('scans_head_branch_idx').on(t.headBranch),
 ]);
 
 /** A single progress event stored in the scan's progress_events JSONB array. */
@@ -79,7 +81,7 @@ export const qualityGates = pgTable('quality_gates', {
 
 export const qualityGateResults = pgTable('quality_gate_results', {
   id: uuid('id').primaryKey().defaultRandom(),
-  scanId: uuid('scan_id').references(() => scans.id),
+  scanId: uuid('scan_id').references(() => scans.id).unique(),
   gateId: uuid('gate_id').references(() => qualityGates.id),
   status: varchar('status', { length: 20 }).notNull(),
   blockingFindings: integer('blocking_findings').default(0),
@@ -121,9 +123,15 @@ export const scanUploads = pgTable('scan_uploads', {
   source: varchar('source', { length: 30 }),
   metadata: jsonb('metadata'),
   projectApiTokenId: uuid('project_api_token_id').references(() => projectApiTokens.id, { onDelete: 'set null' }),
-  personalAccessTokenId: uuid('personal_access_token_id').references(() => personalAccessTokens.id, { onDelete: 'set null' }),
+  personalAccessTokenId: uuid('personal_access_token_id'),
   createdAt: timestamp('created_at').defaultNow(),
-});
+}, (t) => [
+  foreignKey({
+    columns: [t.personalAccessTokenId],
+    foreignColumns: [personalAccessTokens.id],
+    name: 'su_pat_fk',
+  }).onDelete('set null'),
+]);
 
 export type Scan = typeof scans.$inferSelect;
 export type NewScan = typeof scans.$inferInsert;

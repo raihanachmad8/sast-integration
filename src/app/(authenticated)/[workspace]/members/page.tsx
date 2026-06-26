@@ -8,8 +8,9 @@ import { ErrorBanner } from '@/commons/components/ErrorBanner';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
-import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
+import { TAB_KEY } from '@/commons/constants/layout';
 import { errorMessage } from '@/lib/api/errors';
 import { useConfirm } from '@/commons/components/ConfirmDialog';
 import { useMembersQuery, useInvitationsQuery, useRemoveMemberMutation, useRevokeInvitationMutation, useInviteMemberMutation, useUpdateMemberRoleMutation } from '@/modules/members';
@@ -40,7 +41,7 @@ export default function MembersPage() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<'members' | 'pending'>(
-    initialTab === 'pending' ? 'pending' : 'members',
+    initialTab === TAB_KEY.PENDING ? TAB_KEY.PENDING : TAB_KEY.MEMBERS,
   );
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -115,8 +116,8 @@ export default function MembersPage() {
     const tab = key as 'members' | 'pending';
     setActiveTab(tab);
     const params = new URLSearchParams(searchParams.toString());
-    if (tab === 'pending') {
-      params.set('tab', 'pending');
+    if (tab === TAB_KEY.PENDING) {
+      params.set('tab', TAB_KEY.PENDING);
     } else {
       params.delete('tab');
     }
@@ -152,6 +153,7 @@ export default function MembersPage() {
   ];
 
   return (
+    <PermissionGate permission={PERMISSION.MEMBER_VIEW} fallback={<PermissionHint permission={PERMISSION.MEMBER_VIEW} />}>
     <Flex vertical gap={token.paddingXL}>
       <PageHeader
         title="Members"
@@ -190,5 +192,6 @@ export default function MembersPage() {
         isLoading={updateRoleMutation.isPending}
       />
     </Flex>
+    </PermissionGate>
   );
 }

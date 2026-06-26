@@ -7,6 +7,7 @@ import { validateBody } from '@/server/http/validate';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { repositoriesService } from '@/server/modules/repositories/repositories.service';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string; repoId: string }> };
 
@@ -19,6 +20,8 @@ const updateRepoSchema = z.object({
  * Update a repository (e.g., assign to project).
  */
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('patch request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const userId = getUserId(auth.context);

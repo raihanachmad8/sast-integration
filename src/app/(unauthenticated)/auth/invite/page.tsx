@@ -162,7 +162,7 @@ function AcceptInviteFlow() {
       <Form layout="vertical" onFinish={(v) => acceptNewUser.mutate(v)} autoComplete="off" requiredMark={false} style={{ marginTop: antdToken.paddingXL }}>
         <Form.Item
           name="name"
-          label={<span style={{ fontWeight: antdToken.fontWeightStrong, fontSize: antdToken.fontSizeSM }}>Full name</span>}
+          label={<span style={{ fontWeight: antdToken.fontWeightStrong, fontSize: antdToken.fontSize }}>Full name</span>}
           rules={[{ required: true, message: 'Please enter your full name' }, { min: 2, message: 'Name must be at least 2 characters' }]}
         >
           <Input placeholder="John Doe" size="large" autoComplete="name" />
@@ -170,7 +170,7 @@ function AcceptInviteFlow() {
 
         <Form.Item
           name="password"
-          label={<span style={{ fontWeight: antdToken.fontWeightStrong, fontSize: antdToken.fontSizeSM }}>Password</span>}
+          label={<span style={{ fontWeight: antdToken.fontWeightStrong, fontSize: antdToken.fontSize }}>Password</span>}
           rules={[{ required: true, message: 'Please enter a password' }, { min: 8, message: 'Password must be at least 8 characters' }]}
         >
           <Input.Password placeholder="Minimum 8 characters" size="large" autoComplete="new-password" onChange={(e) => setPasswordValue(e.target.value)} />
@@ -179,7 +179,7 @@ function AcceptInviteFlow() {
 
         <Form.Item
           name="confirmPassword"
-          label={<span style={{ fontWeight: antdToken.fontWeightStrong, fontSize: antdToken.fontSizeSM }}>Confirm password</span>}
+          label={<span style={{ fontWeight: antdToken.fontWeightStrong, fontSize: antdToken.fontSize }}>Confirm password</span>}
           dependencies={['password']}
           rules={[
             { required: true, message: 'Please confirm your password' },
@@ -196,7 +196,7 @@ function AcceptInviteFlow() {
         </Form.Item>
       </Form>
 
-      <div style={{ marginTop: antdToken.marginLG, textAlign: 'center', fontSize: antdToken.fontSizeSM }}>
+      <div style={{ marginTop: antdToken.marginLG, textAlign: 'center', fontSize: antdToken.fontSize }}>
         <Text type="secondary">
           Already have an account?{' '}
           <Button type="link" style={{ padding: 0, fontWeight: antdToken.fontWeightStrong }} onClick={() => router.push(`${ROUTES.AUTH.SIGNIN}?invite_token=${encodeURIComponent(token)}`)}>

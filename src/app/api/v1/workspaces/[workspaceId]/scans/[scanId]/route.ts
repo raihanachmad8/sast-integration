@@ -5,6 +5,7 @@ import { AppError } from '@/server/http/errors';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { scanService } from '@/server/modules/scan';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string; scanId: string }> };
 
@@ -13,6 +14,8 @@ type RouteContext = { params: Promise<{ workspaceId: string; scanId: string }> }
  * Get scan detail with findings count, severity breakdown, and AI stats.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId, scanId } = await params;

@@ -83,20 +83,46 @@ For the detailed milestone breakdown and remaining scope, see [docs/ROADMAP.md](
 
 ## Quick Start
 
-```bash
-# Install dependencies
-pnpm install
+### Docker (Recommended)
 
-# Setup environment
+```bash
+# 1. Clone and configure
+git clone <repo-url> && cd sast-integration
 cp .env.example .env
 
-# Database
-pnpm db:push       # Create tables
-pnpm db:seed       # Seed owner + permissions (+ org workspace in single mode)
+# 2. Edit .env — set these values:
+#    DATABASE_URL=postgresql://user:pass@host:5432/dbname
+#    JWT_SECRET=<random-32+chars>
+#    OWNER_EMAIL=<your-email>
+#    OWNER_PASSWORD=<secure-password>
 
-# Development
+# 3. Build and start
+docker compose up -d
+
+# 4. Initialize database
+docker compose exec app pnpm db:push
+docker compose exec app pnpm db:seed
+
+# 5. Access
+#    App: http://localhost:3000
+#    Login: owner@sast.local / ChangeMe123!
+```
+
+### Build with Scanners (for managed scans)
+
+```bash
+# Include Semgrep, Flawfinder, Cppcheck in Docker image
+docker build --build-arg INCLUDE_SCANNERS=true -t sast-integration .
+```
+
+### Local Development
+
+```bash
+pnpm install
+cp .env.example .env
+pnpm db:push
+pnpm db:seed
 pnpm dev           # http://localhost:3000
-pnpm db:studio     # Drizzle Studio
 ```
 
 ### Default Credentials
@@ -106,7 +132,7 @@ Email: owner@sast.local
 Password: ChangeMe123!
 ```
 
-Override via `OWNER_EMAIL` / `OWNER_PASSWORD` env vars. Production rejects defaults.
+⚠️ **Production**: Override `OWNER_EMAIL` / `OWNER_PASSWORD` / `JWT_SECRET`. App rejects defaults in production.
 
 ### Testing
 
@@ -124,6 +150,7 @@ pnpm build         # Production build
 | Doc | Description |
 |-----|-------------|
 | [DATABASE.md](docs/DATABASE.md) | Schema reference (44 tables) |
+| [database.dbml](docs/database.dbml) | DBML schema file |
 | [ROADMAP.md](docs/ROADMAP.md) | Version plan & milestones |
 | [CONVENTIONS.md](docs/CONVENTIONS.md) | Coding standards |
 | [PROJECT_STANDARDS.md](docs/PROJECT_STANDARDS.md) | Architecture & patterns |
@@ -132,9 +159,11 @@ pnpm build         # Production build
 | [SCANNER.md](docs/SCANNER.md) | Scanner engine configuration |
 | [TESTING.md](docs/TESTING.md) | Testing standards & patterns |
 | [UI_UX_GUIDELINES.md](docs/UI_UX_GUIDELINES.md) | UI/UX component guidelines |
+| [PERMISSIONS.md](docs/PERMISSIONS.md) | RBAC & feature flags |
+| [FLOWS/](docs/FLOWS/) | User scenarios (15 features) |
+| [API Reference](docs/api/) | Endpoint documentation (22 modules) |
 | [CLAUDE.md](CLAUDE.md) | AI agent project rules |
 | [AGENTS.md](AGENTS.md) | AI agent standards & conventions |
-| [API Reference](docs/api/) | Endpoint documentation (auth, scans, findings, etc.) |
 
 ---
 

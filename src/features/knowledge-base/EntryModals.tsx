@@ -33,6 +33,23 @@ interface EntryDetailDrawerProps {
   onDisable: (entry: KnowledgeBaseEntry) => void;
 }
 
+/**
+ * Drawer displaying knowledge base entry details including severity, status, description, and tags.
+ *
+ * Provides edit and mute/unmute actions gated by knowledge management permission.
+ *
+ * @param props - {@link EntryDetailDrawerProps}
+ * @returns JSX element rendering the entry detail drawer.
+ *
+ * @example
+ * <EntryDetailDrawer
+ *   open={true}
+ *   entry={kbEntry}
+ *   onClose={() => setOpen(false)}
+ *   onEdit={(e) => openEditModal(e)}
+ *   onDisable={(e) => toggleMute(e)}
+ * />
+ */
 export function EntryDetailDrawer({ open, entry, onClose, onEdit, onDisable }: EntryDetailDrawerProps) {
   const { token } = theme.useToken();
   if (!entry) return null;
@@ -125,6 +142,22 @@ interface EditEntryModalProps {
   onSave: (values: { title: string; content: string; severity: string }) => void;
 }
 
+/**
+ * Modal form for editing a knowledge base entry — title, severity, and description.
+ *
+ * Pre-fills from the existing entry and validates via Zod schema.
+ *
+ * @param props - {@link EditEntryModalProps}
+ * @returns JSX element rendering the edit entry modal.
+ *
+ * @example
+ * <EditEntryModal
+ *   open={true}
+ *   entry={kbEntry}
+ *   onClose={() => setOpen(false)}
+ *   onSave={(values) => updateEntry(values)}
+ * />
+ */
 export function EditEntryModal({ open, entry, onClose, onSave }: EditEntryModalProps) {
   const { token } = theme.useToken();
   const { message } = App.useApp();
@@ -164,6 +197,21 @@ interface CreateCustomRuleModalProps {
   onSave: (values: { name: string; severity: string; pattern: string; description: string }) => void;
 }
 
+/**
+ * Modal form for creating a custom knowledge base rule — name, severity, pattern, and description.
+ *
+ * Validates via Zod schema and resets form on successful save.
+ *
+ * @param props - {@link CreateCustomRuleModalProps}
+ * @returns JSX element rendering the create custom rule modal.
+ *
+ * @example
+ * <CreateCustomRuleModal
+ *   open={true}
+ *   onClose={() => setOpen(false)}
+ *   onSave={(values) => createRule(values)}
+ * />
+ */
 export function CreateCustomRuleModal({ open, onClose, onSave }: CreateCustomRuleModalProps) {
   const { token } = theme.useToken();
   const { message } = App.useApp();

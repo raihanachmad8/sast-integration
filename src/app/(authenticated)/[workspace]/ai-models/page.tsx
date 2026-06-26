@@ -7,10 +7,11 @@ import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
-import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
 import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
 import { PERMISSION } from '@/commons/constants/permissions';
+import { MODEL_ROLE } from '@/commons/constants/layout';
 import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 import { useConfirm } from '@/commons/components/ConfirmDialog';
 import { errorMessage } from '@/lib/api/errors';
@@ -20,9 +21,7 @@ import { useAiModelsQuery, useCreateAiModelMutation, useUpdateAiModelMutation, u
 import type { CreateAiModelInput } from '@/commons/schemas/ai-model.schema';
 import type { AiModelRow } from '@/commons/types/ai-models';
 import { FeatureGate } from '@/commons/components/FeatureGate';
-import { AddModelModal, EditModelModal } from '@/features/model/ModelModals';
-import { FallbackChainCard } from '@/features/model/FallbackChainCard';
-import { VerificationSettingsCard } from '@/features/model/VerificationSettingsCard';
+import { AddModelModal, EditModelModal, FallbackChainCard, VerificationSettingsCard } from '@/features/model';
 
 const PROVIDER_ICONS: Record<string, string> = {
   openai: 'fa-brands fa-openai',
@@ -51,7 +50,7 @@ function buildColumns(token: ReturnType<typeof theme.useToken>['token']): DataTa
       header: 'Provider',
       render: (row) => (
         <Flex align="center" gap={token.marginXS}>
-          <FaIcon icon={PROVIDER_ICONS[row.provider] ?? 'fa-circle-question'} style={{ width: 16, color: token.colorTextSecondary }} />
+          <FaIcon icon={PROVIDER_ICONS[row.provider] ?? 'fa-circle-question'} style={{ width: token.size, color: token.colorTextSecondary }} />
           <Typography.Text type="secondary">{row.provider}</Typography.Text>
         </Flex>
       ),
@@ -106,8 +105,8 @@ function AiModelsPageContent() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const { confirm } = useConfirm();
-  const { isAtLeast } = usePermissions();
-  const canManage = isAtLeast('manager');
+  const { has } = usePermissions();
+  const canManage = has(PERMISSION.AI_MODEL_MANAGE);
 
   const { params, setPagination, setSearch } = useTableParams({
     defaultPageSize: 10,
@@ -129,20 +128,29 @@ function AiModelsPageContent() {
 
   const models = modelsQuery.data?.data ?? [];
 
-  const handleTestPrimary = () => {
-    const primary = models.find((m) => m.role === 'primary');
-    if (!primary) {
-      message.warning('No primary model configured');
+  const handleTestAll = () => {
+    if (models.length === 0) {
+      message.warning('No models configured');
       return;
     }
-    testMutation.mutate(primary.id, {
-      onSuccess: (data) => {
-        message.success(`Primary model is ${data?.status ?? 'unknown'}`);
-        modelsQuery.refetch();
-      },
-      onError: (err) => {
-        message.error(errorMessage(err));
-      },
+    let tested = 0;
+    models.forEach((model) => {
+      testMutation.mutate(model.id, {
+        onSuccess: (data) => {
+          tested++;
+          if (tested === models.length) {
+            message.success(`All ${models.length} models tested`);
+            modelsQuery.refetch();
+          }
+        },
+        onError: () => {
+          tested++;
+          if (tested === models.length) {
+            message.warning('Some models failed — check status column');
+            modelsQuery.refetch();
+          }
+        },
+      });
     });
   };
 
@@ -160,6 +168,7 @@ function AiModelsPageContent() {
           setEditOpen(false);
           setSelectedModel(null);
           message.success('AI model updated');
+          modelsQuery.refetch();
         },
         onError: (err) => {
           message.error(errorMessage(err));
@@ -173,6 +182,7 @@ function AiModelsPageContent() {
       onSuccess: () => {
         setAddOpen(false);
         message.success('AI model added');
+        modelsQuery.refetch();
       },
       onError: (err) => {
         message.error(errorMessage(err));
@@ -187,12 +197,12 @@ function AiModelsPageContent() {
       danger: true,
       onOk: () => {
         deleteMutation.mutate(model.id, {
-          onSuccess: () => message.success('AI model deleted'),
+          onSuccess: () => { message.success('AI model deleted'); modelsQuery.refetch(); },
           onError: (err) => message.error(errorMessage(err)),
         });
       },
     });
-  }, [confirm, deleteMutation, message]);
+  }, [confirm, deleteMutation, message, modelsQuery]);
 
   const handleTest = useCallback((model: AiModelRow) => {
     testMutation.mutate(model.id, {
@@ -213,8 +223,8 @@ function AiModelsPageContent() {
     if (!modelA || !modelB) return;
     // Swap priorities AND roles to keep them in sync
     Promise.all([
-      updateMutation.mutateAsync({ id: modelA.id, data: { priority: modelB.priority, role: index === 1 ? 'primary' : 'fallback' } as Partial<CreateAiModelInput> }),
-      updateMutation.mutateAsync({ id: modelB.id, data: { priority: modelA.priority, role: 'fallback' } as Partial<CreateAiModelInput> }),
+      updateMutation.mutateAsync({ id: modelA.id, data: { priority: modelB.priority, role: index === 1 ? MODEL_ROLE.PRIMARY : MODEL_ROLE.FALLBACK } as Partial<CreateAiModelInput> }),
+      updateMutation.mutateAsync({ id: modelB.id, data: { priority: modelA.priority, role: MODEL_ROLE.FALLBACK } as Partial<CreateAiModelInput> }),
     ]).then(() => modelsQuery.refetch());
   };
 
@@ -225,25 +235,25 @@ function AiModelsPageContent() {
     if (!modelA || !modelB) return;
     // Swap priorities AND roles to keep them in sync
     Promise.all([
-      updateMutation.mutateAsync({ id: modelA.id, data: { priority: modelB.priority, role: 'fallback' } as Partial<CreateAiModelInput> }),
-      updateMutation.mutateAsync({ id: modelB.id, data: { priority: modelA.priority, role: index === 0 ? 'primary' : 'fallback' } as Partial<CreateAiModelInput> }),
+      updateMutation.mutateAsync({ id: modelA.id, data: { priority: modelB.priority, role: MODEL_ROLE.FALLBACK } as Partial<CreateAiModelInput> }),
+      updateMutation.mutateAsync({ id: modelB.id, data: { priority: modelA.priority, role: index === 0 ? MODEL_ROLE.PRIMARY : MODEL_ROLE.FALLBACK } as Partial<CreateAiModelInput> }),
     ]).then(() => modelsQuery.refetch());
   };
 
   const setActive = (modelId: string) => {
-    const currentPrimary = models.find((m) => m.role === 'primary');
+    const currentPrimary = models.find((m) => m.role === MODEL_ROLE.PRIMARY);
     const targetModel = models.find((m) => m.id === modelId);
     if (!targetModel) return;
 
     // Set target as primary with lowest priority
     const mutations: Promise<unknown>[] = [
-      updateMutation.mutateAsync({ id: modelId, data: { role: 'primary', priority: 1 } as Partial<CreateAiModelInput> }),
+      updateMutation.mutateAsync({ id: modelId, data: { role: MODEL_ROLE.PRIMARY, priority: 1 } as Partial<CreateAiModelInput> }),
     ];
 
     // Demote old primary to fallback with higher priority
     if (currentPrimary && currentPrimary.id !== modelId) {
       mutations.push(
-        updateMutation.mutateAsync({ id: currentPrimary.id, data: { role: 'fallback', priority: targetModel.priority } as Partial<CreateAiModelInput> }),
+        updateMutation.mutateAsync({ id: currentPrimary.id, data: { role: MODEL_ROLE.FALLBACK, priority: targetModel.priority } as Partial<CreateAiModelInput> }),
       );
     }
 
@@ -270,6 +280,7 @@ function AiModelsPageContent() {
   }
 
   return (
+    <PermissionGate permission={PERMISSION.AI_MODEL_VIEW} fallback={<PermissionHint permission={PERMISSION.AI_MODEL_VIEW} />}>
     <Flex vertical gap={token.paddingXL}>
       <PageHeader
         title="AI Models"
@@ -277,7 +288,7 @@ function AiModelsPageContent() {
         actions={
           <Flex gap={token.padding}>
             <PermissionGate permission={PERMISSION.AI_MODEL_MANAGE}>
-              <Button onClick={handleTestPrimary} loading={testMutation.isPending} icon={<FaIcon icon="fa-flask-vial" />}>Test primary</Button>
+              <Button onClick={handleTestAll} loading={testMutation.isPending} icon={<FaIcon icon="fa-flask-vial" />}>Test all</Button>
             </PermissionGate>
             <PermissionGate permission={PERMISSION.AI_MODEL_MANAGE}>
               <Button type="primary" onClick={() => setAddOpen(true)} icon={<FaIcon icon="fa-plus" />}>Add model</Button>
@@ -314,5 +325,6 @@ function AiModelsPageContent() {
       <EditModelModal open={editOpen} model={selectedModel} onClose={() => { setEditOpen(false); setSelectedModel(null); }} onSave={handleSaveEdit} />
       <AddModelModal open={addOpen} onClose={() => setAddOpen(false)} onSave={handleSaveAdd} />
     </Flex>
+    </PermissionGate>
   );
 }

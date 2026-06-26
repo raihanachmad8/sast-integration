@@ -3,9 +3,9 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Modal, Input, Select, Form, App, theme, Flex, Typography, Tooltip } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
-import { MODAL_WIDTH } from '@/commons/constants/layout';
+import { MODAL_WIDTH, MODEL_ROLE } from '@/commons/constants/layout';
 import { FaIcon } from '@/commons/components/FaIcon';
-import { PROVIDERS, ROLE_OPTIONS, PROFILE_TYPE_OPTIONS } from './providers';
+import { PROVIDERS, ROLE_OPTIONS, PROFILE_TYPE_OPTIONS, PROVIDER } from './providers';
 import { updateAiModelSchema } from '@/commons/schemas/ai-model.schema';
 import { createZodSync } from '@/lib/utils/zod-sync';
 
@@ -14,7 +14,7 @@ interface Model {
   name: string;
   provider: string;
   baseUrl: string;
-  role: 'primary' | 'fallback';
+  role: typeof MODEL_ROLE.PRIMARY | typeof MODEL_ROLE.FALLBACK;
   priority?: number;
   promptPreset?: string;
   status?: string | null;
@@ -28,6 +28,22 @@ interface EditModelModalProps {
   onSave: (values: Record<string, unknown>) => void;
 }
 
+/**
+ * Modal form for editing an existing AI model configuration — provider, name, API key, role, and profile.
+ *
+ * Supports fetching available models from the provider endpoint and validates via Zod schema.
+ *
+ * @param props - {@link EditModelModalProps}
+ * @returns JSX element rendering the edit model modal.
+ *
+ * @example
+ * <EditModelModal
+ *   open={true}
+ *   model={existingModel}
+ *   onClose={() => setOpen(false)}
+ *   onSave={(values) => updateModel(values)}
+ * />
+ */
 export function EditModelModal({ open, model, onClose, onSave }: EditModelModalProps) {
   const { message } = App.useApp();
   const { token } = theme.useToken();
@@ -118,7 +134,7 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
               onChange={handleProviderChange}
               optionRender={(option) => (
                 <Flex align="center" gap={token.marginSM}>
-                  <FaIcon icon={option.data.icon as string} style={{ width: 16, color: token.colorTextSecondary }} />
+                  <FaIcon icon={option.data.icon as string} style={{ width: token.size, color: token.colorTextSecondary }} />
                   <Typography.Text>{option.label}</Typography.Text>
                 </Flex>
               )}
@@ -159,11 +175,11 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
             label="API Key"
             name="apiKey"
             rules={[rule]}
-            extra={selectedProvider === 'ollama' ? 'Ollama does not require an API key' : undefined}
+            extra={selectedProvider === PROVIDER.OLLAMA ? 'Ollama does not require an API key' : undefined}
           >
             <Input.Password
-              placeholder={selectedProvider === 'ollama' ? 'Not required for local Ollama' : 'Enter your API key'}
-              disabled={selectedProvider === 'ollama'}
+              placeholder={selectedProvider === PROVIDER.OLLAMA ? 'Not required for local Ollama' : 'Enter your API key'}
+              disabled={selectedProvider === PROVIDER.OLLAMA}
             />
           </Form.Item>
 

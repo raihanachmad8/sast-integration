@@ -28,6 +28,21 @@ interface ScannerRulesDrawerProps {
 const RULES_PER_PAGE = 50;
 const SEARCH_DEBOUNCE_MS = 400;
 
+/**
+ * Drawer for browsing and searching scanner rules with pagination and debounced search.
+ *
+ * Displays rules as a filterable list with status tags for enabled/disabled state.
+ *
+ * @param props - {@link ScannerRulesDrawerProps}
+ * @returns JSX element rendering the scanner rules drawer with search and pagination.
+ *
+ * @example
+ * <RulesDrawer
+ *   open={true}
+ *   scanner={{ id: '1', name: 'Semgrep', icon: 'fa-code', capability: 'SAST', status: 'active', rules: '250', enabled: true }}
+ *   onClose={() => setOpen(false)}
+ * />
+ */
 export function RulesDrawer({ open, scanner, onClose }: ScannerRulesDrawerProps) {
   const { token } = theme.useToken();
   const [searchInput, setSearchInput] = useState('');

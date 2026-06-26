@@ -8,7 +8,6 @@ test.describe('Finding Detail Page', () => {
   test('should render finding detail page', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
 
     // Navigate to findings list first
     await page.goto(`/${slug}/findings`);
@@ -16,12 +15,12 @@ test.describe('Finding Detail Page', () => {
 
     // Click first finding row if available
     const findingRow = page.locator('table tbody tr').first();
-    if (await findingRow.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await findingRow.click();
-      await page.waitForLoadState('networkidle');
-      await expect(page.locator('body')).toBeVisible();
-      await expect(page.locator('text=Internal Server Error')).toHaveCount(0);
-    }
+    test.skip(await findingRow.isVisible({ timeout: 5000 }).catch(() => false) === false, 'No findings rows present');
+
+    await findingRow.click();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('body')).toBeVisible();
+    await expect(page.locator('text=Internal Server Error')).toHaveCount(0);
   });
 
   /**
@@ -32,28 +31,27 @@ test.describe('Finding Detail Page', () => {
   test('should render finding detail with all sections', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/findings`);
     await page.waitForLoadState('networkidle');
 
     const firstRow = page.locator('table tbody tr').first();
-    if (await firstRow.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await firstRow.getByRole('button', { name: 'Review' }).click();
+    test.skip(await firstRow.isVisible({ timeout: 5000 }).catch(() => false) === false, 'No findings rows present');
 
-      const drawer = page.locator('.ant-drawer');
-      await expect(drawer).toBeVisible({ timeout: 5000 });
+    await firstRow.getByRole('button', { name: 'Review' }).click();
 
-      const openFullPageButton = drawer.getByRole('button', { name: /Open full page/i });
-      await expect(openFullPageButton).toBeVisible({ timeout: 5000 });
-      await openFullPageButton.click();
+    const drawer = page.locator('.ant-drawer');
+    await expect(drawer).toBeVisible({ timeout: 5000 });
 
-      await expect.poll(() => new URL(page.url()).pathname, { timeout: 10000 }).toMatch(/\/findings\/[^/]+$/);
+    const openFullPageButton = drawer.getByRole('button', { name: /Open full page/i });
+    await expect(openFullPageButton).toBeVisible({ timeout: 5000 });
+    await openFullPageButton.click();
 
-      await expect(page.getByRole('heading', { name: 'Finding detail' })).toBeVisible({ timeout: 10000 });
-      await expect(page.getByText('Human decision')).toBeVisible({ timeout: 10000 });
-      await expect(page.getByText('Assignee')).toBeVisible({ timeout: 10000 });
-      await expect(page.getByText('Details')).toBeVisible({ timeout: 10000 });
-    }
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 10000 }).toMatch(/\/findings\/[^/]+$/);
+
+    await expect(page.getByRole('heading', { name: 'Finding detail' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Human decision')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Assignee')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Details')).toBeVisible({ timeout: 10000 });
   });
 
   /**
@@ -63,28 +61,27 @@ test.describe('Finding Detail Page', () => {
   test('should navigate back to findings list from detail', async ({ page }) => {
     const slug = await signInAndOpenWorkspace(page);
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(500);
     await page.goto(`/${slug}/findings`);
     await page.waitForLoadState('networkidle');
 
     const firstRow = page.locator('table tbody tr').first();
-    if (await firstRow.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await firstRow.getByRole('button', { name: 'Review' }).click();
+    test.skip(await firstRow.isVisible({ timeout: 5000 }).catch(() => false) === false, 'No findings rows present');
 
-      const drawer = page.locator('.ant-drawer');
-      await expect(drawer).toBeVisible({ timeout: 5000 });
+    await firstRow.getByRole('button', { name: 'Review' }).click();
 
-      const openFullPageButton = drawer.getByRole('button', { name: /Open full page/i });
-      await expect(openFullPageButton).toBeVisible({ timeout: 5000 });
-      await openFullPageButton.click();
+    const drawer = page.locator('.ant-drawer');
+    await expect(drawer).toBeVisible({ timeout: 5000 });
 
-      await expect.poll(() => new URL(page.url()).pathname, { timeout: 10000 }).toMatch(/\/findings\/[^/]+$/);
+    const openFullPageButton = drawer.getByRole('button', { name: /Open full page/i });
+    await expect(openFullPageButton).toBeVisible({ timeout: 5000 });
+    await openFullPageButton.click();
 
-      const findingsBreadcrumb = page.getByRole('link', { name: 'Findings' });
-      await expect(findingsBreadcrumb).toBeVisible({ timeout: 10000 });
-      await findingsBreadcrumb.click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 10000 }).toMatch(/\/findings\/[^/]+$/);
 
-      await expect.poll(() => new URL(page.url()).pathname, { timeout: 10000 }).toBe(`/${slug}/findings`);
-    }
+    const findingsBreadcrumb = page.getByRole('link', { name: 'Findings' });
+    await expect(findingsBreadcrumb).toBeVisible({ timeout: 10000 });
+    await findingsBreadcrumb.click();
+
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 10000 }).toBe(`/${slug}/findings`);
   });
 });

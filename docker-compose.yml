@@ -1,54 +1,50 @@
 # =============================================================================
 # SAST Integration — Docker Compose
 # =============================================================================
-# Usage:
-#   docker-compose up -d          # Start all services
-#   docker-compose logs -f app    # Follow app logs
-#   docker-compose down           # Stop all services
+# PostgreSQL di-host external (cloud). Aplikasi connect via DATABASE_URL.
 #
-# The app container includes all SAST scanner binaries for managed scans.
+# Usage:
+#   docker compose up -d
+#   docker compose logs -f
+#   docker compose down
+#
+# Required .env:
+#   DATABASE_URL=postgresql://user:pass@host:5432/dbname
+#   JWT_SECRET=<random-32+chars>
+#   OWNER_EMAIL=<admin@email.com>
+#   OWNER_PASSWORD=<secure-password>
+#
+# Optional .env (with scanners):
+#   INCLUDE_SCANNERS=true
 # =============================================================================
 
 services:
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - INCLUDE_SCANNERS=${INCLUDE_SCANNERS:-false}
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
     env_file: .env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/sast_db
       - STORAGE_PROVIDER=local
       - LOCAL_STORAGE_PATH=/app/storage/uploads
     volumes:
       - storage:/app/storage
-    depends_on:
-      db:
-        condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/v1/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: sast_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: ${APP_MEMORY_LIMIT:-1G}
+          cpus: ${APP_CPU_LIMIT:-1}
+    networks:
+      - sast-network
 
 volumes:
-  pgdata:
   storage:
+
+networks:
+  sast-network:
+    driver: bridge

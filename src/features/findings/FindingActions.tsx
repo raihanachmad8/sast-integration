@@ -18,6 +18,23 @@ interface FindingActionsProps {
   onOpenFullPage?: (id: string) => void;
 }
 
+/**
+ * Action buttons for a finding: dismiss, resolve, re-verify with AI model, or open full page.
+ *
+ * Includes confirmation modals for resolve/re-verify and permission-gated visibility.
+ *
+ * @param props - {@link FindingActionsProps}
+ * @returns JSX element rendering the finding action buttons with confirmation modals.
+ *
+ * @example
+ * <FindingActions
+ *   finding={finding}
+ *   onDismiss={(id) => dismissFinding(id)}
+ *   onResolve={(id) => resolveFinding(id)}
+ *   onReverify={(id, modelId) => reverifyFinding(id, modelId)}
+ *   onOpenFullPage={(id) => navigateTo(id)}
+ * />
+ */
 export function FindingActions({ finding, onDismiss, onResolve, onReverify, onOpenFullPage }: FindingActionsProps) {
   const { token } = theme.useToken();
   const [resolveOpen, setResolveOpen] = useState(false);

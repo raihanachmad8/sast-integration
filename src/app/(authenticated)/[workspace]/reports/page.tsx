@@ -8,7 +8,7 @@ import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
-import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
@@ -25,7 +25,7 @@ import type { ReportRow } from '@/commons/types/reports';
 import { FeatureGate } from '@/commons/components/FeatureGate';
 
 const ReportPreviewModal = dynamic(
-  () => import('@/features/reports/ReportPreviewModal'),
+  () => import('@/features/reports/ReportPreviewModal').then((m) => m.ReportPreviewModal),
   { ssr: false },
 );
 
@@ -198,6 +198,7 @@ function ReportsPageContent() {
   if (reportsQuery.isError) return <ErrorState title="Failed to load reports" description={errorMessage(reportsQuery.error)} onRetry={() => reportsQuery.refetch()} />;
 
   return (
+    <PermissionGate permission={PERMISSION.REPORT_VIEW} fallback={<PermissionHint permission={PERMISSION.REPORT_VIEW} />}>
     <Flex vertical gap={token.paddingXL}>
       <PageHeader
         title="Reports"
@@ -262,5 +263,6 @@ function ReportsPageContent() {
         onDownload={handleDownload}
       />
     </Flex>
+    </PermissionGate>
   );
 }

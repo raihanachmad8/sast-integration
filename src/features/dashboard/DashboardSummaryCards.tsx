@@ -36,7 +36,7 @@ export function DashboardSummaryCards({ connectedRepos = 0, activeScans = 0, cri
                 <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{item.label}</Typography.Text>
                 <div style={{ fontSize: token.fontSizeHeading1, fontWeight: token.fontWeightStrong, lineHeight: 1.2, marginTop: token.marginXS }}>{values[i]}</div>
               </div>
-              <div style={{ width: 36, height: 36, borderRadius: token.borderRadiusLG, background: item.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: token.sizeLG + token.sizeSM, height: token.sizeLG + token.sizeSM, borderRadius: token.borderRadiusLG, background: item.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <FaIcon icon={item.icon} style={{ color: item.color, fontSize: token.fontSizeLG }} />
               </div>
             </div>

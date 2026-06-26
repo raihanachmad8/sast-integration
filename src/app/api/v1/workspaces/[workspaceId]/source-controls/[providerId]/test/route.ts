@@ -5,6 +5,7 @@ import { sourceControlService } from '@/server/modules/source-control/source-con
 import { AppError } from '@/server/http/errors';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { PERMISSION } from '@/commons/constants/permissions';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string; providerId: string }> };
 
@@ -14,6 +15,8 @@ type RouteContext = { params: Promise<{ workspaceId: string; providerId: string 
  * Returns configured credential keys for validation.
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('post request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId, providerId } = await params;

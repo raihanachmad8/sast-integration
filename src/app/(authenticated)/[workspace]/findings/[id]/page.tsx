@@ -16,8 +16,7 @@ import { useSessionData } from '@/modules/auth/queries';
 import { useFindingQuery, useVerifyFindingMutation, useUpdateFindingMutation } from '@/modules/findings';
 import { useMembersQuery } from '@/modules/members';
 import { errorMessage } from '@/lib/api/errors';
-import { ScannerOutputSection } from '@/features/findings/ScannerOutputSection';
-import { FindingActions } from '@/features/findings/FindingActions';
+import { ScannerOutputSection, FindingActions } from '@/features/findings';
 import type { Finding } from '@/commons/types';
 import type { Member } from '@/commons/types';
 

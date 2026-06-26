@@ -17,6 +17,7 @@ import { GitHubScmService } from './github-api.service';
 import { GitLabScmService } from './gitlab-api.service';
 import { GiteaApiService } from './gitea-api.service';
 import type { ScmProvider, ScmConnectionType } from '@/commons/types/domain';
+import { logger } from '@/server/lib/logger';
 
 // ─── Credentials ─────────────────────────────────────────────
 

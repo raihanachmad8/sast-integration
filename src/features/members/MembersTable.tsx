@@ -31,6 +31,23 @@ const ROLE_FILTER_OPTIONS = [
   { value: ROLE.MEMBER, label: 'Member' },
 ];
 
+/**
+ * Paginated data table for listing workspace members with role filter and edit/remove actions.
+ *
+ * Uses the shared DataTable with server-side pagination and permission-gated role management.
+ *
+ * @param props - {@link MembersTableProps}
+ * @returns JSX element rendering the members data table.
+ *
+ * @example
+ * <MembersTable
+ *   workspaceId="ws_123"
+ *   currentUserId="u_456"
+ *   onEdit={(member) => openEditModal(member)}
+ *   onRemove={(userId) => removeMember(userId)}
+ *   tabId="members"
+ * />
+ */
 export function MembersTable({
   workspaceId,
   currentUserId,

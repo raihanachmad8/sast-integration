@@ -19,3 +19,27 @@ export const LANDING_COLORS = {
 
 /** GitHub repository URL — used across all landing page links. */
 export const GITHUB_REPO_URL = 'https://github.com/raihanachmad8/sast-integration' as const;
+
+/**
+ * Shared layout dimensions for the landing page.
+ * Centralises magic numbers that were duplicated across
+ * LandingHero and LandingMetrics.
+ */
+export const LANDING_DIMENSIONS = {
+  /** Hero section outer glow orb size */
+  heroGlowOrb: 700,
+  /** Hero secondary glow orb size */
+  heroGlowOrbSecondary: 550,
+  /** Metrics section background glow size */
+  metricsGlow: 800,
+  /** Hero content max-width */
+  heroMaxWidth: 1200,
+  /** Metrics content max-width */
+  metricsMaxWidth: 1100,
+  /** Stats bar max-width */
+  statsBarMaxWidth: 960,
+  /** Comparison table max-width */
+  comparisonMaxWidth: 720,
+  /** Comparison table min-width (inner scroll) */
+  comparisonMinWidth: 480,
+} as const;

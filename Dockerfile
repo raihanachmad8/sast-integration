@@ -1,84 +1,61 @@
 # =============================================================================
-# SAST Integration — Multi-stage Docker Build with Scanner Binaries
+# SAST Integration — Docker Build (Multi-stage)
 # =============================================================================
-# This Dockerfile installs all supported SAST scanner binaries so that
-# managed scans can run inside the container without external dependencies.
-#
-# Supported scanners: semgrep, gitleaks, trivy, cppcheck, flawfinder
-#
 # Build:  docker build -t sast-integration .
-# Run:    docker-compose up -d
+# Run:    docker compose up -d
+#
+# Build with scanners:
+#   docker build --build-arg INCLUDE_SCANNERS=true -t sast-integration .
+#
+# Supported scanners: semgrep, flawfinder, cppcheck, clang-tidy, gcc
 # =============================================================================
 
-# --- Base Stage ---
-FROM node:20-alpine AS base
-RUN corepack enable && corepack prepare pnpm@latest --activate
-RUN apk add --no-cache git
-
-# --- Dependencies ---
-FROM base AS deps
+# --- Stage 1: Dependencies ---
+FROM node:22-alpine AS deps
+RUN npm install -g pnpm@10
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# --- Builder ---
-FROM base AS builder
+# --- Stage 2: Builder ---
+FROM node:22-alpine AS builder
+RUN npm install -g pnpm@10
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm build
+ENV NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production
+RUN pnpm run build
 
-# --- Scanner Dependencies ---
-FROM base AS scanners
+# --- Stage 3: Production runtime ---
+FROM node:22-alpine AS runner
 WORKDIR /app
 
-# System dependencies for scanners
-RUN apk add --no-cache \
-    python3 \
-    py3-pip \
-    cppcheck \
-    && pip3 install --break-system-packages semgrep flawfinder
+ARG INCLUDE_SCANNERS=false
 
-# gitleaks (Go binary, ~6MB)
-RUN wget -qO- https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz \
-    | tar xz -C /usr/local/bin gitleaks
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME="0.0.0.0"
 
-# trivy (Go binary, ~47MB)
-RUN wget -qO- https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-    | sh -s -- -b /usr/local/bin
+RUN npm install -g pnpm@10 && \
+    apk add --no-cache wget && \
+    addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs && \
+    mkdir -p /app/storage/uploads && \
+    chown -R nextjs:nodejs /app
 
-# --- Runner ---
-FROM node:20-alpine AS runner
-WORKDIR /app
-
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
-# Copy scanner binaries from scanners stage
-COPY --from=scanners /usr/local/bin/semgrep /usr/local/bin/
-COPY --from=scanners /usr/local/bin/gitleaks /usr/local/bin/
-COPY --from=scanners /usr/local/bin/trivy /usr/local/bin/
-COPY --from=scanners /usr/local/bin/cppcheck /usr/local/bin/
-COPY --from=scanners /usr/local/bin/flawfinder /usr/local/bin/
-
-# Copy Python runtime (needed by semgrep and flawfinder)
-COPY --from=scanners /usr/lib/python3 /usr/lib/python3
-COPY --from=scanners /usr/bin/python3 /usr/bin/python3
+# Install scanners if enabled
+RUN if [ "$INCLUDE_SCANNERS" = "true" ]; then \
+      apk add --no-cache python3 py3-pip cppcheck && \
+      pip3 install --break-system-packages semgrep flawfinder ; \
+    fi
 
 # Copy Next.js build output
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
-# Create storage directory
-RUN mkdir -p /app/storage/uploads && chown -R nextjs:nodejs /app
-
 USER nextjs
 EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:3000/api/v1/health || exit 1
 
 CMD ["node", "server.js"]

@@ -50,6 +50,8 @@ import { ciInitSchema } from '@/commons/schemas/ci.schema';
 import { normalizeRepoName } from '../normalize-repo';
 
 export async function POST(request: NextRequest) {
+  logger.scan.info('post request');
+
   const auth = await authenticateCiCd(request);
   if (!auth.success) return auth.response;
 

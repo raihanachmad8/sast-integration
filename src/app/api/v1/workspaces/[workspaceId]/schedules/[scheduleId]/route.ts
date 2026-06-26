@@ -16,6 +16,8 @@ type RouteContext = { params: Promise<{ workspaceId: string; scheduleId: string 
  * Get schedule detail.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId, scheduleId } = await params;
@@ -45,6 +47,8 @@ const updateScheduleSchema = z.object({
  * Update a schedule.
  */
 export async function PUT(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('put request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId, scheduleId } = await params;
@@ -69,6 +73,8 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
  * Delete a schedule.
  */
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('delete request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId, scheduleId } = await params;

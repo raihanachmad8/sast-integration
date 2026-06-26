@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
 import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
+import { logger } from '@/server/lib/logger';
 
 // ═══════════════════════════════════════════════════════════════════
 // Enterprise SAST PDF Report Generator

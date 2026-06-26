@@ -9,6 +9,7 @@ import type { ScanDetail, ScanFinding } from './types';
 import { StatusTag } from '@/commons/components/StatusTag';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { EmptyState } from '@/commons/components/EmptyState';
+import { SCAN_ORIGIN } from '@/commons/constants/layout';
 
 const { Text } = Typography;
 
@@ -104,9 +105,9 @@ export const ScanDetailDrawer = React.memo(function ScanDetailDrawer({
         {/* Status Header */}
         <Flex align="center" gap={token.marginMD} wrap="wrap">
           <StatusTag type="scanStatus" value={scan.status === 'completed' ? 'Completed' : scan.status === 'failed' ? 'Failed' : scan.status === 'processing' || scan.status === 'running' ? 'Running' : 'Pending'} />
-          <StatusPill variant={scan.origin === 'managed' ? 'purple' : 'slate'}>
-            <FaIcon icon={scan.origin === 'managed' ? 'fa-robot' : 'fa-cloud-arrow-up'} />{' '}
-            {scan.origin === 'managed' ? 'Managed' : 'External Upload'}
+          <StatusPill variant={scan.origin === SCAN_ORIGIN.MANAGED ? 'purple' : 'slate'}>
+            <FaIcon icon={scan.origin === SCAN_ORIGIN.MANAGED ? 'fa-robot' : 'fa-cloud-arrow-up'} />{' '}
+            {scan.origin === SCAN_ORIGIN.MANAGED ? 'Managed' : 'External Upload'}
           </StatusPill>
           {scan.durationSeconds != null && (
             <Typography.Text type="secondary">
@@ -270,7 +271,7 @@ export const ScanDetailDrawer = React.memo(function ScanDetailDrawer({
                               <div style={{ fontWeight: token.fontWeightStrong, color: token.colorTextSecondary }}>{scan.aiStats.falsePositives}</div>
                               <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>FP</Text>
                             </div>
-                            <Progress percent={aiPercent} size="small" style={{ width: 100 }} />
+                            <Progress percent={aiPercent} size="small" style={{ width: token.sizeXXL * 2 }} />
                           </Flex>
                         </Flex>
                       )}

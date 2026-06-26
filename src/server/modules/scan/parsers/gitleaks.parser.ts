@@ -2,6 +2,7 @@ import { type NewFinding } from '@drizzle/schema/findings';
 import { GITLEAKS_MATCH_PREVIEW_MAX_LENGTH } from '../constants';
 import { normalizeFilePath } from './path-normalizer';
 import type { ParseResult } from './index';
+import { logger } from '@/server/lib/logger';
 
 export interface GitleaksFinding {
   Description: string;

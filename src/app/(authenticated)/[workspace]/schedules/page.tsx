@@ -7,7 +7,7 @@ import { ErrorBanner } from '@/commons/components/ErrorBanner';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
-import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
@@ -21,7 +21,7 @@ import { useSchedulesQuery, useCreateScheduleMutation, useUpdateScheduleMutation
 import type { CreateScheduleInput, UpdateScheduleInput } from '@/commons/schemas/schedule.schema';
 import type { ScheduleRow } from '@/commons/types/schedules';
 import { FeatureGate } from '@/commons/components/FeatureGate';
-import { AddScheduleModal, EditScheduleModal } from '@/features/schedules/ScheduleModals';
+import { AddScheduleModal, EditScheduleModal } from '@/features/schedules';
 
 function buildColumns(token: ReturnType<typeof theme.useToken>['token']): DataTableColumn<ScheduleRow>[] {
   const RUN_ICON: Record<string, { icon: string; color: string }> = {
@@ -61,7 +61,7 @@ function buildColumns(token: ReturnType<typeof theme.useToken>['token']): DataTa
     {
       key: 'nextRunAt',
       header: 'Next run',
-      render: (row) => <Typography.Text style={{ color: token.colorText, fontWeight: 500 }}>{row.nextRunAt ?? '-'}</Typography.Text>,
+      render: (row) => <Typography.Text style={{ color: token.colorText, fontWeight: token.fontWeightStrong }}>{row.nextRunAt ?? '-'}</Typography.Text>,
     },
     {
       key: 'lastRunAt',
@@ -162,6 +162,7 @@ function SchedulesPageContent() {
   if (schedulesQuery.error) return <ErrorBanner message={errorMessage(schedulesQuery.error)} />;
 
   return (
+    <PermissionGate permission={PERMISSION.SCHEDULE_VIEW} fallback={<PermissionHint permission={PERMISSION.SCHEDULE_VIEW} />}>
     <Flex vertical gap={token.paddingXL}>
       <PageHeader title="Schedules" description="Manage recurring scan schedules for repositories."
         actions={<PermissionGate permission={PERMISSION.SCHEDULE_MANAGE}>
@@ -183,5 +184,6 @@ function SchedulesPageContent() {
       <EditScheduleModal open={editOpen} schedule={selectedSchedule ? { id: selectedSchedule.id, repo: selectedSchedule.repositoryName, branch: selectedSchedule.branch, frequency: selectedSchedule.cronExpression, cron: selectedSchedule.cronExpression, timezone: selectedSchedule.timezone, policy: '', nextRun: selectedSchedule.nextRunAt ?? '', lastRuns: [], status: selectedSchedule.active ? 'active' : 'paused' } : null} onClose={() => setEditOpen(false)} onSave={handleSaveEdit} />
       <AddScheduleModal open={addOpen} onClose={() => setAddOpen(false)} onSave={handleCreate} />
     </Flex>
+    </PermissionGate>
   );
 }

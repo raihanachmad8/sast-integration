@@ -4,6 +4,9 @@ import { Card, Button, Typography, Tag, Flex, Space, theme } from 'antd';
 import { RightOutlined } from '@ant-design/icons';
 import { WORKSPACE } from '@/server/modules/workspace/constants';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { getInitials } from '@/lib/utils/getInitials';
+import { roleLabel } from '@/lib/utils/roleLabel';
+import { formatJoinedDate } from '@/lib/utils/formatDate';
 
 const { Text } = Typography;
 
@@ -18,37 +21,6 @@ interface WorkspaceCardProps {
     joinedAt?: string;
   };
   onSelect: (ws: { id: string; slug: string; name: string; role: string }) => void;
-}
-
-function getInitials(name: string) {
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
-
-  return initials || 'W';
-}
-
-function formatRole(role: string) {
-  return role.charAt(0).toUpperCase() + role.slice(1);
-}
-
-function formatJoinedDate(value: string) {
-  const joinedAt = new Date(value);
-  const today = new Date();
-
-  if (
-    joinedAt.getFullYear() === today.getFullYear() &&
-    joinedAt.getMonth() === today.getMonth() &&
-    joinedAt.getDate() === today.getDate()
-  ) {
-    return 'Today';
-  }
-
-  return `Joined ${joinedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 }
 
 /**
@@ -76,8 +48,8 @@ export function WorkspaceCard({ workspace, onSelect }: WorkspaceCardProps) {
             align="center"
             justify="center"
             style={{
-              width: 44,
-              height: 44,
+              width: token.controlHeight,
+              height: token.controlHeight,
               borderRadius: token.borderRadiusLG,
               background: isPersonal ? token.colorTextBase : token.colorPrimary,
               color: token.colorTextLightSolid,
@@ -109,7 +81,7 @@ export function WorkspaceCard({ workspace, onSelect }: WorkspaceCardProps) {
       <Flex vertical gap={token.marginXS} style={{ marginTop: token.marginLG, fontSize: token.fontSizeLG }}>
         <Space size={token.marginXS}>
           <FaIcon icon="fa-user-shield" style={{ color: token.colorTextSecondary, fontSize: token.fontSizeLG }} />
-          <Text style={{ color: token.colorTextSecondary }}>{formatRole(workspace.role)} permissions</Text>
+          <Text style={{ color: token.colorTextSecondary }}>{roleLabel(workspace.role)} permissions</Text>
         </Space>
         <Space size={token.marginXS}>
           <FaIcon icon="fa-clock" style={{ color: token.colorTextSecondary, fontSize: token.fontSizeLG }} />

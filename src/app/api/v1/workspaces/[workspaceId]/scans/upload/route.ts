@@ -25,6 +25,8 @@ type RouteContext = { params: Promise<{ workspaceId: string }> };
  * Accepts multipart form data with scanner output files.
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('post request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const userId = getUserId(auth.context);

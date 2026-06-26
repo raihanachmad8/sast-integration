@@ -35,9 +35,14 @@ function isProtectedPath(pathname: string): boolean {
   return false;
 }
 
+const INSECURE_SECRETS = ['your-secret-key-minimum-32-characters-long', 'changeme', 'secret', 'dev-secret', 'password', '12345678'];
+
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error('JWT_SECRET not configured');
+  if (INSECURE_SECRETS.includes(secret)) {
+    throw new Error('JWT_SECRET is insecure — change it before deploying to production');
+  }
   return new TextEncoder().encode(secret);
 }
 

@@ -221,7 +221,7 @@ export function DataTable<T>({
 
           if (actionsVariant === 'inline') {
             return (
-              <Flex gap={token.paddingXS} wrap="nowrap">
+              <Flex gap={token.paddingXS} wrap="wrap">
                 {visibleActions.map((action) => (
                   <Button
                     key={action.label}

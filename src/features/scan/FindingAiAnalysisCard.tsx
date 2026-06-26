@@ -14,6 +14,20 @@ interface FindingAiAnalysisCardProps {
   analysis: AiRichAnalysis;
 }
 
+/**
+ * Card displaying AI analysis results for a single finding, including verdict, confidence, and explanation.
+ *
+ * Shows the model name, verdict status, confidence score, and detailed explanation with CWE references.
+ *
+ * @param props - {@link FindingAiAnalysisCardProps}
+ * @returns JSX element rendering the AI analysis card for a finding.
+ *
+ * @example
+ * <FindingAiAnalysisCard
+ *   modelName="ai_rich_openai"
+ *   analysis={{ verdict: 'correct', confidence: 0.92, explanation: 'SQL injection confirmed', cwe: 'CWE-89' }}
+ * />
+ */
 export function FindingAiAnalysisCard({ modelName, analysis }: FindingAiAnalysisCardProps) {
   const { token } = theme.useToken();
   const isCorrect = analysis.verdict !== 'error';

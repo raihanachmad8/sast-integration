@@ -10,6 +10,16 @@ import { ProjectsPageHeader, ProjectsTable, ProjectFormModal } from '@/features/
 import type { Project } from '@/commons/types';
 import type { ProjectFormInput } from '@/modules/projects/types';
 
+/**
+ * Top-level projects page orchestrating the header, table, and create/edit modal.
+ *
+ * Manages project creation and update mutations, modal state, and navigation.
+ *
+ * @returns JSX element rendering the projects list page with modal management.
+ *
+ * @example
+ * <ProjectsPage />
+ */
 export function ProjectsPage() {
   const { message } = App.useApp();
   const { token } = theme.useToken();

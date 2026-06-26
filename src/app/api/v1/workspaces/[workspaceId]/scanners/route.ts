@@ -4,6 +4,7 @@ import { authenticate } from '@/server/http/authenticate';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { checkAllScannerAvailability } from '@/server/modules/scan/scanner-availability';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -12,6 +13,8 @@ type RouteContext = { params: Promise<{ workspaceId: string }> };
  * Returns availability status for all configured scanners.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('get request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;

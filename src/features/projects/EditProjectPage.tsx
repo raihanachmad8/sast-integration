@@ -8,6 +8,18 @@ import { LoadingState } from '@/commons/components/LoadingState';
 import { ErrorState } from '@/commons/components/ErrorState';
 import { errorMessage } from '@/lib/api/errors';
 
+/**
+ * Full-page project editor with project form and API token management.
+ *
+ * Loads the project by ID and renders the ProjectForm and ProjectApiTokens sections.
+ *
+ * @param props - Component props.
+ * @param props.projectId - The unique identifier of the project to edit.
+ * @returns JSX element rendering the project edit page with loading/error states.
+ *
+ * @example
+ * <EditProjectPage projectId="proj_123" />
+ */
 export function EditProjectPage({ projectId }: { projectId: string }) {
   const { token } = theme.useToken();
   const projectQuery = useProjectQuery(projectId);

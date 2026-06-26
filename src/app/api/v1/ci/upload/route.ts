@@ -42,6 +42,8 @@ import { normalizeRepoName } from '../normalize-repo';
 import { randomUUID } from 'node:crypto';
 
 export async function POST(request: NextRequest) {
+  logger.scan.info('post request');
+
   // Authenticate using CI/CD token → extracts workspaceId + projectId
   const auth = await authenticateCiCd(request);
   if (!auth.success) return auth.response;

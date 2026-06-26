@@ -9,6 +9,17 @@ interface ScannerOutputSectionProps {
   finding: Finding;
 }
 
+/**
+ * Displays scanner-specific output fields (rule, match, data flow, taint source) for a finding.
+ *
+ * Only renders rows that have actual data — empty fields are omitted.
+ *
+ * @param props - {@link ScannerOutputSectionProps}
+ * @returns JSX element rendering the scanner output section with labeled key-value rows.
+ *
+ * @example
+ * <ScannerOutputSection finding={finding} />
+ */
 export function ScannerOutputSection({ finding }: ScannerOutputSectionProps) {
   const { token } = theme.useToken();
 

@@ -44,6 +44,20 @@ const PROVIDER_VARIANT: Record<string, 'blue' | 'teal' | 'purple' | 'slate'> = {
   gitea: 'teal',
 };
 
+/**
+ * Paginated data table for listing repositories with status/provider filters and inline project assignment.
+ *
+ * Uses the shared DataTable with server-side pagination and row-level project editing.
+ *
+ * @param props - {@link RepositoriesTableProps}
+ * @returns JSX element rendering the repositories data table.
+ *
+ * @example
+ * <RepositoriesTable
+ *   onRowClick={(repo) => openDetail(repo)}
+ *   onAssignProject={(repo) => openAssignModal(repo)}
+ * />
+ */
 export function RepositoriesTable({ onRowClick, onAssignProject: _onAssignProject }: RepositoriesTableProps) {
   const { token } = theme.useToken();
   const { workspaceId } = useWorkspace();
@@ -145,7 +159,7 @@ export function RepositoriesTable({ onRowClick, onAssignProject: _onAssignProjec
             <Select
               autoFocus
               size="small"
-              style={{ width: 180 }}
+              style={{ width: token.sizeXXL * 3.75 }}
               placeholder="Select project..."
               options={projectOptions}
               value={row.projectId ?? undefined}

@@ -1,4 +1,5 @@
-import { pgTable, uuid, varchar, text, timestamp, jsonb, unique } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, jsonb, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { users } from './users';
 
 export const workspaces = pgTable('workspaces', {
@@ -8,7 +9,7 @@ export const workspaces = pgTable('workspaces', {
   type: varchar('type', { length: 20 }).notNull().$type<'personal' | 'organization'>(),
   avatarUrl: text('avatar_url'),
   description: text('description'),
-  features: jsonb('features').default('{}'),
+  features: jsonb('features').default(sql`'{}'::jsonb`),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   createdBy: uuid('created_by').references(() => users.id),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -23,7 +24,7 @@ export const workspaceMembers = pgTable('workspace_members', {
   userId: uuid('user_id').notNull().references(() => users.id),
   role: varchar('role', { length: 20 }).notNull().$type<'owner' | 'manager' | 'reviewer' | 'member'>(),
   joinedAt: timestamp('joined_at').defaultNow().notNull(),
-}, (t) => [unique().on(t.workspaceId, t.userId)]);
+}, (t) => [uniqueIndex('workspace_members_workspace_user_idx').on(t.workspaceId, t.userId)]);
 
 export const workspaceSettings = pgTable('workspace_settings', {
   id: uuid('id').primaryKey().defaultRandom(),

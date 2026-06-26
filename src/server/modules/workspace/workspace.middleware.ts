@@ -4,6 +4,7 @@ import { HTTP } from '@/server/http/constants';
 import { ROLE_PERMISSIONS, type PermissionKey } from '@/commons/constants/permissions';
 import { workspaceRepository } from './repositories/workspace.repository';
 import { WORKSPACE } from './constants';
+import { logger } from '@/server/lib/logger';
 import type { AuthContext } from '@/server/http/authenticate';
 
 interface WorkspaceContext {
@@ -41,11 +42,13 @@ export async function requirePermission(
 
   const role = await workspaceRepository.getMemberRole(workspaceId, auth.userId);
   if (!role) {
+    logger.workspace.warn('permission check: not a member', { userId: auth.userId, workspaceId });
     return { success: false, response: ApiResponse.error(WORKSPACE.ERRORS.NOT_MEMBER, WORKSPACE.ERROR_CODE, undefined, 403) };
   }
 
   const rolePerms = ROLE_PERMISSIONS[role as keyof typeof ROLE_PERMISSIONS] ?? [];
   if (!rolePerms.includes(permission as PermissionKey)) {
+    logger.workspace.warn('permission check: insufficient permissions', { userId: auth.userId, workspaceId, role, required: permission });
     return { success: false, response: ApiResponse.error(`Insufficient permissions: "${permission}" required`, WORKSPACE.ERROR_CODE, undefined, 403) };
   }
 

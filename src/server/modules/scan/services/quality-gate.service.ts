@@ -1,4 +1,5 @@
 import { logger } from '@/server/lib/logger';
+import { env } from '@/server/env';
 import { qualityGateRepository } from '../repositories/quality-gate.repository';
 import { findingRepository } from '../repositories/finding.repository';
 import { scanRepository } from '../repositories/scan.repository';
@@ -468,7 +469,7 @@ export const qualityGateService = {
       const dismissedCount = gateResult.pr?.dismissedFindings ?? 0;
       const resolvedCount = gateResult.pr?.resolvedFindings ?? 0;
 
-      const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const appBaseUrl = env.APP_URL;
       const commentBody = buildPrComment(scanId, gateStatus, newCount, fixedCount, blockingCount, newFindings, appBaseUrl, persistentCount, workspaceSlug, dismissedCount, resolvedCount);
 
       await scm.postOrUpdatePrComment(owner, repoName, scan.prNumber, scanId, commentBody);

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { users } from './users';
 import { workspaces } from './workspaces';
 
@@ -27,6 +27,7 @@ export const teamMembers = pgTable('team_members', {
 }, (t) => [
   index('team_members_team_id_idx').on(t.teamId),
   index('team_members_user_id_idx').on(t.userId),
+  uniqueIndex('team_members_team_user_idx').on(t.teamId, t.userId),
 ]);
 
 export type Team = typeof teams.$inferSelect;

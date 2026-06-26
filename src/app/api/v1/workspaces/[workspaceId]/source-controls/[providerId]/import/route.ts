@@ -7,6 +7,7 @@ import { validateBody } from '@/server/http/validate';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { PERMISSION } from '@/commons/constants/permissions';
 import { sourceControlImportService } from '@/server/modules/source-control/source-control-import.service';
+import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string; providerId: string }> };
 
@@ -20,6 +21,8 @@ const importRepoSchema = z.object({
  * Import a discovered repository — creates local repo + provisions webhook + creates import record.
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('post request');
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const userId = getUserId(auth.context);

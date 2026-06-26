@@ -1,7 +1,7 @@
 'use client';
 
 import { Flex, theme } from 'antd';
-import { TeamsPage } from '@/features/teams/TeamsPage';
+import { TeamsPage } from '@/features/teams';
 import { FeatureGate } from '@/commons/components/FeatureGate';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
 import { PageHeader } from '@/commons/components/PageHeader';

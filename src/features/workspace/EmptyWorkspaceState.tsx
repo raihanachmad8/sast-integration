@@ -59,8 +59,8 @@ export function EmptyWorkspaceState({
               align="center"
               justify="center"
               style={{
-                width: 44,
-                height: 44,
+                width: token.controlHeight,
+                height: token.controlHeight,
                 borderRadius: token.borderRadiusLG,
                 background: token.colorPrimary,
                 color: token.colorTextLightSolid,
@@ -99,7 +99,7 @@ export function EmptyWorkspaceState({
               <Flex gap={token.marginXS} align="flex-start">
                 <FaIcon
                   icon={isSingleMode ? 'fa-envelope-circle-check' : 'fa-circle-check'}
-                  style={{ width: 18, color: token.colorPrimary, fontSize: token.fontSize, marginTop: 3 }}
+                  style={{ width: token.sizeMS, color: token.colorPrimary, fontSize: token.fontSize, marginTop: token.marginXXS }}
                 />
                 <Text style={{ fontSize: token.fontSize }}>
                   {isSingleMode
@@ -110,7 +110,7 @@ export function EmptyWorkspaceState({
               <Flex gap={token.marginXS} align="flex-start">
                 <FaIcon
                   icon="fa-envelope-open-text"
-                  style={{ width: 18, color: token.colorPrimary, fontSize: token.fontSize, marginTop: 3 }}
+                  style={{ width: token.sizeMS, color: token.colorPrimary, fontSize: token.fontSize, marginTop: token.marginXXS }}
                 />
                 <Text style={{ fontSize: token.fontSize }}>
                   Organization workspace access remains invitation-only and cannot be created from
@@ -120,7 +120,7 @@ export function EmptyWorkspaceState({
               <Flex gap={token.marginXS} align="flex-start">
                 <FaIcon
                   icon="fa-user-shield"
-                  style={{ width: 18, color: token.colorPrimary, fontSize: token.fontSize, marginTop: 3 }}
+                  style={{ width: token.sizeMS, color: token.colorPrimary, fontSize: token.fontSize, marginTop: token.marginXXS }}
                 />
                 <Text style={{ fontSize: token.fontSize }}>
                   If you expected access, ask an owner or manager to send a new invitation to this

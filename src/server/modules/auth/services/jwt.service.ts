@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { env } from '@/server/env';
 import { JWT_ALGORITHM } from '@/server/http/constants';
+import { logger } from '@/server/lib/logger';
 
 function getSecret() {
   return new TextEncoder().encode(env.JWT_SECRET);
