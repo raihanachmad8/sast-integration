@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { scanService } from '@/server/modules/scan/scan.service';
+import { SCAN } from '@/server/modules/scan/constants';
 
 // Mock dependencies
 vi.mock('@/server/modules/scan/repositories/scan.repository', () => ({
@@ -205,6 +206,120 @@ describe('scanService', () => {
 
       expect(result).toBeDefined();
       expect(result.id).toBe(mockScanId);
+    });
+  });
+
+  describe('getById', () => {
+    describe('❌ negative', () => {
+      it('should throw FORBIDDEN when user is not a workspace member', async () => {
+        const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
+        vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
+
+        await expect(
+          scanService.getById('scan-1', 'ws-1', 'user-1')
+        ).rejects.toThrow(SCAN.ERRORS.FORBIDDEN);
+      });
+
+      it('should throw NOT_FOUND when scan does not exist', async () => {
+        const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
+        const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
+        vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('member');
+        vi.mocked(scanRepository.getById).mockResolvedValue(null);
+
+        await expect(
+          scanService.getById('nonexistent', 'ws-1', 'user-1')
+        ).rejects.toThrow(SCAN.ERRORS.NOT_FOUND);
+      });
+    });
+  });
+
+  describe('getDetail', () => {
+    describe('❌ negative', () => {
+      it('should throw FORBIDDEN when user is not a workspace member', async () => {
+        const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
+        vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
+
+        await expect(
+          scanService.getDetail('scan-1', 'ws-1', 'user-1')
+        ).rejects.toThrow(SCAN.ERRORS.FORBIDDEN);
+      });
+
+      it('should throw NOT_FOUND when scan does not exist', async () => {
+        const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
+        const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
+        vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('member');
+        vi.mocked(scanRepository.getById).mockResolvedValue(null);
+
+        await expect(
+          scanService.getDetail('nonexistent', 'ws-1', 'user-1')
+        ).rejects.toThrow(SCAN.ERRORS.NOT_FOUND);
+      });
+    });
+  });
+
+  describe('getScanResults', () => {
+    describe('✅ positive', () => {
+      it('should return scan results for valid scan', async () => {
+        const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
+        const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
+        vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('member');
+        vi.mocked(scanRepository.getById).mockResolvedValue({ id: 'scan-1', status: 'completed' });
+        vi.mocked(scanRepository.getScanResults).mockResolvedValue([{ id: 'sr-1', scanner: 'semgrep' }]);
+
+        const result = await scanService.getScanResults('scan-1', 'ws-1', 'user-1');
+
+        expect(result).toHaveLength(1);
+        expect(scanRepository.getScanResults).toHaveBeenCalledWith('scan-1');
+      });
+    });
+
+    describe('❌ negative', () => {
+      it('should throw FORBIDDEN when user is not a workspace member', async () => {
+        const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
+        vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
+
+        await expect(
+          scanService.getScanResults('scan-1', 'ws-1', 'user-1')
+        ).rejects.toThrow(SCAN.ERRORS.FORBIDDEN);
+      });
+
+      it('should throw NOT_FOUND when scan does not exist', async () => {
+        const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
+        const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
+        vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('member');
+        vi.mocked(scanRepository.getById).mockResolvedValue(null);
+
+        await expect(
+          scanService.getScanResults('nonexistent', 'ws-1', 'user-1')
+        ).rejects.toThrow(SCAN.ERRORS.NOT_FOUND);
+      });
+    });
+  });
+
+  describe('updateStatus', () => {
+    describe('✅ positive', () => {
+      it('should update scan status when user is authorized', async () => {
+        const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
+        const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
+        vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('member');
+        vi.mocked(scanRepository.updateStatus).mockResolvedValue({ id: 'scan-1', status: 'running' });
+
+        const result = await scanService.updateStatus('scan-1', 'running', 'ws-1', 'user-1');
+
+        expect(result.status).toBe('running');
+        expect(scanRepository.updateStatus).toHaveBeenCalledWith('scan-1', 'running');
+      });
+    });
+
+    describe('❌ negative', () => {
+      it('should throw FORBIDDEN when user is not a workspace member', async () => {
+        const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
+        vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
+
+        await expect(
+          scanService.updateStatus('scan-1', 'running', 'ws-1', 'user-1')
+        ).rejects.toThrow(SCAN.ERRORS.FORBIDDEN);
+      });
     });
   });
 });
