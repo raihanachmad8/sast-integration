@@ -51,6 +51,11 @@ vi.mock('@/server/db/client', () => ({
           returning: vi.fn().mockResolvedValue([]),
         }),
       }),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue(undefined),
+        }),
+      }),
     })),
   },
 }));
@@ -69,8 +74,31 @@ vi.mock('@/server/env', () => ({
   },
 }));
 
+vi.mock('@/server/modules/mail/mail.service', () => ({
+  sendMail: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/server/modules/mail/constants', () => ({
+  MAIL: { SUBJECTS: { WORKSPACE_INVITE: 'Workspace Invitation' } },
+}));
+
+vi.mock('@/server/modules/mail/templates', () => ({
+  workspaceInviteTemplate: vi.fn().mockReturnValue('<html>invite</html>'),
+}));
+
+vi.mock('@/server/http/constants', () => ({
+  JWT_ALGORITHM: 'HS256',
+  TOKEN_BYTES: 32,
+  TOKEN_PAYLOAD: {},
+}));
+
+vi.mock('@/commons/constants/permissions', () => ({
+  ROLE_PERMISSIONS: { owner: ['*'], manager: [], reviewer: [], member: [] },
+}));
+
 import { authRepository } from '@/server/modules/auth/repositories/auth.repository';
 import { authFlowsService } from '@/server/modules/auth/services/auth-flows.service';
+import { sendMail } from '@/server/modules/mail/mail.service';
 
 const mockRepo = vi.mocked(authRepository);
 const mockFlows = vi.mocked(authFlowsService);
@@ -413,3 +441,226 @@ describe('authService.refresh', () => {
     expect(newId.length).toBeGreaterThan(10);
   });
 });
+
+describe('authService.invite', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('positive', () => {
+    it('should create invitation and send email for valid request', async () => {
+      mockRepo.createInvitation.mockResolvedValue({
+        id: 'inv-1', email: 'new@example.com', role: 'member',
+        workspaceId: 'ws-1', createdBy: 'user-1', token: 'token-abc',
+        expiresAt: new Date(Date.now() + 86400000), acceptedAt: null, createdAt: new Date(),
+      });
+      mockRepo.getUserWorkspace.mockResolvedValue({ name: 'My Workspace' });
+
+      const result = await authService.invite(
+        { email: 'new@example.com', role: 'member' },
+        'ws-1',
+        'user-1'
+      );
+
+      expect(result.email).toBe('new@example.com');
+      expect(result.token).toBeDefined();
+      expect(mockRepo.createInvitation).toHaveBeenCalledWith(expect.objectContaining({
+        email: 'new@example.com',
+        role: 'member',
+        workspaceId: 'ws-1',
+        invitedBy: 'user-1',
+      }));
+      expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({
+        to: 'new@example.com',
+      }));
+    });
+  });
+
+  describe('negative', () => {
+    it('should propagate email service errors', async () => {
+      mockRepo.createInvitation.mockResolvedValue({
+        id: 'inv-1', email: 'new@example.com', role: 'member',
+        workspaceId: 'ws-1', createdBy: 'user-1', token: 'token-abc',
+        expiresAt: new Date(Date.now() + 86400000), acceptedAt: null, createdAt: new Date(),
+      });
+      mockRepo.getUserWorkspace.mockResolvedValue({ name: 'My Workspace' });
+      vi.mocked(sendMail).mockRejectedValueOnce(new Error('SMTP connection failed'));
+
+      await expect(
+        authService.invite({ email: 'new@example.com', role: 'member' }, 'ws-1', 'user-1')
+      ).rejects.toThrow('SMTP connection failed');
+    });
+  });
+});
+
+describe('authService.acceptInvite', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('positive', () => {
+    it('should create user and add to workspace for valid token', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue({
+        id: 'inv-1', email: 'new@example.com', role: 'member',
+        workspaceId: 'ws-1', token: 'valid-token',
+        expiresAt: new Date(Date.now() + 86400000), acceptedAt: null,
+      });
+      mockRepo.findUserByEmail.mockResolvedValue(null);
+      mockRepo.createUser.mockResolvedValue({
+        id: 'user-new', email: 'new@example.com', name: 'New User',
+      } as any);
+      mockRepo.markInvitationAccepted.mockResolvedValue(undefined);
+
+      const result = await authService.acceptInvite({
+        token: 'valid-token', password: 'Password123!', name: 'New User',
+      });
+
+      expect(result.id).toBe('user-new');
+      expect(result.email).toBe('new@example.com');
+      expect(mockRepo.createUser).toHaveBeenCalled();
+      expect(mockRepo.markInvitationAccepted).toHaveBeenCalledWith('inv-1', expect.anything());
+    });
+
+    it('should use existing user if email already exists', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue({
+        id: 'inv-1', email: 'existing@example.com', role: 'member',
+        workspaceId: 'ws-1', token: 'valid-token',
+        expiresAt: new Date(Date.now() + 86400000), acceptedAt: null,
+      });
+      mockRepo.findUserByEmail.mockResolvedValue({
+        id: 'user-existing', email: 'existing@example.com',
+      } as any);
+      mockRepo.markInvitationAccepted.mockResolvedValue(undefined);
+
+      const result = await authService.acceptInvite({
+        token: 'valid-token', password: 'Password123!', name: 'Existing User',
+      });
+
+      expect(result.id).toBe('user-existing');
+      expect(mockRepo.createUser).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('negative', () => {
+    it('should throw INVITE_EXPIRED when token is invalid', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue(null);
+
+      await expect(
+        authService.acceptInvite({ token: 'bad-token', password: 'Password123!', name: 'User' })
+      ).rejects.toThrow(AUTH.ERRORS.INVITE_EXPIRED);
+    });
+
+    it('should throw INVITE_EXPIRED when invitation is expired', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue({
+        id: 'inv-1', email: 'new@example.com', role: 'member',
+        workspaceId: 'ws-1', token: 'expired-token',
+        expiresAt: new Date(Date.now() - 86400000), acceptedAt: null,
+      });
+
+      await expect(
+        authService.acceptInvite({ token: 'expired-token', password: 'Password123!', name: 'User' })
+      ).rejects.toThrow(AUTH.ERRORS.INVITE_EXPIRED);
+    });
+
+    it('should throw INVITE_ALREADY_ACCEPTED when already accepted', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue({
+        id: 'inv-1', email: 'new@example.com', role: 'member',
+        workspaceId: 'ws-1', token: 'accepted-token',
+        expiresAt: new Date(Date.now() + 86400000), acceptedAt: new Date(),
+      });
+
+      await expect(
+        authService.acceptInvite({ token: 'accepted-token', password: 'Password123!', name: 'User' })
+      ).rejects.toThrow(AUTH.ERRORS.INVITE_ALREADY_ACCEPTED);
+    });
+  });
+});
+
+describe('authService.acceptInviteForLoggedInUser', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('positive', () => {
+    it('should add existing user to workspace via invitation', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue({
+        id: 'inv-1', email: 'user@example.com', role: 'member',
+        workspaceId: 'ws-1', token: 'valid-token',
+        expiresAt: new Date(Date.now() + 86400000), acceptedAt: null,
+      });
+      mockRepo.findUserById.mockResolvedValue({
+        id: 'user-1', email: 'user@example.com',
+      } as any);
+      mockRepo.markInvitationAccepted.mockResolvedValue(undefined);
+
+      const result = await authService.acceptInviteForLoggedInUser('valid-token', 'user-1');
+
+      expect(result.workspaceId).toBe('ws-1');
+      expect(result.role).toBe('member');
+      expect(mockRepo.markInvitationAccepted).toHaveBeenCalled();
+    });
+  });
+
+  describe('negative', () => {
+    it('should throw INVITE_EXPIRED when token is invalid', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue(null);
+
+      await expect(
+        authService.acceptInviteForLoggedInUser('bad-token', 'user-1')
+      ).rejects.toThrow(AUTH.ERRORS.INVITE_EXPIRED);
+    });
+
+    it('should throw INVITE_EXPIRED when invitation is expired', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue({
+        id: 'inv-1', email: 'user@example.com', role: 'member',
+        workspaceId: 'ws-1', token: 'expired-token',
+        expiresAt: new Date(Date.now() - 86400000), acceptedAt: null,
+      });
+
+      await expect(
+        authService.acceptInviteForLoggedInUser('expired-token', 'user-1')
+      ).rejects.toThrow(AUTH.ERRORS.INVITE_EXPIRED);
+    });
+
+    it('should throw INVITE_ALREADY_ACCEPTED when already accepted', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue({
+        id: 'inv-1', email: 'user@example.com', role: 'member',
+        workspaceId: 'ws-1', token: 'accepted-token',
+        expiresAt: new Date(Date.now() + 86400000), acceptedAt: new Date(),
+      });
+
+      await expect(
+        authService.acceptInviteForLoggedInUser('accepted-token', 'user-1')
+      ).rejects.toThrow(AUTH.ERRORS.INVITE_ALREADY_ACCEPTED);
+    });
+
+    it('should throw when user email does not match invitation email', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue({
+        id: 'inv-1', email: 'other@example.com', role: 'member',
+        workspaceId: 'ws-1', token: 'valid-token',
+        expiresAt: new Date(Date.now() + 86400000), acceptedAt: null,
+      });
+      mockRepo.findUserById.mockResolvedValue({
+        id: 'user-1', email: 'different@example.com',
+      } as any);
+
+      await expect(
+        authService.acceptInviteForLoggedInUser('valid-token', 'user-1')
+      ).rejects.toThrow(/invitation was sent to/);
+    });
+
+    it('should throw USER_NOT_FOUND when user does not exist', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue({
+        id: 'inv-1', email: 'user@example.com', role: 'member',
+        workspaceId: 'ws-1', token: 'valid-token',
+        expiresAt: new Date(Date.now() + 86400000), acceptedAt: null,
+      });
+      mockRepo.findUserById.mockResolvedValue(null);
+
+      await expect(
+        authService.acceptInviteForLoggedInUser('valid-token', 'ghost-user')
+      ).rejects.toThrow(AUTH.ERRORS.USER_NOT_FOUND);
+    });
+  });
+});
+
