@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createMockFinding } from '../../../helpers/factories';
 
 // ---------------------------------------------------------------------------
 // Module-level mocks
@@ -108,20 +109,11 @@ function createChain<T = unknown>(resolveValue: T) {
 // Shared fixtures
 // ---------------------------------------------------------------------------
 
-const mockFinding = {
+const mockFinding = createMockFinding({
   id: 'finding-1',
-  scanId: 'scan-1',
-  groupId: 'group-1',
-  severity: 'high',
-  filePath: 'src/app.ts',
-  lineNumber: 42,
-  scanner: 'semgrep',
-  rule: 'rule-1',
-  message: 'SQL injection',
   description: 'User input concatenated into SQL query',
-  assignedTo: null,
   createdAt: new Date('2025-01-01'),
-};
+});
 
 const mockGroup = {
   id: 'group-1',

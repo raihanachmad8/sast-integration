@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { scanService } from '@/server/modules/scan/scan.service';
 import { SCAN } from '@/server/modules/scan/constants';
+import { createMockScan, createMockFinding } from '../../../helpers/factories';
 
 // Mock dependencies
 vi.mock('@/server/modules/scan/repositories/scan.repository', () => ({
@@ -111,11 +112,7 @@ describe('scanService', () => {
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
 
       vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(scanRepository.getById).mockResolvedValue({
-        id: mockScanId,
-        status: 'completed',
-        branch: 'main',
-      });
+      vi.mocked(scanRepository.getById).mockResolvedValue(createMockScan({ id: mockScanId, branch: 'main' }));
 
       const result = await scanService.getById(mockScanId, mockWorkspaceId, mockUserId);
 
@@ -148,21 +145,13 @@ describe('scanService', () => {
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
 
       vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(scanRepository.getById).mockResolvedValue({
+      vi.mocked(scanRepository.getById).mockResolvedValue(createMockScan({
         id: mockScanId,
-        status: 'completed',
-        branch: 'main',
         repositoryId: 'repo-123',
         createdAt: new Date('2024-01-01T10:00:00Z'),
         startedAt: new Date('2024-01-01T10:00:00Z'),
         completedAt: new Date('2024-01-01T10:05:00Z'),
-        progressEvents: [],
-        origin: 'managed',
-        prNumber: null,
-        baseBranch: null,
-        headBranch: null,
-        prAuthor: null,
-      });
+      }));
       vi.mocked(scanRepository.getRepositoryById).mockResolvedValue({ name: 'test-repo' });
       vi.mocked(scanRepository.getFindingsStats).mockResolvedValue({ total: 10, critical: 2, high: 3, medium: 3, low: 2 });
       vi.mocked(scanRepository.getAiStats).mockResolvedValue({ verified: 8 });
@@ -193,10 +182,7 @@ describe('scanService', () => {
       const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
 
       vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(scanRepository.create).mockResolvedValue({
-        id: mockScanId,
-        status: 'pending',
-      });
+      vi.mocked(scanRepository.create).mockResolvedValue(createMockScan({ id: mockScanId, status: 'pending' }));
 
       const result = await scanService.create({
         repositoryId: 'repo-123',
@@ -263,7 +249,7 @@ describe('scanService', () => {
         const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
         const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
         vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('member');
-        vi.mocked(scanRepository.getById).mockResolvedValue({ id: 'scan-1', status: 'completed' });
+        vi.mocked(scanRepository.getById).mockResolvedValue(createMockScan({ id: 'scan-1' }));
         vi.mocked(scanRepository.getScanResults).mockResolvedValue([{ id: 'sr-1', scanner: 'semgrep' }]);
 
         const result = await scanService.getScanResults('scan-1', 'ws-1', 'user-1');
@@ -302,7 +288,7 @@ describe('scanService', () => {
         const { scanRepository } = await import('@/server/modules/scan/repositories/scan.repository');
         const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
         vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('member');
-        vi.mocked(scanRepository.updateStatus).mockResolvedValue({ id: 'scan-1', status: 'running' });
+        vi.mocked(scanRepository.updateStatus).mockResolvedValue(createMockScan({ id: 'scan-1', status: 'running' }));
 
         const result = await scanService.updateStatus('scan-1', 'running', 'ws-1', 'user-1');
 

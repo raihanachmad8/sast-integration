@@ -14,6 +14,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PROJECT } from '@/server/modules/project/constants';
+import { createMockProject, createMockWorkspace } from '../../../helpers/factories';
 
 const mockProjectRepo = {
   listByWorkspace: vi.fn(),
@@ -81,7 +82,7 @@ describe('projectService.list', () => {
   it('should return projects with member and team summaries', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockProjectRepo.listByWorkspace.mockResolvedValue([
-      { id: 'proj-1', name: 'SAST Core', workspaceId: 'ws-1' },
+      createMockProject({ name: 'SAST Core' }),
     ]);
     mockProjectRepo.listMemberIdsByProjectIds.mockResolvedValue(new Map([['proj-1', ['user-1']]]));
     mockProjectRepo.listTeamIdsByProjectIds.mockResolvedValue(new Map([['proj-1', ['team-1']]]));
@@ -130,7 +131,7 @@ describe('projectService.getById', () => {
    * Purpose: Validates that a project is returned with its members, teams, and repositories
    */
   it('should return project with members and teams', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1', name: 'SAST Core' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject({ name: 'SAST Core' }));
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockProjectRepo.listMemberIds.mockResolvedValue(['user-1']);
     mockProjectRepo.listTeamIds.mockResolvedValue(['team-1']);
@@ -161,7 +162,7 @@ describe('projectService.getById', () => {
    * Purpose: Validates that non-members cannot access project details
    */
   it('should throw NOT_MEMBER when user is not in the workspace', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject());
     mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
 
     await expect(
@@ -173,7 +174,7 @@ describe('projectService.getById', () => {
    * Purpose: Validates that workspace-less projects can be accessed without membership check
    */
   it('should allow access when project has no workspaceId', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: null });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject({ workspaceId: null }));
     mockProjectRepo.listMemberIds.mockResolvedValue([]);
     mockProjectRepo.listTeamIds.mockResolvedValue([]);
     mockProjectRepo.listMemberNames.mockResolvedValue([]);
@@ -195,7 +196,7 @@ describe('projectService.create', () => {
    */
   it('should create a project with generated slug when slug not provided', async () => {
     mockProjectRepo.findBySlug.mockResolvedValue(null);
-    mockProjectRepo.create.mockResolvedValue({ id: 'proj-1', name: 'New Project', slug: 'new-project' });
+    mockProjectRepo.create.mockResolvedValue(createMockProject({ name: 'New Project', slug: 'new-project' }));
 
     const result = await projectService.create({ name: 'New Project' }, 'ws-1', 'user-1');
 
@@ -207,7 +208,7 @@ describe('projectService.create', () => {
    * Purpose: Validates that SLUG_CONFLICT is thrown for duplicate slugs
    */
   it('should throw SLUG_CONFLICT when slug already exists in workspace', async () => {
-    mockProjectRepo.findBySlug.mockResolvedValue({ id: 'existing-proj' });
+    mockProjectRepo.findBySlug.mockResolvedValue(createMockProject({ id: 'existing-proj' }));
 
     await expect(
       projectService.create({ name: 'Project', slug: 'existing-slug' }, 'ws-1', 'user-1')
@@ -219,7 +220,7 @@ describe('projectService.create', () => {
    */
   it('should create project with members when memberIds provided', async () => {
     mockProjectRepo.findBySlug.mockResolvedValue(null);
-    mockProjectRepo.create.mockResolvedValue({ id: 'proj-1', name: 'Project' });
+    mockProjectRepo.create.mockResolvedValue(createMockProject({ name: 'Project' }));
     mockProjectRepo.setMembers.mockResolvedValue(undefined);
     mockProjectRepo.setTeams.mockResolvedValue(undefined);
 
@@ -233,7 +234,7 @@ describe('projectService.create', () => {
    */
   it('should create project with teams when teamIds provided', async () => {
     mockProjectRepo.findBySlug.mockResolvedValue(null);
-    mockProjectRepo.create.mockResolvedValue({ id: 'proj-1', name: 'Project' });
+    mockProjectRepo.create.mockResolvedValue(createMockProject({ name: 'Project' }));
     mockProjectRepo.setMembers.mockResolvedValue(undefined);
     mockProjectRepo.setTeams.mockResolvedValue(undefined);
 
@@ -263,9 +264,9 @@ describe('projectService.update', () => {
    * Purpose: Validates that project metadata can be updated by a member
    */
   it('should update project metadata successfully', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1', slug: 'old-slug' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject({ slug: 'old-slug' }));
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
-    mockProjectRepo.update.mockResolvedValue({ id: 'proj-1', name: 'Updated Project' });
+    mockProjectRepo.update.mockResolvedValue(createMockProject({ name: 'Updated Project' }));
 
     const result = await projectService.update('proj-1', { name: 'Updated Project' }, 'user-1');
 
@@ -287,7 +288,7 @@ describe('projectService.update', () => {
    * Purpose: Validates that non-members cannot update project settings
    */
   it('should throw NOT_MEMBER when user is not in workspace', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject());
     mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
 
     await expect(
@@ -299,9 +300,9 @@ describe('projectService.update', () => {
    * Purpose: Validates that updating to an existing slug throws SLUG_CONFLICT
    */
   it('should throw SLUG_CONFLICT when updating to an existing slug', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1', slug: 'old-slug' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject({ slug: 'old-slug' }));
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
-    mockProjectRepo.findBySlug.mockResolvedValue({ id: 'other-proj' });
+    mockProjectRepo.findBySlug.mockResolvedValue(createMockProject({ id: 'other-proj' }));
 
     await expect(
       projectService.update('proj-1', { slug: 'taken-slug' }, 'user-1')
@@ -312,9 +313,9 @@ describe('projectService.update', () => {
    * Purpose: Validates that keeping the same slug does not trigger a conflict check
    */
   it('should not throw SLUG_CONFLICT when slug remains unchanged', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1', slug: 'same-slug' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject({ slug: 'same-slug' }));
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
-    mockProjectRepo.update.mockResolvedValue({ id: 'proj-1' });
+    mockProjectRepo.update.mockResolvedValue(createMockProject());
 
     await projectService.update('proj-1', { slug: 'same-slug' }, 'user-1');
 
@@ -325,9 +326,9 @@ describe('projectService.update', () => {
    * Purpose: Validates that project members can be updated via the update operation
    */
   it('should update project members when memberIds provided', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1', slug: 'proj' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject({ slug: 'proj' }));
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
-    mockProjectRepo.update.mockResolvedValue({ id: 'proj-1' });
+    mockProjectRepo.update.mockResolvedValue(createMockProject());
     mockProjectRepo.setMembers.mockResolvedValue(undefined);
     mockProjectRepo.setTeams.mockResolvedValue(undefined);
 
@@ -340,9 +341,9 @@ describe('projectService.update', () => {
    * Purpose: Validates that project teams can be updated via the update operation
    */
   it('should update project teams when teamIds provided', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1', slug: 'proj' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject({ slug: 'proj' }));
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
-    mockProjectRepo.update.mockResolvedValue({ id: 'proj-1' });
+    mockProjectRepo.update.mockResolvedValue(createMockProject());
     mockProjectRepo.setMembers.mockResolvedValue(undefined);
     mockProjectRepo.setTeams.mockResolvedValue(undefined);
 
@@ -359,7 +360,7 @@ describe('projectService.softDelete', () => {
    * Purpose: Validates that a project can be soft deleted by a member
    */
   it('should soft delete a project successfully', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject());
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockProjectRepo.softDelete.mockResolvedValue({ id: 'proj-1', deletedAt: new Date() });
 
@@ -383,7 +384,7 @@ describe('projectService.softDelete', () => {
    * Purpose: Validates that non-members cannot soft delete projects
    */
   it('should throw NOT_MEMBER when user is not in workspace', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject());
     mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
 
     await expect(
@@ -399,7 +400,7 @@ describe('projectService.listRepositories', () => {
    * Purpose: Validates that repositories attached to a project are returned
    */
   it('should return repositories for a project', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject());
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockProjectRepo.listRepositories.mockResolvedValue([{ id: 'repo-1', name: 'frontend' }]);
 
@@ -427,7 +428,7 @@ describe('projectService.attachRepository', () => {
    * Purpose: Validates that a repository can be attached to a project
    */
   it('should attach a repository to a project', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject());
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockProjectRepo.attachRepository.mockResolvedValue({ id: 'repo-1', name: 'frontend' });
 
@@ -463,7 +464,7 @@ describe('projectService.createApiToken', () => {
    * Purpose: Validates that an API token is created and the raw token is returned
    */
   it('should create an API token and return raw token once', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject());
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockApiTokenRepo.create.mockResolvedValue({
       token: { id: 'tok-1', name: 'CI Token', tokenPrefix: 'sast_p_abc...', permissions: ['scans:upload'] },
@@ -495,7 +496,7 @@ describe('projectService.listApiTokens', () => {
    * Purpose: Validates that all API tokens for a project are returned
    */
   it('should list API tokens for a project', async () => {
-    mockProjectRepo.findById.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1' });
+    mockProjectRepo.findById.mockResolvedValue(createMockProject());
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockApiTokenRepo.listByProject.mockResolvedValue([
       { id: 'tok-1', name: 'CI Token', tokenPrefix: 'sast_p_abc...' },

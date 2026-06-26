@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { findingService } from '@/server/modules/scan/services/finding.service';
+import { createMockFinding } from '../../../helpers/factories';
 
 // Mock dependencies — only external repos and infrastructure
 vi.mock('@/server/modules/scan/repositories/finding.repository', () => ({
@@ -217,13 +218,13 @@ describe('findingService', () => {
   describe('getById', () => {
     describe('✅ positive', () => {
       it('should return finding with all fields when found', async () => {
-        mockRepo.findById.mockResolvedValue({
-          id: 'f1', scanId: 'scan-1', groupId: 'g1', severity: 'high',
-          filePath: 'src/app.ts', lineNumber: 42, codeSnippet: 'code',
-          description: 'desc', rule: 'rule-1', scanner: 'semgrep',
-          message: 'msg', cweId: 'CWE-79', assignedTo: null,
-          createdAt: new Date(), updatedAt: new Date(),
-        });
+        mockRepo.findById.mockResolvedValue(createMockFinding({
+          codeSnippet: 'code',
+          description: 'desc',
+          rule: 'rule-1',
+          message: 'msg',
+          cweId: 'CWE-79',
+        }));
         mockRepo.findGroupById.mockResolvedValue({ id: 'g1', status: 'open' });
         mockRepo.getVerifications.mockResolvedValue([{
           verdict: 'true_positive', confidence: 0.95,
@@ -244,13 +245,12 @@ describe('findingService', () => {
       });
 
       it('should return finding with Pending verdict when no verifications exist', async () => {
-        mockRepo.findById.mockResolvedValue({
-          id: 'f1', scanId: 'scan-1', groupId: 'g1', severity: 'medium',
+        mockRepo.findById.mockResolvedValue(createMockFinding({
+          severity: 'medium',
           filePath: null, lineNumber: null, codeSnippet: null,
           description: null, rule: null, scanner: null,
-          message: null, cweId: null, assignedTo: null,
-          createdAt: new Date(), updatedAt: new Date(),
-        });
+          message: null, cweId: null,
+        }));
         mockRepo.findGroupById.mockResolvedValue({ id: 'g1', status: 'open' });
         mockRepo.getVerifications.mockResolvedValue([]);
 
@@ -275,7 +275,7 @@ describe('findingService', () => {
   describe('updateStatus', () => {
     describe('✅ positive', () => {
       it('should update group status to resolved', async () => {
-        mockRepo.findById.mockResolvedValue({ id: 'f1', groupId: 'g1' });
+        mockRepo.findById.mockResolvedValue(createMockFinding({ id: 'f1', groupId: 'g1' }));
         mockRepo.updateGroupStatus.mockResolvedValue({ id: 'g1', status: 'resolved' });
 
         const result = await findingService.updateStatus('f1', 'resolved', 'user-123');
@@ -286,7 +286,7 @@ describe('findingService', () => {
       });
 
       it('should update group status to dismissed', async () => {
-        mockRepo.findById.mockResolvedValue({ id: 'f1', groupId: 'g1' });
+        mockRepo.findById.mockResolvedValue(createMockFinding({ id: 'f1', groupId: 'g1' }));
         mockRepo.updateGroupStatus.mockResolvedValue({ id: 'g1', status: 'dismissed' });
 
         const result = await findingService.updateStatus('f1', 'dismissed', 'user-123');
@@ -295,7 +295,7 @@ describe('findingService', () => {
       });
 
       it('should update group status to open', async () => {
-        mockRepo.findById.mockResolvedValue({ id: 'f1', groupId: 'g1' });
+        mockRepo.findById.mockResolvedValue(createMockFinding({ id: 'f1', groupId: 'g1' }));
         mockRepo.updateGroupStatus.mockResolvedValue({ id: 'g1', status: 'open' });
 
         const result = await findingService.updateStatus('f1', 'open', 'user-123');
@@ -320,7 +320,7 @@ describe('findingService', () => {
       });
 
       it('should throw when finding has no group', async () => {
-        mockRepo.findById.mockResolvedValue({ id: 'f1', groupId: null });
+        mockRepo.findById.mockResolvedValue(createMockFinding({ id: 'f1', groupId: null }));
 
         await expect(
           findingService.updateStatus('f1', 'resolved', 'user-123')
@@ -412,7 +412,7 @@ describe('findingService', () => {
   describe('updateVerdict', () => {
     describe('✅ positive', () => {
       it('should update verdict to true_positive and set status to open', async () => {
-        mockRepo.findById.mockResolvedValue({ id: 'f1', groupId: 'g1', filePath: 'src/app.ts', lineNumber: 1, scanner: 'semgrep', message: 'msg', severity: 'high', rule: 'rule-1' });
+        mockRepo.findById.mockResolvedValue(createMockFinding({ id: 'f1', groupId: 'g1', filePath: 'src/app.ts', lineNumber: 1, message: 'msg', rule: 'rule-1' }));
         mockRepo.updateGroupStatus.mockResolvedValue({ id: 'g1', status: 'open' });
 
         const result = await findingService.updateVerdict('f1', 'true_positive', 'user-123');
@@ -423,7 +423,7 @@ describe('findingService', () => {
       });
 
       it('should update verdict to false_positive and set status to resolved', async () => {
-        mockRepo.findById.mockResolvedValue({ id: 'f1', groupId: 'g1', filePath: 'src/app.ts', lineNumber: 1, scanner: 'semgrep', message: 'msg', severity: 'high', rule: 'rule-1' });
+        mockRepo.findById.mockResolvedValue(createMockFinding({ id: 'f1', groupId: 'g1', filePath: 'src/app.ts', lineNumber: 1, message: 'msg', rule: 'rule-1' }));
         mockRepo.updateGroupStatus.mockResolvedValue({ id: 'g1', status: 'resolved' });
 
         const result = await findingService.updateVerdict('f1', 'false_positive', 'user-123');
@@ -449,7 +449,7 @@ describe('findingService', () => {
       });
 
       it('should throw when finding has no group', async () => {
-        mockRepo.findById.mockResolvedValue({ id: 'f1', groupId: null, filePath: null, lineNumber: null, scanner: null, message: null, severity: null, rule: null });
+        mockRepo.findById.mockResolvedValue(createMockFinding({ id: 'f1', groupId: null, filePath: null, lineNumber: null, message: null, severity: null, rule: null }));
 
         await expect(
           findingService.updateVerdict('f1', 'true_positive', 'user-123')
@@ -472,7 +472,7 @@ describe('findingService', () => {
           ['fp-abc', { id: 'g1', isNew: true }],
         ]));
         mockRepo.createMany.mockResolvedValue([
-          { id: 'f1', scanId: 'scan-1', groupId: 'g1', rule: 'rule-1', filePath: 'src/app.ts', message: 'msg' },
+          createMockFinding({ id: 'f1', scanId: 'scan-1', groupId: 'g1', rule: 'rule-1', filePath: 'src/app.ts', message: 'msg' }),
         ]);
 
         const result = await findingService.replaceFindingsForScanJob('proj-1', 'scan-1', [{
@@ -508,7 +508,7 @@ describe('findingService', () => {
           ['fp-duplicate', { id: 'g1', isNew: true }],
         ]));
         mockRepo.createMany.mockResolvedValue([
-          { id: 'f1', scanId: 'scan-1', groupId: 'g1', rule: 'rule-1', filePath: 'src/app.ts', message: 'msg' },
+          createMockFinding({ id: 'f1', scanId: 'scan-1', groupId: 'g1', rule: 'rule-1', filePath: 'src/app.ts', message: 'msg' }),
         ]);
 
         const result = await findingService.replaceFindingsForScanJob('proj-1', 'scan-1', [

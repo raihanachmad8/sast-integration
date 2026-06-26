@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { workspaceService } from '@/server/modules/workspace/workspace.service';
 import { WORKSPACE } from '@/server/modules/workspace/constants';
 import { ROLE } from '@/commons/constants/permissions';
+import { createMockWorkspace, createMockUser } from '../../../helpers/factories';
 
 vi.mock('@/server/modules/workspace/repositories/workspace.repository', () => ({
   workspaceRepository: {
@@ -42,7 +43,7 @@ describe('workspaceService.list', () => {
    * Purpose: Validates that the user's workspace list is returned correctly
    */
   it('+ should return the list of workspaces the user is a member of', async () => {
-    mockRepo.listByUser.mockResolvedValue([{ id: 'ws-1', name: 'Test', slug: 'test', type: 'organization', role: ROLE.OWNER }] as never);
+    mockRepo.listByUser.mockResolvedValue([createMockWorkspace({ name: 'Test', slug: 'test', role: ROLE.OWNER } as never)]);
     const result = await workspaceService.list('user-1');
     expect(result).toHaveLength(1);
     expect(mockRepo.listByUser).toHaveBeenCalledWith('user-1');
@@ -53,8 +54,8 @@ describe('workspaceService.list', () => {
    */
   it('+ should return multiple workspaces', async () => {
     mockRepo.listByUser.mockResolvedValue([
-      { id: 'ws-1', name: 'Org' },
-      { id: 'ws-2', name: 'Personal' },
+      createMockWorkspace({ name: 'Org' }),
+      createMockWorkspace({ id: 'ws-2', name: 'Personal' }),
     ] as never);
     const result = await workspaceService.list('user-1');
     expect(result).toHaveLength(2);
@@ -78,7 +79,7 @@ describe('workspaceService.getById', () => {
    */
   it('+ should return the workspace along with the requester role', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.OWNER);
-    mockRepo.findById.mockResolvedValue({ id: 'ws-1', name: 'Test', slug: 'test', type: 'organization' } as never);
+    mockRepo.findById.mockResolvedValue(createMockWorkspace({ name: 'Test', slug: 'test' }) as never);
     const result = await workspaceService.getById('ws-1', 'user-1');
     expect(result.role).toBe(ROLE.OWNER);
     expect(result.name).toBe('Test');
@@ -89,7 +90,7 @@ describe('workspaceService.getById', () => {
    */
   it('+ should return member role for non-owner', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.MEMBER);
-    mockRepo.findById.mockResolvedValue({ id: 'ws-1', name: 'Org' } as never);
+    mockRepo.findById.mockResolvedValue(createMockWorkspace({ name: 'Org' }) as never);
     const result = await workspaceService.getById('ws-1', 'user-1');
     expect(result.role).toBe(ROLE.MEMBER);
   });
@@ -124,7 +125,7 @@ describe('workspaceService.create', () => {
   it('+ should create personal workspace when none is active', async () => {
     mockRepo.findActivePersonalByOwner.mockResolvedValue(null);
     mockRepo.findBySlug.mockResolvedValue(null);
-    mockRepo.create.mockResolvedValue({ id: 'ws-1', name: 'Personal Workspace', slug: 'personal-user-1' } as never);
+    mockRepo.create.mockResolvedValue(createMockWorkspace({ name: 'Personal Workspace', slug: 'personal-user-1' }) as never);
     mockRepo.addMember.mockResolvedValue(undefined);
     mockRepo.switchWorkspace.mockResolvedValue(undefined);
 
@@ -155,7 +156,7 @@ describe('workspaceService.create', () => {
    * Purpose: Validates that creating a duplicate personal workspace is rejected
    */
   it('- should reject when personal workspace already exists', async () => {
-    mockRepo.findActivePersonalByOwner.mockResolvedValue({ id: 'personal-1' } as never);
+    mockRepo.findActivePersonalByOwner.mockResolvedValue(createMockWorkspace({ id: 'personal-1' }) as never);
     await expect(
       workspaceService.create({ name: 'Personal', type: WORKSPACE.TYPE.PERSONAL }, 'user-1')
     ).rejects.toThrow(WORKSPACE.ERRORS.PERSONAL_EXISTS);
@@ -171,7 +172,7 @@ describe('workspaceService.update', () => {
   it('+ should update workspace when performed by owner', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.OWNER);
     mockRepo.findBySlug.mockResolvedValue(null);
-    mockRepo.update.mockResolvedValue({ id: 'ws-1', name: 'New' } as never);
+    mockRepo.update.mockResolvedValue(createMockWorkspace({ name: 'New' }) as never);
     const result = await workspaceService.update('ws-1', { name: 'New' }, 'user-1');
     expect(result.name).toBe('New');
   });
@@ -182,7 +183,7 @@ describe('workspaceService.update', () => {
   it('+ should update workspace with slug', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.OWNER);
     mockRepo.findBySlug.mockResolvedValue(null);
-    mockRepo.update.mockResolvedValue({ id: 'ws-1', slug: 'new-slug' } as never);
+    mockRepo.update.mockResolvedValue(createMockWorkspace({ slug: 'new-slug' }) as never);
     const result = await workspaceService.update('ws-1', { slug: 'new-slug' }, 'user-1');
     expect(result.slug).toBe('new-slug');
   });
@@ -208,7 +209,7 @@ describe('workspaceService.update', () => {
    */
   it('- should throw SLUG_CONFLICT when slug already exists', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.OWNER);
-    mockRepo.findBySlug.mockResolvedValue({ id: 'ws-other' } as never);
+    mockRepo.findBySlug.mockResolvedValue(createMockWorkspace({ id: 'ws-other' }) as never);
     await expect(workspaceService.update('ws-1', { slug: 'taken' }, 'user-1')).rejects.toThrow(WORKSPACE.ERRORS.SLUG_CONFLICT);
   });
 
@@ -217,8 +218,8 @@ describe('workspaceService.update', () => {
    */
   it('+ should not throw SLUG_CONFLICT when slug belongs to same workspace', async () => {
     mockRepo.getMemberRole.mockResolvedValue(ROLE.OWNER);
-    mockRepo.findBySlug.mockResolvedValue({ id: 'ws-1' } as never);
-    mockRepo.update.mockResolvedValue({ id: 'ws-1' } as never);
+    mockRepo.findBySlug.mockResolvedValue(createMockWorkspace() as never);
+    mockRepo.update.mockResolvedValue(createMockWorkspace() as never);
     await workspaceService.update('ws-1', { slug: 'same-slug' }, 'user-1');
     expect(mockRepo.update).toHaveBeenCalled();
   });
@@ -231,7 +232,7 @@ describe('workspaceService.delete', () => {
    * Purpose: Validates that an owner can delete an organization workspace
    */
   it('+ should delete organization workspace when performed by owner', async () => {
-    mockRepo.findById.mockResolvedValue({ id: 'ws-1', type: WORKSPACE.TYPE.ORGANIZATION } as never);
+    mockRepo.findById.mockResolvedValue(createMockWorkspace({ type: WORKSPACE.TYPE.ORGANIZATION }) as never);
     mockRepo.getMemberRole.mockResolvedValue(ROLE.OWNER);
     mockRepo.delete.mockResolvedValue(undefined);
     await workspaceService.delete('ws-1', 'user-1');
@@ -242,7 +243,7 @@ describe('workspaceService.delete', () => {
    * Purpose: Validates that personal workspaces cannot be deleted
    */
   it('- should throw CANNOT_DELETE_PERSONAL when trying to delete personal workspace', async () => {
-    mockRepo.findById.mockResolvedValue({ id: 'ws-1', type: WORKSPACE.TYPE.PERSONAL } as never);
+    mockRepo.findById.mockResolvedValue(createMockWorkspace({ type: WORKSPACE.TYPE.PERSONAL }) as never);
     await expect(workspaceService.delete('ws-1', 'user-1')).rejects.toThrow(WORKSPACE.ERRORS.CANNOT_DELETE_PERSONAL);
   });
 
@@ -250,7 +251,7 @@ describe('workspaceService.delete', () => {
    * Purpose: Validates that non-owners cannot delete workspaces
    */
   it('- should throw NOT_OWNER when non-owner tries to delete', async () => {
-    mockRepo.findById.mockResolvedValue({ id: 'ws-1', type: WORKSPACE.TYPE.ORGANIZATION } as never);
+    mockRepo.findById.mockResolvedValue(createMockWorkspace({ type: WORKSPACE.TYPE.ORGANIZATION }) as never);
     mockRepo.getMemberRole.mockResolvedValue(ROLE.MEMBER);
     await expect(workspaceService.delete('ws-1', 'user-1')).rejects.toThrow(WORKSPACE.ERRORS.NOT_OWNER);
   });
