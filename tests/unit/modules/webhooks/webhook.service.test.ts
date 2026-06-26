@@ -186,6 +186,59 @@ describe('webhookService.deleteWebhook', () => {
   });
 });
 
+describe('❌ negative', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that a repository error propagates when creating a webhook
+   */
+  it('- should throw when repository.create throws', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockRepo.create.mockRejectedValue(new Error('DB connection failed'));
+
+    await expect(
+      webhookService.createWebhook('ws-1', { name: 'Hook', url: 'https://hook.com', events: ['scan.completed'] }, 'user-1')
+    ).rejects.toThrow('DB connection failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when updating a webhook
+   */
+  it('- should throw when repository.update throws', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockRepo.findById.mockResolvedValue({ id: 'wh-1' });
+    mockRepo.update.mockRejectedValue(new Error('DB timeout'));
+
+    await expect(
+      webhookService.updateWebhook('wh-1', { name: 'Updated' }, 'user-1', 'ws-1')
+    ).rejects.toThrow('DB timeout');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when deleting a webhook
+   */
+  it('- should throw when repository.softDelete throws', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockRepo.findById.mockResolvedValue({ id: 'wh-1', name: 'Hook' });
+    mockRepo.softDelete.mockRejectedValue(new Error('DB delete failed'));
+
+    await expect(
+      webhookService.deleteWebhook('wh-1', 'user-1', 'ws-1')
+    ).rejects.toThrow('DB delete failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when listing webhooks
+   */
+  it('- should throw when repository.listByWorkspace throws', async () => {
+    mockRepo.listByWorkspace.mockRejectedValue(new Error('DB connection failed'));
+
+    await expect(
+      webhookService.listWebhooksByWorkspace('ws-1')
+    ).rejects.toThrow('DB connection failed');
+  });
+});
+
 describe('webhookService edge cases', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 

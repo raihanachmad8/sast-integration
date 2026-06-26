@@ -20,6 +20,11 @@ tests
 test-results
 playwright-report
 coverage
+vitest.config.ts
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
 
 # Documentation
 docs
@@ -42,6 +47,8 @@ next-env.d.ts
 opencode.json
 .playwright-mcp
 rules/
+.mimocode/
+.mimocode*
 
 # AI coding tools
 .opencode/

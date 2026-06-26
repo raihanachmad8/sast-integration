@@ -231,3 +231,108 @@ describe('sourceControlRepositoryService', () => {
     });
   });
 });
+
+describe('❌ negative', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that a DB error during listByConnectionId propagates
+   */
+  it('should throw when db.select throws during listByConnectionId', async () => {
+    (db.execute as any).mockResolvedValue(undefined); // backfill succeeds
+    (db.select as any).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockRejectedValue(new Error('DB connection failed')),
+      }),
+    });
+
+    await expect(
+      sourceControlRepositoryService.listByConnectionId('conn-123')
+    ).rejects.toThrow('DB connection failed');
+  });
+
+  /**
+   * Purpose: Validates that a DB error during upsertMany propagates
+   */
+  it('should throw when db.select throws during upsertMany', async () => {
+    (db.execute as any).mockResolvedValue(undefined); // backfill succeeds
+    (db.select as any).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockRejectedValue(new Error('DB timeout')),
+      }),
+    });
+
+    await expect(
+      sourceControlRepositoryService.upsertMany('conn-123', 'ws-456', [{ name: 'org/repo' }])
+    ).rejects.toThrow('DB timeout');
+  });
+
+  /**
+   * Purpose: Validates that a DB insert error during upsertMany propagates
+   */
+  it('should throw when db.insert throws during upsertMany', async () => {
+    (db.execute as any).mockResolvedValue(undefined); // backfill
+    (db.select as any).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([]),
+      }),
+    });
+    (db.insert as any).mockReturnValue({
+      values: vi.fn().mockRejectedValue(new Error('DB insert failed')),
+    });
+
+    await expect(
+      sourceControlRepositoryService.upsertMany('conn-123', 'ws-456', [{ name: 'org/repo', externalId: 'e1' }])
+    ).rejects.toThrow('DB insert failed');
+  });
+});
+
+describe('🔲 edge cases', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that backfillExternalId handles errors gracefully (caught internally)
+   */
+  it('should not throw when backfill SQL fails', async () => {
+    (db.execute as any).mockRejectedValue(new Error('SQL error'));
+    // Should not throw because error is caught and logged
+    await expect(
+      sourceControlRepositoryService.backfillExternalId('conn-123')
+    ).resolves.toBeUndefined();
+  });
+
+  /**
+   * Purpose: Validates that upsertMany handles empty incoming repos with no existing repos
+   */
+  it('should handle upsertMany with empty repos and empty existing', async () => {
+    (db.execute as any).mockResolvedValue(undefined); // backfill
+    (db.select as any).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([]),
+      }),
+    });
+
+    await expect(
+      sourceControlRepositoryService.upsertMany('conn-123', 'ws-456', [])
+    ).resolves.toBeUndefined();
+  });
+
+  /**
+   * Purpose: Validates that upsertMany handles a repo with only name (no externalId)
+   */
+  it('should handle upsertMany with repo missing externalId', async () => {
+    (db.execute as any).mockResolvedValue(undefined); // backfill
+    (db.select as any).mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([]),
+      }),
+    });
+    (db.insert as any).mockReturnValue({
+      values: vi.fn().mockResolvedValue(undefined),
+    });
+
+    await expect(
+      sourceControlRepositoryService.upsertMany('conn-123', 'ws-456', [{ name: 'org/repo', url: 'https://url.git' }])
+    ).resolves.toBeUndefined();
+  });
+});

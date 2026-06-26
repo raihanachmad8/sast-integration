@@ -36,6 +36,9 @@ Thumbs.db
 # compiled objects
 *.o
 
+# test coverage
+coverage/
+
 # storage
 /storage/
 

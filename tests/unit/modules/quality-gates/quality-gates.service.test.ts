@@ -134,6 +134,38 @@ describe('qualityGatesService.updateConfig', () => {
   });
 });
 
+describe('❌ negative', () => {
+  beforeEach(() => { vi.resetAllMocks(); });
+
+  /**
+   * Purpose: Validates that a repository error propagates when getting config
+   */
+  it('- should throw when repository.getConfig throws', async () => {
+    mockRepo.getConfig.mockRejectedValue(new Error('DB connection failed'));
+    await expect(qualityGatesService.getConfig('ws-1')).rejects.toThrow('DB connection failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when upserting config
+   */
+  it('- should throw when repository.upsertConfig throws on default creation', async () => {
+    mockRepo.getConfig.mockResolvedValue(null);
+    mockRepo.upsertConfig.mockRejectedValue(new Error('DB write failed'));
+    await expect(qualityGatesService.getConfig('ws-1')).rejects.toThrow('DB write failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when updating config
+   */
+  it('- should throw when repository.upsertConfig throws on updateConfig', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('owner');
+    mockRepo.upsertConfig.mockRejectedValue(new Error('DB timeout'));
+    await expect(
+      qualityGatesService.updateConfig(gateInput({ threshold: 'high' }), 'ws-1', 'user-1')
+    ).rejects.toThrow('DB timeout');
+  });
+});
+
 describe('qualityGatesService edge cases', () => {
   beforeEach(() => { vi.resetAllMocks(); });
 
@@ -395,10 +427,6 @@ describe('qualityGatesService edge cases', () => {
     );
     expect(result.threshold).toBe('critical');
   });
-
-  /**
-   * Purpose: Validates that concurrent getConfig calls are handled correctly
-   */
   it('+ should handle rapid successive getConfig calls', async () => {
     mockRepo.getConfig.mockResolvedValue({ id: 'qg-1' });
     const results = await Promise.all([

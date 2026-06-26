@@ -226,3 +226,94 @@ describe('profileService.changePassword', () => {
     expect(mockRepo.changePassword).toHaveBeenCalledWith('u-1', 'old', 'new');
   });
 });
+
+describe('❌ negative', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that a repository error propagates when fetching profile
+   */
+  it('- should throw when repository.get throws', async () => {
+    mockRepo.get.mockRejectedValue(new Error('DB connection failed'));
+
+    await expect(
+      profileService.get('u-1')
+    ).rejects.toThrow('DB connection failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when updating profile
+   */
+  it('- should throw when repository.update throws', async () => {
+    mockRepo.update.mockRejectedValue(new Error('DB timeout'));
+
+    await expect(
+      profileService.update('u-1', { name: 'Test' })
+    ).rejects.toThrow('DB timeout');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when listing sessions
+   */
+  it('- should throw when repository.listSessions throws', async () => {
+    mockRepo.listSessions.mockRejectedValue(new Error('DB connection failed'));
+
+    await expect(
+      profileService.getSessions('u-1')
+    ).rejects.toThrow('DB connection failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when changing password
+   */
+  it('- should throw when repository.changePassword throws', async () => {
+    mockRepo.changePassword.mockRejectedValue(new Error('DB connection failed'));
+
+    await expect(
+      profileService.changePassword('u-1', 'old', 'new')
+    ).rejects.toThrow('DB connection failed');
+  });
+});
+
+describe('🔲 edge cases', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that get handles profile with null optional fields
+   */
+  it('+ should get profile with null optional fields', async () => {
+    mockRepo.get.mockResolvedValue({ id: 'u-1', name: null, email: 'a@test.com', avatarUrl: null });
+    const result = await profileService.get('u-1');
+    expect(result.name).toBeNull();
+    expect(result.avatarUrl).toBeNull();
+  });
+
+  /**
+   * Purpose: Validates that update handles empty update object
+   */
+  it('+ should update profile with empty fields', async () => {
+    mockRepo.update.mockResolvedValue({ id: 'u-1' });
+    const result = await profileService.update('u-1', {});
+    expect(result.id).toBe('u-1');
+  });
+
+  /**
+   * Purpose: Validates that uploadAvatar handles large files gracefully
+   */
+  it('+ should propagate repository errors for uploadAvatar', async () => {
+    mockRepo.uploadAvatar.mockRejectedValue(new Error('Upload failed'));
+    await expect(
+      profileService.uploadAvatar('u-1', new File([], 'test.png'))
+    ).rejects.toThrow('Upload failed');
+  });
+
+  /**
+   * Purpose: Validates that revokeSession handles non-existent session error properly
+   */
+  it('- should throw NOT_FOUND when session not found', async () => {
+    mockRepo.deleteSession.mockResolvedValue(false);
+    await expect(
+      profileService.revokeSession('u-1', 's-nonexistent')
+    ).rejects.toThrow('Session not found');
+  });
+});

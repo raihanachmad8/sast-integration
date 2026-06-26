@@ -365,3 +365,84 @@ describe('scannerEnginesService.getById', () => {
     expect(result.map((e: any) => e.id)).toEqual(['semgrep', 'bandit', 'cppcheck', 'gosec', 'eslint-security']);
   });
 });
+
+describe('❌ negative', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that a repository error propagates when listing engines
+   */
+  it('- should throw when repository.list throws', async () => {
+    mockRepo.list.mockRejectedValue(new Error('DB connection failed'));
+
+    await expect(scannerEnginesService.list()).rejects.toThrow('DB connection failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when getting engine by ID
+   */
+  it('- should throw when repository.getById throws', async () => {
+    mockRepo.getById.mockRejectedValue(new Error('DB timeout'));
+
+    await expect(scannerEnginesService.getById('semgrep')).rejects.toThrow('DB timeout');
+  });
+
+  /**
+   * Purpose: Validates that a non-existent engine ID throws NOT_FOUND with AppError
+   */
+  it('- should throw NOT_FOUND for non-existent engine with 404 status', async () => {
+    mockRepo.getById.mockResolvedValue(null);
+
+    try {
+      await scannerEnginesService.getById('nonexistent');
+    } catch (error: any) {
+      expect(error.code).toBe('NOT_FOUND');
+      expect(error.statusCode).toBe(404);
+      return;
+    }
+    expect.unreachable('should have thrown');
+  });
+
+  /**
+   * Purpose: Validates that list propagates an empty repository result
+   */
+  it('- should return empty array when no engines', async () => {
+    mockRepo.list.mockResolvedValue([]);
+    const result = await scannerEnginesService.list();
+    expect(result).toEqual([]);
+  });
+});
+
+describe('🔲 edge cases', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that getById handles empty string ID gracefully
+   */
+  it('+ should handle empty string id for getById', async () => {
+    mockRepo.getById.mockResolvedValue({ id: '' });
+    const result = await scannerEnginesService.getById('');
+    expect(result.id).toBe('');
+  });
+
+  /**
+   * Purpose: Validates that list handles repository returning null fields gracefully
+   */
+  it('+ should handle engines with null optional fields', async () => {
+    mockRepo.list.mockResolvedValue([
+      { id: 'semgrep', name: 'Semgrep', command: null, format: null, isAvailable: null },
+    ]);
+    const result = await scannerEnginesService.list();
+    expect(result).toHaveLength(1);
+    expect(result[0].command).toBeNull();
+  });
+
+  /**
+   * Purpose: Validates that getById with undefined properties does not crash
+   */
+  it('+ should handle engine with undefined isAvailable', async () => {
+    mockRepo.getById.mockResolvedValue({ id: 'test', name: 'Test', isAvailable: undefined });
+    const result = await scannerEnginesService.getById('test');
+    expect(result.isAvailable).toBeUndefined();
+  });
+});

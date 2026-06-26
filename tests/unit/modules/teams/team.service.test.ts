@@ -478,3 +478,100 @@ describe('teamService.generateSlug', () => {
     expect(slug.length).toBeLessThanOrEqual(255);
   });
 });
+
+describe('❌ negative', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that a repository error propagates when listing teams
+   */
+  it('should throw when repository.listByWorkspaceWithSummaries throws', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockTeamRepo.listByWorkspaceWithSummaries.mockRejectedValue(new Error('DB connection failed'));
+
+    await expect(teamService.list('ws-1', 'user-1')).rejects.toThrow('DB connection failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when creating a team
+   */
+  it('should throw when repository.create throws', async () => {
+    mockTeamRepo.findBySlug.mockResolvedValue(null);
+    mockTeamRepo.create.mockRejectedValue(new Error('DB timeout'));
+
+    await expect(teamService.create('ws-1', { name: 'Team' }, 'user-1')).rejects.toThrow('DB timeout');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when soft deleting a team
+   */
+  it('should throw when repository.softDelete throws', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1' });
+    mockTeamRepo.softDelete.mockRejectedValue(new Error('DB delete failed'));
+
+    await expect(teamService.softDelete('ws-1', 'team-1', 'user-1')).rejects.toThrow('DB delete failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when listing team members
+   */
+  it('should throw when repository.listMembers throws', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1' });
+    mockTeamRepo.listMembers.mockRejectedValue(new Error('DB list failed'));
+
+    await expect(teamService.listMembers('ws-1', 'team-1', 'user-1')).rejects.toThrow('DB list failed');
+  });
+});
+
+describe('🔲 edge cases', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that list returns empty array when workspace has no teams
+   */
+  it('should return empty array when workspace has no teams', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockTeamRepo.listByWorkspaceWithSummaries.mockResolvedValue([]);
+
+    const result = await teamService.list('ws-1', 'user-1');
+    expect(result).toEqual([]);
+  });
+
+  /**
+   * Purpose: Validates that owner role passes member check for team operations
+   */
+  it('should allow owner role to soft delete a team', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('owner');
+    mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1' });
+    mockTeamRepo.softDelete.mockResolvedValue({ id: 'team-1', deletedAt: new Date() });
+
+    const result = await teamService.softDelete('ws-1', 'team-1', 'user-1');
+    expect(mockTeamRepo.softDelete).toHaveBeenCalledWith('team-1', 'user-1');
+  });
+
+  /**
+   * Purpose: Validates that team with null description is handled gracefully
+   */
+  it('should handle team with null description', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1', name: 'Team', description: null });
+
+    const result = await teamService.getById('ws-1', 'team-1', 'user-1');
+    expect(result.description).toBeNull();
+  });
+
+  /**
+   * Purpose: Validates that addMember handles the member already in team gracefully
+   */
+  it('should handle addMember with member already in team', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockTeamRepo.findById.mockResolvedValue({ id: 'team-1', workspaceId: 'ws-1' });
+    mockWorkspaceRepo.findMemberUserIds.mockResolvedValue(['user-2']);
+    mockTeamRepo.addMember.mockResolvedValue({ teamId: 'team-1', userId: 'user-2' });
+
+    const result = await teamService.addMember('ws-1', 'team-1', 'user-2', undefined as any, 'user-1');
+    expect(mockTeamRepo.addMember).toHaveBeenCalledWith('team-1', 'user-2', 'contributor');
+  });
+});

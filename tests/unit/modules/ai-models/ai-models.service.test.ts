@@ -190,6 +190,104 @@ describe('aiModelsService.deleteModel', () => {
   });
 });
 
+describe('❌ negative', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that a repository error propagates during model creation
+   */
+  it('- should throw when repository.create throws', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockRepo.create.mockRejectedValue(new Error('DB connection failed'));
+
+    await expect(
+      aiModelsService.createModel('ws-1', { name: 'GPT-4', provider: 'openai' }, 'user-1')
+    ).rejects.toThrow('DB connection failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates during model update
+   */
+  it('- should throw when repository.update throws', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockRepo.update.mockRejectedValue(new Error('DB connection failed'));
+
+    await expect(
+      aiModelsService.updateModel('m-1', 'ws-1', { name: 'X' }, 'user-1')
+    ).rejects.toThrow('DB connection failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates during model deletion
+   */
+  it('- should throw when repository.findById throws during deleteModel', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockRepo.findById.mockRejectedValue(new Error('DB timeout'));
+
+    await expect(
+      aiModelsService.deleteModel('m-1', 'ws-1', 'user-1')
+    ).rejects.toThrow('DB timeout');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates during list
+   */
+  it('- should throw when repository.findByWorkspace throws', async () => {
+    mockRepo.findByWorkspace.mockRejectedValue(new Error('DB timeout'));
+
+    await expect(
+      aiModelsService.listModelsByWorkspace('ws-1')
+    ).rejects.toThrow('DB timeout');
+  });
+});
+
+describe('🔲 edge cases', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that createModel handles null optional fields gracefully
+   */
+  it('- should handle model with null optional fields', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockRepo.create.mockResolvedValue({ id: 'm-1', name: 'Model', baseUrl: '', apiKeyEncrypted: null, customSystemPrompt: null });
+
+    const result = await aiModelsService.createModel('ws-1', { name: 'Model', provider: 'openai', role: 'primary', priority: 1, promptPreset: 'default' }, 'user-1');
+    expect(result.id).toBe('m-1');
+  });
+
+  /**
+   * Purpose: Validates that getModelById handles model with all null optional properties
+   */
+  it('- should get model with minimal fields', async () => {
+    mockRepo.findById.mockResolvedValue({ id: 'm-1', name: 'Minimal', provider: 'openai', baseUrl: null, role: null, priority: null });
+
+    const result = await aiModelsService.getModelById('m-1');
+    expect(result.name).toBe('Minimal');
+    expect(result.id).toBe('m-1');
+  });
+
+  /**
+   * Purpose: Validates that listModelsByWorkspace handles empty model list
+   */
+  it('+ should return empty array for empty workspace', async () => {
+    mockRepo.findByWorkspace.mockResolvedValue([]);
+    const result = await aiModelsService.listModelsByWorkspace('ws-empty');
+    expect(result).toEqual([]);
+  });
+
+  /**
+   * Purpose: Validates that updateModel throws when repository returns null
+   */
+  it('- should throw NOT_FOUND when update returns null', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockRepo.update.mockResolvedValue(null);
+
+    await expect(
+      aiModelsService.updateModel('m-1', 'ws-1', { name: 'X' }, 'user-1')
+    ).rejects.toThrow('AI model not found');
+  });
+});
+
 describe('aiModelsService edge cases', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 

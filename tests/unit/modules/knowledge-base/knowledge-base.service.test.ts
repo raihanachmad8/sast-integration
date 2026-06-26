@@ -278,6 +278,85 @@ describe('knowledgeBaseService.muteEntry', () => {
   });
 });
 
+describe('❌ negative', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that a repository error propagates when listing entries
+   */
+  it('- should throw when repository.countEntries throws', async () => {
+    mockRepo.countEntries.mockRejectedValue(new Error('DB connection failed'));
+
+    await expect(
+      knowledgeBaseService.listByWorkspace('ws-1')
+    ).rejects.toThrow('DB connection failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when listing entries
+   */
+  it('- should throw when repository.listEntries throws', async () => {
+    mockRepo.countEntries.mockResolvedValue(0);
+    mockRepo.listEntries.mockRejectedValue(new Error('DB timeout'));
+
+    await expect(
+      knowledgeBaseService.listByWorkspace('ws-1')
+    ).rejects.toThrow('DB timeout');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates during entry creation
+   */
+  it('- should throw when repository.insertEntry throws', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockRepo.findSourceById.mockResolvedValue({ id: 'src-1' });
+    mockRepo.insertEntry.mockRejectedValue(new Error('DB insert failed'));
+
+    await expect(
+      knowledgeBaseService.createEntry('ws-1', { sourceId: 'src-1', title: 'Test' }, 'user-1')
+    ).rejects.toThrow('DB insert failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates during entry deletion
+   */
+  it('- should throw when repository.deleteEntry throws', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
+    mockRepo.findEntryById.mockResolvedValue({ id: 'kb-1', sourceId: 'src-1' });
+    mockRepo.deleteEntry.mockRejectedValue(new Error('DB delete failed'));
+
+    await expect(
+      knowledgeBaseService.deleteEntry('kb-1', 'ws-1', 'user-1')
+    ).rejects.toThrow('DB delete failed');
+  });
+});
+
+describe('🔲 edge cases', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that listByWorkspace handles zero-perPage gracefully
+   */
+  it('+ should handle list with default pagination when no params provided', async () => {
+    mockRepo.countEntries.mockResolvedValue(0);
+    mockRepo.listEntries.mockResolvedValue([]);
+
+    const result = await knowledgeBaseService.listByWorkspace('ws-1', {});
+    expect(result.page).toBe(1);
+    expect(result.perPage).toBe(25);
+    expect(result.data).toEqual([]);
+  });
+
+  /**
+   * Purpose: Validates that getById correctly passes the entryId to the repository
+   */
+  it('+ should call findEntryById with correct id', async () => {
+    mockRepo.findEntryById.mockResolvedValue({ id: 'kb-1' });
+    await knowledgeBaseService.getById('ws-1', 'kb-1');
+    expect(mockRepo.findEntryById).toHaveBeenCalledWith('kb-1');
+  });
+});
+
 describe('knowledgeBaseService edge cases', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 

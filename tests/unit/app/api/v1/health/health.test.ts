@@ -1,5 +1,21 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+// The health route imports db from @/server/db/client.
+// Mock it so tests don't need a real PostgreSQL connection.
+vi.mock('@/server/db/client', () => ({
+  db: {
+    execute: vi.fn(),
+  },
+}));
+
+vi.mock('@/server/lib/logger', () => ({
+  logger: {
+    scan: { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() },
+  },
+}));
+
 import { GET } from '@/app/api/v1/health/route';
+import { db } from '@/server/db/client';
 
 describe('Health API Route', () => {
   /**
@@ -33,10 +49,12 @@ describe('Health API Route', () => {
     const data = await response.json();
 
     expect(data).toHaveProperty('success');
-    expect(data).toHaveProperty('message');
     expect(data).toHaveProperty('data');
     expect(data.data).toHaveProperty('status');
     expect(data.data).toHaveProperty('timestamp');
+    expect(data.data).toHaveProperty('checks');
+    expect(data.data.checks).toHaveProperty('app');
+    expect(data.data.checks).toHaveProperty('database');
   });
 
   /**
@@ -50,12 +68,14 @@ describe('Health API Route', () => {
   });
 
   /**
-   * Purpose: Validates that the OK message is returned in the response
+   * Purpose: Validates that the response indicates healthy status
    */
-  it('should return OK message', async () => {
+  it('should return healthy status text', async () => {
     const response = await GET();
     const data = await response.json();
 
-    expect(data.message).toBe('OK');
+    expect(data.data.status).toBe('healthy');
+    expect(data.data.checks.app).toBe('healthy');
+    expect(data.data.checks.database).toBe('healthy');
   });
 });

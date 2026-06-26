@@ -190,3 +190,95 @@ describe('memberService.revokeInvitation', () => {
     ).rejects.toThrow(WORKSPACE.ERRORS.INVITATION_NOT_FOUND);
   });
 });
+
+describe('❌ negative', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that a repository error propagates when listing members
+   */
+  it('should throw when repository.listMembers throws', async () => {
+    mockRepo.listMembers.mockRejectedValue(new Error('DB connection failed'));
+
+    await expect(memberService.listMembers('ws-1')).rejects.toThrow('DB connection failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when changing a role
+   */
+  it('should throw when repository.getMemberRole throws during changeRole', async () => {
+    mockRepo.getMemberRole.mockRejectedValue(new Error('DB timeout'));
+
+    await expect(
+      memberService.changeRole('ws-1', 'target', ROLE.REVIEWER, 'actor')
+    ).rejects.toThrow('DB timeout');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when removing a member
+   */
+  it('should throw when repository.removeMember throws', async () => {
+    mockRepo.getMemberRole.mockResolvedValue(ROLE.MEMBER);
+    mockRepo.removeMember.mockRejectedValue(new Error('DB delete failed'));
+
+    await expect(
+      memberService.removeMember('ws-1', 'target', 'actor')
+    ).rejects.toThrow('DB delete failed');
+  });
+
+  /**
+   * Purpose: Validates that a repository error propagates when listing invitations
+   */
+  it('should throw when repository.listInvitations throws', async () => {
+    mockRepo.listInvitations.mockRejectedValue(new Error('DB connection failed'));
+
+    await expect(memberService.listInvitations('ws-1')).rejects.toThrow('DB connection failed');
+  });
+});
+
+describe('🔲 edge cases', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  /**
+   * Purpose: Validates that listMembers returns an empty array when no members exist
+   */
+  it('should return empty array when workspace has no members', async () => {
+    mockRepo.listMembers.mockResolvedValue([]);
+
+    const result = await memberService.listMembers('ws-1');
+    expect(result).toEqual([]);
+  });
+
+  /**
+   * Purpose: Validates that listInvitations returns an empty array when no invitations exist
+   */
+  it('should return empty array when workspace has no invitations', async () => {
+    mockRepo.listInvitations.mockResolvedValue([]);
+
+    const result = await memberService.listInvitations('ws-1');
+    expect(result).toEqual([]);
+  });
+
+  /**
+   * Purpose: Validates that revokeInvitation works when invitation exists and belongs to the workspace
+   */
+  it('should successfully revoke invitation that belongs to workspace', async () => {
+    mockRepo.findInvitation.mockResolvedValue({ id: 'inv-1', workspaceId: 'ws-1' });
+    mockRepo.revokeInvitation.mockResolvedValue(undefined);
+
+    await expect(
+      memberService.revokeInvitation('ws-1', 'inv-1')
+    ).resolves.toBeUndefined();
+  });
+
+  /**
+   * Purpose: Validates that manager role can be assigned as a valid role change
+   */
+  it('should successfully update member role to manager', async () => {
+    mockRepo.getMemberRole.mockResolvedValue(ROLE.MEMBER);
+    mockRepo.updateMemberRole.mockResolvedValue({ role: ROLE.MANAGER });
+
+    await memberService.changeRole('ws-1', 'target', ROLE.MANAGER, 'actor');
+    expect(mockRepo.updateMemberRole).toHaveBeenCalledWith('ws-1', 'target', ROLE.MANAGER);
+  });
+});
