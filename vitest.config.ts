@@ -17,6 +17,18 @@ export default defineConfig({
           name: 'unit',
           include: ['tests/unit/**/*.test.ts'],
           environment: 'node',
+          coverage: {
+            provider: 'v8',
+            reporter: ['text', 'html', 'lcov'],
+            include: ['src/server/modules/**/*.ts'],
+            exclude: ['src/server/modules/**/index.ts'],
+            thresholds: {
+              lines: 80,
+              branches: 80,
+              functions: 80,
+              statements: 80,
+            },
+          },
         },
       },
       {
