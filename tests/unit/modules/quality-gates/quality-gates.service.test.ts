@@ -38,7 +38,7 @@ function gateInput(overrides: Record<string, unknown> = {}) {
 }
 
 describe('qualityGatesService.getConfig', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => { vi.resetAllMocks(); });
 
   /**
    * Purpose: Validates that the quality gate config is returned for a workspace
@@ -51,12 +51,18 @@ describe('qualityGatesService.getConfig', () => {
   });
 
   /**
-   * Purpose: Validates that null is returned when no quality gate is configured
+   * Purpose: Validates that a default config is created when no quality gate is configured
    */
-  it('+ should return null when no config exists', async () => {
+  it('+ should create default config when none exists', async () => {
+    const defaultConfig = { id: 'qg-1', threshold: 'medium', failOnCritical: true };
     mockRepo.getConfig.mockResolvedValue(null);
+    mockRepo.upsertConfig.mockResolvedValue(defaultConfig);
     const result = await qualityGatesService.getConfig('ws-1');
-    expect(result).toBeNull();
+    expect(result).toEqual(defaultConfig);
+    expect(mockRepo.upsertConfig).toHaveBeenCalledWith('ws-1', expect.objectContaining({
+      threshold: 'medium',
+      failOnCritical: true,
+    }));
   });
 
   /**
@@ -70,7 +76,7 @@ describe('qualityGatesService.getConfig', () => {
 });
 
 describe('qualityGatesService.updateConfig', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => { vi.resetAllMocks(); });
 
   /**
    * Purpose: Validates that a member can update the quality gate config
@@ -129,7 +135,7 @@ describe('qualityGatesService.updateConfig', () => {
 });
 
 describe('qualityGatesService edge cases', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => { vi.resetAllMocks(); });
 
   /**
    * Purpose: Validates that the owner role can update quality gate config
@@ -363,12 +369,17 @@ describe('qualityGatesService edge cases', () => {
   });
 
   /**
-   * Purpose: Validates that null config is returned without error
+   * Purpose: Validates that null config from the repository triggers default config creation
    */
-  it('- should handle null config gracefully', async () => {
+  it('+ should handle null config by creating default', async () => {
     mockRepo.getConfig.mockResolvedValue(null);
+    mockRepo.upsertConfig.mockResolvedValue({ id: 'qg-new', threshold: 'medium' });
     const result = await qualityGatesService.getConfig('ws-empty');
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result.threshold).toBe('medium');
+    expect(mockRepo.upsertConfig).toHaveBeenCalledWith('ws-empty', expect.objectContaining({
+      threshold: 'medium',
+    }));
   });
 
   /**
@@ -462,11 +473,16 @@ describe('qualityGatesService edge cases', () => {
   });
 
   /**
-   * Purpose: Validates that getConfig returns null for workspace without config
+   * Purpose: Validates that getConfig creates and returns a default config for workspace without config
    */
   it('+ should handle getConfig for workspace with no config', async () => {
+    const defaultConfig = { id: 'qg-new', threshold: 'medium', failOnCritical: true };
     mockRepo.getConfig.mockResolvedValue(null);
+    mockRepo.upsertConfig.mockResolvedValue(defaultConfig);
     const result = await qualityGatesService.getConfig('ws-new');
-    expect(result).toBeNull();
+    expect(result).toEqual(defaultConfig);
+    expect(mockRepo.upsertConfig).toHaveBeenCalledWith('ws-new', expect.objectContaining({
+      threshold: 'medium',
+    }));
   });
 });
