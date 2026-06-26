@@ -7,12 +7,13 @@ interface MermaidDiagramProps {
   chart: string;
 }
 
-let mermaidId = 0;
+let globalMermaidId = 0;
 
 export function MermaidDiagram({ chart }: MermaidDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { token } = theme.useToken();
-  const id = `mermaid-${++mermaidId}`;
+  const idRef = useRef(`mermaid-${++globalMermaidId}`);
+  const id = idRef.current;
 
   useEffect(() => {
     let cancelled = false;

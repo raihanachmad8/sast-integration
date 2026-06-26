@@ -69,4 +69,19 @@ test.describe('Team Creation Page', () => {
 
     await expect.poll(() => new URL(page.url()).pathname, { timeout: 10_000 }).not.toBe(`/${slug}/teams/new`);
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that submitting the team creation form without a name shows a validation error.
+     */
+    test('should show validation error when required field is empty', async ({ page }) => {
+      const slug = await signInAndOpenWorkspace(page);
+      await page.waitForLoadState('networkidle');
+      await page.goto(`/${slug}/teams/new`);
+      await page.waitForLoadState('networkidle');
+
+      await page.getByRole('button', { name: /Create team|Submit/ }).click();
+      await expect(page.locator('.ant-form-item-explain-error').first()).toBeVisible({ timeout: 10_000 });
+    });
+  });
 });

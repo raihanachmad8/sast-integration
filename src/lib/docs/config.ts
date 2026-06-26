@@ -14,6 +14,7 @@ export const DOCS_CONFIG: DocSection[] = [
   {
     label: 'Getting Started',
     items: [
+      { slug: 'welcome', title: 'Welcome', description: 'Platform overview and quick links', file: 'welcome.md' },
       { slug: 'installation', title: 'Installation', description: 'Set up SAST Integration', file: 'installation.md' },
       { slug: 'authentication', title: 'Authentication', description: 'Login and user management', file: 'authentication.md' },
       { slug: 'first-scan', title: 'First Scan', description: 'Run your first security scan', file: 'first-scan.md' },

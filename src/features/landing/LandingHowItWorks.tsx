@@ -24,7 +24,7 @@ const STEPS = [
     icon: <SecurityScanOutlined />,
     step: '02',
     title: 'Scan',
-    desc: 'Run Semgrep, Gitleaks, Flawfinder, and Cppcheck in parallel inside Docker-isolated containers with your custom ruleset.',
+    desc: 'Run Semgrep, Gitleaks, Flawfinder, Cppcheck, Clang-Tidy, and GCC Fanalyzer in parallel inside Docker-isolated containers with your custom ruleset.',
     accent: LANDING_TOKENS.accent.yellow,
     accentBg: '#fffbeb',
   },
@@ -41,7 +41,7 @@ const STEPS = [
     step: '04',
     title: 'Report',
     desc: 'Export SARIF, PDF, or JSON reports. Set quality gates to block PRs containing critical unverified findings automatically.',
-    accent: '#10b981',
+    accent: LANDING_TOKENS.accent.green,
     accentBg: '#f0fdf4',
   },
 ] as const;

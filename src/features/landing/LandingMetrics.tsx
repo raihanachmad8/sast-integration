@@ -1,7 +1,7 @@
 'use client';
 
 import { Typography, Row, Col, Flex, Tag, theme } from 'antd';
-import { TrophyOutlined } from '@ant-design/icons';
+import { TrophyOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { LANDING_TOKENS } from '@/commons/constants/landing-tokens';
 
 const { Title, Text } = Typography;
@@ -24,7 +24,7 @@ const METRICS = [
     glow: 'rgba(245,158,11,0.2)',
   },
   {
-    value: '4',
+    value: '6',
     label: 'Scanner Engines',
     sublabel: 'running in parallel',
     icon: '🔍',
@@ -36,7 +36,7 @@ const METRICS = [
     label: 'Security Rules',
     sublabel: 'C/C++ focused, extensible',
     icon: '📋',
-    accent: '#10b981',
+    accent: LANDING_TOKENS.accent.green,
     glow: 'rgba(16,185,129,0.2)',
   },
 ] as const;
@@ -46,7 +46,7 @@ const COMPARISON = [
   { label: 'AI false-positive verification',     ours: true, traditional: false },
   { label: 'Fine-tuned LLM explanations',        ours: true, traditional: false },
   { label: 'Docker-isolated scan runners',       ours: true, traditional: false },
-  { label: 'RBAC with 24 granular permissions',  ours: true, traditional: false },
+  { label: 'RBAC with 36 granular permissions',  ours: true, traditional: false },
   { label: 'CI/CD quality gate enforcement',     ours: true, traditional: true  },
   { label: 'SARIF / PDF export',                 ours: true, traditional: true  },
 ] as const;
@@ -76,7 +76,7 @@ function Cell({ value }: { value: boolean }) {
             fontWeight: 700,
           }}
         >
-          ✓
+          <CheckOutlined style={{ fontSize: 13 }} />
         </span>
       ) : (
         <span
@@ -92,7 +92,7 @@ function Cell({ value }: { value: boolean }) {
             fontSize: 13,
           }}
         >
-          ✕
+          <CloseOutlined style={{ fontSize: 13 }} />
         </span>
       )}
     </div>

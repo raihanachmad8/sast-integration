@@ -107,15 +107,3 @@
   background: rgba(255, 255, 255, 0.2);
   border-radius: 2px;
 }
-
-/* ─── Smooth scroll ───────────────────────────────────── */
-html {
-  scroll-behavior: smooth;
-}
-
-/* ─── Navbar mobile responsive fix ──────────────────────── */
-@media (max-width: 480px) {
-  .lp-nav-wrap {
-    padding: 0 16px !important;
-  }
-}

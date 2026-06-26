@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { mdxComponents } from '@/lib/docs/mdx-components';
+import { mdxComponents, resetSlugCounters } from '@/lib/docs/mdx-components';
 import { MermaidDiagram } from '@/lib/docs/mermaid-diagram';
 
 interface MarkdownRendererProps {
@@ -29,6 +29,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   }, [content]);
 
   const segments = useMemo(() => {
+    resetSlugCounters(); // Reset before rendering to avoid duplicate IDs
     const result: React.ReactNode[] = [];
     let mermaidIdx = 0;
 

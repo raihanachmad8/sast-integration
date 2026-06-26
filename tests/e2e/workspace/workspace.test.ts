@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { api, TEST_USER, signin } from '../../helpers/setup';
+import { api, TEST_USER, getAccessToken, signin } from '../../helpers/setup';
 import { WORKSPACE_MODE } from '@/server/modules/auth/constants';
 
 /**
@@ -171,5 +171,18 @@ describe('POST /api/v1/workspaces/switch', () => {
       body: JSON.stringify({ currentWorkspaceId: '00000000-0000-0000-0000-000000000000' }),
     });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('❌ negative', () => {
+  /**
+   * Purpose: Verify behavior when requesting a non-existent workspace returns 403 or 404.
+   */
+  it('should return 403 or 404 when workspace does not exist', async () => {
+    const token = await getAccessToken();
+    const res = await api('/workspaces/00000000-0000-0000-0000-000000000000', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect([403, 404]).toContain(res.status);
   });
 });

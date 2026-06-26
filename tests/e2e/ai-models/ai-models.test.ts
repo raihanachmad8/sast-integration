@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { api, getFirstWorkspaceId, signin } from '../../helpers/setup';
+import { api, getFirstWorkspaceId, getAccessToken, signin } from '../../helpers/setup';
 
 let token: string;
 
@@ -58,5 +58,15 @@ describe('POST /api/v1/workspaces/[workspaceId]/model', () => {
       body: JSON.stringify({ name: '' }),
     });
     expect(res.status).toBe(422);
+  });
+});
+
+describe('❌ negative', () => {
+  it('should return 403 when workspace does not exist', async () => {
+    const token = await getAccessToken();
+    const res = await api('/workspaces/00000000-0000-0000-0000-000000000000/model', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(403);
   });
 });

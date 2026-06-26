@@ -94,6 +94,17 @@ test.describe('Findings Page', () => {
     }, { timeout: 10000 }).toBeGreaterThan(0);
   });
 
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that unauthenticated users cannot access the findings page.
+     */
+    test('should redirect unauthenticated user to signin', async ({ page }) => {
+      await page.context().clearCookies();
+      await page.goto('/workspace-1/findings');
+      await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+    });
+  });
+
   /**
    * Purpose: Verify that a finding can be resolved via the drawer action.
    * Opens the finding detail drawer, clicks Resolve, confirms, and checks success message.

@@ -137,9 +137,32 @@ export function DocsSearchModal() {
     return () => window.removeEventListener('open-docs-search', handler);
   }, []);
 
-  // Focus input when opened
+  // Focus input when opened + trap focus
   useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 50);
+    if (open) {
+      setTimeout(() => inputRef.current?.focus(), 50);
+
+      // Focus trap: prevent Tab from escaping modal
+      const handler = (e: KeyboardEvent) => {
+        if (e.key === 'Tab') {
+          const modal = document.querySelector('[role="dialog"]');
+          if (!modal) return;
+          const focusable = modal.querySelectorAll<HTMLElement>('input, button, [tabindex]:not([tabindex="-1"])');
+          if (focusable.length === 0) return;
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      };
+      window.addEventListener('keydown', handler);
+      return () => window.removeEventListener('keydown', handler);
+    }
   }, [open]);
 
   // Keyboard navigation
@@ -163,15 +186,21 @@ export function DocsSearchModal() {
     return () => window.removeEventListener('keydown', handler);
   }, [open, results, selectedIndex, router]);
 
-  useEffect(() => { setSelectedIndex(0); }, [query]);
+  // Reset selection when query changes
+  const [prevQuery, setPrevQuery] = useState(query);
+  if (prevQuery !== query) {
+    setPrevQuery(query);
+    setSelectedIndex(0);
+  }
 
   if (!open) return null;
 
   return (
     <div
       role="dialog"
+      aria-modal="true"
       aria-label="Search documentation"
-      style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '120px', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 'clamp(80px, 15vh, 120px)', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
       onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
     >
       <div style={{ width: '90%', maxWidth: 600, background: 'white', borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden', maxHeight: '65vh', display: 'flex', flexDirection: 'column' }}>

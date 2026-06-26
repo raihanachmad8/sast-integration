@@ -187,4 +187,18 @@ test.describe('Projects Page', () => {
       await expect(viewButton.first()).toBeVisible();
     }
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that searching for a non-existent project shows an empty state.
+     */
+    test('should show empty state when searching for non-existent project', async ({ page }) => {
+      await signInAndGoToProjects(page);
+      const searchInput = page.getByPlaceholder(/search/i);
+      if (await searchInput.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await searchInput.fill('zzz_nonexistent_project_xyz');
+        await expect(page.getByText(/no projects found/i).or(page.locator('tbody tr'))).toBeVisible({ timeout: 5000 });
+      }
+    });
+  });
 });

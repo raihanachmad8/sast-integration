@@ -173,7 +173,7 @@ export default function DocsIndexPage() {
                         padding: `${token.paddingLG}px ${token.paddingLG}px`,
                         borderRadius: 12,
                         border: `1.5px solid ${token.colorBorderSecondary}`,
-                        background: 'white',
+                        background: token.colorBgContainer,
                         height: '100%',
                         cursor: 'pointer',
                         transition: 'border-color 0.25s ease',

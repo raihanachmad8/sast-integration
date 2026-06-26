@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { api, getFirstWorkspaceId, signin } from '../../helpers/setup';
+import { api, getFirstWorkspaceId, getAccessToken, signin } from '../../helpers/setup';
 
 let token: string;
 
@@ -36,6 +36,26 @@ describe('GET /api/v1/workspaces/[workspaceId]/knowledge-base', () => {
    * Purpose: Ensure non-members cannot access a workspace's knowledge base.
    */
   it('should return 403 when user is not a workspace member', async () => {
+    const res = await api('/workspaces/00000000-0000-0000-0000-000000000000/knowledge-base', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('❌ negative', () => {
+  /**
+   * Purpose: Ensure the knowledge base endpoint rejects unauthenticated requests with 401.
+   */
+  it('should return 401 when no auth token provided', async () => {
+    const res = await api('/workspaces/ws-1/knowledge-base');
+    expect(res.status).toBe(401);
+  });
+
+  /**
+   * Purpose: Verify that accessing knowledge base in a non-existent workspace returns 403.
+   */
+  it('should return 403 when workspace does not exist', async () => {
     const res = await api('/workspaces/00000000-0000-0000-0000-000000000000/knowledge-base', {
       headers: { Authorization: `Bearer ${token}` },
     });

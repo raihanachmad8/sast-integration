@@ -170,4 +170,15 @@ test.describe('Source Control Page', () => {
       await expect(disconnectButton.first()).toBeVisible();
     }
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that unauthenticated users cannot access the source control page.
+     */
+    test('should redirect unauthenticated user to signin', async ({ page }) => {
+      await page.context().clearCookies();
+      await page.goto(`${BASE_URL}/owner/source-control`);
+      await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+    });
+  });
 });

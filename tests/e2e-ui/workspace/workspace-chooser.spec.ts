@@ -196,3 +196,14 @@ test.describe('Authenticated Route Guards', () => {
     await expect(page).toHaveURL(/\/workspaces/, { timeout: 10000 });
   });
 });
+
+test.describe('Workspace Chooser - negative', () => {
+  /**
+   * Purpose: Verify that unauthenticated users are redirected to signin when accessing workspace chooser.
+   */
+  test('should redirect unauthenticated user to signin', async ({ page }) => {
+    await page.context().clearCookies();
+    await page.goto('/workspaces');
+    await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+  });
+});

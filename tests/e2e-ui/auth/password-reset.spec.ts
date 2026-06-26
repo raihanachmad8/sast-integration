@@ -108,6 +108,17 @@ test.describe('Password Reset Flow', () => {
   });
 });
 
+test.describe('Password Reset - negative', () => {
+  /**
+   * Purpose: Verify that submitting the forgot password form with an empty email shows a validation error.
+   */
+  test('should show validation error when form submitted empty', async ({ page }) => {
+    await gotoAuthPage(page, AUTH_PATHS.forgotPassword, 'Send reset link');
+    await page.getByRole('button', { name: 'Send reset link' }).click();
+    await expect(page.locator('.ant-form-item-explain-error').first()).toBeVisible({ timeout: 5000 });
+  });
+});
+
 /**
  * Tests specifically for the email verification flow (separate from password reset).
  */

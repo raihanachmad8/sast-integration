@@ -67,4 +67,19 @@ test.describe('Project Creation Page', () => {
 
     await expect.poll(() => new URL(page.url()).pathname, { timeout: 10_000 }).not.toBe(`/${slug}/projects/new`);
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that submitting the project creation form without a name shows a validation error.
+     */
+    test('should show validation error when required field is empty', async ({ page }) => {
+      const slug = await signInAndOpenWorkspace(page);
+      await page.waitForLoadState('networkidle');
+      await page.goto(`/${slug}/projects/new`);
+      await page.waitForLoadState('networkidle');
+
+      await page.getByRole('button', { name: /Create project|Submit/ }).click();
+      await expect(page.locator('.ant-form-item-explain-error').first()).toBeVisible({ timeout: 10_000 });
+    });
+  });
 });

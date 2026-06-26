@@ -45,4 +45,15 @@ test.describe('Quality Gates Page', () => {
     const saveButton = page.locator('button:has-text("Save"), button:has-text("Update")');
     await expect(saveButton.first()).toBeVisible({ timeout: 10000 });
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that unauthenticated users cannot access the quality gates page.
+     */
+    test('should redirect unauthenticated user to signin', async ({ page }) => {
+      await page.context().clearCookies();
+      await page.goto('/workspace-1/quality-gates');
+      await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+    });
+  });
 });

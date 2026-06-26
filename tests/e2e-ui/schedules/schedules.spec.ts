@@ -106,4 +106,15 @@ test.describe('Schedules Page', () => {
       await expect(page.getByText(scheduleName ?? '')).not.toBeVisible({ timeout: 10000 });
     }
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that unauthenticated users cannot access the schedules page.
+     */
+    test('should redirect unauthenticated user to signin', async ({ page }) => {
+      await page.context().clearCookies();
+      await page.goto('/workspace-1/schedules');
+      await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+    });
+  });
 });

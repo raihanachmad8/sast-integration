@@ -2,7 +2,7 @@
  * Auto-generated search index from markdown files.
  * Run: node scripts/generate-search-index.js
  * 
- * Last generated: 2026-06-25T12:44:31.920Z
+ * Last generated: 2026-06-26T12:40:25.109Z
  */
 
 export interface SearchEntry {
@@ -361,7 +361,7 @@ export const SEARCH_INDEX: Record<string, SearchEntry> = {
       "requirePermission (API)",
       "Role Summary"
     ],
-    "content": "SAST Integration implements granular RBAC with 4 roles and 37 permissions. dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, scanner, ai_model, knowledge, workspace, audit view, manage, run, triage, override_ai, export, invite, settings, read"
+    "content": "SAST Integration implements granular RBAC with 4 roles and 36 permissions. dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, scanner, ai_model, knowledge, workspace, audit view, manage, run, triage, override_ai, export, invite, settings, read"
   },
   "reports": {
     "headings": [
@@ -606,7 +606,7 @@ export const SEARCH_INDEX: Record<string, SearchEntry> = {
       "Format",
       "Resources (18)",
       "Actions (9)",
-      "Total Permissions: 37",
+      "Total Permissions: 36",
       "Feature Flags"
     ],
     "content": "SAST Integration uses a workspace-based multi-tenant architecture. Workspaces isolate data, members, and configurations. Users can belong to multiple workspaces: dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, scanner, ai_model, knowledge, workspace, audit view, manage, run, triage, override_ai, export, invite, settings, read Each workspace can have different features enabled:"

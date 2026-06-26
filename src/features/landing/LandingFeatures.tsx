@@ -63,10 +63,10 @@ const FEATURES: Feature[] = [
     icon: <TeamOutlined />,
     title: 'Team Workspaces',
     description:
-      'Workspace-based RBAC with 24 granular permissions. Invite members, assign roles, and manage projects across teams.',
+      'Workspace-based RBAC with 36 granular permissions. Invite members, assign roles, and manage projects across teams.',
     accent: '#10b981',
     accentBg: '#f0fdf4',
-    highlights: ['24 granular permissions', 'Multi-workspace support', 'Role-based access'],
+    highlights: ['36 granular permissions', 'Multi-workspace support', 'Role-based access'],
   },
   {
     icon: <BarChartOutlined />,

@@ -56,4 +56,15 @@ test.describe('Scanner Engines Page', () => {
 
     expect(hasTable > 0 || hasEmptyState > 0 || hasContent > 0).toBe(true);
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that unauthenticated users cannot access the scanner engines page.
+     */
+    test('should redirect unauthenticated user to signin', async ({ page }) => {
+      await page.context().clearCookies();
+      await page.goto('/workspace-1/scanner-engines');
+      await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+    });
+  });
 });

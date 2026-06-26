@@ -5,13 +5,21 @@ import { env } from '@/server/env';
 
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
+// postgres.js options type doesn't include PG server parameters.
+// Cast to allow statement_timeout and idle_in_transaction_session_timeout.
+type PostgresOptions = Parameters<typeof postgres>[1];
+
 function getDb() {
   if (!_db) {
     const queryClient = postgres(env.DATABASE_URL, {
       max: 20,
       idle_timeout: 20,
-      connect_timeout: 10,
-    });
+      connect_timeout: 30,
+      application_name: 'sast-app',
+      ssl: 'require',
+      max_lifetime: 60 * 60,
+      idle_in_transaction_session_timeout: 60000,
+    } as PostgresOptions & Record<string, unknown>);
     _db = drizzle(queryClient, { schema });
   }
   return _db;

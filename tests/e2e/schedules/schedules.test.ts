@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { api, signin } from '../../helpers/setup';
+import { api, getAccessToken, signin } from '../../helpers/setup';
 
 let token: string;
 let WORKSPACE_ID: string;
@@ -167,5 +167,15 @@ describe('PUT /api/v1/workspaces/:wid/schedules/:sid/toggle', () => {
       body: JSON.stringify({ enabled: true }),
     });
     expect(res.status).toBe(404);
+  });
+});
+
+describe('❌ negative', () => {
+  it('should return 403 when workspace does not exist', async () => {
+    const token = await getAccessToken();
+    const res = await api('/workspaces/00000000-0000-0000-0000-000000000000/schedules', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(403);
   });
 });

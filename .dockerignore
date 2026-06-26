@@ -49,6 +49,8 @@ opencode.json
 rules/
 .mimocode/
 .mimocode*
+docker-compose.yml
+docker-compose.yml
 
 # AI coding tools
 .opencode/

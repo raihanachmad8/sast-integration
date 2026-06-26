@@ -77,4 +77,25 @@ test.describe('Settings Page', () => {
     await expect(page.getByLabel('Workspace name')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByLabel('Slug')).toBeVisible({ timeout: 10_000 });
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that clearing the workspace name and saving triggers a validation error.
+     */
+    test('should show validation error when required field is empty', async ({ page }) => {
+      const slug = await signInAndOpenWorkspace(page);
+      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(500);
+      await page.goto(`/${slug}/settings`);
+      await page.waitForLoadState('networkidle');
+
+      const nameField = page.getByLabel('Workspace name');
+      if (await nameField.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await nameField.clear();
+        const saveButton = page.locator('button:has-text("Save"), button:has-text("Update")');
+        await saveButton.first().click();
+        await expect(page.locator('.ant-form-item-explain-error').first()).toBeVisible({ timeout: 5000 });
+      }
+    });
+  });
 });

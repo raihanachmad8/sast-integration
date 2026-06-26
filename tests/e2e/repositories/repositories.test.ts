@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { api, signin } from '../../helpers/setup';
+import { api, getAccessToken, signin } from '../../helpers/setup';
 
 let token: string;
 let WORKSPACE_ID: string;
@@ -62,5 +62,25 @@ describe('PATCH /api/v1/workspaces/:wid/repositories/:repoId', () => {
       body: JSON.stringify({ name: 'updated' }),
     });
     expect(res.status).toBe(404);
+  });
+});
+
+describe('❌ negative', () => {
+  /**
+   * Purpose: Ensure the repositories endpoint rejects unauthenticated requests with 401.
+   */
+  it('should return 401 when no auth token provided', async () => {
+    const res = await api('/workspaces/ws-1/repositories');
+    expect(res.status).toBe(401);
+  });
+
+  /**
+   * Purpose: Verify that accessing repositories in a non-existent workspace returns 403.
+   */
+  it('should return 403 when workspace does not exist', async () => {
+    const res = await api('/workspaces/00000000-0000-0000-0000-000000000000/repositories', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(403);
   });
 });

@@ -15,6 +15,7 @@ import {
   FileTextOutlined,
   MenuOutlined,
   CloseOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import { DOCS_CONFIG } from '@/lib/docs/config';
 import { DocToc } from './doc-toc';
@@ -49,24 +50,6 @@ function getActiveKey(pathname: string): string {
   return segment || 'overview';
 }
 
-/** Brand shield used in the drawer header. */
-function ShieldIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    </svg>
-  );
-}
-
 /**
  * DocsLayout — sidebar + content + TOC shell.
  *
@@ -85,6 +68,15 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
   const activeKey   = getActiveKey(pathname);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isMobile,   setIsMobile]   = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    // Collapse all sections except the one containing the active page
+    const collapsed = new Set<string>();
+    DOCS_CONFIG.forEach((section) => {
+      const hasActive = section.items.some((item) => item.slug === activeKey);
+      if (!hasActive) collapsed.add(section.label);
+    });
+    return collapsed;
+  });
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 991px)');
@@ -100,6 +92,15 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
   }, [drawerOpen]);
 
   function SidebarNav() {
+    const toggleSection = (label: string) => {
+      setCollapsedSections((prev) => {
+        const next = new Set(prev);
+        if (next.has(label)) next.delete(label);
+        else next.add(label);
+        return next;
+      });
+    };
+
     return (
       <>
         {/* Navigation */}
@@ -110,24 +111,54 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
             flex: 1,
           }}
         >
-          {DOCS_CONFIG.map((section) => (
-            <div key={section.label} style={{ marginBottom: token.marginMD }}>
-              {/* Section label */}
-              <Text
-                strong
-                style={{
-                  display: 'block',
-                  fontSize: 10,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.12em',
-                  color: token.colorTextTertiary,
-                  padding: `${token.paddingXS}px ${token.paddingSM}px`,
-                  marginBottom: 2,
-                  fontWeight: 700,
-                }}
-              >
-                {section.label}
-              </Text>
+          {DOCS_CONFIG.map((section) => {
+            const isCollapsed = collapsedSections.has(section.label);
+            const hasActive = section.items.some((item) => item.slug === activeKey);
+            return (
+              <div key={section.label} style={{ marginBottom: token.marginMD }}>
+                {/* Section label with collapse toggle */}
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.label)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                    padding: `${token.paddingXS}px ${token.paddingSM}px`,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    borderRadius: token.borderRadiusSM,
+                    transition: `background ${token.motionDurationMid} ease`,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = token.colorFillQuaternary; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <Text
+                    strong
+                    style={{
+                      fontSize: 10,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.12em',
+                      color: hasActive ? token.colorPrimary : token.colorTextTertiary,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {section.label}
+                  </Text>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      color: token.colorTextTertiary,
+                      transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s ease',
+                    }}
+                  >
+                    ▼
+                  </span>
+                </button>
+              {!isCollapsed && (
               <Flex vertical gap={1}>
                 {section.items.map((item) => {
                   const isActive = activeKey === item.slug;
@@ -167,8 +198,10 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                   );
                 })}
               </Flex>
+              )}
             </div>
-          ))}
+          );
+        })}
         </nav>
       </>
     );
@@ -203,6 +236,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
             if (!broken) setDrawerOpen(false);
           }}
         >
+          {/* eslint-disable-next-line react-hooks/static-components -- SidebarNav uses parent state */}
           <SidebarNav />
         </Sider>
 
@@ -242,6 +276,23 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
               >
                 <MenuOutlined style={{ fontSize: token.fontSizeSM }} />
                 Menu
+              </button>
+              <button
+                aria-label="Search documentation"
+                onClick={() => window.dispatchEvent(new CustomEvent('open-docs-search'))}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: token.colorFillTertiary,
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                  borderRadius: token.borderRadiusSM,
+                  padding: '5px 10px',
+                  cursor: 'pointer',
+                  color: token.colorText,
+                }}
+              >
+                <SearchOutlined style={{ fontSize: token.fontSizeSM }} />
               </button>
               <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
                 {DOCS_CONFIG.flatMap(s => s.items).find(i => i.slug === activeKey)?.title ?? 'Docs'}
@@ -324,9 +375,10 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
               <CloseOutlined />
             </button>
           </div>
-          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <SidebarNav />
-          </div>
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              {/* eslint-disable-next-line react-hooks/static-components -- SidebarNav uses parent state */}
+              <SidebarNav />
+            </div>
         </div>
       )}
       <DocsSearchModal />

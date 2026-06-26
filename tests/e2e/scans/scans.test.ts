@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { api, signin } from '../../helpers/setup';
+import { api, getAccessToken, signin } from '../../helpers/setup';
 
 let token: string;
 let WORKSPACE_ID: string;
@@ -80,5 +80,25 @@ describe('GET /api/v1/workspaces/:wid/scans/:scanId', () => {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status).toBe(404);
+  });
+});
+
+describe('❌ negative', () => {
+  /**
+   * Purpose: Ensure the scans endpoint rejects unauthenticated requests with 401.
+   */
+  it('should return 401 when no auth token provided', async () => {
+    const res = await api('/workspaces/ws-1/scans');
+    expect(res.status).toBe(401);
+  });
+
+  /**
+   * Purpose: Verify that accessing scans in a non-existent workspace returns 403.
+   */
+  it('should return 403 when workspace does not exist', async () => {
+    const res = await api('/workspaces/00000000-0000-0000-0000-000000000000/scans', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(403);
   });
 });

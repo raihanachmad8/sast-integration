@@ -9,7 +9,7 @@
  * - Security: tokens/clientSecrets never exposed to frontend
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { api, signin } from '../../helpers/setup';
+import { api, getAccessToken, signin } from '../../helpers/setup';
 
 let token: string;
 let WORKSPACE_ID: string;
@@ -206,5 +206,15 @@ describe('POST /api/v1/workspaces/:wid/source-controls/:id/sync', () => {
     // Sync will fail if Gitea token is expired (expected)
     // But the route should exist and not return 404
     expect(res.status).not.toBe(404);
+  });
+});
+
+describe('❌ negative', () => {
+  it('should return 403 when workspace does not exist', async () => {
+    const token = await getAccessToken();
+    const res = await api('/workspaces/00000000-0000-0000-0000-000000000000/source-controls', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(403);
   });
 });

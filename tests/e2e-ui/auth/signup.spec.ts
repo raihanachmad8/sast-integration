@@ -133,4 +133,21 @@ test.describe('Signup Page', () => {
     await link.click();
     await expect(page).toHaveURL(AUTH_PATHS.signin, { timeout: 15000 });
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that submitting the signup form with mismatched passwords shows a validation error.
+     */
+    test('should show validation error when passwords do not match', async ({ page }) => {
+      const config = await gotoSignupForCurrentMode(page);
+      if (config.workspaceMode === WORKSPACE_MODE.SINGLE) return;
+
+      await page.getByPlaceholder('John Doe').fill('Test User');
+      await page.getByPlaceholder('you@company.com').fill('test@example.com');
+      await page.getByPlaceholder('Minimum 8 characters').fill('Password123!');
+      await page.getByPlaceholder('Repeat your password').fill('DifferentPassword!');
+      await page.getByRole('button', { name: 'Create account' }).click();
+      await expect(page.locator('.ant-form-item-explain-error').first()).toBeVisible({ timeout: 5000 });
+    });
+  });
 });

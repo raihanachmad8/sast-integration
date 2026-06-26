@@ -2,7 +2,7 @@
 
 ## Overview
 
-SAST Integration implements granular RBAC with 4 roles and 37 permissions.
+SAST Integration implements granular RBAC with 4 roles and 36 permissions.
 
 ## Role Hierarchy
 
@@ -99,7 +99,7 @@ if (!result.success) return result.response;
 
 | Role | Total | View Only | View + Manage | Special |
 |------|-------|-----------|---------------|---------|
-| owner | 37 | - | all | everything |
-| manager | 37 | - | most | +MEMBER_INVITE |
+| owner | 36 | - | all | everything |
+| manager | 35 | - | most | +MEMBER_INVITE |
 | reviewer | 21 | 14 | 7 | +SCAN_RUN, +FINDING_TRIAGE, +FINDING_OVERRIDE_AI, +REPORT_EXPORT |
 | member | 16 | 16 | - | view-only across all resources |

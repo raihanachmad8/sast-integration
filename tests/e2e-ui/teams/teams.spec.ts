@@ -259,4 +259,15 @@ test.describe('Teams Page - Edit Flow', () => {
       await expect(page.getByRole('dialog', { name: /Edit team/ })).toBeVisible({ timeout: 5_000 });
     }
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that unauthenticated users cannot access the teams page.
+     */
+    test('should redirect unauthenticated user to signin', async ({ page }) => {
+      await page.context().clearCookies();
+      await page.goto('/workspace-1/teams');
+      await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+    });
+  });
 });

@@ -9,11 +9,11 @@ export const ROUTES = {
   },
   DOCS: {
     INDEX: '/docs',
-    GETTING_STARTED: '/docs/getting-started',
-    ARCHITECTURE: '/docs/architecture',
-    SCANNING: '/docs/scanning',
+    GETTING_STARTED: '/docs/installation',
+    ARCHITECTURE: '/docs/overview',
+    SCANNING: '/docs/scan-pipeline',
     AI_VERIFICATION: '/docs/ai-verification',
-    API_REFERENCE: '/docs/api-reference',
+    API_REFERENCE: '/docs/api-overview',
   },
   CHOOSER: '/workspaces',
   WORKSPACE: {

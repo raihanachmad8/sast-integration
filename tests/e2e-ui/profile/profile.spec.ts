@@ -48,4 +48,15 @@ test.describe('Profile Page', () => {
     test.skip(!isVisible, 'Save button not found on profile page');
     await expect(saveButton.first()).toBeVisible();
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that unauthenticated users cannot access the profile page.
+     */
+    test('should redirect unauthenticated user to signin', async ({ page }) => {
+      await page.context().clearCookies();
+      await page.goto('/workspace-1/profile');
+      await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+    });
+  });
 });

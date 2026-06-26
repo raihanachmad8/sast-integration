@@ -152,10 +152,12 @@ function HeroVisual() {
       {/* Scanner progress */}
       <div style={{ marginBottom: 16 }}>
         {[
-          { name: 'Semgrep',     status: '✓', findings: 12, color: '#0f766e' },
-          { name: 'Gitleaks',    status: '✓', findings: 3,  color: '#0f766e' },
-          { name: 'Flawfinder',  status: '✓', findings: 8,  color: '#0f766e' },
-          { name: 'Cppcheck',    status: '✓', findings: 5,  color: '#0f766e' },
+          { name: 'Semgrep',      status: '✓', findings: 12, color: '#0f766e' },
+          { name: 'Gitleaks',     status: '✓', findings: 3,  color: '#0f766e' },
+          { name: 'Flawfinder',   status: '✓', findings: 8,  color: '#0f766e' },
+          { name: 'Cppcheck',     status: '✓', findings: 5,  color: '#0f766e' },
+          { name: 'Clang-Tidy',   status: '✓', findings: 4,  color: '#0f766e' },
+          { name: 'GCC Fanalyzer', status: '✓', findings: 2,  color: '#0f766e' },
         ].map((s) => (
           <div
             key={s.name}

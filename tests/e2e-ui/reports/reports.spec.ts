@@ -45,4 +45,15 @@ test.describe('Reports Page', () => {
     const filter = page.locator('text=/type|format|report/i').or(page.locator('select')).or(page.locator('[data-testid*="filter"]'));
     await expect(filter.first()).toBeVisible({ timeout: 10000 });
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that unauthenticated users cannot access the reports page.
+     */
+    test('should redirect unauthenticated user to signin', async ({ page }) => {
+      await page.context().clearCookies();
+      await page.goto('/workspace-1/reports');
+      await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+    });
+  });
 });

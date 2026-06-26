@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Button, Typography, Tag, theme, Input } from 'antd';
+import { Button, Typography, theme } from 'antd';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -9,7 +9,6 @@ import {
   SearchOutlined,
   ArrowRightOutlined,
   HomeOutlined,
-  DownOutlined,
 } from '@ant-design/icons';
 import { ROUTES } from '@/commons/constants';
 import { GITHUB_REPO_URL } from '@/commons/constants/landing';
@@ -22,12 +21,6 @@ const NAV_LINKS = [
   { label: 'How It Works', href: '#how-it-works'  },
   { label: 'Metrics',      href: '#metrics'        },
   { label: 'Docs',         href: ROUTES.DOCS.INDEX },
-] as const;
-
-const DOCS_NAV_SECTIONS = [
-  { label: 'Getting Started', href: ROUTES.DOCS.GETTING_STARTED },
-  { label: 'Architecture',    href: ROUTES.DOCS.ARCHITECTURE    },
-  { label: 'API Reference',   href: ROUTES.DOCS.API_REFERENCE   },
 ] as const;
 
 /** Brand shield SVG. */

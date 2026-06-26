@@ -29,4 +29,15 @@ test.describe('Arena Page', () => {
     const hasComingSoon = await page.locator('text=/coming soon/i').count();
     expect(hasHeading > 0 || hasComingSoon > 0).toBe(true);
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that unauthenticated users cannot access the arena page.
+     */
+    test('should redirect unauthenticated user to signin', async ({ page }) => {
+      await page.context().clearCookies();
+      await page.goto('/workspace-1/arena');
+      await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+    });
+  });
 });

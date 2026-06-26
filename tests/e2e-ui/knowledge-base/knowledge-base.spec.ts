@@ -159,6 +159,17 @@ test.describe('Knowledge Base Page', () => {
     await expect(page.getByText(updatedTitle)).toBeVisible({ timeout: 10000 });
   });
 
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that unauthenticated users cannot access the knowledge base page.
+     */
+    test('should redirect unauthenticated user to signin', async ({ page }) => {
+      await page.context().clearCookies();
+      await page.goto('/workspace-1/knowledge-base');
+      await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+    });
+  });
+
   /**
    * Purpose: Verify that a knowledge base entry can be deleted via the API.
    *

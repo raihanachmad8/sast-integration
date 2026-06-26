@@ -34,6 +34,8 @@ describe('POST /api/v1/auth/signup', () => {
     });
     const json = await res.json();
 
+    // In SINGLE mode signup is blocked (403); in MULTIPLE mode it succeeds (200).
+    // Accept both because the actual mode depends on the running server configuration.
     expect([200, 403]).toContain(res.status);
     if (res.status === 200) {
       expect(json.success).toBe(true);
@@ -69,10 +71,13 @@ describe('POST /api/v1/auth/signup', () => {
     });
     const json = await res.json();
 
-    // API returns 200/403/409 (prevents enumeration) or 429 (rate limited)
-    expect([200, 403, 409, 429]).toContain(res.status);
-    // success may be false if rate limited
-    if (res.status !== 429) {
+    // Rate limited — skip assertion (intentional rate limiting behavior)
+    if (res.status === 429) return;
+
+    // Neutral response prevents user enumeration — API returns 200 (MULTIPLE) or 403 (SINGLE)
+    // for new signups, and 409 for duplicate emails. Accept all non-rate-limit codes.
+    expect([200, 403, 409]).toContain(res.status);
+    if (res.status !== 409) {
       expect(json.success).toBe(true);
     }
   });

@@ -84,7 +84,7 @@ export function DocToc() {
       aria-label="Table of contents"
       style={{
         position: 'sticky',
-        top: 72,
+        top: 56,
         width: 220,
         flexShrink: 0,
         maxHeight: 'calc(100vh - 120px)',

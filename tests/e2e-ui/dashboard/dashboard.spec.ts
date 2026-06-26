@@ -170,4 +170,15 @@ test.describe('Dashboard Page', () => {
     await expect.poll(() => new URL(page.url()).pathname, { timeout: 10000 }).not.toContain('/findings');
     await page.waitForLoadState('networkidle');
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that unauthenticated users cannot access the dashboard.
+     */
+    test('should redirect unauthenticated user to signin', async ({ page }) => {
+      await page.context().clearCookies();
+      await page.goto('/workspace-1');
+      await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+    });
+  });
 });

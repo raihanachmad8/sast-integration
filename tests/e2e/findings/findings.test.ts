@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
+import { api, getAccessToken } from '../../helpers/setup';
 
 const API_BASE = 'http://localhost:3000';
 
@@ -147,5 +148,15 @@ describe('GET /api/v1/workspaces/:wid/findings/:findingId', () => {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(res.status).toBe(404);
+  });
+});
+
+describe('❌ negative', () => {
+  /**
+   * Purpose: Ensure the findings endpoint rejects unauthenticated requests with 401.
+   */
+  it('should return 401 when no auth token provided', async () => {
+    const res = await fetch(`${API_BASE}/api/v1/workspaces/00000000-0000-0000-0000-000000000000/findings`);
+    expect(res.status).toBe(401);
   });
 });

@@ -89,4 +89,16 @@ test.describe('Members Page', () => {
     await expect(ownerRow.first()).toBeVisible({ timeout: 10_000 });
     await expect(ownerRow.first().getByRole('button', { name: 'Remove' })).toHaveCount(0);
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that submitting the invite form with an empty email shows a validation error.
+     */
+    test('should show validation error when required field is empty', async ({ page }) => {
+      await signInAndGoToMembers(page);
+      await page.getByRole('button', { name: /Invite member/ }).click();
+      await page.getByRole('button', { name: /Send invite|Invite/i }).click();
+      await expect(page.locator('.ant-form-item-explain-error').first()).toBeVisible({ timeout: 5000 });
+    });
+  });
 });

@@ -157,4 +157,15 @@ test.describe('Webhooks Page', () => {
     const hasContent = await page.locator('table, .ant-card, [data-testid]').count();
     expect(hasEmptyState > 0 || hasContent > 0).toBe(true);
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that unauthenticated users cannot access the webhooks page.
+     */
+    test('should redirect unauthenticated user to signin', async ({ page }) => {
+      await page.context().clearCookies();
+      await page.goto('/workspace-1/webhooks');
+      await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+    });
+  });
 });

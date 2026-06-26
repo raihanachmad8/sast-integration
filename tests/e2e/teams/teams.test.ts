@@ -10,7 +10,7 @@
  * - Workspace scoping
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { api, getFirstWorkspaceId, signin } from '../../helpers/setup';
+import { api, getFirstWorkspaceId, getAccessToken, signin } from '../../helpers/setup';
 
 let token: string;
 let WORKSPACE_ID: string;
@@ -270,5 +270,18 @@ describe('GET /api/v1/workspaces/[workspaceId]/teams/[teamId]/members', () => {
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(Array.isArray(json.data)).toBe(true);
+  });
+});
+
+describe('❌ negative', () => {
+  /**
+   * Purpose: Ensure non-members cannot list teams in a workspace they don't belong to.
+   */
+  it('should return 403 when user is not a workspace member', async () => {
+    const token = await getAccessToken();
+    const res = await api('/workspaces/00000000-0000-0000-0000-000000000000/teams', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(403);
   });
 });

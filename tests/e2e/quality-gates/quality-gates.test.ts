@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { api, signin } from '../../helpers/setup';
+import { api, getAccessToken, signin } from '../../helpers/setup';
 
 let token: string;
 let WORKSPACE_ID: string;
@@ -106,5 +106,18 @@ describe('PUT /api/v1/quality-gates', () => {
       body: JSON.stringify({ threshold: 'invalid' }),
     });
     expect(res.status).toBe(422);
+  });
+});
+
+describe('❌ negative', () => {
+  it('should return 403 when invalid workspace header provided', async () => {
+    const token = await getAccessToken();
+    const res = await api('/quality-gates', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-Workspace-Id': '00000000-0000-0000-0000-000000000000',
+      },
+    });
+    expect(res.status).toBe(403);
   });
 });

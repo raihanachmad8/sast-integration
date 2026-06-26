@@ -192,7 +192,7 @@ export function LandingFooter() {
             © {new Date().getFullYear()} SAST Integration. All rights reserved.
           </Text>
           <Text style={{ color: '#475569', fontSize: 13 }}>
-            v0.4.0 · Built with Next.js & Ant Design
+            v0.1.0 · Built with Next.js & Ant Design
           </Text>
         </div>
       </div>

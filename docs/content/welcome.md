@@ -17,10 +17,10 @@ SAST Integration is a comprehensive security scanning platform that combines 6 s
 
 ## Quick Links
 
-- **[Installation](getting-started/installation.md)** — Set up your environment
-- **[First Scan](getting-started/first-scan.md)** — Run your first security scan
-- **[Architecture](architecture/overview.md)** — Understand the system design
-- **[API Reference](reference/api-overview.md)** — REST API documentation
+- **[Installation](/docs/installation)** — Set up your environment
+- **[First Scan](/docs/first-scan)** — Run your first security scan
+- **[Architecture](/docs/overview)** — Understand the system design
+- **[API Reference](/docs/api-overview)** — REST API documentation
 
 ## How It Works
 
@@ -44,7 +44,7 @@ SAST Integration is a comprehensive security scanning platform that combines 6 s
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/sast-integration.git
+git clone https://github.com/raihanachmad8/sast-integration.git
 
 # Install dependencies
 pnpm install
@@ -59,4 +59,4 @@ pnpm db:migrate
 pnpm dev
 ```
 
-See the [Installation Guide](getting-started/installation.md) for detailed setup instructions.
+See the [Installation Guide](/docs/installation) for detailed setup instructions.

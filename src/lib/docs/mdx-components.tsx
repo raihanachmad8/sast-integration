@@ -109,8 +109,18 @@ function StyledTD({ children, ...props }: React.ComponentPropsWithoutRef<'td'>) 
 }
 
 /* ─── Heading ─── */
+const slugCounters = new Map<string, number>();
+
 function slugify(text: string): string {
-  return text.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+  const base = text.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+  const count = slugCounters.get(base) ?? 0;
+  slugCounters.set(base, count + 1);
+  return count === 0 ? base : `${base}-${count}`;
+}
+
+// Reset counters when page changes (called from markdown renderer)
+export function resetSlugCounters() {
+  slugCounters.clear();
 }
 
 function Heading({ level, children, ...props }: { level: 1 | 2 | 3 | 4 } & React.ComponentPropsWithoutRef<'h1' | 'h2' | 'h3' | 'h4'>) {

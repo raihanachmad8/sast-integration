@@ -58,3 +58,13 @@ describe('GET /api/v1/health', () => {
     expect(duration).toBeLessThan(5000);
   });
 });
+
+describe('❌ negative', () => {
+  /**
+   * Purpose: Verify that a non-existent health sub-route returns 404 Not Found.
+   */
+  it('should return 404 when entity does not exist', async () => {
+    const res = await fetch(`${API_BASE}/api/v1/health/nonexistent`);
+    expect(res.status).toBe(404);
+  });
+});

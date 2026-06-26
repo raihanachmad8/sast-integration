@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { api, signin } from '../../helpers/setup';
+import { api, getAccessToken, signin } from '../../helpers/setup';
 
 let token: string;
 
@@ -45,5 +45,26 @@ describe('GET /api/v1/scanner-engines', () => {
     expect(scanner.format).toBeDefined();
     expect(typeof scanner.isAvailable).toBe('boolean');
     expect(scanner.status).toMatch(/^(ready|not_installed)$/);
+  });
+});
+
+describe('❌ negative', () => {
+  /**
+   * Purpose: Ensure the scanner engines endpoint rejects unauthenticated requests with 401.
+   */
+  it('should return 401 when no auth token provided', async () => {
+    const res = await api('/scanner-engines');
+    expect(res.status).toBe(401);
+  });
+
+  /**
+   * Purpose: Verify that requesting a non-existent scanner engine returns 404 Not Found.
+   */
+  it('should return 404 when entity does not exist', async () => {
+    const token = await getAccessToken();
+    const res = await api('/scanner-engines/00000000-0000-0000-0000-000000000000', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(404);
   });
 });

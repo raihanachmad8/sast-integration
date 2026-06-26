@@ -69,7 +69,7 @@ dashboard, repository, scan, finding, report, arena, member, team, project, inte
 
 view, manage, run, triage, override_ai, export, invite, settings, read
 
-### Total Permissions: 37
+### Total Permissions: 36
 
 ## Feature Flags
 

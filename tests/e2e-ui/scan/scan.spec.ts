@@ -45,4 +45,15 @@ test.describe('Scan Page', () => {
     const scanButton = page.locator('button:has-text("Scan"), button:has-text("New Scan"), button:has-text("Run Scan")');
     await expect(scanButton.first()).toBeVisible({ timeout: 10000 });
   });
+
+  test.describe('negative', () => {
+    /**
+     * Purpose: Verify that unauthenticated users cannot access the scan page.
+     */
+    test('should redirect unauthenticated user to signin', async ({ page }) => {
+      await page.context().clearCookies();
+      await page.goto('/workspace-1/scan');
+      await expect(page).toHaveURL(/\/auth\/signin/, { timeout: 10000 });
+    });
+  });
 });
