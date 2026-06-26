@@ -26,16 +26,19 @@ describe('GET /api/v1/health', () => {
   });
 
   /**
-   * Purpose: Verify the health response contains all expected fields (success, message, data).
+   * Purpose: Verify the health response contains all expected fields (success, data.status, data.timestamp).
+   * Note: The health route returns { success, data: { status, checks, timestamp } } — no top-level `message` field.
    */
   it('should return consistent response format', async () => {
     const res = await fetch(`${API_BASE}/api/v1/health`);
     const json = await res.json();
     expect(json).toHaveProperty('success');
-    expect(json).toHaveProperty('message');
     expect(json).toHaveProperty('data');
     expect(json.data).toHaveProperty('status');
     expect(json.data).toHaveProperty('timestamp');
+    expect(json.data).toHaveProperty('checks');
+    expect(json.data.checks).toHaveProperty('app');
+    expect(json.data.checks).toHaveProperty('database');
   });
 
   /**
