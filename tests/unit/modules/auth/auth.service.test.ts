@@ -447,7 +447,7 @@ describe('authService.invite', () => {
     vi.clearAllMocks();
   });
 
-  describe('positive', () => {
+  describe('✅ positive', () => {
     it('should create invitation and send email for valid request', async () => {
       mockRepo.createInvitation.mockResolvedValue({
         id: 'inv-1', email: 'new@example.com', role: 'member',
@@ -476,7 +476,7 @@ describe('authService.invite', () => {
     });
   });
 
-  describe('negative', () => {
+  describe('❌ negative', () => {
     it('should propagate email service errors', async () => {
       mockRepo.createInvitation.mockResolvedValue({
         id: 'inv-1', email: 'new@example.com', role: 'member',
@@ -498,7 +498,7 @@ describe('authService.acceptInvite', () => {
     vi.clearAllMocks();
   });
 
-  describe('positive', () => {
+  describe('✅ positive', () => {
     it('should create user and add to workspace for valid token', async () => {
       mockRepo.findInvitationByToken.mockResolvedValue({
         id: 'inv-1', email: 'new@example.com', role: 'member',
@@ -541,7 +541,7 @@ describe('authService.acceptInvite', () => {
     });
   });
 
-  describe('negative', () => {
+  describe('❌ negative', () => {
     it('should throw INVITE_EXPIRED when token is invalid', async () => {
       mockRepo.findInvitationByToken.mockResolvedValue(null);
 
@@ -581,7 +581,7 @@ describe('authService.acceptInviteForLoggedInUser', () => {
     vi.clearAllMocks();
   });
 
-  describe('positive', () => {
+  describe('✅ positive', () => {
     it('should add existing user to workspace via invitation', async () => {
       mockRepo.findInvitationByToken.mockResolvedValue({
         id: 'inv-1', email: 'user@example.com', role: 'member',
@@ -601,7 +601,7 @@ describe('authService.acceptInviteForLoggedInUser', () => {
     });
   });
 
-  describe('negative', () => {
+  describe('❌ negative', () => {
     it('should throw INVITE_EXPIRED when token is invalid', async () => {
       mockRepo.findInvitationByToken.mockResolvedValue(null);
 
