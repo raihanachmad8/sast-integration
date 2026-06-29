@@ -1,21 +1,22 @@
 import { NextRequest } from 'next/server';
 import { ZodError } from 'zod';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission } from '@/server/modules/workspace/workspace.middleware';
+
 import { PERMISSION } from '@/commons/constants/permissions';
-import { AppError } from '@/server/http/errors';
-import { qualityGatesService } from '@/server/modules/quality-gates';
 import { qualityGateConfigSchema } from '@/commons/schemas';
+import { authenticate } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
+import { qualityGatesService } from '@/server/modules/quality-gates';
+import { requirePermission } from '@/server/modules/workspace/workspace.middleware';
 
 export async function GET(request: NextRequest) {
   logger.scan.info('getQualityGates');
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
 
-  const workspace = await requirePermission(request, auth.context, PERMISSION.POLICY_VIEW);
+  const workspace = await requirePermission(request, auth.context, PERMISSION.QUALITY_GATE_VIEW);
   if (!workspace.success) return workspace.response;
 
   try {
@@ -34,7 +35,7 @@ export async function PUT(request: NextRequest) {
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
 
-  const workspace = await requirePermission(request, auth.context, PERMISSION.POLICY_MANAGE);
+  const workspace = await requirePermission(request, auth.context, PERMISSION.QUALITY_GATE_MANAGE);
   if (!workspace.success) return workspace.response;
 
   const validation = await validateBody(request, qualityGateConfigSchema);
@@ -42,8 +43,8 @@ export async function PUT(request: NextRequest) {
 
   try {
     const config = await qualityGatesService.updateConfig(
-      validation.data,
       workspace.context.workspaceId,
+      validation.data,
       auth.context.userId,
     );
     logger.scan.info('updateQualityGates completed');

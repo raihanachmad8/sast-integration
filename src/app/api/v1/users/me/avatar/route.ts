@@ -1,9 +1,10 @@
 import type { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
+
 import { authenticate, getUserId } from '@/server/http/authenticate';
-import { profileService } from '@/server/modules/profile';
-import { logger } from '@/server/lib/logger';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { logger } from '@/server/lib/logger';
+import { profileService } from '@/server/modules/profile';
 
 /**
  * POST /api/v1/users/me/avatar

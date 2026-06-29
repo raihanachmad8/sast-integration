@@ -1,11 +1,12 @@
 import type { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
 import { PERMISSION } from '@/commons/constants/permissions';
+import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { projectRepository } from '@/server/modules/project/repositories/project.repository';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
+import { projectService } from '@/server/modules/project';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string; projectId: string }> };
 
@@ -15,17 +16,17 @@ type RouteContext = { params: Promise<{ workspaceId: string; projectId: string }
  * Returns deduplicated list — direct project membership takes precedence over team membership.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('get request');
+  logger.project.info('listProjectMembers');
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
 
   const { workspaceId, projectId } = await params;
-  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.PROJECT_MANAGE);
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.PROJECT_VIEW);
   if (!workspace.success) return workspace.response;
 
   try {
-    const members = await projectRepository.getProjectMembers(projectId, workspaceId);
+    const members = await projectService.listMembers(projectId, auth.context.userId);
 
     return ApiResponse.success('Project members retrieved', members);
   } catch (e) {

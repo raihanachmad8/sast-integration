@@ -1,34 +1,29 @@
 import type { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { ApiResponse } from '@/server/http/response';
+
+import { PERMISSION } from '@/commons/constants/permissions';
+import { importRepoSchema } from '@/commons/schemas';
 import { authenticate, getUserId } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { sourceControlImportService } from '@/server/modules/source-control/source-control-import.service';
 import { logger } from '@/server/lib/logger';
+import { sourceControlImportService } from '@/server/modules/source-control/source-control-import.service';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string; providerId: string }> };
-
-const importRepoSchema = z.object({
-  sourceRepositoryId: z.string().min(1, 'Source repository ID is required'),
-  projectId: z.string().optional(),
-});
 
 /**
  * POST /api/v1/workspaces/:workspaceId/source-controls/:providerId/import
  * Import a discovered repository — creates local repo + provisions webhook + creates import record.
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('post request');
-
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const userId = getUserId(auth.context);
   if (!userId) return ApiResponse.error('This action requires user authentication', 'FORBIDDEN', undefined, 403);
 
   const { workspaceId, providerId } = await params;
+  logger.sourceControl.info('importRepository', { providerId });
   const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.REPOSITORY_MANAGE);
   if (!workspace.success) return workspace.response;
 

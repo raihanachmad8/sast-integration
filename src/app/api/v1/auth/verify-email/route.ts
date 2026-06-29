@@ -1,10 +1,11 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authFlowsService } from '@/server/modules/auth/services/auth-flows.service';
+
 import { AppError } from '@/server/http/errors';
-import { MAIL } from '@/server/modules/mail/constants';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
+import { authFlowsService } from '@/server/modules/auth/services/auth-flows.service';
 import { rateLimiter } from '@/server/modules/auth/services/rate-limiter';
+import { MAIL } from '@/server/modules/mail/constants';
 
 export async function GET(request: NextRequest) {
   logger.auth.info('verifyEmail');

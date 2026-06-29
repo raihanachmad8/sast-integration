@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
+
 import { authenticate } from '@/server/http/authenticate';
-import { workspaceService } from '@/server/modules/workspace/workspace.service';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
+import { workspaceService } from '@/server/modules/workspace/workspace.service';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   logger.workspace.info('acceptInvitation');

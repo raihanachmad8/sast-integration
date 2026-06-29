@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
 import { PERMISSION } from '@/commons/constants/permissions';
+import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { aiModelsService } from '@/server/modules/ai-models';
-import { aiModelsRepository } from '@/server/modules/ai-models/ai-models.repository';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
 import { isPrivateOrInternal } from '@/server/lib/ssrf';
+import { aiModelsService } from '@/server/modules/ai-models';
+import { aiModelsRepository } from '@/server/modules/ai-models/ai-models.repository';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string; modelId: string }> };
 
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    const model = await aiModelsService.getModelById(modelId, workspaceId);
+    const model = await aiModelsService.getById(workspaceId, modelId);
 
     // Attempt a lightweight health check against the model's base URL
     let baseUrl = model.baseUrl;

@@ -1,12 +1,13 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
+
+import { PERMISSION } from '@/commons/constants/permissions';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { dashboardService } from '@/server/modules/dashboard/dashboard.service';
+import { ApiResponse } from '@/server/http/response';
 import { parsePagination } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
+import { dashboardService } from '@/server/modules/dashboard/dashboard.service';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 export async function GET(request: NextRequest) {
   logger.dashboard.info('get request');

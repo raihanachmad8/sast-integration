@@ -1,26 +1,23 @@
+import { eq } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { ApiResponse } from '@/server/http/response';
+
+import { PERMISSION } from '@/commons/constants/permissions';
+import { verifyFindingSchema } from '@/commons/schemas';
+import { db } from '@/server/db/client';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+import { logger } from '@/server/lib/logger';
 import { aiVerificationService } from '@/server/modules/scan';
 import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
-import { qualityGateService } from '@/server/modules/scan/services/quality-gate.service';
 import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
 import { findingService } from '@/server/modules/scan/services/finding.service';
-import { db } from '@/server/db/client';
+import { qualityGateService } from '@/server/modules/scan/services/quality-gate.service';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { findingGroups } from '@drizzle/schema/findings';
-import { eq } from 'drizzle-orm';
-import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string; findingId: string }> };
-
-const verifyFindingSchema = z.object({
-  modelId: z.string().optional(),
-});
 
 /**
  * POST /api/v1/workspaces/:workspaceId/findings/:findingId/verify
@@ -28,11 +25,11 @@ const verifyFindingSchema = z.object({
  * After verification, re-evaluates quality gate for the associated scan.
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('post request');
+  const { workspaceId, findingId } = await params;
+  logger.finding.info('verify', { findingId, workspaceId });
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
-  const { workspaceId, findingId } = await params;
   const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.FINDING_OVERRIDE_AI);
   if (!workspace.success) return workspace.response;
 

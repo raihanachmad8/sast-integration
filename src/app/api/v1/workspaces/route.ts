@@ -1,12 +1,13 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { validateBody } from '@/server/http/validate';
-import { workspaceService } from '@/server/modules/workspace/workspace.service';
+
 import { workspaceCreateSchema as createWorkspaceSchema } from '@/commons/schemas';
-import { WORKSPACE } from '@/server/modules/workspace/constants';
+import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
+import { WORKSPACE } from '@/server/modules/workspace/constants';
+import { workspaceService } from '@/server/modules/workspace/workspace.service';
 
 export async function GET(request: NextRequest) {
   logger.workspace.info('listWorkspaces');

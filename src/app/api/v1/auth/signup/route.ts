@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server';
+
+import { HTTP } from '@/server/http/constants';
+import { AppError } from '@/server/http/errors';
 import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
-import { authService } from '@/server/modules/auth/services/auth.service';
-import { signupSchema } from '@/server/modules/auth/schemas/auth.schema';
-import { AppError } from '@/server/http/errors';
-import { AUTH } from '@/server/modules/auth/constants';
-import { rateLimiter } from '@/server/modules/auth/services/rate-limiter';
-import { HTTP } from '@/server/http/constants';
 import { logger } from '@/server/lib/logger';
+import { AUTH } from '@/server/modules/auth/constants';
+import { signupSchema } from '@/server/modules/auth/schemas/auth.schema';
+import { authService } from '@/server/modules/auth/services/auth.service';
+import { rateLimiter } from '@/server/modules/auth/services/rate-limiter';
 
 export async function POST(request: NextRequest) {
   logger.auth.info('signup');

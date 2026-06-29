@@ -1,14 +1,15 @@
 import { NextRequest } from 'next/server';
 import { ZodError } from 'zod';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
 import { PERMISSION } from '@/commons/constants/permissions';
-import { AppError } from '@/server/http/errors';
-import { projectService } from '@/server/modules/project/services/project.service';
-import { validateBody } from '@/server/http/validate';
 import { projectUpdateSchema } from '@/commons/schemas/project.schema';
+import { authenticate } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
+import { projectService } from '@/server/modules/project';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ workspaceId: string; projectId: string }> }) {
   logger.project.info('getProject');
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!workspace.success) return workspace.response;
 
   try {
-    const project = await projectService.getById(projectId, auth.context.userId);
+    const project = await projectService.getById(workspaceId, projectId, auth.context.userId);
     logger.project.info('getProject completed');
     return ApiResponse.success('Project retrieved', project);
   } catch (e) {
@@ -42,7 +43,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const validation = await validateBody(request, projectUpdateSchema);
     if (!validation.success) return validation.response;
-    const project = await projectService.update(projectId, validation.data, auth.context.userId);
+    const project = await projectService.update(workspaceId, projectId, validation.data, auth.context.userId);
     logger.project.info('updateProject completed');
     return ApiResponse.success('Project updated', project);
   } catch (e) {
@@ -63,7 +64,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (!workspace.success) return workspace.response;
 
   try {
-    await projectService.softDelete(projectId, auth.context.userId);
+    await projectService.softDelete(workspaceId, projectId, auth.context.userId);
     logger.project.info('deleteProject completed');
     return ApiResponse.noContent();
   } catch (e) {

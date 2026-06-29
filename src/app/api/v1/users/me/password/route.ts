@@ -1,20 +1,12 @@
-import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate, getUserId } from '@/server/http/authenticate';
-import { validateBody } from '@/server/http/validate';
-import { profileService } from '@/server/modules/profile';
-import { z } from 'zod';
-import { AppError } from '@/server/http/errors';
-import { logger } from '@/server/lib/logger';
+import type { NextRequest } from 'next/server';
 
-const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1),
-  newPassword: z.string().min(8),
-  confirmPassword: z.string().min(1),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-  message: 'Passwords do not match',
-  path: ['confirmPassword'],
-});
+import { changePasswordSchema } from '@/commons/schemas';
+import { authenticate, getUserId } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
+import { logger } from '@/server/lib/logger';
+import { profileService } from '@/server/modules/profile';
 
 export async function PUT(request: NextRequest) {
   logger.profile.info('changePassword');

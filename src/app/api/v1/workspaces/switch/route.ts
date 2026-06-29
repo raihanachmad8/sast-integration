@@ -1,14 +1,13 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { validateBody } from '@/server/http/validate';
-import { workspaceService } from '@/server/modules/workspace/workspace.service';
-import { z } from 'zod';
-import { WORKSPACE } from '@/server/modules/workspace/constants';
-import { AppError } from '@/server/http/errors';
-import { logger } from '@/server/lib/logger';
 
-const switchWorkspaceSchema = z.object({ currentWorkspaceId: z.string().min(1) });
+import { switchWorkspaceSchema } from '@/commons/schemas';
+import { authenticate } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
+import { logger } from '@/server/lib/logger';
+import { workspaceService } from '@/server/modules/workspace';
+import { WORKSPACE } from '@/server/modules/workspace/constants';
 
 export async function POST(request: NextRequest) {
   logger.workspace.info('switchWorkspace');

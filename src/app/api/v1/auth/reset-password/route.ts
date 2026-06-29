@@ -1,14 +1,15 @@
-import { NextRequest } from 'next/server';
 import { eq, and, gt } from 'drizzle-orm';
+import { NextRequest } from 'next/server';
+
+import { resetPasswordSchema } from '@/commons/schemas/auth.schema';
 import { db } from '@/server/db/client';
-import { passwordResetTokens } from '@drizzle/schema';
+import { AppError } from '@/server/http/errors';
 import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
-import { authFlowsService } from '@/server/modules/auth/services/auth-flows.service';
-import { resetPasswordSchema } from '@/commons/schemas/auth.schema';
-import { AppError } from '@/server/http/errors';
-import { MAIL } from '@/server/modules/mail/constants';
 import { logger } from '@/server/lib/logger';
+import { authFlowsService } from '@/server/modules/auth/services/auth-flows.service';
+import { MAIL } from '@/server/modules/mail/constants';
+import { passwordResetTokens } from '@drizzle/schema';
 
 export async function GET(request: NextRequest) {
   logger.auth.info('get request');

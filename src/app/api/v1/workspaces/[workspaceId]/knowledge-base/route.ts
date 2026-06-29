@@ -1,14 +1,15 @@
 import { NextRequest } from 'next/server';
 import { ZodError } from 'zod';
-import { ApiResponse } from '@/server/http/response';
+
+import { PERMISSION } from '@/commons/constants/permissions';
+import { createKnowledgeEntrySchema } from '@/commons/schemas/knowledge-base.schema';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { createKnowledgeEntrySchema } from '@/commons/schemas/knowledge-base.schema';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+import { ApiResponse } from '@/server/http/response';
 import { parsePagination, validateBody } from '@/server/http/validate';
-import { knowledgeBaseService } from '@/server/modules/knowledge-base/knowledge-base.service';
 import { logger } from '@/server/lib/logger';
+import { knowledgeBaseService } from '@/server/modules/knowledge-base/knowledge-base.service';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       page: result.page,
       perPage: result.perPage,
       total: result.total,
-      totalPages: Math.ceil(result.total / result.perPage),
+      lastPage: Math.ceil(result.total / result.perPage),
     });
   } catch (error) {
     logger.knowledge.error('listKnowledgeEntries failed', { error: error instanceof Error ? error.message : error });

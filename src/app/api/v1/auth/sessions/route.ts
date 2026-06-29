@@ -1,9 +1,10 @@
 import type { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
+
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { profileService } from '@/server/modules/profile';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
+import { profileService } from '@/server/modules/profile';
 
 /**
  * GET /api/v1/auth/sessions

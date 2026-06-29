@@ -1,21 +1,13 @@
 import type { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { ApiResponse } from '@/server/http/response';
+
+import { PERMISSION } from '@/commons/constants/permissions';
+import { uploadSchema } from '@/commons/schemas';
 import { authenticate, getUserId } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { scanUploadService } from '@/server/modules/scan/upload.service';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
-
-const uploadSchema = z.object({
-  projectId: z.string().min(1, 'projectId is required'),
-  branch: z.string().max(100).optional().default('main'),
-  commit: z.string().max(40).optional().default(''),
-  source: z.string().max(50).optional().default('ci_upload'),
-  repositoryUrl: z.string().url().optional().or(z.literal('')).default(''),
-  repositoryName: z.string().max(255).optional().default(''),
-});
+import { scanUploadService } from '@/server/modules/scan/upload.service';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -25,7 +17,7 @@ type RouteContext = { params: Promise<{ workspaceId: string }> };
  * Accepts multipart form data with scanner output files.
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('post request');
+  logger.scan.info('uploadScan');
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
@@ -33,7 +25,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   if (!userId) return ApiResponse.error('This action requires user authentication', 'FORBIDDEN', undefined, 403);
 
   const { workspaceId } = await params;
-  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.SCAN_RUN);
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.SCAN_UPLOAD);
   if (!workspace.success) return workspace.response;
 
   try {

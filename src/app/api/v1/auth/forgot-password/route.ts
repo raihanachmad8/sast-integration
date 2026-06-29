@@ -1,12 +1,13 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
+
+import { AppError } from '@/server/http/errors';
 import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
-import { authFlowsService } from '@/server/modules/auth/services/auth-flows.service';
-import { AppError } from '@/server/http/errors';
-import { MAIL } from '@/server/modules/mail/constants';
 import { logger } from '@/server/lib/logger';
+import { authFlowsService } from '@/server/modules/auth/services/auth-flows.service';
 import { rateLimiter } from '@/server/modules/auth/services/rate-limiter';
+import { MAIL } from '@/server/modules/mail/constants';
 
 const schema = z.object({ email: z.string().email() });
 

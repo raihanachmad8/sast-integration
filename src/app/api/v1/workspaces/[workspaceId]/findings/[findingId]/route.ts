@@ -1,21 +1,22 @@
+import { eq } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { ApiResponse } from '@/server/http/response';
+
+import { PERMISSION } from '@/commons/constants/permissions';
+import { updateFindingSchema } from '@/commons/schemas';
+import { db } from '@/server/db/client';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+import { logger } from '@/server/lib/logger';
 import { findingService } from '@/server/modules/scan';
-import { db } from '@/server/db/client';
+import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
+import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
+import { qualityGateService } from '@/server/modules/scan/services/quality-gate.service';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 import { findings } from '@drizzle/schema/findings';
 import { scans } from '@drizzle/schema/scans';
 import { repositories } from '@drizzle/schema/source-controls';
-import { eq } from 'drizzle-orm';
-import { qualityGateService } from '@/server/modules/scan/services/quality-gate.service';
-import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
-import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
-import { logger } from '@/server/lib/logger';
 
 type RouteContext = { params: Promise<{ workspaceId: string; findingId: string }> };
 
@@ -39,11 +40,11 @@ async function getFindingWorkspaceId(findingId: string): Promise<string | null> 
  * Get a single finding with AI verifications.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('get request');
+  const { workspaceId, findingId } = await params;
+  logger.finding.info('get', { findingId, workspaceId });
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
-  const { workspaceId, findingId } = await params;
   const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.SCAN_VIEW);
   if (!workspace.success) return workspace.response;
 
@@ -66,23 +67,17 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-const updateFindingSchema = z.object({
-  status: z.string().optional(),
-  verdict: z.string().optional(),
-  assignedTo: z.string().optional(),
-});
-
 /**
  * PATCH /api/v1/workspaces/:workspaceId/findings/:findingId
  * Update finding status, verdict, or assignment.
  */
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('patch request');
+  const { workspaceId, findingId } = await params;
+  logger.finding.info('update', { findingId, workspaceId });
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const userId = auth.context.userId;
-  const { workspaceId, findingId } = await params;
   const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.FINDING_TRIAGE);
   if (!workspace.success) return workspace.response;
 

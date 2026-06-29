@@ -1,15 +1,16 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
+
+import { PERMISSION } from '@/commons/constants/permissions';
 import { authenticate } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
-import { authService } from '@/server/modules/auth/services/auth.service';
+import { logger } from '@/server/lib/logger';
+import { AUTH } from '@/server/modules/auth/constants';
 import { authRepository } from '@/server/modules/auth/repositories/auth.repository';
 import { inviteSchema } from '@/server/modules/auth/schemas/auth.schema';
-import { AppError } from '@/server/http/errors';
-import { AUTH } from '@/server/modules/auth/constants';
+import { authService } from '@/server/modules/auth/services/auth.service';
 import { requirePermission } from '@/server/modules/workspace/workspace.middleware';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { logger } from '@/server/lib/logger';
 
 export async function GET(request: NextRequest) {
   logger.auth.info('get request');
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest) {
   if (!workspace.success) return workspace.response;
 
   try {
-    const result = await authService.invite(validation.data, workspace.context.workspaceId, auth.context.userId);
+    const result = await authService.invite(workspace.context.workspaceId, validation.data, auth.context.userId);
     logger.auth.info('invite completed');
     return ApiResponse.success(AUTH.MESSAGES.INVITE_SENT, { email: result.email });
   } catch (e) {

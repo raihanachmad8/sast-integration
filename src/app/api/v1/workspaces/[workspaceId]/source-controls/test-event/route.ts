@@ -1,24 +1,21 @@
 import type { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { validateBody } from '@/server/http/validate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
 import { PERMISSION } from '@/commons/constants/permissions';
+import { testEventSchema } from '@/commons/schemas';
+import { authenticate } from '@/server/http/authenticate';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
-
-const testEventSchema = z.object({
-  eventType: z.string().optional(),
-});
 
 /**
  * POST /api/v1/workspaces/:workspaceId/source-controls/test-event
  * Accepts a test webhook event and returns confirmation.
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('post request');
+  logger.sourceControl.info('testEvent');
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;

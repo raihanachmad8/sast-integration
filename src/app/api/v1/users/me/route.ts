@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
+
 import { authenticate } from '@/server/http/authenticate';
-import { profileService } from '@/server/modules/profile';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
+import { profileService } from '@/server/modules/profile';
 
 export async function GET(request: NextRequest) {
   logger.profile.info('getProfile');

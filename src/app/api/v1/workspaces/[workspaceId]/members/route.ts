@@ -1,13 +1,18 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { parsePagination } from '@/server/http/validate';
-import { memberService } from '@/server/modules/workspace/services/member.service';
-import { AppError } from '@/server/http/errors';
-import { logger } from '@/server/lib/logger';
 
+import { PERMISSION } from '@/commons/constants/permissions';
+import { memberListQuerySchema } from '@/commons/schemas/member.schema';
+import { authenticate } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { logger } from '@/server/lib/logger';
+import { memberService } from '@/server/modules/members';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
+/**
+ * GET /api/v1/workspaces/:workspaceId/members
+ * List workspace members with search, filter, sort, pagination.
+ */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ workspaceId: string }> }) {
   logger.member.info('listMembers');
   const auth = await authenticate(request);
@@ -18,25 +23,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!workspace.success) return workspace.response;
 
   try {
-    const search = request.nextUrl.searchParams.get('search') ?? undefined;
-    const role = request.nextUrl.searchParams.get('role') ?? undefined;
-    const { page, perPage } = parsePagination(request.nextUrl.searchParams);
-
-    const allMembers = await memberService.listMembers(workspaceId);
-
-    let filtered = allMembers;
-    if (search) {
-      const q = search.toLowerCase();
-      filtered = filtered.filter((m) => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q));
-    }
-    if (role) {
-      filtered = filtered.filter((m) => m.role === role);
+    const parsed = memberListQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
+    if (!parsed.success) {
+      return ApiResponse.error(parsed.error.issues[0].message, 'VALIDATION_ERROR', undefined, 422);
     }
 
-    const total = filtered.length;
-    const paginated = filtered.slice((page - 1) * perPage, page * perPage);
-    logger.member.info('listMembers completed', { total, search, role });
-    return ApiResponse.paginated('Members retrieved', paginated, { page, perPage, total, totalPages: Math.ceil(total / perPage) });
+    const result = await memberService.list(workspaceId, parsed.data);
+    logger.member.info('list completed', { total: result.total });
+    return ApiResponse.paginated('Members retrieved', result.data, {
+      page: result.page,
+      perPage: result.perPage,
+      total: result.total,
+      lastPage: result.lastPage,
+    });
   } catch (e) {
     logger.member.error('listMembers failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

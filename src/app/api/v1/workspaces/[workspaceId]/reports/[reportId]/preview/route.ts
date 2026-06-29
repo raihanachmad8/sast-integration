@@ -1,15 +1,17 @@
-import { NextRequest } from 'next/server';
 import { Readable } from 'node:stream';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
+import { NextRequest } from 'next/server';
+
 import { PERMISSION } from '@/commons/constants/permissions';
-import { reportsService } from '@/server/modules/reports/reports.service';
-import { generateReportExcel } from '@/server/modules/reports/generators/excel-generator';
-import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
-import { getStorageDriver } from '@/server/modules/storage/storage.service';
+import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { logger } from '@/server/lib/logger';
 import { ApiResponse } from '@/server/http/response';
+import { logger } from '@/server/lib/logger';
+import { generateReportExcel } from '@/server/modules/reports/generators/excel-generator';
+import { reportsService } from '@/server/modules/reports/reports.service';
+import { getStorageDriver } from '@/server/modules/storage/storage.service';
+import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string; reportId: string }> };
 
@@ -98,7 +100,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    const report = await reportsService.getById(reportId, workspaceId);
+    const report = await reportsService.getById(workspaceId, reportId);
     logger.report.info('preview:reportFound', { status: report.status, format: report.format });
 
     if (report.status !== 'ready' || !report.filePath) {

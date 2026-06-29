@@ -1,12 +1,13 @@
 import type { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
+
+import { PERMISSION } from '@/commons/constants/permissions';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { sourceControlRepositoryService } from '@/server/modules/source-control/source-control-repository.service';
-import { sourceControlImportRepository } from '@/server/modules/source-control/source-control-import.repository';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
+import { sourceControlImportRepository } from '@/server/modules/source-control/source-control-import.repository';
+import { sourceControlRepositoryService } from '@/server/modules/source-control/source-control-repository.service';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string; providerId: string }> };
 
@@ -15,11 +16,10 @@ type RouteContext = { params: Promise<{ workspaceId: string; providerId: string 
  * List discovered repositories from a source control provider with import status.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('get request');
-
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId, providerId } = await params;
+  logger.sourceControl.info('listDiscoveredRepos', { providerId });
   const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.INTEGRATION_VIEW);
   if (!workspace.success) return workspace.response;
 
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       page: 1,
       perPage: repos.length || 10,
       total: repos.length,
-      totalPages: 1,
+      lastPage: 1,
     });
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

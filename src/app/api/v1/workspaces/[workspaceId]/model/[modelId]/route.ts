@@ -1,14 +1,15 @@
 import { NextRequest } from 'next/server';
 import { ZodError } from 'zod';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
 import { PERMISSION } from '@/commons/constants/permissions';
-import { AppError } from '@/server/http/errors';
-import { aiModelsService } from '@/server/modules/ai-models';
 import { updateAiModelSchema } from '@/commons/schemas';
+import { authenticate } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
+import { aiModelsService } from '@/server/modules/ai-models';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string; modelId: string }> };
 
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    const model = await aiModelsService.getModelById(modelId, workspaceId);
+    const model = await aiModelsService.getById(workspaceId, modelId);
     logger.model.info('getAiModel completed');
     return ApiResponse.success('AI model retrieved', model);
   } catch (e) {
@@ -45,7 +46,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   if (!validation.success) return validation.response;
 
   try {
-    const model = await aiModelsService.updateModel(modelId, workspaceId, validation.data, auth.context.userId);
+    const model = await aiModelsService.update(workspaceId, modelId, validation.data, auth.context.userId);
     logger.model.info('updateAiModel completed');
     return ApiResponse.success('AI model updated', model);
   } catch (e) {
@@ -66,7 +67,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    await aiModelsService.deleteModel(modelId, workspaceId, auth.context.userId);
+    await aiModelsService.remove(workspaceId, modelId, auth.context.userId);
     logger.model.info('deleteAiModel completed');
     return ApiResponse.noContent();
   } catch (e) {

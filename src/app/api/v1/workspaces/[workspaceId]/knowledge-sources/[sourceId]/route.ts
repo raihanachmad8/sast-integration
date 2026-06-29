@@ -1,14 +1,15 @@
 import { NextRequest } from 'next/server';
 import { ZodError } from 'zod';
-import { ApiResponse } from '@/server/http/response';
+
+import { PERMISSION } from '@/commons/constants/permissions';
+import { updateKnowledgeSourceSchema } from '@/commons/schemas/knowledge-base.schema';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { updateKnowledgeSourceSchema } from '@/commons/schemas/knowledge-base.schema';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
-import { knowledgeSourceService } from '@/server/modules/knowledge-base/knowledge-source.service';
 import { logger } from '@/server/lib/logger';
+import { knowledgeSourceService } from '@/server/modules/knowledge-base/knowledge-source.service';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string; sourceId: string }> };
 
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    const source = await knowledgeSourceService.getSourceById(sourceId, workspaceId);
+    const source = await knowledgeSourceService.getById(workspaceId, sourceId);
     logger.knowledge.info('getKnowledgeSource completed');
     return ApiResponse.success('Knowledge source retrieved', source);
   } catch (error) {
@@ -42,7 +43,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (!validation.success) return validation.response;
 
   try {
-    const source = await knowledgeSourceService.updateSource(sourceId, workspaceId, validation.data, auth.context.userId);
+    const source = await knowledgeSourceService.update(workspaceId, sourceId, validation.data, auth.context.userId);
     logger.knowledge.info('updateKnowledgeSource completed');
     return ApiResponse.success('Knowledge source updated', source);
   } catch (error) {
@@ -60,7 +61,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    await knowledgeSourceService.deleteSource(sourceId, workspaceId, auth.context.userId);
+    await knowledgeSourceService.delete(workspaceId, sourceId, auth.context.userId);
     logger.knowledge.info('deleteKnowledgeSource completed');
     return ApiResponse.noContent();
   } catch (error) {

@@ -1,14 +1,15 @@
 import { NextRequest } from 'next/server';
 import { ZodError } from 'zod';
-import { ApiResponse } from '@/server/http/response';
+
+import { PERMISSION } from '@/commons/constants/permissions';
+import { updateKnowledgeEntrySchema } from '@/commons/schemas/knowledge-base.schema';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { updateKnowledgeEntrySchema } from '@/commons/schemas/knowledge-base.schema';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
-import { knowledgeBaseService } from '@/server/modules/knowledge-base/knowledge-base.service';
 import { logger } from '@/server/lib/logger';
+import { knowledgeBaseService } from '@/server/modules/knowledge-base/knowledge-base.service';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string; entryId: string }> };
 

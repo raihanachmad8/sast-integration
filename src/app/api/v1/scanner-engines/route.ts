@@ -1,11 +1,12 @@
 import type { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
+
 import { authenticate } from '@/server/http/authenticate';
-import { SCANNER_COMMANDS } from '@/server/modules/scan/scanners';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { logger } from '@/server/lib/logger';
 import { SUPPORTED_SCANNERS } from '@/server/modules/scan/constants';
 import { checkScannerAvailability } from '@/server/modules/scan/scanner-availability';
-import { AppError } from '@/server/http/errors';
-import { logger } from '@/server/lib/logger';
+import { SCANNER_COMMANDS } from '@/server/modules/scan/scanners';
 
 /**
  * GET /api/v1/scanner-engines
@@ -38,7 +39,7 @@ export async function GET(_request: NextRequest) {
       page: 1,
       perPage: scanners.length,
       total: scanners.length,
-      totalPages: 1,
+      lastPage: 1,
     });
   } catch (e: unknown) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

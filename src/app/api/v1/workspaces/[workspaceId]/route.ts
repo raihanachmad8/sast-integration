@@ -1,14 +1,15 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { validateBody } from '@/server/http/validate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { workspaceService } from '@/server/modules/workspace/workspace.service';
+
 import { PERMISSION } from '@/commons/constants/permissions';
 import { workspaceUpdateSchema } from '@/commons/schemas/workspace.schema';
-import { WORKSPACE } from '@/server/modules/workspace/constants';
+import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
+import { WORKSPACE } from '@/server/modules/workspace/constants';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+import { workspaceService } from '@/server/modules/workspace/workspace.service';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 

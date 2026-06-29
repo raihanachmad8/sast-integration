@@ -1,33 +1,25 @@
-import { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { ApiResponse } from '@/server/http/response';
+import type { NextRequest } from 'next/server';
+
+import { PERMISSION } from '@/commons/constants/permissions';
+import { verificationSettingsSchema } from '@/commons/schemas';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { workspaceSettingsRepository } from '@/server/modules/workspace/repositories/workspace-settings.repository';
 import { logger } from '@/server/lib/logger';
+import { workspaceSettingsRepository } from '@/server/modules/workspace/repositories/workspace-settings.repository';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
 const SETTINGS_KEY = 'verification_settings';
-
-const verificationSettingsSchema = z.object({
-  attachKnowledge: z.boolean().default(true),
-  requireConfidence: z.boolean().default(true),
-  allowFallback: z.boolean().default(true),
-  confidenceThreshold: z.string().default('90'),
-  timeout: z.string().default('90'),
-  cweMismatch: z.string().default('warn'),
-});
 
 /**
  * GET /api/v1/workspaces/:workspaceId/settings/verification
  * Get verification settings for a workspace.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('get request');
+  logger.workspace.info('getVerificationSettings');
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
@@ -58,7 +50,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  * Update verification settings for a workspace.
  */
 export async function PUT(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('put request');
+  logger.workspace.info('updateVerificationSettings');
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;

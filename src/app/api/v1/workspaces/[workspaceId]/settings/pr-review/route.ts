@@ -1,11 +1,14 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
+
+import { PERMISSION } from '@/commons/constants/permissions';
+import { updatePrReviewSettingsSchema } from '@/commons/schemas/settings.schema';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { workspaceSettingsService } from '@/server/modules/workspace/services/workspace-settings.service';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
+import { workspaceSettingsService } from '@/server/modules/workspace/services/workspace-settings.service';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -14,7 +17,7 @@ type RouteContext = { params: Promise<{ workspaceId: string }> };
  * Get PR review settings for a workspace.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('get request');
+  logger.workspace.info('getPrReviewSettings');
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
@@ -37,7 +40,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
  * Update PR review settings for a workspace.
  */
 export async function PUT(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('put request');
+  logger.workspace.info('updatePrReviewSettings');
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
@@ -45,9 +48,11 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.POLICY_MANAGE);
   if (!workspace.success) return workspace.response;
 
+  const validation = await validateBody(request, updatePrReviewSettingsSchema);
+  if (!validation.success) return validation.response;
+
   try {
-    const body = await request.json();
-    const settings = await workspaceSettingsService.updatePrReviewSettings(workspaceId, body);
+    const settings = await workspaceSettingsService.updatePrReviewSettings(workspaceId, validation.data);
     return ApiResponse.success('PR review settings updated', settings);
   } catch (error) {
     logger.workspace.error('updatePrReviewSettings failed', { error: error instanceof Error ? error.message : error });

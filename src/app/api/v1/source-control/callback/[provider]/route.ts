@@ -1,7 +1,8 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { sourceControlService } from '@/server/modules/source-control/source-control.service';
+
 import { logger } from '@/server/lib/logger';
+import { sourceControlService } from '@/server/modules/source-control/source-control.service';
 
 type RouteContext = { params: Promise<{ provider: string }> };
 

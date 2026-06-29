@@ -1,15 +1,16 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
+
+import { PERMISSION } from '@/commons/constants/permissions';
+import { createScanSchema } from '@/commons/schemas';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { scanService, managedScanService } from '@/server/modules/scan';
+import { ApiResponse } from '@/server/http/response';
 import { parsePagination, validateBody } from '@/server/http/validate';
-import { createScanSchema } from '@/commons/schemas';
 import { logger } from '@/server/lib/logger';
-import { projectRepository } from '@/server/modules/project/repositories/project.repository';
+import { projectRepository } from '@/server/modules/project';
+import { scanService, managedScanService } from '@/server/modules/scan';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       page,
       perPage,
       total: result.total,
-      totalPages: Math.ceil(result.total / perPage),
+      lastPage: Math.ceil(result.total / perPage),
     });
   } catch (error) {
     logger.scan.error('listScans failed', { error: error instanceof Error ? error.message : error });

@@ -1,19 +1,12 @@
 import type { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate, getUserId } from '@/server/http/authenticate';
-import { validateBody } from '@/server/http/validate';
-import { profileService } from '@/server/modules/profile';
-import { logger } from '@/server/lib/logger';
-import { z } from 'zod';
-import { AppError } from '@/server/http/errors';
 
-const updateProfileSchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  username: z.string().min(1).max(100).optional(),
-  bio: z.string().max(500).optional().default(''),
-  timezone: z.string().max(50).optional(),
-  language: z.string().max(10).optional(),
-});
+import { profileUpdateSchema } from '@/commons/schemas';
+import { authenticate, getUserId } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
+import { logger } from '@/server/lib/logger';
+import { profileService } from '@/server/modules/profile';
 
 /**
  * GET /api/v1/users/profile
@@ -54,7 +47,7 @@ export async function PUT(request: NextRequest) {
     return ApiResponse.error('This action requires user authentication', 'FORBIDDEN', undefined, 403);
   }
 
-  const validation = await validateBody(request, updateProfileSchema);
+  const validation = await validateBody(request, profileUpdateSchema);
   if (!validation.success) return validation.response;
 
   try {

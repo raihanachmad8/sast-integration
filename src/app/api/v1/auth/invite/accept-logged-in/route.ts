@@ -1,16 +1,13 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { validateBody } from '@/server/http/validate';
-import { authService } from '@/server/modules/auth/services/auth.service';
-import { AppError } from '@/server/http/errors';
-import { AUTH } from '@/server/modules/auth/constants';
-import { logger } from '@/server/lib/logger';
-import { z } from 'zod';
 
-const acceptLoggedInSchema = z.object({
-  token: z.string().min(1, 'Token is required'),
-});
+import { acceptLoggedInSchema } from '@/commons/schemas';
+import { authenticate } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
+import { logger } from '@/server/lib/logger';
+import { authService } from '@/server/modules/auth';
+import { AUTH } from '@/server/modules/auth/constants';
 
 export async function POST(request: NextRequest) {
   logger.auth.info('acceptInviteForLoggedInUser');

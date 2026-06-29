@@ -1,20 +1,15 @@
 import { NextRequest } from 'next/server';
-import { z } from 'zod';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { parsePagination } from '@/server/http/validate';
-import { reportsService } from '@/server/modules/reports/reports.service';
-import { AppError } from '@/server/http/errors';
-import { logger } from '@/server/lib/logger';
+import { ZodError } from 'zod';
 
-const createReportSchema = z.object({
-  type: z.enum(['findings', 'verdict', 'executive', 'compliance']),
-  title: z.string().min(1).max(255).optional(),
-  format: z.enum(['pdf', 'xlsx', 'csv']).optional().default('pdf'),
-  range: z.string().optional(),
-});
+import { PERMISSION } from '@/commons/constants/permissions';
+import { createReportSchema, reportListQuerySchema } from '@/commons/schemas';
+import { authenticate } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
+import { logger } from '@/server/lib/logger';
+import { reportsService } from '@/server/modules/reports';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -28,18 +23,22 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    const { searchParams } = new URL(request.url);
-    const { page, perPage } = parsePagination(searchParams);
-    const search = searchParams.get('search') ?? undefined;
+    const parsed = reportListQuerySchema.safeParse(
+      Object.fromEntries(request.nextUrl.searchParams),
+    );
+    if (!parsed.success) {
+      return ApiResponse.error('Invalid query', 'VALIDATION_ERROR', parsed.error.flatten().fieldErrors, 400);
+    }
+    const { page, perPage, search, sort, order } = parsed.data;
 
-    const result = await reportsService.list(workspaceId, { page, perPage, search });
+    const result = await reportsService.list(workspaceId, { page, perPage, search, sort, order });
 
     logger.report.info('listReports completed');
     return ApiResponse.paginated('Reports retrieved', result.data, {
-      page,
-      perPage,
+      page: result.page,
+      perPage: result.perPage,
       total: result.total,
-      totalPages: Math.ceil(result.total / perPage),
+      lastPage: result.lastPage,
     });
   } catch (error) {
     logger.report.error('listReports failed', { error: error instanceof Error ? error.message : error });
@@ -49,47 +48,26 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 }
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
-  const start = Date.now();
-  logger.report.info('generateReport:start');
+  logger.report.info('createReport');
   const auth = await authenticate(request);
-  if (!auth.success) {
-    logger.report.warn('generateReport:authFailed');
-    return auth.response;
-  }
+  if (!auth.success) return auth.response;
 
   const { workspaceId } = await params;
   const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.REPORT_EXPORT);
-  if (!workspace.success) {
-    logger.report.warn('generateReport:permissionDenied', { workspaceId });
-    return workspace.response;
-  }
+  if (!workspace.success) return workspace.response;
 
   try {
-    const body = await request.json();
-    const parsed = createReportSchema.safeParse(body);
-    if (!parsed.success) {
-      logger.report.warn('generateReport:validationFailed', { issues: parsed.error.issues });
-      return ApiResponse.error('Validation failed', 'VALIDATION_ERROR', { fields: parsed.error.issues }, 422);
+    const result = await validateBody(request, createReportSchema);
+    if (!result.success) return result.response;
+
+    const report = await reportsService.generate(workspaceId, result.data, auth.context.userId);
+    return ApiResponse.created('Report created', report);
+  } catch (e) {
+    logger.report.error('createReport failed', { error: e instanceof Error ? e.message : e });
+    if (e instanceof ZodError) {
+      return ApiResponse.error('Invalid report data', 'VALIDATION_ERROR', e.flatten().fieldErrors, 400);
     }
-
-    const { type, title, format, range } = parsed.data;
-    logger.report.info('generateReport:processing', { type, title, format, range, workspaceId });
-
-    const report = await reportsService.generate(
-      { type, title: title ?? `${type} report`, format, range },
-      workspaceId,
-      auth.context.userId,
-    );
-
-    logger.report.info('generateReport:completed', { reportId: report.id, status: report.status, ms: Date.now() - start });
-    return ApiResponse.created('Report generated', report);
-  } catch (error) {
-    logger.report.error('generateReport:failed', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      ms: Date.now() - start,
-    });
-    if (error instanceof AppError) return ApiResponse.error(error.message, error.code, undefined, error.statusCode);
+    if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
     return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
   }
 }

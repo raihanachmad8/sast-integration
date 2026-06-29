@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { validateBody } from '@/server/http/validate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { teamService } from '@/server/modules/teams/services/team.service';
+
 import { PERMISSION } from '@/commons/constants/permissions';
 import { teamUpdateSchema } from '@/commons/schemas';
+import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
+import { teamService } from '@/server/modules/teams';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ workspaceId: string; teamId: string }> }) {
   logger.team.info('getTeam');
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!workspace.success) return workspace.response;
 
   try {
-    const team = await teamService.getById(workspace.context.workspaceId, teamId, auth.context.userId);
+    const team = await teamService.getById(workspaceId, teamId, auth.context.userId);
     logger.team.info('getTeam completed');
     return ApiResponse.success('Team retrieved', team);
   } catch (e) {
@@ -42,7 +43,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!validation.success) return validation.response;
 
   try {
-    const team = await teamService.update(workspace.context.workspaceId, teamId, validation.data, auth.context.userId);
+    const team = await teamService.update(workspaceId, teamId, validation.data, auth.context.userId);
     logger.team.info('updateTeam completed');
     return ApiResponse.success('Team updated', team);
   } catch (e) {
@@ -62,7 +63,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (!workspace.success) return workspace.response;
 
   try {
-    await teamService.softDelete(workspace.context.workspaceId, teamId, auth.context.userId);
+    await teamService.softDelete(workspaceId, teamId, auth.context.userId);
     logger.team.info('deleteTeam completed');
     return ApiResponse.noContent();
   } catch (e) {

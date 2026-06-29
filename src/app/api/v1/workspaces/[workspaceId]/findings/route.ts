@@ -1,75 +1,159 @@
-import type { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { AppError } from '@/server/http/errors';
+import { NextRequest } from 'next/server';
+
 import { PERMISSION } from '@/commons/constants/permissions';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { findingService } from '@/server/modules/scan';
-import { parsePagination } from '@/server/http/validate';
-import { projectRepository } from '@/server/modules/project/repositories/project.repository';
-import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { findingListQuerySchema, bulkUpdateStatusSchema, bulkAssignSchema } from '@/commons/schemas';
+import { authenticate } from '@/server/http/authenticate';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
+import { findingsService, FINDING } from '@/server/modules/findings';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
-type RouteContext = { params: Promise<{ workspaceId: string }> };
-
-/**
- * GET /api/v1/workspaces/:workspaceId/findings
- * List findings scoped to user's accessible projects.
- * Repositories with null projectId are visible to all workspace members.
- */
-export async function GET(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('get request');
-
-  const auth = await authenticate(request);
-  if (!auth.success) return auth.response;
-  const { workspaceId } = await params;
-  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.SCAN_VIEW);
-  if (!workspace.success) return workspace.response;
-
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ workspaceId: string }> },
+) {
   try {
+    const { workspaceId } = await params;
+
+    logger.finding.info('list', { workspaceId });
+    const auth = await authenticate(request);
+    if (!auth.success) {
+      logger.finding.warn('list unauthorized');
+      return auth.response;
+    }
+
+    const workspace = await requirePermission(
+      withWorkspaceId(request, workspaceId),
+      auth.context,
+      PERMISSION.FINDING_VIEW,
+    );
+    if (!workspace.success) {
+      logger.finding.warn('list forbidden', { workspaceId, userId: auth.context.userId });
+      return workspace.response;
+    }
+
     const { searchParams } = new URL(request.url);
-    const projectId = searchParams.get('projectId') || undefined;
-    const repositoryId = searchParams.get('repositoryId') || undefined;
-    const scanId = searchParams.get('scanId') || undefined;
-    const status = searchParams.get('status') || undefined;
-    const severity = searchParams.get('severity') || undefined;
-    const scanner = searchParams.get('scanner') || undefined;
-    const verdict = searchParams.get('verdict') || undefined;
-    const search = searchParams.get('search') || undefined;
-    const { page, perPage } = parsePagination(searchParams, { perPage: 50 });
+    const rawParams = Object.fromEntries(searchParams.entries());
+    const query = findingListQuerySchema.parse(rawParams);
 
-    const ALLOWED_SORT_COLUMNS = ['createdAt', 'severity', 'scanner', 'verdict'] as const;
-    type SortColumn = (typeof ALLOWED_SORT_COLUMNS)[number];
-    const rawSort = searchParams.get('sort');
-    const rawOrder = searchParams.get('order');
-    const sort: SortColumn | undefined = ALLOWED_SORT_COLUMNS.includes(rawSort as SortColumn) ? (rawSort as SortColumn) : undefined;
-    const order: 'ASC' | 'DESC' = rawOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-
-    // Compute user's accessible projects for project-scoped listing
-    const role = await workspaceRepository.getMemberRole(workspaceId, auth.context.userId);
-    const accessibleProjectIds = await projectRepository.getAccessibleProjectIds(workspaceId, auth.context.userId, role ?? undefined);
-
-    const result = await findingService.list(projectId, workspaceId, {
-      scanId,
-      status,
-      severity,
-      scanner,
-      verdict,
-      search,
-      repositoryId,
-      accessibleProjectIds: accessibleProjectIds ?? undefined,
-      sort,
-      order,
-    }, perPage, page);
-
-    return ApiResponse.paginated('Findings retrieved', result.data, {
-      page,
-      perPage,
-      total: result.total,
-      totalPages: Math.ceil(result.total / perPage),
+    const result = await findingsService.list(workspaceId, {
+      page: query.page,
+      perPage: query.perPage,
+      search: query.search,
+      scanId: query.scanId,
+      status: query.status,
+      severity: query.severity,
+      projectId: query.projectId,
+      repositoryId: query.repositoryId,
+      sort: query.sort,
+      order: query.order,
+      onlyNew: query.onlyNew,
     });
-  } catch (e) {
-    if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
+
+    logger.finding.info('list completed', { count: result.data.length, total: result.total });
+
+    return ApiResponse.paginated(FINDING.MESSAGES.FINDINGS_LIST, result.data, {
+      total: result.total,
+      page: result.page,
+      perPage: result.perPage,
+      lastPage: result.lastPage,
+    });
+  } catch (error) {
+    logger.finding.error('list failed', { error: error instanceof Error ? error.message : String(error) });
+
+    if (error instanceof Error && error.name === 'ZodError') {
+      return ApiResponse.error('Invalid query parameters', 'VALIDATION_ERROR', error.message, 422);
+    }
+
     return ApiResponse.error('Failed to list findings', 'INTERNAL_ERROR', undefined, 500);
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ workspaceId: string }> },
+) {
+  try {
+    const { workspaceId } = await params;
+
+    logger.finding.info('bulk update status', { workspaceId });
+    const auth = await authenticate(request);
+    if (!auth.success) {
+      logger.finding.warn('bulk update status unauthorized');
+      return auth.response;
+    }
+
+    const workspace = await requirePermission(
+      withWorkspaceId(request, workspaceId),
+      auth.context,
+      PERMISSION.FINDING_TRIAGE,
+    );
+    if (!workspace.success) {
+      logger.finding.warn('bulk update status forbidden', { workspaceId, userId: auth.context.userId });
+      return workspace.response;
+    }
+
+    const bodyResult = await validateBody(request, bulkUpdateStatusSchema);
+    if (bodyResult.success === false) return bodyResult.response;
+
+    const result = await findingsService.bulkUpdate(
+      workspaceId,
+      bodyResult.data.findingIds,
+      { status: bodyResult.data.status },
+      auth.context.userId,
+    );
+
+    logger.finding.info('bulk update status completed', { count: result.length });
+
+    return ApiResponse.success(FINDING.MESSAGES.BULK_STATUS_UPDATED, result);
+  } catch (error) {
+    logger.finding.error('bulk update status failed', { error: error instanceof Error ? error.message : String(error) });
+
+    return ApiResponse.error('Failed to update findings status', 'INTERNAL_ERROR', undefined, 500);
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ workspaceId: string }> },
+) {
+  try {
+    const { workspaceId } = await params;
+
+    logger.finding.info('bulk assign', { workspaceId });
+    const auth = await authenticate(request);
+    if (!auth.success) {
+      logger.finding.warn('bulk assign unauthorized');
+      return auth.response;
+    }
+
+    const workspace = await requirePermission(
+      withWorkspaceId(request, workspaceId),
+      auth.context,
+      PERMISSION.FINDING_TRIAGE,
+    );
+    if (!workspace.success) {
+      logger.finding.warn('bulk assign forbidden', { workspaceId, userId: auth.context.userId });
+      return workspace.response;
+    }
+
+    const bodyResult = await validateBody(request, bulkAssignSchema);
+    if (bodyResult.success === false) return bodyResult.response;
+
+    const result = await findingsService.bulkUpdate(
+      workspaceId,
+      bodyResult.data.findingIds,
+      { assignedTo: bodyResult.data.userId },
+      auth.context.userId,
+    );
+
+    logger.finding.info('bulk assign completed', { count: result.length });
+
+    return ApiResponse.success(FINDING.MESSAGES.BULK_ASSIGNED, result);
+  } catch (error) {
+    logger.finding.error('bulk assign failed', { error: error instanceof Error ? error.message : String(error) });
+
+    return ApiResponse.error('Failed to assign findings', 'INTERNAL_ERROR', undefined, 500);
   }
 }

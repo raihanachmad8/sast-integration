@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
 import { PERMISSION } from '@/commons/constants/permissions';
-import { AppError } from '@/server/http/errors';
-import { webhookService } from '@/server/modules/webhooks';
 import { updateWebhookSchema } from '@/commons/schemas';
+import { authenticate } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
+import { webhookService } from '@/server/modules/webhooks';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string; webhookId: string }> };
 
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!auth.success) return auth.response;
   const { workspaceId, webhookId } = await params;
 
-  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.WEBHOOK_MANAGE);
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.WEBHOOK_VIEW);
   if (!workspace.success) return workspace.response;
 
   try {
@@ -56,7 +57,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       return ApiResponse.error('Webhook not found', 'NOT_FOUND', undefined, 404);
     }
 
-    const webhook = await webhookService.updateWebhook(webhookId, validation.data, auth.context.userId, workspaceId);
+    const webhook = await webhookService.updateWebhook(workspaceId, webhookId, validation.data, auth.context.userId);
     logger.webhook.info('updateWebhook completed');
     return ApiResponse.success('Webhook updated', webhook);
   } catch (e) {
@@ -82,7 +83,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
       return ApiResponse.error('Webhook not found', 'NOT_FOUND', undefined, 404);
     }
 
-    await webhookService.deleteWebhook(webhookId, auth.context.userId, workspaceId);
+    await webhookService.deleteWebhook(workspaceId, webhookId, auth.context.userId);
     logger.webhook.info('deleteWebhook completed');
     return ApiResponse.noContent();
   } catch (e) {

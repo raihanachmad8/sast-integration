@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
 import { PERMISSION } from '@/commons/constants/permissions';
+import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { projectService } from '@/server/modules/project/services/project.service';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
+import { projectService } from '@/server/modules/project';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ workspaceId: string; projectId: string; tokenId: string }> }) {
   logger.project.info('revokeApiToken');

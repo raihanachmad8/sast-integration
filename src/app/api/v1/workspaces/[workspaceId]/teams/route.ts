@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { validateBody, parsePagination } from '@/server/http/validate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
-import { teamService } from '@/server/modules/teams/services/team.service';
+
 import { PERMISSION } from '@/commons/constants/permissions';
-import { teamFormSchema } from '@/commons/schemas';
+import { teamFormSchema, teamListQuerySchema } from '@/commons/schemas';
+import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
+import { teamService } from '@/server/modules/teams';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ workspaceId: string }> }) {
   logger.team.info('listTeams');
@@ -19,26 +20,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!workspace.success) return workspace.response;
 
   try {
-    const { page, perPage } = parsePagination(request.nextUrl.searchParams);
-    const project = request.nextUrl.searchParams.get('project') ?? undefined;
-    const search = request.nextUrl.searchParams.get('search') ?? undefined;
-
-    const allTeams = await teamService.list(workspace.context.workspaceId, auth.context.userId);
-
-    // Apply filters
-    let filtered = allTeams;
-    if (search) {
-      const q = search.toLowerCase();
-      filtered = filtered.filter((t) => t.name.toLowerCase().includes(q) || (t.description ?? '').toLowerCase().includes(q));
-    }
-    if (project) {
-      filtered = filtered.filter((t) => t.projectIds?.includes(project));
+    const parsed = teamListQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
+    if (!parsed.success) {
+      return ApiResponse.error(parsed.error.issues[0].message, 'VALIDATION_ERROR', undefined, 422);
     }
 
-    const total = filtered.length;
-    const paginated = filtered.slice((page - 1) * perPage, page * perPage);
-    logger.team.info('listTeams completed', { total, search, project });
-    return ApiResponse.paginated('Teams retrieved', paginated, { page, perPage, total, totalPages: Math.ceil(total / perPage) });
+    const result = await teamService.list(workspaceId, auth.context.userId, parsed.data);
+    logger.team.info('listTeams completed', { total: result.total });
+    return ApiResponse.paginated('Teams retrieved', result.data, { page: result.page, perPage: result.perPage, total: result.total, lastPage: result.lastPage });
   } catch (e) {
     logger.team.error('listTeams failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
@@ -59,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!validation.success) return validation.response;
 
   try {
-    const team = await teamService.create(workspace.context.workspaceId, validation.data, auth.context.userId);
+    const team = await teamService.create(workspaceId, validation.data, auth.context.userId);
     logger.team.info('createTeam completed');
     return ApiResponse.created('Team created', team);
   } catch (e) {

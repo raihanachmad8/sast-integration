@@ -1,14 +1,15 @@
 import { NextRequest } from 'next/server';
 import { ZodError } from 'zod';
-import { ApiResponse } from '@/server/http/response';
+
+import { PERMISSION } from '@/commons/constants/permissions';
+import { createKnowledgeSourceSchema } from '@/commons/schemas/knowledge-base.schema';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { createKnowledgeSourceSchema } from '@/commons/schemas/knowledge-base.schema';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
-import { knowledgeSourceService } from '@/server/modules/knowledge-base/knowledge-source.service';
 import { logger } from '@/server/lib/logger';
+import { knowledgeSourceService } from '@/server/modules/knowledge-base/knowledge-source.service';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    const sources = await knowledgeSourceService.listSourcesByWorkspace(workspaceId);
+    const sources = await knowledgeSourceService.list(workspaceId);
     logger.knowledge.info('listKnowledgeSources completed');
     return ApiResponse.success('Knowledge sources retrieved', sources);
   } catch (error) {
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   if (!validation.success) return validation.response;
 
   try {
-    const source = await knowledgeSourceService.createSource(workspaceId, validation.data, auth.context.userId);
+    const source = await knowledgeSourceService.create(workspaceId, validation.data, auth.context.userId);
     logger.knowledge.info('createKnowledgeSource completed');
     return ApiResponse.created('Knowledge source created', source);
   } catch (error) {

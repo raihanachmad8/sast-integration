@@ -1,13 +1,15 @@
-import { NextRequest } from 'next/server';
 import { Readable } from 'node:stream';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
+import { NextRequest } from 'next/server';
+
 import { PERMISSION } from '@/commons/constants/permissions';
+import { authenticate } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { logger } from '@/server/lib/logger';
 import { reportsService } from '@/server/modules/reports/reports.service';
 import { getStorageDriver } from '@/server/modules/storage/storage.service';
-import { AppError } from '@/server/http/errors';
-import { logger } from '@/server/lib/logger';
-import { ApiResponse } from '@/server/http/response';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string; reportId: string }> };
 
@@ -60,7 +62,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
   try {
     // Step 1: Fetch report record
-    const report = await reportsService.getById(reportId, workspaceId);
+    const report = await reportsService.getById(workspaceId, reportId);
     logger.report.info('download:reportFound', { status: report.status, filePath: report.filePath, format: report.format });
 
     if (report.status !== 'ready') {

@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { authRepository } from '@/server/modules/auth/repositories/auth.repository';
+
 import { ROLE_PERMISSIONS } from '@/commons/constants/permissions';
-import { AUTH } from '@/server/modules/auth/constants';
+import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
+import { AUTH } from '@/server/modules/auth/constants';
+import { authRepository } from '@/server/modules/auth/repositories/auth.repository';
 
 export async function GET(request: NextRequest) {
   logger.auth.info('me');

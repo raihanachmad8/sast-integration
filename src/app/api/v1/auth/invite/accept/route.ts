@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server';
+
+import { AppError } from '@/server/http/errors';
 import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
-import { authService } from '@/server/modules/auth/services/auth.service';
-import { acceptInviteSchema } from '@/server/modules/auth/schemas/auth.schema';
-import { AppError } from '@/server/http/errors';
-import { AUTH } from '@/server/modules/auth/constants';
 import { logger } from '@/server/lib/logger';
+import { AUTH } from '@/server/modules/auth/constants';
+import { acceptInviteSchema } from '@/server/modules/auth/schemas/auth.schema';
+import { authService } from '@/server/modules/auth/services/auth.service';
 
 export async function POST(request: NextRequest) {
   logger.auth.info('acceptInvite');

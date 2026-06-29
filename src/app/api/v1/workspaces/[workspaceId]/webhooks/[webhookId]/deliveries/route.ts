@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
 import { PERMISSION } from '@/commons/constants/permissions';
+import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { webhookRepository } from '@/server/modules/webhooks/webhook.repository';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
+import { webhookRepository } from '@/server/modules/webhooks';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string; webhookId: string }> };
 
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!auth.success) return auth.response;
   const { workspaceId, webhookId } = await params;
 
-  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.WEBHOOK_MANAGE);
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.WEBHOOK_VIEW);
   if (!workspace.success) return workspace.response;
 
   try {

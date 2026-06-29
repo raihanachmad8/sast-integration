@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
-import { getStorageDriver } from '@/server/modules/storage/storage.service';
+
 import { authenticate } from '@/server/http/authenticate';
 import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
+import { getStorageDriver } from '@/server/modules/storage/storage.service';
 
 /**
  * GET /api/v1/storage/[...path]

@@ -1,13 +1,14 @@
 import type { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate, getUserId } from '@/server/http/authenticate';
-import { validateBody } from '@/server/http/validate';
-import { sourceControlService } from '@/server/modules/source-control/source-control.service';
-import { updateSourceControlSchema } from '@/commons/schemas';
-import { AppError } from '@/server/http/errors';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
 import { PERMISSION } from '@/commons/constants/permissions';
+import { updateSourceControlSchema } from '@/commons/schemas';
+import { authenticate, getUserId } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
+import { sourceControlService } from '@/server/modules/source-control';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string; providerId: string }> };
 
@@ -16,16 +17,16 @@ type RouteContext = { params: Promise<{ workspaceId: string; providerId: string 
  * Get a single source control integration.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('get request');
+  const { workspaceId, providerId } = await params;
+  logger.sourceControl.info('getSourceControl', { providerId });
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
-  const { workspaceId, providerId } = await params;
   const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.INTEGRATION_VIEW);
   if (!workspace.success) return workspace.response;
 
   try {
-    const sourceControl = await sourceControlService.getById(providerId, workspaceId);
+    const sourceControl = await sourceControlService.getById(workspaceId, providerId);
     return ApiResponse.success('Source control retrieved', sourceControl);
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
@@ -46,18 +47,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
  * Update a source control integration (legacy support).
  */
 export async function PUT(request: NextRequest, context: RouteContext) {
-  logger.workspace.info('put request');
-
   return updateSourceControl(request, context);
 }
 
 async function updateSourceControl(request: NextRequest, { params }: RouteContext) {
+  const { workspaceId, providerId } = await params;
+  logger.sourceControl.info('updateSourceControl', { providerId });
+
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const userId = getUserId(auth.context);
   if (!userId) return ApiResponse.error('This action requires user authentication', 'FORBIDDEN', undefined, 403);
 
-  const { workspaceId, providerId } = await params;
   const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.INTEGRATION_MANAGE);
   if (!workspace.success) return workspace.response;
 
@@ -65,7 +66,7 @@ async function updateSourceControl(request: NextRequest, { params }: RouteContex
   if (!validation.success) return validation.response;
 
   try {
-    const updated = await sourceControlService.update(providerId, validation.data, workspaceId, userId);
+    const updated = await sourceControlService.update(workspaceId, providerId, validation.data, userId);
     const redirectUrl = sourceControlService.buildRedirectUrl(
       updated,
       workspaceId,
@@ -96,19 +97,19 @@ function resolveReturnTo(request: NextRequest) {
  * Delete a source control integration.
  */
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('delete request');
+  const { workspaceId, providerId } = await params;
+  logger.sourceControl.info('deleteSourceControl', { providerId });
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const userId = getUserId(auth.context);
   if (!userId) return ApiResponse.error('This action requires user authentication', 'FORBIDDEN', undefined, 403);
 
-  const { workspaceId, providerId } = await params;
   const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.INTEGRATION_MANAGE);
   if (!workspace.success) return workspace.response;
 
   try {
-    await sourceControlService.delete(providerId, workspaceId, userId);
+    await sourceControlService.delete(workspaceId, providerId, userId);
     return ApiResponse.noContent();
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

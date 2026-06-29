@@ -4,17 +4,9 @@
  * POST /api/v1/ci/init
  *
  * Creates a scan record BEFORE tools run, so all tools can upload to the same scan.
- * This is the "legacy flow" pattern: create scan first → pass scanId to tools → tools upload to same scan.
  *
  * ## Authentication
  * Uses Project API Token via `Authorization: Bearer sast_p_xxxxx`
- * Token automatically resolves workspaceId and projectId.
- *
- * ## Flow
- * 1. Token → extract workspaceId + projectId
- * 2. Find or auto-create repository (connectionType: external)
- * 3. Find or create scan by commit SHA
- * 4. Return { scanId }
  *
  * ## Request Format (JSON)
  * ```json
@@ -25,29 +17,17 @@
  *   "commit": "sha123"
  * }
  * ```
- *
- * ## Response
- * ```json
- * {
- *   "success": true,
- *   "data": {
- *     "scanId": "uuid"
- *   }
- * }
- * ```
  */
 
 import type { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticateCiCd } from '@/server/modules/scan/ci-cd-auth';
-import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
-import { repositoriesRepository } from '@/server/modules/repositories/repositories.repository';
-import { logger } from '@/server/lib/logger';
-import { AppError } from '@/server/http/errors';
-import { randomUUID } from 'node:crypto';
-import { validateBody } from '@/server/http/validate';
+
 import { ciInitSchema } from '@/commons/schemas/ci.schema';
-import { normalizeRepoName } from '../normalize-repo';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
+import { logger } from '@/server/lib/logger';
+import { authenticateCiCd } from '@/server/modules/scan/ci-cd-auth';
+import { ciCdService } from '@/server/modules/scan/services/ci-cd.service';
 
 export async function POST(request: NextRequest) {
   logger.scan.info('post request');
@@ -62,13 +42,10 @@ export async function POST(request: NextRequest) {
     if (!validation.success) return validation.response;
     const { repoName, repoUrl, branch, commit, prNumber, baseBranch, headBranch, prAuthor } = validation.data;
 
-    const resolvedBranch = branch || 'main';
-    const resolvedCommit = commit || '';
-
     logger.scan.info('CI/CD init received', {
       repoName,
-      branch: resolvedBranch,
-      commit: resolvedCommit,
+      branch: branch || 'main',
+      commit: commit || '',
       prNumber,
       baseBranch,
       headBranch,
@@ -76,65 +53,18 @@ export async function POST(request: NextRequest) {
       projectId,
     });
 
-    // Find or auto-create repository (atomic — handles concurrent requests safely)
-    // TODO: Create repositoriesService.findOrCreateForCi(workspaceId, projectId, name, url, branch) to centralize CI repo resolution
-    const repository = await repositoriesRepository.findOrCreate({
-      workspaceId: workspaceId,
-      projectId: projectId,
-      name: normalizeRepoName(repoName, repoUrl),
-      url: repoUrl || `external://${repoName}`,
-      defaultBranch: resolvedBranch,
-      connectionType: ['external'],
+    const result = await ciCdService.initScan(workspaceId, projectId, {
+      repoName,
+      repoUrl,
+      branch,
+      commit,
+      prNumber,
+      baseBranch,
+      headBranch,
+      prAuthor,
     });
 
-    logger.scan.info('CI/CD init: repository resolved', {
-      repositoryId: repository.id,
-      name: repoName,
-    });
-
-    // Check for existing scan by commit SHA (reuse if not terminal)
-    // TODO: Create scanService.findReusableByCommit(repositoryId, commit) for CI scan reuse logic
-    let scan = null;
-    if (resolvedCommit) {
-      scan = await scanRepository.findByCommitSha(repository.id, resolvedCommit);
-      if (scan && (scan.status === 'completed' || scan.status === 'failed')) {
-        // Terminal state — create new scan
-        scan = null;
-      }
-    }
-
-    if (!scan) {
-      // Create scan record (status: queued — tools haven't run yet)
-      // TODO: Create scanService.createForCi(repositoryId, branch, commit, prMetadata) for CI scan creation
-      scan = await scanRepository.create({
-        repositoryId: repository.id,
-        branch: resolvedBranch,
-        origin: 'external_upload',
-        status: 'queued',
-        commitSha: resolvedCommit,
-        triggerSource: 'ci',
-        // PR metadata
-        prNumber: prNumber ?? null,
-        baseBranch: baseBranch ?? null,
-        headBranch: headBranch ?? null,
-        prAuthor: prAuthor ?? null,
-      });
-
-      // Append triggered progress event
-      // TODO: Create scanService.appendProgressEvent(scanId, event) for CI progress tracking
-      await scanRepository.appendProgressEvent(scan.id, {
-        id: randomUUID(),
-        type: 'triggered',
-        description: 'CI/CD scan initiated',
-        timestamp: new Date().toISOString(),
-      });
-
-      logger.scan.info('CI/CD init: scan created', { scanId: scan.id });
-    } else {
-      logger.scan.info('CI/CD init: reusing existing scan', { scanId: scan.id, status: scan.status });
-    }
-
-    return ApiResponse.success('Scan initialized', { scanId: scan.id });
+    return ApiResponse.success('Scan initialized', result);
   } catch (error) {
     const err = error as Error;
     logger.scan.error('CI/CD init failed', { error: err.message, stack: err.stack, name: err.name });

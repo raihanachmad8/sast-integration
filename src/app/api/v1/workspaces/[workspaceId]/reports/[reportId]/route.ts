@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
 import { PERMISSION } from '@/commons/constants/permissions';
-import { reportsService } from '@/server/modules/reports/reports.service';
+import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
+import { reportsService } from '@/server/modules/reports';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string; reportId: string }> };
 
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    const report = await reportsService.getById(reportId, workspaceId);
+    const report = await reportsService.getById(workspaceId, reportId);
     logger.report.info('getReport completed');
     return ApiResponse.success('Report retrieved', report);
   } catch (error) {
@@ -39,7 +40,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    await reportsService.delete(reportId, workspaceId, auth.context.userId);
+    await reportsService.delete(workspaceId, reportId, auth.context.userId);
     logger.report.info('deleteReport completed');
     return ApiResponse.noContent();
   } catch (error) {

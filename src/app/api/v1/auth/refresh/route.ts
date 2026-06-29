@@ -1,10 +1,11 @@
 import { NextRequest } from 'next/server';
+
 import { ApiResponse } from '@/server/http/response';
-import { authService } from '@/server/modules/auth/services/auth.service';
-import { verifyRefreshToken } from '@/server/modules/auth/services/jwt.service';
+import { logger } from '@/server/lib/logger';
 import { AUTH } from '@/server/modules/auth/constants';
 import { setRefreshCookie, clearRefreshCookie } from '@/server/modules/auth/cookie';
-import { logger } from '@/server/lib/logger';
+import { authService } from '@/server/modules/auth/services/auth.service';
+import { verifyRefreshToken } from '@/server/modules/auth/services/jwt.service';
 
 /**
  * Returns a 401 response and clears the refresh cookie.

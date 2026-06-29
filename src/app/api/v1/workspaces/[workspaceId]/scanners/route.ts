@@ -1,10 +1,11 @@
 import type { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
 import { PERMISSION } from '@/commons/constants/permissions';
-import { checkAllScannerAvailability } from '@/server/modules/scan/scanner-availability';
+import { authenticate } from '@/server/http/authenticate';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
+import { checkAllScannerAvailability } from '@/server/modules/scan/scanner-availability';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
@@ -13,12 +14,12 @@ type RouteContext = { params: Promise<{ workspaceId: string }> };
  * Returns availability status for all configured scanners.
  */
 export async function GET(request: NextRequest, { params }: RouteContext) {
-  logger.workspace.info('get request');
+  logger.scan.info('listScanners');
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
   const { workspaceId } = await params;
-  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.SCAN_VIEW);
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.SCANNER_VIEW);
   if (!workspace.success) return workspace.response;
 
   try {

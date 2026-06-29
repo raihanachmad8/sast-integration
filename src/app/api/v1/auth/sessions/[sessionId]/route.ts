@@ -1,11 +1,12 @@
+import { eq, and } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
+
+import { db } from '@/server/db/client';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
-import { db } from '@/server/db/client';
-import { sessions } from '@drizzle/schema/users';
-import { eq, and } from 'drizzle-orm';
+import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
+import { sessions } from '@drizzle/schema/users';
 
 type RouteContext = { params: Promise<{ sessionId: string }> };
 
