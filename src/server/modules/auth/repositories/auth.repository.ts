@@ -1,9 +1,11 @@
 import { eq, and, isNull } from 'drizzle-orm';
+
 import { db, type Tx } from '@/server/db/client';
+import { logger } from '@/server/lib/logger';
 import { users, sessions, workspaceInvitations, workspaces, workspaceMembers } from '@drizzle/schema';
 import type { NewUser } from '@drizzle/schema/users';
+
 import { AUTH } from '../constants';
-import { logger } from '@/server/lib/logger';
 
 export const authRepository = {
   /**

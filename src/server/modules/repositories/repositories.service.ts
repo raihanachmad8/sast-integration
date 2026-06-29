@@ -1,7 +1,8 @@
-import { repositoriesRepository } from './repositories.repository';
-import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
+import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
+
+import { repositoriesRepository } from './repositories.repository';
 
 /**
  * Service responsible for managing Repositories.
@@ -16,9 +17,9 @@ export const repositoriesService = {
    * @param workspaceId - Workspace UUID to scope the query
    * @returns Array of repository records
    */
-  async list(workspaceId: string) {
+  async list(workspaceId: string, params?: { search?: string; sort?: string; order?: string }) {
     logger.repository.info('listRepositories', { workspaceId });
-    const result = await repositoriesRepository.listByWorkspace(workspaceId);
+    const result = await repositoriesRepository.list(workspaceId, params);
     logger.repository.info('listRepositories completed', { count: result.length });
     return result;
   },
@@ -31,13 +32,13 @@ export const repositoriesService = {
    * @returns Repository record
    * @throws {AppError} 404 - Repository not found
    */
-  async getById(id: string, workspaceId: string) {
-    logger.repository.info('getRepositoryById', { id, workspaceId });
-    const repo = await repositoriesRepository.getById(id, workspaceId);
+  async getById(workspaceId: string, id: string) {
+    logger.repository.info('getById', { id, workspaceId });
+    const repo = await repositoriesRepository.getById(workspaceId, id);
     if (!repo) {
       throw new AppError('Repository not found', 404, 'NOT_FOUND');
     }
-    logger.repository.info('getRepositoryById completed', { id });
+    logger.repository.info('getById completed', { id });
     return repo;
   },
 
@@ -50,8 +51,8 @@ export const repositoriesService = {
    * @returns Created repository record
    * @throws {AppError} 403 - User is not a member of the workspace
    */
-  async create(data: unknown, workspaceId: string, userId: string) {
-    logger.repository.info('createRepository', { workspaceId });
+  async create(workspaceId: string, data: unknown, userId: string) {
+    logger.repository.info('create', { workspaceId });
     await assertWorkspaceMember(workspaceId, userId);
 
     const input = data as {
@@ -74,7 +75,7 @@ export const repositoriesService = {
       autoScan: input.autoScan,
       createdBy: userId,
     });
-    logger.repository.info('createRepository completed', { repositoryId: result.id });
+    logger.repository.info('create completed', { repositoryId: result.id });
     return result;
   },
 
@@ -89,10 +90,10 @@ export const repositoriesService = {
    * @throws {AppError} 403 - User is not a member of the workspace
    * @throws {AppError} 404 - Repository not found
    */
-  async update(id: string, data: unknown, workspaceId: string, userId: string) {
-    logger.repository.info('updateRepository', { id, workspaceId });
+  async update(workspaceId: string, id: string, data: unknown, userId: string) {
+    logger.repository.info('update', { id, workspaceId });
     await assertWorkspaceMember(workspaceId, userId);
-    const existing = await repositoriesRepository.getById(id, workspaceId);
+    const existing = await repositoriesRepository.getById(workspaceId, id);
     if (!existing) {
       throw new AppError('Repository not found', 404, 'NOT_FOUND');
     }
@@ -117,7 +118,7 @@ export const repositoriesService = {
       connectionType: input.connectionType,
       autoScan: input.autoScan,
     });
-    logger.repository.info('updateRepository completed', { id });
+    logger.repository.info('update completed', { id });
     return updated;
   },
 
@@ -131,16 +132,16 @@ export const repositoriesService = {
    * @throws {AppError} 403 - User is not a member of the workspace
    * @throws {AppError} 404 - Repository not found
    */
-  async delete(id: string, workspaceId: string, userId: string) {
-    logger.repository.info('deleteRepository', { id, workspaceId });
+  async delete(workspaceId: string, id: string, userId: string) {
+    logger.repository.info('delete', { id, workspaceId });
     await assertWorkspaceMember(workspaceId, userId);
-    const existing = await repositoriesRepository.getById(id, workspaceId);
+    const existing = await repositoriesRepository.getById(workspaceId, id);
     if (!existing) {
       throw new AppError('Repository not found', 404, 'NOT_FOUND');
     }
 
     await repositoriesRepository.delete(id);
-    logger.repository.info('deleteRepository completed', { id });
+    logger.repository.info('delete completed', { id });
     return existing;
   },
 };

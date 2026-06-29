@@ -7,9 +7,10 @@
  * @module source-control/github-api
  */
 
-import { logger } from '@/server/lib/logger';
-import { AppError } from '@/server/http/errors';
 import { HTTP } from '@/server/http/constants';
+import { AppError } from '@/server/http/errors';
+import { logger } from '@/server/lib/logger';
+
 import type { ScmApiService, ScmBaseCredentials, CommitStatus, InlineReviewComment, ChangedFile } from './scm-api.service';
 import { extractFingerprintFromMarker, parsePatchToChangedLines } from './scm-api.service';
 

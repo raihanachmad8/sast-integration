@@ -1,5 +1,6 @@
-import { dashboardRepository } from './dashboard.repository';
 import { logger } from '@/server/lib/logger';
+
+import { dashboardRepository } from './dashboard.repository';
 
 export const dashboardService = {
   /**

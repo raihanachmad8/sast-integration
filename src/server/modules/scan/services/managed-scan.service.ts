@@ -1,18 +1,22 @@
+import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm, readFile, readdir as readdirFs } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { randomUUID } from 'node:crypto';
+
 import { eq, and, isNull } from 'drizzle-orm';
+
 import { db } from '@/server/db/client';
-import { repositories } from '@drizzle/schema/source-controls';
-import { schedules } from '@drizzle/schema/scans';
-import { logger } from '@/server/lib/logger';
-import { projectRepository } from '@/server/modules/project/repositories/project.repository';
-import { scanRepository } from '../repositories/scan.repository';
-import { resolveCodeContextsBatch } from './source-context';
 import { AppError } from '@/server/http/errors';
+import { logger } from '@/server/lib/logger';
+import { hasScmConnection } from '@/server/modules/project/constants';
+import { projectRepository } from '@/server/modules/project/repositories/project.repository';
+import { enqueue } from '@/server/modules/queue/queue.service';
+import { getStorageDriver } from '@/server/modules/storage/storage.service';
+import { schedules } from '@drizzle/schema/scans';
+import { repositories } from '@drizzle/schema/source-controls';
+
 import {
   QUEUE_JOB_NAMES,
   SCAN_ORIGINS,
@@ -23,11 +27,14 @@ import {
   MAX_SCANNER_OUTPUT_BUFFER_BYTES,
   type ScannerId,
 } from '../constants';
-import { hasScmConnection } from '@/server/modules/project/constants';
-import { SCANNER_COMMANDS, DEFAULT_SCANNER_TIMEOUT_SECONDS } from '../scanners';
+import { scanRepository } from '../repositories/scan.repository';
 import { checkScannerAvailability } from '../scanner-availability';
-import { enqueue } from '@/server/modules/queue/queue.service';
-import { getStorageDriver } from '@/server/modules/storage/storage.service';
+import { SCANNER_COMMANDS, DEFAULT_SCANNER_TIMEOUT_SECONDS } from '../scanners';
+
+import { resolveCodeContextsBatch } from './source-context';
+
+
+
 
 /**
  * Managed scan service — orchestrates the end-to-end scan lifecycle.

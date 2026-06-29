@@ -21,10 +21,11 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { logger } from '@/server/lib/logger';
-import { projectApiTokenRepository } from '@/server/modules/project/repositories/project-api-token.repository';
-import { projectRepository } from '@/server/modules/project/repositories/project.repository';
+
 import { ApiResponse } from '@/server/http/response';
+import { logger } from '@/server/lib/logger';
+import { projectRepository } from '@/server/modules/project/repositories/project.repository';
+import { projectApiTokenService } from '@/server/modules/project/services/project-api-token.service';
 
 export interface CiCdAuthContext {
   workspaceId: string;
@@ -60,7 +61,7 @@ export async function authenticateCiCd(request: NextRequest): Promise<CiCdAuthRe
       };
     }
 
-    const token = await projectApiTokenRepository.findAnyValidProjectToken(rawToken);
+    const token = await projectApiTokenService.findAnyValidProjectToken(rawToken);
     if (!token) {
       logger.scan.warn('CI/CD auth: invalid token');
       return {
@@ -94,7 +95,7 @@ export async function authenticateCiCd(request: NextRequest): Promise<CiCdAuthRe
       };
     }
 
-    projectApiTokenRepository.touchLastUsed(token.id).catch(() => {});
+    projectApiTokenService.touchLastUsed(token.id).catch(() => {});
 
     logger.scan.info('CI/CD auth successful', {
       workspaceId: project.workspaceId,

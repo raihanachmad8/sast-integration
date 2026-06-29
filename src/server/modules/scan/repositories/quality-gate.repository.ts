@@ -1,7 +1,8 @@
 import { eq, desc } from 'drizzle-orm';
+
 import { db, type Tx } from '@/server/db/client';
-import { qualityGates, qualityGateResults } from '@drizzle/schema/scans';
 import { logger } from '@/server/lib/logger';
+import { qualityGates, qualityGateResults } from '@drizzle/schema/scans';
 export const qualityGateRepository = {
   /**
    * Find quality gate configuration for a workspace.
@@ -10,6 +11,7 @@ export const qualityGateRepository = {
    * @returns Quality gate config or null
    */
   async findByWorkspace(workspaceId: string, tx?: Tx) {
+    logger.scan.debug('findByWorkspace', { workspaceId });
     const executor = tx ?? db;
     const [gate] = await executor.select().from(qualityGates)
       .where(eq(qualityGates.workspaceId, workspaceId))

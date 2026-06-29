@@ -1,8 +1,10 @@
-import { webhookRepository } from './webhook.repository';
-import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
 import { createWebhookSchema, updateWebhookSchema } from '@/commons/schemas';
 import { AppError, validateSchema } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
+import { isPrivateOrInternal } from '@/server/lib/ssrf';
+import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
+
+import { webhookRepository } from './webhook.repository';
 
 /**
  * Service responsible for managing Webhooks.
@@ -48,17 +50,17 @@ export const webhookService = {
   /**
    * Lists all non-deleted webhooks belonging to a workspace.
    */
-  async listWebhooksByWorkspace(workspaceId: string) {
+  async listWebhooksByWorkspace(workspaceId: string, params?: { page?: number; perPage?: number; search?: string; sort?: string; order?: string; active?: boolean }) {
     logger.webhook.info('listWebhooksByWorkspace', { workspaceId });
-    const result = await webhookRepository.listByWorkspace(workspaceId);
-    logger.webhook.info('listWebhooksByWorkspace completed', { count: result.length });
+    const result = await webhookRepository.listByWorkspace(workspaceId, params);
+    logger.webhook.info('listWebhooksByWorkspace completed', { total: result.total });
     return result;
   },
 
   /**
    * Updates an existing webhook.
    */
-  async updateWebhook(id: string, input: unknown, updatedBy: string, workspaceId: string) {
+  async updateWebhook(workspaceId: string, id: string, input: unknown, updatedBy: string) {
     logger.webhook.info('updateWebhook', { id });
     await assertWorkspaceMember(workspaceId, updatedBy);
     const data = validateSchema(updateWebhookSchema, input);
@@ -76,8 +78,8 @@ export const webhookService = {
   /**
    * Soft-deletes a webhook by setting deletedAt and deletedBy.
    */
-  async deleteWebhook(id: string, deletedBy: string, workspaceId: string) {
-    logger.webhook.info('deleteWebhook', { id });
+  async deleteWebhook(workspaceId: string, id: string, deletedBy: string) {
+    logger.webhook.info('deleteWebhook', { id, workspaceId });
     await assertWorkspaceMember(workspaceId, deletedBy);
     const existing = await this.getWebhookById(id);
 
@@ -90,7 +92,7 @@ export const webhookService = {
   /**
    * Send a test payload to a webhook URL.
    */
-  async testWebhook(id: string, workspaceId: string, userId: string) {
+  async testWebhook(workspaceId: string, id: string, userId: string) {
     logger.webhook.info('testWebhook', { id });
     await assertWorkspaceMember(workspaceId, userId);
     const webhook = await this.getWebhookById(id);
@@ -144,5 +146,3 @@ export const webhookService = {
     }
   },
 };
-
-import { isPrivateOrInternal } from '@/server/lib/ssrf';

@@ -1,9 +1,10 @@
-import { logger } from '@/server/lib/logger';
-import { scanRepository } from './repositories/scan.repository';
-import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 import { AppError } from '@/server/http/errors';
-import { SCAN } from './constants';
+import { logger } from '@/server/lib/logger';
+import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 import type { ProgressEvent } from '@drizzle/schema/scans';
+
+import { SCAN } from './constants';
+import { scanRepository } from './repositories/scan.repository';
 
 /** Map raw scan DB row to frontend ScanRow shape */
 function toScanRow(row: Awaited<ReturnType<typeof scanRepository.listByWorkspace>>['data'][number]) {
@@ -84,7 +85,7 @@ export const scanService = {
    * @returns Scan record
    * @throws {AppError} If scan not found or user is not a workspace member
    */
-  async getById(id: string, workspaceId: string, userId: string) {
+  async getById(workspaceId: string, id: string, userId: string) {
     logger.scan.debug('getById', { id, workspaceId });
     try {
       const role = await workspaceRepository.getMemberRole(workspaceId, userId);
@@ -107,7 +108,7 @@ export const scanService = {
    * @returns ScanDetail object
    * @throws {AppError} If scan not found or user is not a workspace member
    */
-  async getDetail(scanId: string, workspaceId: string, userId: string) {
+  async getDetail(workspaceId: string, scanId: string, userId: string) {
     logger.scan.debug('getDetail', { scanId, workspaceId });
     try {
       const role = await workspaceRepository.getMemberRole(workspaceId, userId);
@@ -251,7 +252,7 @@ export const scanService = {
    * @returns Array of scan result records
    * @throws {AppError} If scan not found or user is not a workspace member
    */
-  async getScanResults(scanId: string, workspaceId: string, userId: string) {
+  async getScanResults(workspaceId: string, scanId: string, userId: string) {
     logger.scan.debug('getScanResults', { scanId });
     try {
       const role = await workspaceRepository.getMemberRole(workspaceId, userId);
@@ -275,7 +276,7 @@ export const scanService = {
    * @returns Created scan record
    * @throws {AppError} If user is not a workspace member
    */
-  async create(data: { repositoryId: string; branch: string; origin: string }, workspaceId: string, userId: string) {
+  async create(workspaceId: string, data: { repositoryId: string; branch: string; origin: string }, userId: string) {
     logger.scan.info('create', { workspaceId, repositoryId: data.repositoryId });
     try {
       const role = await workspaceRepository.getMemberRole(workspaceId, userId);
@@ -291,14 +292,14 @@ export const scanService = {
 
   /**
    * Update scan status, verifying workspace membership.
+   * @param workspaceId - Workspace UUID
    * @param id - Scan UUID
    * @param status - New status value
-   * @param workspaceId - Workspace UUID
    * @param userId - User UUID for authorization
    * @returns Updated scan record
    * @throws {AppError} If user is not a workspace member
    */
-  async updateStatus(id: string, status: string, workspaceId: string, userId: string) {
+  async updateStatus(workspaceId: string, id: string, status: string, userId: string) {
     logger.scan.info('updateStatus', { id, status });
     try {
       const role = await workspaceRepository.getMemberRole(workspaceId, userId);

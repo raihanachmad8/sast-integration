@@ -1,15 +1,18 @@
 import { randomBytes } from 'crypto';
+
 import { hash } from 'bcryptjs';
+
+import { ROUTES } from '@/commons/constants/routes';
 import { db } from '@/server/db/client';
+import { env } from '@/server/env';
+import { TOKEN_BYTES } from '@/server/http/constants';
+import { AppError } from '@/server/http/errors';
+import { logger } from '@/server/lib/logger';
+import { MAIL } from '@/server/modules/mail/constants';
 import { sendMail } from '@/server/modules/mail/mail.service';
 import { resetPasswordTemplate, verifyEmailTemplate } from '@/server/modules/mail/templates';
-import { MAIL } from '@/server/modules/mail/constants';
+
 import { AUTH } from '../constants';
-import { AppError } from '@/server/http/errors';
-import { TOKEN_BYTES } from '@/server/http/constants';
-import { ROUTES } from '@/commons/constants/routes';
-import { env } from '@/server/env';
-import { logger } from '@/server/lib/logger';
 import { authFlowsRepository } from '../repositories/auth-flows.repository';
 
 const APP_URL = () => env.APP_URL;

@@ -1,42 +1,37 @@
-import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
-import { knowledgeBaseRepository } from './knowledge-base.repository';
+import { createKnowledgeSourceSchema, updateKnowledgeSourceSchema } from '@/commons/schemas/knowledge-base.schema';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
-import { createKnowledgeSourceSchema, updateKnowledgeSourceSchema } from '@/commons/schemas/knowledge-base.schema';
+import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
+
+import { knowledgeBaseRepository } from './knowledge-base.repository';
 
 export const knowledgeSourceService = {
   /**
    * Lists knowledge sources for a workspace.
-   *
-   * @throws {AppError} When the query fails unexpectedly.
    */
-  async listSourcesByWorkspace(workspaceId: string) {
-    logger.knowledge.info('listSourcesByWorkspace', { workspaceId });
+  async list(workspaceId: string) {
+    logger.knowledge.info('list', { workspaceId });
     const result = await knowledgeBaseRepository.listSourcesByWorkspace(workspaceId);
-    logger.knowledge.info('listSourcesByWorkspace completed', { count: result.length });
+    logger.knowledge.info('list completed', { count: result.length });
     return result;
   },
 
   /**
    * Returns one workspace-owned source.
-   *
-   * @throws {AppError} When the source is missing.
    */
-  async getSourceById(sourceId: string, workspaceId: string) {
-    logger.knowledge.info('getSourceById', { sourceId, workspaceId });
+  async getById(workspaceId: string, sourceId: string) {
+    logger.knowledge.info('getById', { sourceId, workspaceId });
     const source = await knowledgeBaseRepository.findSourceByIdWithWorkspaceScope(sourceId, workspaceId);
     if (!source) throw new AppError('Knowledge source not found', 404, 'NOT_FOUND');
-    logger.knowledge.info('getSourceById completed', { sourceId });
+    logger.knowledge.info('getById completed', { sourceId });
     return source;
   },
 
   /**
    * Creates a new source in a workspace.
-   *
-   * @throws {AppError} When validation fails.
    */
-  async createSource(workspaceId: string, input: unknown, userId: string) {
-    logger.knowledge.info('createSource', { workspaceId });
+  async create(workspaceId: string, input: unknown, userId: string) {
+    logger.knowledge.info('create', { workspaceId });
     await assertWorkspaceMember(workspaceId, userId);
     const data = createKnowledgeSourceSchema.parse(input);
     const source = await knowledgeBaseRepository.insertSource({
@@ -45,36 +40,31 @@ export const knowledgeSourceService = {
       type: data.type,
       url: data.url,
     });
-    logger.knowledge.info('createSource completed', { sourceId: source.id });
+    logger.knowledge.info('create completed', { sourceId: source.id });
     return source;
   },
 
   /**
    * Updates a workspace source.
-   *
-   * @throws {AppError} When the source is missing.
    */
-  async updateSource(sourceId: string, workspaceId: string, input: unknown, userId: string) {
-    logger.knowledge.info('updateSource', { sourceId, workspaceId });
+  async update(workspaceId: string, sourceId: string, input: unknown, userId: string) {
+    logger.knowledge.info('update', { sourceId, workspaceId });
     await assertWorkspaceMember(workspaceId, userId);
-    await this.getSourceById(sourceId, workspaceId);
+    await this.getById(workspaceId, sourceId);
     const data = updateKnowledgeSourceSchema.parse(input);
     const source = await knowledgeBaseRepository.updateSource(sourceId, data);
-    logger.knowledge.info('updateSource completed', { sourceId });
+    logger.knowledge.info('update completed', { sourceId });
     return source;
   },
 
   /**
    * Deletes a workspace source and its entries.
-   *
-   * @throws {AppError} When the source is missing.
    */
-  async deleteSource(sourceId: string, workspaceId: string, userId: string) {
-    logger.knowledge.info('deleteSource', { sourceId, workspaceId });
+  async delete(workspaceId: string, sourceId: string, userId: string) {
+    logger.knowledge.info('delete', { sourceId, workspaceId });
     await assertWorkspaceMember(workspaceId, userId);
-    await this.getSourceById(sourceId, workspaceId);
+    await this.getById(workspaceId, sourceId);
     await knowledgeBaseRepository.deleteSourceWithEntries(sourceId);
-    logger.knowledge.info('deleteSource completed', { sourceId });
+    logger.knowledge.info('delete completed', { sourceId });
   },
-
 };

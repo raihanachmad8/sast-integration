@@ -1,7 +1,10 @@
-import { eq, and, isNull, desc } from 'drizzle-orm';
+import { eq, and, isNull, desc, count } from 'drizzle-orm';
+
 import { db, type Tx } from '@/server/db/client';
-import { webhooks, webhookDeliveries } from '@drizzle/schema/integrations';
 import { logger } from '@/server/lib/logger';
+import { buildSearch, buildSort, buildPaginationMeta } from '@/server/lib/query';
+import { webhooks, webhookDeliveries } from '@drizzle/schema/integrations';
+
 export interface CreateWebhookInput {
   workspaceId: string;
   name: string;
@@ -20,14 +23,21 @@ export interface UpdateWebhookInput {
   active?: boolean;
 }
 
+export interface WebhookListParams {
+  page?: number;
+  perPage?: number;
+  search?: string;
+  sort?: string;
+  order?: string;
+  active?: boolean;
+}
+
 export const webhookRepository = {
   /**
    * Create a new webhook record.
-   * @param data - Webhook input data (workspaceId, name, url, events, secret, createdBy)
-   * @param tx - Optional transaction context for atomic operations
-   * @returns Created webhook record
    */
   async create(data: CreateWebhookInput, tx?: Tx) {
+    logger.webhook.info('create', { workspaceId: data.workspaceId, name: data.name });
     const executor = tx ?? db;
 
     const [webhook] = await executor
@@ -44,50 +54,76 @@ export const webhookRepository = {
       })
       .returning();
 
+    logger.webhook.info('create completed', { webhookId: webhook.id });
     return webhook;
   },
 
   /**
    * Find a non-deleted webhook by ID.
-   * @param id - Webhook UUID
-   * @returns Webhook record or null if not found
    */
-  async findById(id: string) {
-    const [webhook] = await db
+  async findById(id: string, tx?: Tx) {
+    logger.webhook.info('findById', { id });
+    const executor = tx ?? db;
+    const [webhook] = await executor
       .select()
       .from(webhooks)
       .where(and(eq(webhooks.id, id), isNull(webhooks.deletedAt)))
       .limit(1);
 
+    if (!webhook) {
+      logger.webhook.warn('findById: webhook not found', { id });
+    }
     return webhook ?? null;
   },
 
   /**
-   * List all non-deleted webhooks in a workspace.
-   * @param workspaceId - Workspace UUID
-   * @returns Array of webhook records
+   * List non-deleted webhooks in a workspace with search, sort, and pagination.
    */
-  async listByWorkspace(workspaceId: string) {
-    return db
+  async listByWorkspace(workspaceId: string, params?: WebhookListParams, tx?: Tx) {
+    logger.webhook.info('listByWorkspace', { workspaceId });
+    const executor = tx ?? db;
+
+    const conditions = [
+      eq(webhooks.workspaceId, workspaceId),
+      isNull(webhooks.deletedAt),
+      ...buildSearch(params?.search, webhooks.name),
+    ];
+
+    if (params?.active !== undefined) {
+      conditions.push(eq(webhooks.active, params.active));
+    }
+
+    // Count total
+    const [{ total }] = await executor
+      .select({ total: count() })
+      .from(webhooks)
+      .where(and(...conditions));
+
+    const sortExpr = buildSort(
+      params?.sort, params?.order,
+      { name: webhooks.name, url: webhooks.url, active: webhooks.active, createdAt: webhooks.createdAt },
+      webhooks.createdAt,
+    );
+
+    const page = params?.page ?? 1;
+    const perPage = params?.perPage ?? 10;
+    const rows = await executor
       .select()
       .from(webhooks)
-      .where(
-        and(
-          eq(webhooks.workspaceId, workspaceId),
-          isNull(webhooks.deletedAt),
-        ),
-      );
+      .where(and(...conditions))
+      .orderBy(sortExpr)
+      .limit(perPage)
+      .offset((page - 1) * perPage);
+
+    logger.webhook.info('listByWorkspace completed', { workspaceId, count: rows.length, total });
+    return { data: rows, ...buildPaginationMeta(total, page, perPage) };
   },
 
   /**
    * Update a webhook record.
-   * @param id - Webhook UUID
-   * @param data - Fields to update
-   * @param updatedBy - User UUID of the updater
-   * @param tx - Optional transaction context
-   * @returns Updated webhook record or null if not found
    */
   async update(id: string, data: UpdateWebhookInput, updatedBy: string, tx?: Tx) {
+    logger.webhook.info('update', { id });
     const executor = tx ?? db;
 
     const [updated] = await executor
@@ -104,16 +140,15 @@ export const webhookRepository = {
       .where(eq(webhooks.id, id))
       .returning();
 
+    logger.webhook.info('update completed', { id });
     return updated ?? null;
   },
 
   /**
    * Soft-delete a webhook by setting deletedAt timestamp.
-   * @param id - Webhook UUID
-   * @param deletedBy - User UUID of the deleter
-   * @param tx - Optional transaction context
    */
   async softDelete(id: string, deletedBy: string, tx?: Tx) {
+    logger.webhook.info('softDelete', { id, deletedBy });
     const executor = tx ?? db;
 
     await executor
@@ -125,15 +160,17 @@ export const webhookRepository = {
         updatedAt: new Date(),
       })
       .where(eq(webhooks.id, id));
+
+    logger.webhook.info('softDelete completed', { id });
   },
 
   /**
    * Log a webhook delivery attempt.
-   * @param data - Delivery data (webhookId, event, status, optional response details and duration)
-   * @returns Created delivery record
    */
-  async logDelivery(data: { webhookId: string; event: string; status: string; responseStatus?: number; requestBody?: unknown; responseBody?: string; durationMs?: number }) {
-    const [delivery] = await db
+  async logDelivery(data: { webhookId: string; event: string; status: string; responseStatus?: number; requestBody?: unknown; responseBody?: string; durationMs?: number }, tx?: Tx) {
+    logger.webhook.info('logDelivery', { webhookId: data.webhookId, event: data.event });
+    const executor = tx ?? db;
+    const [delivery] = await executor
       .insert(webhookDeliveries)
       .values({
         webhookId: data.webhookId,
@@ -145,21 +182,23 @@ export const webhookRepository = {
         durationMs: data.durationMs,
       })
       .returning();
+    logger.webhook.info('logDelivery completed', { deliveryId: delivery.id });
     return delivery;
   },
 
   /**
    * List delivery records for a webhook, ordered by most recent first.
-   * @param webhookId - Webhook UUID
-   * @param limit - Maximum number of records to return (default: 50)
-   * @returns Array of delivery records
    */
-  async listDeliveries(webhookId: string, limit = 50) {
-    return db
+  async listDeliveries(webhookId: string, limit = 50, tx?: Tx) {
+    logger.webhook.info('listDeliveries', { webhookId });
+    const executor = tx ?? db;
+    const rows = await executor
       .select()
       .from(webhookDeliveries)
       .where(eq(webhookDeliveries.webhookId, webhookId))
       .orderBy(desc(webhookDeliveries.createdAt))
       .limit(limit);
+    logger.webhook.info('listDeliveries completed', { webhookId, count: rows.length });
+    return rows;
   },
 };

@@ -1,6 +1,8 @@
 import { z } from 'zod';
-import { WORKSPACE } from './constants';
+
 import { ROLE } from '@/commons/constants/permissions';
+
+import { WORKSPACE } from './constants';
 
 /** Roles assignable via API (owner cannot be assigned) */
 const ASSIGNABLE_ROLES = [ROLE.MANAGER, ROLE.REVIEWER, ROLE.MEMBER] as const;

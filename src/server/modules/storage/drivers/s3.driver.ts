@@ -1,6 +1,9 @@
 import type { Readable } from 'node:stream';
-import type { StorageDriver, UploadOptions, UploadResult } from '../storage.interface';
+
+import { env } from '@/server/env';
 import { logger } from '@/server/lib/logger';
+
+import type { StorageDriver, UploadOptions, UploadResult } from '../storage.interface';
 
 /**
  * S3/MinIO storage driver.
@@ -16,9 +19,9 @@ export class S3StorageDriver implements StorageDriver {
   private baseUrl: string;
 
   constructor(options?: { bucket?: string; region?: string; endpoint?: string }) {
-    this.bucket = options?.bucket ?? process.env.S3_BUCKET ?? 'sast-uploads';
-    this.region = options?.region ?? process.env.AWS_REGION ?? 'us-east-1';
-    this.endpoint = options?.endpoint ?? process.env.S3_ENDPOINT;
+    this.bucket = options?.bucket ?? env.S3_BUCKET ?? 'sast-uploads';
+    this.region = options?.region ?? env.AWS_REGION ?? 'us-east-1';
+    this.endpoint = options?.endpoint ?? env.S3_ENDPOINT;
 
     if (this.endpoint) {
       // MinIO or custom S3-compatible — use path-style
@@ -29,7 +32,7 @@ export class S3StorageDriver implements StorageDriver {
   }
 
   isConfigured(): boolean {
-    return !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && this.bucket);
+    return !!(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY && this.bucket);
   }
 
   private async getClient() {
@@ -38,8 +41,8 @@ export class S3StorageDriver implements StorageDriver {
     const config: Record<string, unknown> = {
       region: this.region,
       credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? '',
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? '',
+        accessKeyId: env.AWS_ACCESS_KEY_ID ?? '',
+        secretAccessKey: env.AWS_SECRET_ACCESS_KEY ?? '',
       },
     };
     if (this.endpoint) {

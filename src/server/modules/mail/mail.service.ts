@@ -1,7 +1,9 @@
 import nodemailer from 'nodemailer';
+
 import { env } from '@/server/env';
-import { MAIL } from './constants';
 import { logger } from '@/server/lib/logger';
+
+import { MAIL } from './constants';
 
 export interface SendMailOptions {
   to: string;

@@ -11,13 +11,15 @@
  * @module source-control/scm-api
  */
 
-import { AppError } from '@/server/http/errors';
+import type { ScmProvider, ScmConnectionType } from '@/commons/types/domain';
 import { HTTP } from '@/server/http/constants';
+import { AppError } from '@/server/http/errors';
+import { logger } from '@/server/lib/logger';
+
+import { GiteaApiService } from './gitea-api.service';
 import { GitHubScmService } from './github-api.service';
 import { GitLabScmService } from './gitlab-api.service';
-import { GiteaApiService } from './gitea-api.service';
-import type { ScmProvider, ScmConnectionType } from '@/commons/types/domain';
-import { logger } from '@/server/lib/logger';
+
 
 // ─── Credentials ─────────────────────────────────────────────
 
@@ -59,7 +61,7 @@ export function isGitHubAppCredentials(c: ScmCredentials): c is ScmGitHubAppCred
 // ─── Provider Config ─────────────────────────────────────────
 
 /** Provider-specific configuration */
-export interface ScmProviderConfig {
+export interface ScmProviderSDK {
   provider: ScmProvider;
   connectionType: ScmConnectionType;
   /** OAuth authorize URL (null if not applicable) */
@@ -423,7 +425,7 @@ export function parsePatchToChangedLines(patch: string): number[] {
 
 // ─── Provider Configs ────────────────────────────────────────
 
-const GITHUB_OAUTH_CONFIG: ScmProviderConfig = {
+const GITHUB_OAUTH_CONFIG: ScmProviderSDK = {
   provider: 'github',
   connectionType: 'oauth',
   getAuthUrl({ clientId, callbackUrl, state }) {
@@ -443,7 +445,7 @@ const GITHUB_OAUTH_CONFIG: ScmProviderConfig = {
   supportsRefresh: false,
 };
 
-const GITHUB_PAT_CONFIG: ScmProviderConfig = {
+const GITHUB_PAT_CONFIG: ScmProviderSDK = {
   provider: 'github',
   connectionType: 'pat',
   getAuthUrl: () => null,
@@ -454,7 +456,7 @@ const GITHUB_PAT_CONFIG: ScmProviderConfig = {
   supportsRefresh: false,
 };
 
-const GITHUB_APP_CONFIG: ScmProviderConfig = {
+const GITHUB_APP_CONFIG: ScmProviderSDK = {
   provider: 'github',
   connectionType: 'github-app',
   getAuthUrl({ clientId, state }) {
@@ -468,7 +470,7 @@ const GITHUB_APP_CONFIG: ScmProviderConfig = {
   supportsRefresh: false,
 };
 
-const GITLAB_OAUTH_CONFIG: ScmProviderConfig = {
+const GITLAB_OAUTH_CONFIG: ScmProviderSDK = {
   provider: 'gitlab',
   connectionType: 'oauth',
   getAuthUrl({ clientId, callbackUrl, state, baseUrl }) {
@@ -489,7 +491,7 @@ const GITLAB_OAUTH_CONFIG: ScmProviderConfig = {
   supportsRefresh: true,
 };
 
-const GITLAB_PAT_CONFIG: ScmProviderConfig = {
+const GITLAB_PAT_CONFIG: ScmProviderSDK = {
   provider: 'gitlab',
   connectionType: 'pat',
   getAuthUrl: () => null,
@@ -500,7 +502,7 @@ const GITLAB_PAT_CONFIG: ScmProviderConfig = {
   supportsRefresh: false,
 };
 
-const GITEA_OAUTH_CONFIG: ScmProviderConfig = {
+const GITEA_OAUTH_CONFIG: ScmProviderSDK = {
   provider: 'gitea',
   connectionType: 'oauth',
   getAuthUrl({ clientId, callbackUrl, state, baseUrl }) {
@@ -521,7 +523,7 @@ const GITEA_OAUTH_CONFIG: ScmProviderConfig = {
   supportsRefresh: true,
 };
 
-const GITEA_PAT_CONFIG: ScmProviderConfig = {
+const GITEA_PAT_CONFIG: ScmProviderSDK = {
   provider: 'gitea',
   connectionType: 'pat',
   getAuthUrl: () => null,
@@ -533,7 +535,7 @@ const GITEA_PAT_CONFIG: ScmProviderConfig = {
 };
 
 /** All provider configs indexed by provider+connectionType */
-const PROVIDER_CONFIGS: Record<string, ScmProviderConfig> = {
+const PROVIDER_CONFIGS: Record<string, ScmProviderSDK> = {
   'github:oauth': GITHUB_OAUTH_CONFIG,
   'github:pat': GITHUB_PAT_CONFIG,
   'github:github-app': GITHUB_APP_CONFIG,
@@ -660,7 +662,7 @@ export async function refreshGitLabOAuthToken(
 /**
  * Get provider config by provider and connection type.
  */
-export function getScmProviderConfig(provider: ScmProvider, connectionType: ScmConnectionType): ScmProviderConfig {
+export function getScmProviderConfig(provider: ScmProvider, connectionType: ScmConnectionType): ScmProviderSDK {
   const key = `${provider}:${connectionType}`;
   const config = PROVIDER_CONFIGS[key];
   if (!config) {
@@ -685,6 +687,7 @@ export function resolveConnectionType(credentials: Record<string, unknown>): Scm
  * Returns the appropriate ScmApiService implementation based on provider.
  */
 export function createScmApiService(provider: string, credentials: ScmCredentials): ScmApiService {
+  logger.sourceControl.debug('createScmApiService', { provider });
   switch (provider) {
     case 'github':
       // GitHub uses ScmBaseCredentials (only needs baseUrl + token)

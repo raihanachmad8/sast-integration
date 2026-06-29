@@ -1,5 +1,6 @@
-import { HTTP } from '@/server/http/constants';
 import { type ZodSchema, ZodError } from 'zod';
+
+import { HTTP } from '@/server/http/constants';
 
 /**
  * Base application error with HTTP status code and machine-readable error code.

@@ -37,7 +37,6 @@ function createLogger(context: string) {
 }
 
 // File transport — only loaded in Node.js runtime, never in edge/browser
-let fileLoggerInstance: pino.Logger | null = null;
 let getFileLoggerFn: (() => pino.Logger) | null = null;
 
 async function ensureFileTransport() {
@@ -98,6 +97,7 @@ export const logger = {
   team: buildLogger('team'),
   workspace: buildLogger('workspace'),
   member: buildLogger('member'),
+  invitation: buildLogger('invitation'),
   model: buildLogger('model'),
   webhook: buildLogger('webhook'),
   knowledge: buildLogger('knowledge'),
@@ -110,8 +110,9 @@ export const logger = {
   finding: buildLogger('finding'),
   report: buildLogger('report'),
   dashboard: buildLogger('dashboard'),
-  audit: buildLogger('audit'),
-  notifications: buildLogger('notifications'),
   profile: buildLogger('profile'),
   storage: buildLogger('storage'),
+  qualityGate: buildLogger('qualityGate'),
+  scannerEngine: buildLogger('scannerEngine'),
+  app: buildLogger('app'),
 };

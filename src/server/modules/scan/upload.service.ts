@@ -61,16 +61,18 @@
  * // result: { scanId: '...', findingsCount: 5 }
  * ```
  */
-import { logger } from '@/server/lib/logger';
-import { scanRepository } from './repositories/scan.repository';
-import { findingService } from './services/finding.service';
-import { parseScanResult } from './parsers';
-import { MAX_UPLOAD_TOTAL_SIZE_BYTES, ASYNC_PARSE_THRESHOLD_BYTES, SCAN_PARSE_JOB_NAME, SCAN } from './constants';
+import { normalizeRepoName } from '@/app/api/v1/ci/normalize-repo';
 import { AppError } from '@/server/http/errors';
-import { getStorageDriver } from '@/server/modules/storage/storage.service';
+import { logger } from '@/server/lib/logger';
 import { enqueue } from '@/server/modules/queue/queue.service';
 import { repositoriesRepository } from '@/server/modules/repositories/repositories.repository';
-import { normalizeRepoName } from '@/app/api/v1/ci/normalize-repo';
+import { getStorageDriver } from '@/server/modules/storage/storage.service';
+
+import { MAX_UPLOAD_TOTAL_SIZE_BYTES, ASYNC_PARSE_THRESHOLD_BYTES, SCAN_PARSE_JOB_NAME, SCAN } from './constants';
+import { parseScanResult } from './parsers';
+import { scanRepository } from './repositories/scan.repository';
+import { findingService } from './services/finding.service';
+
 
 export interface UploadScanResultInput {
   projectId: string;
@@ -124,7 +126,7 @@ export const scanUploadService = {
     // Auto-register repository if it doesn't exist
     const projectId = input.projectId;
     let repositoryId: string;
-    const existingRepo = await repositoriesRepository.getById(input.projectId, input.workspaceId);
+    const existingRepo = await repositoriesRepository.getById(input.workspaceId, input.projectId);
     if (existingRepo) {
       repositoryId = existingRepo.id;
     } else if (input.repositoryUrl) {

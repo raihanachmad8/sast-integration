@@ -1,8 +1,9 @@
 import { and, eq, isNull } from 'drizzle-orm';
+
 import { db } from '@/server/db/client';
-import { knowledgeSources } from '@drizzle/schema/integrations';
-import { syncEngine } from '@/server/modules/knowledge-base/sync-engine';
 import { logger } from '@/server/lib/logger';
+import { syncEngine } from '@/server/modules/knowledge-base/sync-engine';
+import { knowledgeSources } from '@drizzle/schema/integrations';
 
 const DEFAULT_SOURCES = [
   { name: 'CWE Catalog', type: 'cwe', url: 'https://cwe.mitre.org/data/xml/cwec_v4.16.xml.zip' },

@@ -1,8 +1,11 @@
-import { type NewFinding } from '@drizzle/schema/findings';
-import { logger } from '@/server/lib/logger';
-import { AppError } from '@/server/http/errors';
-import { normalizeFilePath } from './path-normalizer';
 import type { Severity } from '@/commons/types/domain';
+import { AppError } from '@/server/http/errors';
+import { logger } from '@/server/lib/logger';
+import { type NewFinding } from '@drizzle/schema/findings';
+
+import { normalizeFilePath } from './path-normalizer';
+
+
 import type { ParseResult } from './index';
 
 interface SemgrepResult {

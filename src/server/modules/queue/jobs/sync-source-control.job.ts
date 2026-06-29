@@ -14,12 +14,13 @@
  * @module queue/jobs/sync-source-control
  */
 
-import type { Job } from 'pg-boss';
-import { logger } from '@/server/lib/logger';
-import { db } from '@/server/db/client';
-import { sourceControlImports, repositories } from '@drizzle/schema/source-controls';
 import { eq, isNull, and, sql, inArray } from 'drizzle-orm';
+import type { Job } from 'pg-boss';
+
+import { db } from '@/server/db/client';
+import { logger } from '@/server/lib/logger';
 import { sourceControlRepository } from '@/server/modules/source-control/source-control.repository';
+import { sourceControlImports, repositories } from '@drizzle/schema/source-controls';
 
 interface SyncSourceControlJobData {
   sourceControlId?: string; // If provided, sync only this connection

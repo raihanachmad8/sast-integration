@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
-import { ApiResponse } from '@/server/http/response';
+
 import { HTTP } from '@/server/http/constants';
-import { verifyToken } from '@/server/modules/auth/services/jwt.service';
-import { authRepository } from '@/server/modules/auth/repositories/auth.repository';
+import { ApiResponse } from '@/server/http/response';
 import { AUTH } from '@/server/modules/auth/constants';
+import { authRepository } from '@/server/modules/auth/repositories/auth.repository';
+import { verifyToken } from '@/server/modules/auth/services/jwt.service';
 
 export interface AuthContext {
   userId: string;

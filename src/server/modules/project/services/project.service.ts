@@ -1,11 +1,19 @@
+import { PERMISSION } from '@/commons/constants/permissions';
+import type { ProjectFormInput as CreateProjectInput, ProjectUpdateInput as UpdateProjectInput, ProjectListQuery } from '@/commons/schemas';
+import type { ProjectMemberSummary, ProjectTeamSummary, ProjectRepositorySummary } from '@/commons/types';
+import { generateSlug } from '@/commons/utils/slug';
 import { db } from '@/server/db/client';
-import { projectRepository } from '../repositories/project.repository';
-import { projectApiTokenRepository } from '../repositories/project-api-token.repository';
-import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { assertHasPermission } from '@/server/http/authorization';
 import { AppError } from '@/server/http/errors';
-import { PROJECT, MS_PER_DAY } from '../constants';
 import { logger } from '@/server/lib/logger';
-import type { ProjectFormInput as CreateProjectInput, ProjectUpdateInput as UpdateProjectInput } from '@/commons/schemas';
+import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+
+import { PROJECT } from '../constants';
+import { projectRepository } from '../repositories/project.repository';
+
+import { projectApiTokenService } from './project-api-token.service';
+
+
 
 /**
  * Project service following the established workspace module patterns.
@@ -20,41 +28,35 @@ export const projectService = {
    * @returns Array of projects with member, team, and repository summaries
    * @throws {AppError} 403 - User is not a member of the workspace
    */
-  async list(workspaceId: string, userId: string) {
+  async list(workspaceId: string, userId: string, params?: ProjectListQuery) {
     logger.project.info('list', { workspaceId });
     const role = await workspaceRepository.getMemberRole(workspaceId, userId);
     if (!role) {
       throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
     }
-    const rows = await projectRepository.listByWorkspace(workspaceId);
+
+    const { data: rows, total, page, perPage, lastPage } = await projectRepository.list(workspaceId, params);
     if (rows.length === 0) {
       logger.project.info('list completed', { count: 0 });
-      return [];
+      return { data: [], total, page, perPage, lastPage };
     }
 
     const projectIds = rows.map((p) => p.id);
-    const [memberIdsMap, teamIdsMap, memberNamesMap, teamNamesMap, repoIdsMap, repoNamesMap] = await Promise.all([
-      projectRepository.listMemberIdsByProjectIds(projectIds),
-      projectRepository.listTeamIdsByProjectIds(projectIds),
-      projectRepository.listMemberNamesByProjectIds(projectIds),
-      projectRepository.listTeamNamesByProjectIds(projectIds),
-      projectRepository.listRepositoryIdsByProjectIds(projectIds),
-      projectRepository.listRepositoryNamesByProjectIds(projectIds),
+    const [membersMap, teamsMap, repositoriesMap] = await Promise.all([
+      projectRepository.listMemberSummariesByProjectIds(projectIds),
+      projectRepository.listTeamSummariesByProjectIds(projectIds),
+      projectRepository.listRepositorySummariesByProjectIds(projectIds),
     ]);
 
-    const result = rows.map((p) => ({
+    const data = rows.map((p) => ({
       ...p,
-      members: memberIdsMap.get(p.id) ?? [],
-      teams: teamIdsMap.get(p.id) ?? [],
-      memberNames: memberNamesMap.get(p.id) ?? [],
-      teamNames: teamNamesMap.get(p.id) ?? [],
-      repositories: repoNamesMap.get(p.id) ?? [],
-      repositoryIds: repoIdsMap.get(p.id) ?? [],
-      automation: [] as string[],
+      members: membersMap.get(p.id) ?? [] as ProjectMemberSummary[],
+      teams: teamsMap.get(p.id) ?? [] as ProjectTeamSummary[],
+      repositories: repositoriesMap.get(p.id) ?? [] as ProjectRepositorySummary[],
     }));
 
-    logger.project.info('list completed', { count: result.length });
-    return result;
+    logger.project.info('list completed', { count: data.length });
+    return { data, total, page, perPage, lastPage };
   },
 
   /**
@@ -66,8 +68,39 @@ export const projectService = {
    * @throws {AppError} 404 - Project not found
    * @throws {AppError} 403 - User is not a member of the workspace
    */
-  async getById(projectId: string, userId: string) {
+  async getById(workspaceId: string, projectId: string, userId: string) {
     logger.project.info('getById', { projectId });
+    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
+    if (!role) {
+      throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
+    }
+
+    const project = await projectRepository.findById(projectId);
+    if (!project) {
+      throw new AppError(PROJECT.ERRORS.NOT_FOUND, 404, PROJECT.ERROR_CODE);
+    }
+
+    const [members, teams, repositories] = await Promise.all([
+      projectRepository.listMemberSummaries(projectId),
+      projectRepository.listTeamSummaries(projectId),
+      projectRepository.listRepositorySummaries(projectId),
+    ]);
+
+    logger.project.info('getById completed', { projectId });
+    return { ...project, members, teams, repositories };
+  },
+
+  /**
+   * List members of a project (direct + team-based, deduplicated).
+   *
+   * @param projectId - Project UUID
+   * @param userId - User UUID requesting the list
+   * @returns Array of member summaries
+   * @throws {AppError} 404 - Project not found
+   * @throws {AppError} 403 - User is not a member of the workspace
+   */
+  async listMembers(projectId: string, userId: string) {
+    logger.project.info('listMembers', { projectId });
     const project = await projectRepository.findById(projectId);
     if (!project) {
       throw new AppError(PROJECT.ERRORS.NOT_FOUND, 404, PROJECT.ERROR_CODE);
@@ -80,19 +113,9 @@ export const projectService = {
       }
     }
 
-    const [members, teams, memberNames, teamNames, repositoryNames] = await Promise.all([
-      projectRepository.listMemberIds(projectId),
-      projectRepository.listTeamIds(projectId),
-      projectRepository.listMemberNames(projectId),
-      projectRepository.listTeamNames(projectId),
-      projectRepository.listRepositoryNames(projectId),
-    ]);
-
-    // Get repository IDs for filtering
-    const repositoryIds = await projectRepository.listRepositoryIds(projectId);
-
-    logger.project.info('getById completed', { projectId });
-    return { ...project, members, teams, memberNames, teamNames, repositories: repositoryNames, repositoryIds, automation: [] as string[] };
+    const result = await projectRepository.listMemberSummaries(projectId);
+    logger.project.info('listMembers completed', { projectId, count: result.length });
+    return result;
   },
 
   /**
@@ -104,96 +127,120 @@ export const projectService = {
    * @returns Created project record
    * @throws {AppError} 409 - Slug already exists in this workspace
    */
-  async create(input: CreateProjectInput, workspaceId: string, userId: string) {
+  async create(workspaceId: string, input: CreateProjectInput, userId: string) {
     logger.project.info('create', { workspaceId, name: input.name });
+    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
+    assertHasPermission(role, PERMISSION.PROJECT_MANAGE, PROJECT.ERROR_CODE);
+
     if (input.slug) {
       const existing = await projectRepository.findBySlug(workspaceId, input.slug);
       if (existing) {
+        logger.project.warn('create slug conflict', { workspaceId, slug: input.slug });
         throw new AppError(PROJECT.ERRORS.SLUG_CONFLICT, 409, PROJECT.ERROR_CODE);
       }
     }
 
-    const result = await db.transaction(async (tx) => {
-      const project = await projectRepository.create({
-        workspaceId,
-        name: input.name,
-        slug: input.slug || this.generateSlug(input.name),
-        description: input.description,
-        platform: input.platform,
-        language: input.language,
-        avatarUrl: input.avatarUrl,
-        createdBy: userId,
-      }, tx);
+    if (input.memberIds && input.memberIds.length === 0) {
+      logger.project.warn('create called with empty memberIds', { workspaceId, name: input.name });
+    }
+    if (input.teamIds && input.teamIds.length === 0) {
+      logger.project.warn('create called with empty teamIds', { workspaceId, name: input.name });
+    }
+    if (input.repositoryIds && input.repositoryIds.length === 0) {
+      logger.project.warn('create called with empty repositoryIds', { workspaceId, name: input.name });
+    }
 
-      if (input.memberIds?.length) {
-        await projectRepository.setMembers(project.id, input.memberIds, tx);
-      }
-      if (input.teamIds?.length) {
-        await projectRepository.setTeams(project.id, input.teamIds, tx);
-      }
+    try {
+      const result = await db.transaction(async (tx) => {
+        const project = await projectRepository.create({
+          workspaceId,
+          name: input.name,
+          slug: input.slug || generateSlug(input.name, PROJECT.MAX_SLUG_LENGTH),
+          description: input.description,
+          createdBy: userId,
+        }, tx);
 
-      return project;
-    });
+        if (input.memberIds?.length) {
+          await projectRepository.setMembers(project.id, input.memberIds, tx);
+        }
+        if (input.teamIds?.length) {
+          await projectRepository.setTeams(project.id, input.teamIds, tx);
+        }
+        if (input.repositoryIds) {
+          await projectRepository.setRepositories(project.id, input.repositoryIds, tx);
+        }
 
-    logger.project.info('create completed', { projectId: result.id });
-    return result;
+        return project;
+      });
+
+      logger.project.info('create completed', { projectId: result.id });
+      return result;
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      logger.project.error('create failed', { workspaceId, name: input.name, error: err });
+      throw err;
+    }
   },
 
   /**
-   * Update project metadata.
+   * Update project (full replace — PUT semantics).
    *
    * @param projectId - Project UUID to update
-   * @param input - Partial update data (name, slug, description, etc.)
+   * @param input - Complete project data (all fields expected)
    * @param userId - User UUID performing the update
    * @returns Updated project record
    * @throws {AppError} 404 - Project not found
    * @throws {AppError} 403 - User is not a member of the workspace
    * @throws {AppError} 409 - Slug already exists in this workspace
    */
-  async update(projectId: string, input: UpdateProjectInput, userId: string) {
+  async update(workspaceId: string, projectId: string, input: UpdateProjectInput, userId: string) {
     logger.project.info('update', { projectId });
+    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
+    if (!role) {
+      logger.project.warn('update not member', { projectId, userId });
+      throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
+    }
+    assertHasPermission(role, PERMISSION.PROJECT_MANAGE, PROJECT.ERROR_CODE);
+
     const project = await projectRepository.findById(projectId);
     if (!project) {
+      logger.project.warn('update project not found', { projectId });
       throw new AppError(PROJECT.ERRORS.NOT_FOUND, 404, PROJECT.ERROR_CODE);
-    }
-
-    if (project.workspaceId) {
-      const role = await workspaceRepository.getMemberRole(project.workspaceId, userId);
-      if (!role) {
-        throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
-      }
     }
 
     if (input.slug && input.slug !== project.slug) {
       const existing = await projectRepository.findBySlug(project.workspaceId!, input.slug);
       if (existing) {
+        logger.project.warn('update slug conflict', { projectId, slug: input.slug });
         throw new AppError(PROJECT.ERRORS.SLUG_CONFLICT, 409, PROJECT.ERROR_CODE);
       }
     }
 
-    const result = await projectRepository.update(projectId, {
-      name: input.name,
-      slug: input.slug,
-      description: input.description,
-      platform: input.platform,
-      language: input.language,
-      avatarUrl: input.avatarUrl,
-      updatedBy: userId,
-    });
+    try {
+      const updateData: Record<string, unknown> = {
+        name: input.name,
+        slug: input.slug,
+        description: input.description,
+        lead: input.lead,
+        updatedBy: userId,
+      };
 
-    if (input.memberIds || input.teamIds) {
+      const result = await projectRepository.update(projectId, updateData);
+
+      // Always replace all relation arrays (PUT = full replace)
       await db.transaction(async (tx) => {
-        if (input.memberIds) {
-          await projectRepository.setMembers(projectId, input.memberIds, tx);
-        }
-        if (input.teamIds) {
-          await projectRepository.setTeams(projectId, input.teamIds, tx);
-        }
+        await projectRepository.setMembers(projectId, input.memberIds ?? [], tx);
+        await projectRepository.setTeams(projectId, input.teamIds ?? [], tx);
+        await projectRepository.setRepositories(projectId, input.repositoryIds ?? [], tx);
       });
-    }
 
-    logger.project.info('update completed', { projectId });
-    return result;
+      logger.project.info('update completed', { projectId });
+      return result;
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      logger.project.error('update failed', { projectId, error: err });
+      throw err;
+    }
   },
 
   /**
@@ -205,23 +252,24 @@ export const projectService = {
    * @throws {AppError} 404 - Project not found
    * @throws {AppError} 403 - User is not a member of the workspace
    */
-  async softDelete(projectId: string, userId: string) {
+  async softDelete(workspaceId: string, projectId: string, userId: string) {
     logger.project.info('softDelete', { projectId });
-    const project = await projectRepository.findById(projectId);
-    if (!project) {
-      throw new AppError(PROJECT.ERRORS.NOT_FOUND, 404, PROJECT.ERROR_CODE);
+    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
+    if (!role) {
+      logger.project.warn('softDelete not member', { projectId, userId });
+      throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
     }
+    assertHasPermission(role, PERMISSION.PROJECT_MANAGE, PROJECT.ERROR_CODE);
 
-    if (project.workspaceId) {
-      const role = await workspaceRepository.getMemberRole(project.workspaceId, userId);
-      if (!role) {
-        throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
-      }
+    try {
+      const result = await projectRepository.softDelete(projectId, userId);
+      logger.project.info('softDelete completed', { projectId });
+      return result;
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      logger.project.error('softDelete failed', { projectId, error: err });
+      throw err;
     }
-
-    const result = await projectRepository.softDelete(projectId, userId);
-    logger.project.info('softDelete completed', { projectId });
-    return result;
   },
 
   /**
@@ -257,8 +305,8 @@ export const projectService = {
    */
   async listRepositoriesByWorkspace(workspaceId: string, accessibleProjectIds?: string[]) {
     logger.project.info('listRepositoriesByWorkspace', { workspaceId });
-    const rows = await projectRepository.listRepositoriesByWorkspace(workspaceId, undefined, accessibleProjectIds);
-    const result = rows.map((row) => ({
+    const result = await projectRepository.listRepositoriesByWorkspace(workspaceId, undefined, accessibleProjectIds);
+    const mapped = result.data.map((row) => ({
       id: row.id,
       name: row.name,
       url: row.url,
@@ -272,8 +320,8 @@ export const projectService = {
       scans: 0,
       lastScan: row.lastSyncedAt?.toISOString() ?? null,
     }));
-    logger.project.info('listRepositoriesByWorkspace completed', { count: result.length });
-    return result;
+    logger.project.info('listRepositoriesByWorkspace completed', { count: mapped.length });
+    return mapped;
   },
 
   /**
@@ -293,19 +341,27 @@ export const projectService = {
     logger.project.info('attachRepository', { projectId, name: data.name });
     const project = await projectRepository.findById(projectId);
     if (!project) {
+      logger.project.warn('attachRepository project not found', { projectId });
       throw new AppError(PROJECT.ERRORS.NOT_FOUND, 404, PROJECT.ERROR_CODE);
     }
 
     if (project.workspaceId) {
       const role = await workspaceRepository.getMemberRole(project.workspaceId, userId);
       if (!role) {
+        logger.project.warn('attachRepository not member', { projectId, userId });
         throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
       }
     }
 
-    const result = await projectRepository.attachRepository(projectId, project.workspaceId, data, userId);
-    logger.project.info('attachRepository completed', { projectId });
-    return result;
+    try {
+      const result = await projectRepository.attachRepository(projectId, project.workspaceId, data, userId);
+      logger.project.info('attachRepository completed', { projectId });
+      return result;
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      logger.project.error('attachRepository failed', { projectId, name: data.name, error: err });
+      throw err;
+    }
   },
 
   // ============================================================
@@ -318,96 +374,54 @@ export const projectService = {
    */
   async createApiToken(
     projectId: string,
+    input: { name: string; permissions?: string[]; expiresInDays?: number | null },
     userId: string,
-    input: { name: string; permissions?: string[]; expiresInDays?: number | null }
   ) {
     logger.project.info('createApiToken', { projectId, name: input.name });
     const project = await projectRepository.findById(projectId);
     if (!project) {
+      logger.project.warn('createApiToken: project not found', { projectId });
       throw new AppError(PROJECT.ERRORS.NOT_FOUND, 404, PROJECT.ERROR_CODE);
     }
 
     if (project.workspaceId) {
       const role = await workspaceRepository.getMemberRole(project.workspaceId, userId);
       if (!role) {
+        logger.project.warn('createApiToken: user is not a workspace member', { projectId, userId });
         throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
       }
     }
 
-    const expiresAt = input.expiresInDays
-      ? new Date(Date.now() + input.expiresInDays * MS_PER_DAY)
-      : null;
-
-    const { token, rawToken } = await projectApiTokenRepository.create({
-      projectId,
-      createdBy: userId,
-      name: input.name,
-      permissions: input.permissions,
-      expiresAt: expiresAt ?? undefined,
-    });
-
-    logger.project.info('createApiToken completed', { projectId, tokenId: token.id });
-    return {
-      token: {
-        id: token.id,
-        name: token.name,
-        tokenPrefix: token.tokenPrefix,
-        permissions: token.permissions,
-        expiresAt: token.expiresAt,
-        createdAt: token.createdAt,
-      },
-      rawToken,
-    };
+    const result = await projectApiTokenService.create(projectId, input, userId);
+    logger.project.info('createApiToken completed', { projectId });
+    return result;
   },
 
-  async listApiTokens(projectId: string, userId: string) {
+  async listApiTokens(projectId: string, userId: string, params?: { page?: number; perPage?: number }) {
     logger.project.info('listApiTokens', { projectId });
     const project = await projectRepository.findById(projectId);
     if (!project) {
+      logger.project.warn('listApiTokens: project not found', { projectId });
       throw new AppError(PROJECT.ERRORS.NOT_FOUND, 404, PROJECT.ERROR_CODE);
     }
 
     if (project.workspaceId) {
       const role = await workspaceRepository.getMemberRole(project.workspaceId, userId);
       if (!role) {
+        logger.project.warn('listApiTokens: user is not a workspace member', { projectId, userId });
         throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
       }
     }
 
-    const tokens = await projectApiTokenRepository.listByProject(projectId);
-    const result = tokens.map(t => ({
-      id: t.id,
-      name: t.name,
-      tokenPrefix: t.tokenPrefix,
-      permissions: t.permissions,
-      lastUsedAt: t.lastUsedAt,
-      createdAt: t.createdAt,
-      expiresAt: t.expiresAt,
-      revokedAt: t.revokedAt,
-    }));
-    logger.project.info('listApiTokens completed', { count: result.length });
+    const result = await projectApiTokenService.list(projectId, params);
+    logger.project.info('listApiTokens completed', { projectId, total: result.total });
     return result;
   },
 
   async revokeApiToken(projectId: string, tokenId: string, userId: string) {
     logger.project.info('revokeApiToken', { projectId, tokenId });
-    const token = await projectApiTokenRepository.findById(tokenId);
-    if (!token || token.projectId !== projectId) {
-      throw new AppError(PROJECT.ERRORS.TOKEN_NOT_FOUND, 404, PROJECT.ERROR_CODE);
-    }
-
-    const result = await projectApiTokenRepository.revoke(tokenId, userId);
-    logger.project.info('revokeApiToken completed', { tokenId });
+    const result = await projectApiTokenService.revoke(projectId, tokenId, userId);
+    logger.project.info('revokeApiToken completed', { projectId, tokenId });
     return result;
-  },
-
-  // Internal helper
-  generateSlug(name: string): string {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .substring(0, PROJECT.MAX_SLUG_LENGTH);
   },
 };

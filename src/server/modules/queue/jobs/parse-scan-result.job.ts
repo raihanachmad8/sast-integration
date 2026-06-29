@@ -1,16 +1,19 @@
-import type { Job } from 'pg-boss';
 import { randomUUID } from 'node:crypto';
+
+import { eq, asc, sql } from 'drizzle-orm';
+import type { Job } from 'pg-boss';
+
+import { db } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
+import { enqueue } from '@/server/modules/queue/queue.service';
+import { parseScanResult } from '@/server/modules/scan/parsers';
 import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
 import { findingService } from '@/server/modules/scan/services/finding.service';
-import { parseScanResult } from '@/server/modules/scan/parsers';
 import { getStorageDriver } from '@/server/modules/storage/storage.service';
-import { db } from '@/server/db/client';
-import { models } from '@drizzle/schema/integrations';
 import { findingGroupScans } from '@drizzle/schema/findings';
-import { eq, asc, sql } from 'drizzle-orm';
-import { enqueue } from '@/server/modules/queue/queue.service';
 import type { NewFinding } from '@drizzle/schema/findings';
+import { models } from '@drizzle/schema/integrations';
+
 
 interface ParseScanResultJobData {
   scanId: string;
@@ -320,7 +323,7 @@ async function checkAndCompleteScan(scanId: string, projectId: string | null, cu
 
           if (repo?.workspaceId) {
             const { qualityGateService } = await import('@/server/modules/scan/services/quality-gate.service');
-            await qualityGateService.evaluateScan(scanId, repo.workspaceId, projectId);
+            await qualityGateService.evaluateScan(repo.workspaceId, scanId, projectId);
             logger.queue.info('parse-scan-result: quality gate evaluated', { scanId });
           } else {
             logger.queue.warn('parse-scan-result: workspace not found for repository', { scanId, repositoryId: completedScan.repositoryId });

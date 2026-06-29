@@ -1,21 +1,22 @@
+import { randomUUID } from 'crypto';
+
 import { hash, compare } from 'bcryptjs';
-import { randomUUID, randomBytes } from 'crypto';
 import { and, eq } from 'drizzle-orm';
-import { authRepository } from '../repositories/auth.repository';
-import { authFlowsService } from './auth-flows.service';
-import { signAccessToken, signRefreshToken } from './jwt.service';
-import { AUTH, WORKSPACE_MODE } from '../constants';
+
 import { ROLE_PERMISSIONS } from '@/commons/constants/permissions';
-import { env } from '@/server/env';
 import { db } from '@/server/db/client';
-import { users, workspaceMembers } from '@drizzle/schema';
+import { env } from '@/server/env';
 import { AppError } from '@/server/http/errors';
-import { TOKEN_BYTES } from '@/server/http/constants';
-import { sendMail } from '@/server/modules/mail/mail.service';
-import { MAIL } from '@/server/modules/mail/constants';
-import { workspaceInviteTemplate } from '@/server/modules/mail/templates';
 import { logger } from '@/server/lib/logger';
 import type { SignupInput, SigninInput, AcceptInviteInput, InviteInput } from '@/server/modules/auth/schemas/auth.schema';
+import { invitationService } from '@/server/modules/invitations';
+import { users, workspaceMembers } from '@drizzle/schema';
+
+import { AUTH, WORKSPACE_MODE } from '../constants';
+import { authRepository } from '../repositories/auth.repository';
+
+import { authFlowsService } from './auth-flows.service';
+import { signAccessToken, signRefreshToken } from './jwt.service';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -245,36 +246,19 @@ export const authService = {
   },
 
   /**
-   * Create a workspace invitation and generate a unique token.
+   * Create a workspace invitation.
+   * Delegates to invitationService to avoid duplicating invite logic.
    *
    * @param input - Validated invite data (email, role)
    * @param workspaceId - Target workspace UUID
    * @param invitedBy - User UUID who sent the invitation
-   * @returns Generated invitation token and recipient email
+   * @returns Created invitation record
    */
-  async invite(input: InviteInput, workspaceId: string, invitedBy: string) {
+  async invite(workspaceId: string, input: InviteInput, invitedBy: string) {
     logger.auth.info('invite', { workspaceId, email: input.email, invitedBy });
-    const token = randomBytes(TOKEN_BYTES).toString('hex');
-    await authRepository.createInvitation({
-      email: input.email,
-      role: input.role,
-      workspaceId,
-      invitedBy,
-      token,
-    });
-
-    const workspace = await authRepository.getUserWorkspace(invitedBy, workspaceId);
-    const workspaceName = workspace?.name ?? 'a workspace';
-    const acceptUrl = `${env.APP_URL}/auth/invite?token=${token}`;
-
-    await sendMail({
-      to: input.email,
-      subject: MAIL.SUBJECTS.WORKSPACE_INVITE,
-      html: workspaceInviteTemplate(input.email, input.role, workspaceName, acceptUrl),
-    });
-
+    const result = await invitationService.invite(workspaceId, { email: input.email, role: input.role }, invitedBy);
     logger.auth.info('invite completed', { email: input.email });
-    return { token, email: input.email };
+    return { token: result.token, email: result.email };
   },
 
   /**

@@ -1,6 +1,9 @@
 import { Readable } from 'node:stream';
-import type { StorageDriver, UploadOptions, UploadResult } from '../storage.interface';
+
+import { env } from '@/server/env';
 import { logger } from '@/server/lib/logger';
+
+import type { StorageDriver, UploadOptions, UploadResult } from '../storage.interface';
 
 /**
  * Cloudinary storage driver.
@@ -13,20 +16,20 @@ export class CloudinaryStorageDriver implements StorageDriver {
   private folder: string;
 
   constructor(options?: { folder?: string }) {
-    this.folder = options?.folder ?? process.env.CLOUDINARY_FOLDER ?? 'sast';
+    this.folder = options?.folder ?? env.CLOUDINARY_FOLDER ?? 'sast';
   }
 
   isConfigured(): boolean {
-    return !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+    return !!(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET);
   }
 
   private async getClient() {
     const cloudinary = (await import('cloudinary')).v2;
 
     cloudinary.config({
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-      api_key: process.env.CLOUDINARY_API_KEY,
-      api_secret: process.env.CLOUDINARY_API_SECRET,
+      cloud_name: env.CLOUDINARY_CLOUD_NAME,
+      api_key: env.CLOUDINARY_API_KEY,
+      api_secret: env.CLOUDINARY_API_SECRET,
     });
 
     return cloudinary;
@@ -75,7 +78,7 @@ export class CloudinaryStorageDriver implements StorageDriver {
     const ext = key.split('.').pop()?.toLowerCase() ?? '';
     const resourceType = this.getResourceType(key);
     const publicId = key.replace(/\.[^/.]+$/, '');
-    return `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/${resourceType}/upload/${this.folder}/${publicId}${ext ? '.' + ext : ''}`;
+    return `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/${resourceType}/upload/${this.folder}/${publicId}${ext ? '.' + ext : ''}`;
   }
 
   /**

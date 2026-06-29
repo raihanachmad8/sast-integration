@@ -1,14 +1,18 @@
-import { logger } from '@/server/lib/logger';
-import { aiVerificationRepository } from '../repositories/ai-verification.repository';
-import { findingRepository } from '../repositories/finding.repository';
-import { knowledgeBaseRepository } from '@/server/modules/knowledge-base/knowledge-base.repository';
-import { AppError } from '@/server/http/errors';
-import { SCAN } from '../constants';
+import { eq, and } from 'drizzle-orm';
+
 import type { AiModelResponse } from '@/commons/types/findings';
 import { db } from '@/server/db/client';
-import { workspaceSettings } from '@drizzle/schema/workspaces';
-import { eq, and } from 'drizzle-orm';
+import { env } from '@/server/env';
+import { AppError } from '@/server/http/errors';
+import { logger } from '@/server/lib/logger';
 import { isPrivateOrInternal } from '@/server/lib/ssrf';
+import { knowledgeBaseRepository } from '@/server/modules/knowledge-base/knowledge-base.repository';
+import { workspaceSettings } from '@drizzle/schema/workspaces';
+
+import { SCAN } from '../constants';
+import { aiVerificationRepository } from '../repositories/ai-verification.repository';
+import { findingRepository } from '../repositories/finding.repository';
+
 
 /**
  * Error classification for fallback chain decisions.
@@ -194,9 +198,29 @@ Is this a true positive or false positive? Respond with JSON:
   "taintSource": "untrusted input origin",
   "matchDetail": "what the scanner found",
   "likelyCwe": ["CWE-XXX"],
-  "fixSuggestion": "suggested fix"
+  fixSuggestion: "suggested fix"
 }`,
 };
+
+/**
+ * Render a prompt template with finding data and CWE context.
+ * Purpose: Encapsulate template rendering logic in one place.
+ */
+function renderPrompt(
+  finding: { rule?: string | null; cweId?: string | null; filePath?: string | null; lineNumber?: number | null; message?: string | null; codeSnippet?: string | null },
+  cweContext: string,
+  promptPreset: string,
+): string {
+  const templateKey = promptPreset === 'balanced' ? 'balanced' : 'strict';
+  return PROMPT_TEMPLATES[templateKey]
+    .replace('{code}', finding.codeSnippet || 'No code available')
+    .replace('{rule}', finding.rule || 'Unknown rule')
+    .replace('{cweId}', finding.cweId || 'N/A')
+    .replace('{filePath}', finding.filePath || 'Unknown file')
+    .replace('{lineNumber}', String(finding.lineNumber || 0))
+    .replace('{message}', finding.message || 'No message')
+    .replace('{cweContext}', cweContext);
+}
 
 export const aiVerificationService = {
   /**
@@ -284,279 +308,22 @@ export const aiVerificationService = {
     logger.scan.info('verifyFinding:start', { findingId, modelId });
 
     try {
-      const finding = await findingRepository.findById(findingId);
-      if (!finding) {
-        throw new AppError('Finding not found', 404, SCAN.ERRORS.NOT_FOUND_CODE);
-      }
-
-      // Skip if group already has high-confidence verification
-      if (finding.groupId) {
-        const existing = await aiVerificationRepository.getLatestByGroup(finding.groupId);
-        if (existing && Number(existing.confidence) > 80) {
-          logger.scan.info('verifyFinding:skip_already_verified', {
-            findingId,
-            groupId: finding.groupId,
-            existingVerdict: existing.verdict,
-            existingConfidence: existing.confidence,
-          });
-          return existing;
-        }
-      }
+      const finding = await this.loadAndValidateFinding(findingId);
+      const existing = await this.checkAlreadyVerified(finding);
+      if (existing) return existing;
 
       const settings = workspaceId ? await this.getVerificationSettings(workspaceId) : { allowFallback: true, timeout: '90' };
-      const allowFallback = settings.allowFallback !== false;
       const timeoutMs = (parseInt(settings.timeout) || 90) * 1000;
-
-      // Build the model chain: specified → primary → fallbacks
-      const triedModelIds = new Set<string>();
-      const modelsToTry: Array<{ id: string; name: string; provider: string; baseUrl: string; apiKeyEncrypted: string | null; promptPreset: string }> = [];
-
-      // Parallel: specified model + primary model + fallback models
-      const [specifiedModel, primaryModel, fallbackModels] = await Promise.all([
-        modelId ? aiVerificationRepository.getModelById(modelId) : Promise.resolve(null),
-        aiVerificationRepository.getPrimaryModel(),
-        allowFallback ? aiVerificationRepository.getFallbackModels(modelId) : Promise.resolve([]),
-      ]);
-
-      if (specifiedModel) {
-        modelsToTry.push(specifiedModel);
-        triedModelIds.add(specifiedModel.id);
-      }
-
-      if (primaryModel && !triedModelIds.has(primaryModel.id)) {
-        modelsToTry.push(primaryModel);
-        triedModelIds.add(primaryModel.id);
-      }
-
-      for (const fb of fallbackModels) {
-        if (!triedModelIds.has(fb.id)) {
-          modelsToTry.push(fb);
-          triedModelIds.add(fb.id);
-        }
-      }
-
-      // Filter out unhealthy models
-      const healthyModels = modelsToTry.filter((m) => {
-        if (!isModelHealthy(m.id)) {
-          logger.scan.warn('verifyFinding:skip_unhealthy', { findingId, modelId: m.id, modelName: m.name });
-          return false;
-        }
-        return true;
-      });
+      const healthyModels = await this.buildModelChain(modelId, settings.allowFallback !== false, findingId);
 
       if (healthyModels.length === 0) {
         throw new AppError('No healthy AI model available', 400, SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED);
       }
 
       const cweContext = await this.buildCweContext(finding.cweId);
+      const prompt = renderPrompt(finding, cweContext, healthyModels[0].promptPreset);
 
-      // Execute fallback chain with retry-same-model + classification-aware fallback
-      const RETRY_SAME_MODEL_DELAY_MS = 2000;
-      const FALLBACK_DELAYS_MS = [1000, 3000, 5000];
-      const attempts: ModelAttemptResult[] = [];
-      let lastError: Error | null = null;
-
-      for (let i = 0; i < healthyModels.length; i++) {
-        const model = healthyModels[i];
-
-        // Delay before fallback to next model (skip for first model)
-        if (i > 0) {
-          const delayMs = FALLBACK_DELAYS_MS[Math.min(i - 1, FALLBACK_DELAYS_MS.length - 1)];
-          logger.scan.info('verifyFinding:fallback_delay', {
-            findingId,
-            delayMs,
-            nextModel: model.name,
-            nextProvider: model.provider,
-            attempt: i + 1,
-            totalModels: healthyModels.length,
-          });
-          await sleep(delayMs);
-        }
-
-        // Try this model (with one retry on transient error)
-        let modelSucceeded = false;
-        for (let retry = 0; retry < 2; retry++) {
-          if (retry > 0) {
-            logger.scan.info('verifyFinding:retry_same_model', {
-              findingId,
-              modelId: model.id,
-              modelName: model.name,
-              retryAttempt: retry,
-            });
-            await sleep(RETRY_SAME_MODEL_DELAY_MS);
-          }
-
-          const attemptStart = Date.now();
-          try {
-            const templateKey = (model.promptPreset === 'balanced') ? 'balanced' : 'strict';
-            const prompt = PROMPT_TEMPLATES[templateKey]
-              .replace('{code}', finding.codeSnippet || 'No code available')
-              .replace('{rule}', finding.rule || 'Unknown rule')
-              .replace('{cweId}', finding.cweId || 'N/A')
-              .replace('{filePath}', finding.filePath || 'Unknown file')
-              .replace('{lineNumber}', String(finding.lineNumber || 0))
-              .replace('{message}', finding.message || 'No message')
-              .replace('{cweContext}', cweContext);
-
-            const aiResponse = await this.callAiModelWithTimeout(model, prompt, timeoutMs);
-            const latencyMs = Date.now() - attemptStart;
-
-            // Validate response before accepting
-            if (!validateAiResponse(aiResponse)) {
-              logger.scan.warn('verifyFinding:invalid_response', {
-                findingId,
-                modelId: model.id,
-                modelName: model.name,
-                verdict: aiResponse.verdict,
-                confidence: aiResponse.confidence,
-              });
-              lastError = new Error(`Invalid AI response: verdict=${aiResponse.verdict}, confidence=${aiResponse.confidence}`);
-              attempts.push({
-                modelId: model.id,
-                modelName: model.name,
-                provider: model.provider,
-                success: false,
-                error: lastError.message,
-                errorClass: ErrorClass.RETRYABLE,
-                latencyMs,
-                retryOfModelId: retry > 0 ? model.id : undefined,
-              });
-              continue; // Retry same model
-            }
-
-            const verification = await db.transaction(async (tx) => {
-              const v = await aiVerificationRepository.create({
-                findingId,
-                groupId: finding.groupId ?? undefined,
-                modelId: model.id,
-                verdict: aiResponse.verdict,
-                confidence: String(aiResponse.confidence),
-                explanation: aiResponse.explanation,
-                dataFlow: aiResponse.dataFlow,
-                taintSource: aiResponse.taintSource,
-                matchDetail: aiResponse.matchDetail,
-                likelyCwe: aiResponse.likelyCwe,
-                fixSuggestion: aiResponse.fixSuggestion,
-                latencyMs,
-                rawResponse: aiResponse.rawResponse,
-              }, tx);
-
-              // Update group status based on AI verdict
-              if (finding.groupId) {
-                const newStatus = aiResponse.verdict === 'false_positive' ? 'resolved' : 'open';
-                const { findingRepository } = await import('../repositories/finding.repository');
-                await findingRepository.updateGroupStatus(finding.groupId, newStatus, null, tx);
-              }
-
-              return v;
-            });
-
-            recordModelSuccess(model.id);
-            attempts.push({
-              modelId: model.id,
-              modelName: model.name,
-              provider: model.provider,
-              success: true,
-              latencyMs,
-              retryOfModelId: retry > 0 ? model.id : undefined,
-            });
-
-            const totalLatencyMs = Date.now() - chainStart;
-            logger.scan.info('verifyFinding:success', {
-              findingId,
-              modelUsed: model.name,
-              provider: model.provider,
-              verdict: aiResponse.verdict,
-              confidence: aiResponse.confidence,
-              explanation: aiResponse.explanation?.slice(0, 200),
-              dataFlow: aiResponse.dataFlow,
-              taintSource: aiResponse.taintSource,
-              matchDetail: aiResponse.matchDetail,
-              likelyCwe: aiResponse.likelyCwe,
-              fixSuggestion: aiResponse.fixSuggestion?.slice(0, 200),
-              attemptNumber: i + 1,
-              totalAttempts: attempts.length,
-              totalLatencyMs,
-              retried: retry > 0,
-            });
-
-            modelSucceeded = true;
-
-            return verification;
-          } catch (error) {
-            const latencyMs = Date.now() - attemptStart;
-            const err = error instanceof Error ? error : new Error(String(error));
-            const errorClass = classifyError(err);
-            lastError = err;
-
-            attempts.push({
-              modelId: model.id,
-              modelName: model.name,
-              provider: model.provider,
-              success: false,
-              error: err.message,
-              errorClass,
-              latencyMs,
-              retryOfModelId: retry > 0 ? model.id : undefined,
-            });
-
-            logger.scan.warn('verifyFinding:model_attempt_failed', {
-              findingId,
-              modelId: model.id,
-              modelName: model.name,
-              provider: model.provider,
-              error: err.message,
-              errorClass,
-              latencyMs,
-              retry,
-              attemptNumber: i + 1,
-            });
-
-            // Non-retryable: abort chain immediately
-            if (errorClass === ErrorClass.NON_RETRYABLE) {
-              recordModelFailure(model.id);
-              logger.scan.error('verifyFinding:abort_non_retryable', {
-                findingId,
-                modelId: model.id,
-                modelName: model.name,
-                error: err.message,
-              });
-              break;
-            }
-
-            // Retryable: retry same model once, then move to next
-            if (retry === 0) continue; // Retry same model
-            // else: move to next model (break inner loop)
-          }
-        }
-
-        if (!modelSucceeded) {
-          recordModelFailure(model.id);
-        }
-
-        // Check if non-retryable error broke the inner loop
-        const lastAttempt = attempts[attempts.length - 1];
-        if (lastAttempt && !lastAttempt.success && lastAttempt.errorClass === ErrorClass.NON_RETRYABLE) {
-          break;
-        }
-      }
-
-      // All models failed — build structured error
-      const totalLatencyMs = Date.now() - chainStart;
-      const errorSummary = attempts.map((a) => `${a.modelName}${a.retryOfModelId ? '(retry)' : ''}: ${a.success ? 'OK' : a.error ?? 'unknown'}`).join(' | ');
-
-      logger.scan.error('verifyFinding:all_models_failed', {
-        findingId,
-        totalAttempts: attempts.length,
-        totalLatencyMs,
-        errorSummary,
-      });
-
-      throw new AppError(
-        `AI verification failed after ${attempts.length} attempt(s) (${totalLatencyMs}ms). ${errorSummary}`,
-        500,
-        SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED,
-      );
+      return await this.executeModelChain(healthyModels, prompt, finding, findingId, timeoutMs, chainStart);
     } catch (error) {
       if (error instanceof AppError) throw error;
       logger.scan.error('verifyFinding:unexpected_error', { error, findingId });
@@ -567,6 +334,262 @@ export const aiVerificationService = {
       );
     }
   },
+
+  // ─── verifyFinding helpers ──────────────────────────────────────────────
+
+  /**
+   * Load finding by ID or throw 404.
+   * Purpose: Single validation point for finding existence.
+   */
+  async loadAndValidateFinding(findingId: string) {
+    const finding = await findingRepository.findById(findingId);
+    if (!finding) {
+      throw new AppError('Finding not found', 404, SCAN.ERRORS.NOT_FOUND_CODE);
+    }
+    return finding;
+  },
+
+  /**
+   * Check if the finding's group already has a high-confidence verification.
+   * Purpose: Skip redundant AI calls when a result already exists.
+   */
+  async checkAlreadyVerified(finding: { groupId: string | null }) {
+    if (!finding.groupId) return null;
+
+    const existing = await aiVerificationRepository.getLatestByGroup(finding.groupId);
+    if (existing && Number(existing.confidence) > 80) {
+      logger.scan.info('verifyFinding:skip_already_verified', {
+        groupId: finding.groupId,
+        existingVerdict: existing.verdict,
+        existingConfidence: existing.confidence,
+      });
+      return existing;
+    }
+    return null;
+  },
+
+  /**
+   * Build the ordered model chain: specified → primary → fallbacks.
+   * Filters out unhealthy models (3+ consecutive failures in last 5 minutes).
+   */
+  async buildModelChain(
+    modelId: string,
+    allowFallback: boolean,
+    findingId: string,
+  ) {
+    const triedModelIds = new Set<string>();
+    const modelsToTry: Array<{ id: string; name: string; provider: string; baseUrl: string; apiKeyEncrypted: string | null; promptPreset: string }> = [];
+
+    const [specifiedModel, primaryModel, fallbackModels] = await Promise.all([
+      modelId ? aiVerificationRepository.getModelById(modelId) : Promise.resolve(null),
+      aiVerificationRepository.getPrimaryModel(),
+      allowFallback ? aiVerificationRepository.getFallbackModels(modelId) : Promise.resolve([]),
+    ]);
+
+    if (specifiedModel) {
+      modelsToTry.push(specifiedModel);
+      triedModelIds.add(specifiedModel.id);
+    }
+
+    if (primaryModel && !triedModelIds.has(primaryModel.id)) {
+      modelsToTry.push(primaryModel);
+      triedModelIds.add(primaryModel.id);
+    }
+
+    for (const fb of fallbackModels) {
+      if (!triedModelIds.has(fb.id)) {
+        modelsToTry.push(fb);
+        triedModelIds.add(fb.id);
+      }
+    }
+
+    return modelsToTry.filter((m) => {
+      if (!isModelHealthy(m.id)) {
+        logger.scan.warn('verifyFinding:skip_unhealthy', { findingId, modelId: m.id, modelName: m.name });
+        return false;
+      }
+      return true;
+    });
+  },
+
+  /**
+   * Execute the fallback chain with retry-same-model and classification-aware fallback.
+   * Returns the first successful verification, or throws if all models fail.
+   */
+  async executeModelChain(
+    healthyModels: Array<{ id: string; name: string; provider: string; baseUrl: string; apiKeyEncrypted: string | null; promptPreset: string }>,
+    prompt: string,
+    finding: { groupId: string | null; id: string },
+    findingId: string,
+    timeoutMs: number,
+    chainStart: number,
+  ) {
+    const FALLBACK_DELAYS_MS = [1000, 3000, 5000];
+    const attempts: ModelAttemptResult[] = [];
+
+    for (let i = 0; i < healthyModels.length; i++) {
+      const model = healthyModels[i];
+
+      if (i > 0) {
+        const delayMs = FALLBACK_DELAYS_MS[Math.min(i - 1, FALLBACK_DELAYS_MS.length - 1)];
+        logger.scan.info('verifyFinding:fallback_delay', {
+          findingId, delayMs, nextModel: model.name, nextProvider: model.provider,
+          attempt: i + 1, totalModels: healthyModels.length,
+        });
+        await sleep(delayMs);
+      }
+
+      const result = await this.tryModelWithRetry(model, prompt, finding, findingId, timeoutMs, attempts);
+      if (result) return result;
+
+      const lastAttempt = attempts[attempts.length - 1];
+      if (lastAttempt && !lastAttempt.success && lastAttempt.errorClass === ErrorClass.NON_RETRYABLE) {
+        break;
+      }
+    }
+
+    const totalLatencyMs = Date.now() - chainStart;
+    const errorSummary = attempts.map((a) =>
+      `${a.modelName}${a.retryOfModelId ? '(retry)' : ''}: ${a.success ? 'OK' : a.error ?? 'unknown'}`
+    ).join(' | ');
+
+    logger.scan.error('verifyFinding:all_models_failed', {
+      findingId, totalAttempts: attempts.length, totalLatencyMs, errorSummary,
+    });
+
+    throw new AppError(
+      `AI verification failed after ${attempts.length} attempt(s) (${totalLatencyMs}ms). ${errorSummary}`,
+      500,
+      SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED,
+    );
+  },
+
+  /**
+   * Try a single model with one retry on transient errors.
+   * Returns verification on success, null if needs to move to next model.
+   */
+  async tryModelWithRetry(
+    model: { id: string; name: string; provider: string; baseUrl: string; apiKeyEncrypted: string | null; promptPreset: string },
+    prompt: string,
+    finding: { groupId: string | null; id: string },
+    findingId: string,
+    timeoutMs: number,
+    attempts: ModelAttemptResult[],
+  ): Promise<ReturnType<typeof aiVerificationRepository.create> | null> {
+    const RETRY_SAME_MODEL_DELAY_MS = 2000;
+    let modelSucceeded = false;
+
+    for (let retry = 0; retry < 2; retry++) {
+      if (retry > 0) {
+        logger.scan.info('verifyFinding:retry_same_model', {
+          findingId, modelId: model.id, modelName: model.name, retryAttempt: retry,
+        });
+        await sleep(RETRY_SAME_MODEL_DELAY_MS);
+      }
+
+      const attemptStart = Date.now();
+      try {
+        const aiResponse = await this.callAiModelWithTimeout(model, prompt, timeoutMs);
+        const latencyMs = Date.now() - attemptStart;
+
+        if (!validateAiResponse(aiResponse)) {
+          logger.scan.warn('verifyFinding:invalid_response', {
+            findingId, modelId: model.id, modelName: model.name,
+            verdict: aiResponse.verdict, confidence: aiResponse.confidence,
+          });
+          attempts.push({
+            modelId: model.id, modelName: model.name, provider: model.provider,
+            success: false, error: `Invalid AI response: verdict=${aiResponse.verdict}, confidence=${aiResponse.confidence}`,
+            errorClass: ErrorClass.RETRYABLE, latencyMs,
+            retryOfModelId: retry > 0 ? model.id : undefined,
+          });
+          continue;
+        }
+
+        const verification = await this.persistVerification(finding, model, aiResponse, latencyMs);
+        recordModelSuccess(model.id);
+        modelSucceeded = true;
+
+        attempts.push({
+          modelId: model.id, modelName: model.name, provider: model.provider,
+          success: true, latencyMs,
+          retryOfModelId: retry > 0 ? model.id : undefined,
+        });
+
+        logger.scan.info('verifyFinding:success', {
+          findingId, modelUsed: model.name, provider: model.provider,
+          verdict: aiResponse.verdict, confidence: aiResponse.confidence,
+          explanation: aiResponse.explanation?.slice(0, 200),
+          attemptNumber: attempts.length, totalLatencyMs: Date.now() - attemptStart,
+        });
+
+        return verification;
+      } catch (error) {
+        const latencyMs = Date.now() - attemptStart;
+        const err = error instanceof Error ? error : new Error(String(error));
+        const errorClass = classifyError(err);
+
+        attempts.push({
+          modelId: model.id, modelName: model.name, provider: model.provider,
+          success: false, error: err.message, errorClass, latencyMs,
+          retryOfModelId: retry > 0 ? model.id : undefined,
+        });
+
+        logger.scan.warn('verifyFinding:model_attempt_failed', {
+          findingId, modelId: model.id, modelName: model.name,
+          provider: model.provider, error: err.message, errorClass, retry,
+        });
+
+        if (errorClass === ErrorClass.NON_RETRYABLE) {
+          recordModelFailure(model.id);
+          break;
+        }
+      }
+    }
+
+    if (!modelSucceeded) {
+      recordModelFailure(model.id);
+    }
+    return null;
+  },
+
+  /**
+   * Persist verification result and update group status in a transaction.
+   */
+  async persistVerification(
+    finding: { groupId: string | null; id: string },
+    model: { id: string },
+    aiResponse: AiModelResponse,
+    latencyMs: number,
+  ) {
+    return db.transaction(async (tx) => {
+      const v = await aiVerificationRepository.create({
+        findingId: finding.id,
+        groupId: finding.groupId ?? undefined,
+        modelId: model.id,
+        verdict: aiResponse.verdict,
+        confidence: String(aiResponse.confidence),
+        explanation: aiResponse.explanation,
+        dataFlow: aiResponse.dataFlow,
+        taintSource: aiResponse.taintSource,
+        matchDetail: aiResponse.matchDetail,
+        likelyCwe: aiResponse.likelyCwe,
+        fixSuggestion: aiResponse.fixSuggestion,
+        latencyMs,
+        rawResponse: aiResponse.rawResponse,
+      }, tx);
+
+      if (finding.groupId) {
+        const newStatus = aiResponse.verdict === 'false_positive' ? 'resolved' : 'open';
+        const { findingRepository } = await import('../repositories/finding.repository');
+        await findingRepository.updateGroupStatus(finding.groupId, newStatus, null, tx);
+      }
+
+      return v;
+    });
+  },
+
+  // ─── Batch verification ─────────────────────────────────────────────────
 
   /**
    * Batch verify all findings in a scan.
@@ -586,7 +609,7 @@ export const aiVerificationService = {
         status: 'open',
       });
 
-      const BATCH_SIZE = Number(process.env.AI_VERIFY_BATCH_SIZE ?? 5);
+      const BATCH_SIZE = env.AI_VERIFY_BATCH_SIZE;
       let verified = 0;
       let failed = 0;
 
@@ -724,7 +747,7 @@ export const aiVerificationService = {
         );
       }
       const url = new URL(`${baseUrl.replace(/\/$/, '')}/api/chat`);
-      if (isPrivateOrInternal(url.hostname, process.env.ALLOW_LOCAL_AI_MODELS === 'true')) {
+      if (isPrivateOrInternal(url.hostname, env.ALLOW_LOCAL_AI_MODELS)) {
         throw new AppError('AI model URL points to a private/internal address. Set ALLOW_LOCAL_AI_MODELS=true in .env for local Ollama.', 400, SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED);
       }
       const res = await fetch(url.toString(), {
@@ -779,7 +802,7 @@ export const aiVerificationService = {
     signal?: AbortSignal,
   ): Promise<AiModelResponse> {
     const urlObj = new URL(`${baseUrl.replace(/\/$/, '')}/v1/chat/completions`);
-    if (isPrivateOrInternal(urlObj.hostname, process.env.ALLOW_LOCAL_AI_MODELS === 'true')) {
+    if (isPrivateOrInternal(urlObj.hostname, env.ALLOW_LOCAL_AI_MODELS)) {
       throw new AppError('AI model URL points to a private/internal address. Set ALLOW_LOCAL_AI_MODELS=true in .env for local models.', 400, SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED);
     }
     const headers: Record<string, string> = {

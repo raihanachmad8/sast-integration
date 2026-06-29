@@ -1,4 +1,5 @@
 import type { Job } from 'pg-boss';
+
 import { logger } from '@/server/lib/logger';
 import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
 import { getStorageDriver } from '@/server/modules/storage/storage.service';

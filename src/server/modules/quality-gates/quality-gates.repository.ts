@@ -1,7 +1,8 @@
 import { eq } from 'drizzle-orm';
+
 import { db, type Tx } from '@/server/db/client';
-import { qualityGates } from '@drizzle/schema/scans';
 import { logger } from '@/server/lib/logger';
+import { qualityGates } from '@drizzle/schema/scans';
 
 export interface UpsertQualityGateConfigInput {
   threshold: string;
@@ -19,7 +20,7 @@ export interface UpsertQualityGateConfigInput {
 
 export const qualityGatesRepository = {
   async getConfig(workspaceId: string) {
-    logger.scan.debug('getConfig called', { workspaceId });
+    logger.qualityGate.debug('getConfig called', { workspaceId });
     const [config] = await db
       .select()
       .from(qualityGates)
@@ -30,7 +31,7 @@ export const qualityGatesRepository = {
   },
 
   async upsertConfig(workspaceId: string, data: UpsertQualityGateConfigInput, tx?: Tx) {
-    logger.scan.debug('upsertConfig called', { workspaceId });
+    logger.qualityGate.debug('upsertConfig called', { workspaceId });
     try {
       const executor = tx ?? db;
       const [result] = await executor
@@ -69,7 +70,7 @@ export const qualityGatesRepository = {
         .returning();
       return result;
     } catch (error) {
-      logger.scan.error('upsertConfig failed', { error });
+      logger.qualityGate.error('upsertConfig failed', { error });
       throw error;
     }
   },

@@ -2,8 +2,11 @@ import { createReadStream } from 'node:fs';
 import { mkdir, writeFile, unlink, access } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import type { Readable } from 'node:stream';
-import type { StorageDriver, UploadOptions, UploadResult } from '../storage.interface';
+
+import { env } from '@/server/env';
 import { logger } from '@/server/lib/logger';
+
+import type { StorageDriver, UploadOptions, UploadResult } from '../storage.interface';
 
 /**
  * Local filesystem storage driver.
@@ -18,7 +21,7 @@ export class LocalStorageDriver implements StorageDriver {
 
   constructor(options?: { basePath?: string; baseUrl?: string }) {
     this.basePath = options?.basePath ?? join(process.cwd(), 'storage');
-    this.baseUrl = options?.baseUrl ?? (process.env.APP_URL ?? 'http://localhost:3000') + '/storage';
+    this.baseUrl = options?.baseUrl ?? env.APP_URL + '/storage';
   }
 
   async upload(buffer: Buffer, key: string, _options?: UploadOptions): Promise<UploadResult> {

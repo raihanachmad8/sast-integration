@@ -7,18 +7,12 @@
 
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, relative } from 'node:path';
+
+import type { ScannerRule } from '@/commons/types/scanner';
+
 import type { ScannerId } from './constants';
 
-export interface ScannerRule {
-  id: string;
-  name: string;
-  description: string;
-  severity: string;
-  languages: string[];
-  cwe?: string;
-  path: string;
-  enabled: boolean;
-}
+export { type ScannerRule };
 
 export interface ScannerRulesConfig {
   scanner: ScannerId;
@@ -27,7 +21,7 @@ export interface ScannerRulesConfig {
   totalCount: number;
   page: number;
   perPage: number;
-  totalPages: number;
+  lastPage: number;
 }
 
 const RULES_BASE_PATH = join(process.cwd(), 'rules');
@@ -100,13 +94,13 @@ export async function getScannerRules(
       : allRules;
 
     const totalCount = filtered.length;
-    const totalPages = Math.ceil(totalCount / perPage);
+    const lastPage = Math.ceil(totalCount / perPage);
     const offset = (page - 1) * perPage;
     const rules = filtered.slice(offset, offset + perPage);
 
-    return { scanner, rulesPath, rules, totalCount, page, perPage, totalPages };
+    return { scanner, rulesPath, rules, totalCount, page, perPage, lastPage };
   } catch {
-    return { scanner, rulesPath, rules: [], totalCount: 0, page, perPage, totalPages: 0 };
+    return { scanner, rulesPath, rules: [], totalCount: 0, page, perPage, lastPage: 0 };
   }
 }
 

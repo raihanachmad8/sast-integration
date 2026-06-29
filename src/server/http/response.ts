@@ -1,11 +1,12 @@
-import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
+
+import { NextResponse } from 'next/server';
 
 interface PaginationMeta {
   page: number;
   perPage: number;
   total: number;
-  totalPages: number;
+  lastPage: number;
 }
 
 interface ResponseMeta {

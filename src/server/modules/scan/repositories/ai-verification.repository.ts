@@ -1,8 +1,9 @@
 import { eq, desc, and, asc, inArray } from 'drizzle-orm';
+
 import { db, type Tx } from '@/server/db/client';
+import { logger } from '@/server/lib/logger';
 import { aiVerifications } from '@drizzle/schema/findings';
 import { models } from '@drizzle/schema/integrations';
-import { logger } from '@/server/lib/logger';
 export const aiVerificationRepository = {
   /**
    * Create an AI verification record.
@@ -22,6 +23,7 @@ export const aiVerificationRepository = {
     latencyMs?: number;
     rawResponse?: string;
   }, tx?: Tx) {
+    logger.scan.debug('create verification', { findingId: data.findingId, modelId: data.modelId });
     const executor = tx ?? db;
     const [verification] = await executor.insert(aiVerifications).values(data).returning();
     return verification;

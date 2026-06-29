@@ -1,22 +1,46 @@
 import { eq, desc, sql, and, isNull } from 'drizzle-orm';
+
 import { db } from '@/server/db/client';
+import { logger } from '@/server/lib/logger';
 import { findings, findingGroups, aiVerifications } from '@drizzle/schema/findings';
+import { models } from '@drizzle/schema/integrations';
 import { projects } from '@drizzle/schema/projects';
 import { scans as scansTable } from '@drizzle/schema/scans';
-import { models } from '@drizzle/schema/integrations';
 import { repositories } from '@drizzle/schema/source-controls';
-import { logger } from '@/server/lib/logger';
+
+/**
+ * Simple in-memory cache with TTL for dashboard stats.
+ * Avoids hammering the DB on repeated dashboard loads within the same window.
+ */
+interface CacheEntry<T> { data: T; expiresAt: number }
+const statsCache = new Map<string, CacheEntry<unknown>>();
+const STATS_TTL_MS = 30_000; // 30 seconds
+
+function getCached<T>(key: string): T | null {
+  const entry = statsCache.get(key);
+  if (!entry || Date.now() > entry.expiresAt) {
+    statsCache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function setCache<T>(key: string, data: T): void {
+  statsCache.set(key, { data, expiresAt: Date.now() + STATS_TTL_MS });
+}
+
 export const dashboardRepository = {
   /**
    * Get aggregated dashboard statistics for a workspace.
+   * Results are cached for 30s to reduce DB load on rapid page refreshes.
+   *
    * @param workspaceId - Workspace UUID
    * @returns Stats object with connectedRepos, activeScans, criticalFindings, and awaitingAi counts
    */
   async getStats(workspaceId: string) {
-    const _projectIds = db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(and(eq(projects.workspaceId, workspaceId), isNull(projects.deletedAt)));
+    const cacheKey = `stats:${workspaceId}`;
+    const cached = getCached<{ connectedRepos: number; activeScans: number; criticalFindings: number; awaitingAi: number }>(cacheKey);
+    if (cached) return cached;
 
     const [
       connectedReposResult,
@@ -48,12 +72,15 @@ export const dashboardRepository = {
         .where(and(eq(projects.workspaceId, workspaceId), isNull(projects.deletedAt), isNull(aiVerifications.id))),
     ]);
 
-    return {
+    const result = {
       connectedRepos: Number(connectedReposResult[0]?.count ?? 0),
       activeScans: Number(activeScansResult[0]?.count ?? 0),
       criticalFindings: Number(criticalFindingsResult[0]?.count ?? 0),
       awaitingAi: Number(awaitingAiResult[0]?.count ?? 0),
     };
+
+    setCache(cacheKey, result);
+    return result;
   },
 
   /**
@@ -116,6 +143,7 @@ export const dashboardRepository = {
    * @returns Health object with scanners (always 0), sources, and models counts
    */
   async getHealthStatus(workspaceId: string) {
+    logger.dashboard.info('getHealthStatus', { workspaceId });
     const [sourceCount, modelCount] = await Promise.all([
       db.select({ count: sql<number>`count(*)` }).from(repositories).where(and(eq(repositories.workspaceId, workspaceId), isNull(repositories.deletedAt))),
       db.select({ count: sql<number>`count(*)` }).from(models).where(eq(models.workspaceId, workspaceId)),

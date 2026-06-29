@@ -28,9 +28,11 @@
 
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
+
 import { logger } from '@/server/lib/logger';
-import { SCANNER_COMMANDS } from './scanners';
+
 import type { ScannerId } from './constants';
+import { SCANNER_COMMANDS } from './scanners';
 
 /** In-memory cache mapping scanner ID to availability result. */
 const availabilityCache = new Map<ScannerId, boolean>();

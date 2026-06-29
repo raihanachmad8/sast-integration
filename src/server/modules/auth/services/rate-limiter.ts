@@ -6,16 +6,8 @@
  * Disable for testing: set RATE_LIMIT_ENABLED=false in .env
  */
 
+import { env } from '@/server/env';
 import { logger } from '@/server/lib/logger';
-
-let _rateLimitEnabled: boolean | null = null;
-
-function isRateLimitEnabled(): boolean {
-  if (_rateLimitEnabled !== null) return _rateLimitEnabled;
-  const raw = process.env.RATE_LIMIT_ENABLED;
-  _rateLimitEnabled = raw !== 'false';
-  return _rateLimitEnabled;
-}
 
 const RATE_LIMIT = {
   MAX_ATTEMPTS: 5,
@@ -24,6 +16,10 @@ const RATE_LIMIT = {
 } as const;
 
 export { RATE_LIMIT };
+
+function isRateLimitEnabled(): boolean {
+  return env.RATE_LIMIT_ENABLED;
+}
 
 interface AttemptRecord {
   count: number;

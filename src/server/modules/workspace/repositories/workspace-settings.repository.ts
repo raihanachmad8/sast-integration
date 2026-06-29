@@ -1,7 +1,8 @@
 import { eq, and } from 'drizzle-orm';
+
 import { db, type Tx } from '@/server/db/client';
-import { workspaceSettings } from '@drizzle/schema/workspaces';
 import { logger } from '@/server/lib/logger';
+import { workspaceSettings } from '@drizzle/schema/workspaces';
 
 export const workspaceSettingsRepository = {
   /**

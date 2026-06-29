@@ -7,11 +7,12 @@
  * @module source-control/gitea-api
  */
 
-import { logger } from '@/server/lib/logger';
-import { AppError } from '@/server/http/errors';
 import { HTTP } from '@/server/http/constants';
-import type { ScmApiService, ScmOAuthCredentials, CommitStatus, InlineReviewComment, ChangedFile } from './scm-api.service';
+import { AppError } from '@/server/http/errors';
+import { logger } from '@/server/lib/logger';
+
 import { extractFingerprintFromMarker, parsePatchToChangedLines, refreshOAuthToken } from './scm-api.service';
+import type { ScmApiService, ScmOAuthCredentials, CommitStatus, InlineReviewComment, ChangedFile } from './scm-api.service';
 import type { RefreshedTokens } from './scm-api.service';
 
 /** Dedup lock for concurrent token refresh per sourceControlId. */

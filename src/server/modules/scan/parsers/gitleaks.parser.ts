@@ -1,8 +1,11 @@
-import { type NewFinding } from '@drizzle/schema/findings';
-import { GITLEAKS_MATCH_PREVIEW_MAX_LENGTH } from '../constants';
-import { normalizeFilePath } from './path-normalizer';
-import type { ParseResult } from './index';
 import { logger } from '@/server/lib/logger';
+import { type NewFinding } from '@drizzle/schema/findings';
+
+import { GITLEAKS_MATCH_PREVIEW_MAX_LENGTH } from '../constants';
+
+import { normalizeFilePath } from './path-normalizer';
+
+import type { ParseResult } from './index';
 
 export interface GitleaksFinding {
   Description: string;
@@ -68,6 +71,7 @@ export function parseGitleaks(
   scanId: string,
   scanner: string = 'gitleaks'
 ): ParseResult {
+  logger.scan.debug('parseGitleaks', { scanId, scanner });
   let report: GitleaksFinding[] | GitleaksReport;
 
   try {

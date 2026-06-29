@@ -45,6 +45,7 @@
 
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+
 import { logger } from '@/server/lib/logger';
 
 const SOURCE_CONTEXT_RADIUS = 2; // Lines above/below finding

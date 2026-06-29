@@ -1,9 +1,10 @@
+import { createKnowledgeEntrySchema, updateKnowledgeEntrySchema } from '@/commons/schemas/knowledge-base.schema';
 import { db } from '@/server/db/client';
-import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
-import { knowledgeBaseRepository } from './knowledge-base.repository';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
-import { createKnowledgeEntrySchema, updateKnowledgeEntrySchema } from '@/commons/schemas/knowledge-base.schema';
+import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
+
+import { knowledgeBaseRepository } from './knowledge-base.repository';
 
 export interface ListEntriesParams {
   search?: string;
@@ -145,7 +146,7 @@ export const knowledgeBaseService = {
    * Mutes (soft-disables) a knowledge entry.
    * Requires workspace membership for write access.
    */
-  async muteEntry(entryId: string, workspaceId: string, userId: string) {
+  async muteEntry(workspaceId: string, entryId: string, userId: string) {
     logger.knowledge.info('muteEntry', { entryId });
     await assertWorkspaceMember(workspaceId, userId);
 

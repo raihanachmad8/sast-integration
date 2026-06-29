@@ -1,11 +1,12 @@
 import { count, eq, sql } from 'drizzle-orm';
-import JSZip from 'jszip';
 import { XMLParser } from 'fast-xml-parser';
+import JSZip from 'jszip';
+
 import { db } from '@/server/db/client';
-import { knowledgeEntries, knowledgeSources } from '@drizzle/schema/integrations';
+import { env } from '@/server/env';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
-import { env } from '@/server/env';
+import { knowledgeEntries, knowledgeSources } from '@drizzle/schema/integrations';
 
 export interface SyncResult {
   sourceId: string;
@@ -168,7 +169,7 @@ async function fetchNvdEntries(range?: { start: Date; end: Date }): Promise<Sync
 async function fetchCweEntries(): Promise<SyncEntryData[]> {
   const entries: SyncEntryData[] = [];
 
-  // Primary: MITRE CWE XML feed inside ZIP.
+  // Primary: CWE XML feed inside ZIP.
   try {
     const response = await fetch('https://cwe.mitre.org/data/xml/cwec_v4.16.xml.zip', {
       cache: 'no-store',
@@ -216,7 +217,7 @@ async function fetchCweEntries(): Promise<SyncEntryData[]> {
     logger.knowledge.warn('CWE XML fetch failed, trying CSV', { error: e instanceof Error ? e.message : e });
   }
 
-  // Fallback: MITRE CWE CSV feed inside ZIP.
+  // Fallback: CWE CSV feed (cwe.mitre.org).
   try {
     const response = await fetch('https://cwe.mitre.org/data/csv/828.csv.zip', { cache: 'no-store' });
     if (response.ok) {

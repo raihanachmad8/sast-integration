@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
-import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
+
 import { logger } from '@/server/lib/logger';
+import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
 
 // ═══════════════════════════════════════════════════════════════════
 // Enterprise SAST PDF Report Generator
@@ -822,8 +823,11 @@ export async function generateReportPdf(
 
     const chunks: Buffer[] = [];
     doc.on('data', (c: Buffer) => chunks.push(c));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
+    doc.on('end', () => {
+      logger.report.info('generateReportPdf:completed', { workspaceId, findingCount: mappedFindings.length });
+      resolve(Buffer.concat(chunks));
+    });
+    doc.on('error', (err) => { logger.report.error('generateReportPdf:error', { error: err.message }); reject(err); });
 
     buildCover(doc, metrics, workspaceName);
     buildToc(doc);

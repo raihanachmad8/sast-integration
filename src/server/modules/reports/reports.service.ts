@@ -1,14 +1,15 @@
-import { reportsRepository, type ReportListParams } from './reports.repository';
-import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
-import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
-import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
-import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
-import { getStorageDriver } from '@/server/modules/storage/storage.service';
 import { ROLE_PERMISSIONS } from '@/commons/constants/permissions';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
-import { generateReportPdf } from './generators/pdf-generator';
+import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
+import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
+import { getStorageDriver } from '@/server/modules/storage/storage.service';
+import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
+import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+
 import { generateReportExcel } from './generators/excel-generator';
+import { generateReportPdf } from './generators/pdf-generator';
+import { reportsRepository, type ReportListParams } from './reports.repository';
 
 interface GenerateReportInput {
   type: string;
@@ -43,16 +44,16 @@ export const reportsService = {
     return result;
   },
 
-  async getById(id: string, workspaceId: string) {
+  async getById(workspaceId: string, id: string) {
     logger.report.info('getById', { id, workspaceId });
-    const result = await reportsRepository.getById(id, workspaceId);
+    const result = await reportsRepository.getById(workspaceId, id);
     if (!result) {
       throw new AppError('Report not found', 404, 'NOT_FOUND');
     }
     return result;
   },
 
-  async generate(data: GenerateReportInput, workspaceId: string, userId: string) {
+  async generate(workspaceId: string, data: GenerateReportInput, userId: string) {
     const start = Date.now();
     logger.report.info('generate:start', { type: data.type, format: data.format, workspaceId, userId });
 
@@ -132,12 +133,12 @@ export const reportsService = {
     return generateReportPdf(type, workspaceId, workspaceName);
   },
 
-  async delete(id: string, workspaceId: string, userId: string) {
+  async delete(workspaceId: string, id: string, userId: string) {
     logger.report.info('delete', { id, workspaceId });
 
     await assertWorkspaceMember(workspaceId, userId);
 
-    const existing = await reportsRepository.getById(id, workspaceId);
+    const existing = await reportsRepository.getById(workspaceId, id);
     if (!existing) throw new AppError('Report not found', 404, 'NOT_FOUND');
 
     if (existing.filePath) {

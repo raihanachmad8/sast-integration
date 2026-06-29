@@ -1,20 +1,23 @@
 import { createPrivateKey, createSign } from 'node:crypto';
+
 import { eq, sql, isNull, and } from 'drizzle-orm';
-import { db } from '@/server/db/client';
-import { sourceControls, sourceControlImports } from '@drizzle/schema/source-controls';
-import { sourceControlRepository } from './source-control.repository';
+
 import { createSourceControlSchema, updateSourceControlSchema } from '@/commons/schemas';
+import type { ScmProvider } from '@/commons/types/domain';
+import { db } from '@/server/db/client';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
+import { sourceControls, sourceControlImports } from '@drizzle/schema/source-controls';
 import type { SourceControl } from '@drizzle/schema/source-controls';
+
 import type { CredentialMap, DiscoveredRepository } from './helpers';
-import type { ScmProvider } from '@/commons/types/domain';
 import {
   getScmProviderConfig,
   resolveConnectionType,
   refreshOAuthToken,
   buildScmAuthUrl,
 } from './scm-api.service';
+import { sourceControlRepository } from './source-control.repository';
 
 /**
  * Sanitize source control credentials for frontend response.
@@ -45,22 +48,25 @@ export const sourceControlService = {
   /**
    * Lists all source control providers for a workspace.
    */
-  async list(workspaceId: string) {
+  async list(workspaceId: string, params?: { page?: number; perPage?: number; search?: string; sort?: string; order?: string }) {
     logger.sourceControl.info('list', { workspaceId });
-    const result = await sourceControlRepository.listByWorkspace(workspaceId);
-    logger.sourceControl.info('list completed', { count: result.length });
-    return result.map(r => ({
-      ...r,
-      credentials: r.credentials ? sanitizeCredentials(r.credentials as Record<string, unknown>) : r.credentials,
-    }));
+    const result = await sourceControlRepository.list(workspaceId, params);
+    logger.sourceControl.info('list completed', { total: result.total });
+    return {
+      ...result,
+      data: result.data.map(r => ({
+        ...r,
+        credentials: r.credentials ? sanitizeCredentials(r.credentials as Record<string, unknown>) : r.credentials,
+      })),
+    };
   },
 
   /**
    * Retrieves a single source control provider by ID within a workspace.
    */
-  async getById(id: string, workspaceId: string) {
+  async getById(workspaceId: string, id: string) {
     logger.sourceControl.info('getById', { id, workspaceId });
-    const control = await sourceControlRepository.getById(id, workspaceId);
+    const control = await sourceControlRepository.getById(workspaceId, id);
     if (!control) {
       throw new AppError('Source control provider not found', 404, 'NOT_FOUND');
     }
@@ -96,7 +102,7 @@ export const sourceControlService = {
   /**
    * Creates a new source control provider for a workspace.
    */
-  async create(data: unknown, workspaceId: string, userId: string) {
+  async create(workspaceId: string, data: unknown, userId: string) {
     logger.sourceControl.info('create', { workspaceId });
     const parsed = createSourceControlSchema.parse(data);
 
@@ -114,7 +120,7 @@ export const sourceControlService = {
   /**
    * Updates an existing source control provider.
    */
-  async update(id: string, data: unknown, workspaceId: string, _userId: string) {
+  async update(workspaceId: string, id: string, data: unknown, _userId: string) {
     logger.sourceControl.info('update', { id, workspaceId });
     const existing = await sourceControlRepository.getById(id, workspaceId);
     if (!existing) {
@@ -143,9 +149,9 @@ export const sourceControlService = {
   /**
    * Deletes a source control provider — cascades uninstall of all imported repos.
    */
-  async delete(id: string, workspaceId: string, userId: string) {
+  async delete(workspaceId: string, id: string, userId: string) {
     logger.sourceControl.info('delete', { id, workspaceId });
-    const existing = await sourceControlRepository.getById(id, workspaceId);
+    const existing = await sourceControlRepository.getById(workspaceId, id);
     if (!existing) {
       throw new AppError('Source control provider not found', 404, 'NOT_FOUND');
     }
@@ -169,9 +175,9 @@ export const sourceControlService = {
    * Tests the connection to a source control provider.
    * Returns configured credential keys for validation.
    */
-  async testConnection(id: string, workspaceId: string) {
+  async testConnection(workspaceId: string, id: string) {
     logger.sourceControl.info('testConnection', { id, workspaceId });
-    const existing = await sourceControlRepository.getById(id, workspaceId);
+    const existing = await sourceControlRepository.getById(workspaceId, id);
     if (!existing) {
       throw new AppError('Source control provider not found', 404, 'NOT_FOUND');
     }
@@ -193,9 +199,9 @@ export const sourceControlService = {
   /**
    * Discovers remote repositories and returns sync summary.
    */
-  async sync(id: string, workspaceId: string) {
+  async sync(workspaceId: string, id: string) {
     logger.sourceControl.info('sync', { id, workspaceId });
-    const existing = await sourceControlRepository.getById(id, workspaceId);
+    const existing = await sourceControlRepository.getById(workspaceId, id);
     if (!existing) {
       throw new AppError('Source control provider not found', 404, 'NOT_FOUND');
     }
@@ -307,7 +313,7 @@ export const sourceControlService = {
    * @param workspaceId - Workspace UUID for authorization
    * @returns Array of branch names, or empty array if not connected
    */
-  async listBranches(repositoryId: string, workspaceId: string): Promise<string[]> {
+  async listBranches(workspaceId: string, repositoryId: string) {
     logger.sourceControl.info('listBranches', { repositoryId, workspaceId });
 
     // Find the source control import for this repository
@@ -318,7 +324,7 @@ export const sourceControlService = {
     }
 
     // Get the source control provider
-    const sourceControl = await sourceControlRepository.getById(importRecord.sourceControlId, workspaceId);
+    const sourceControl = await sourceControlRepository.getById(workspaceId, importRecord.sourceControlId);
     if (!sourceControl) {
       logger.sourceControl.info('listBranches — source control not found', { repositoryId });
       return [];

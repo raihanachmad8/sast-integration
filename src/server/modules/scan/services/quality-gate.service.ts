@@ -1,18 +1,22 @@
-import { logger } from '@/server/lib/logger';
+import { eq } from 'drizzle-orm';
+
+import { db } from '@/server/db/client';
 import { env } from '@/server/env';
-import { qualityGateRepository } from '../repositories/quality-gate.repository';
-import { findingRepository } from '../repositories/finding.repository';
-import { scanRepository } from '../repositories/scan.repository';
-import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { AppError } from '@/server/http/errors';
+import { logger } from '@/server/lib/logger';
 import { createScmApiService, parseRepoName, buildPrComment } from '@/server/modules/source-control/scm-api.service';
 import type { ChangedFile } from '@/server/modules/source-control/scm-api.service';
+import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 import { repositories } from '@drizzle/schema/source-controls';
 import { sourceControls } from '@drizzle/schema/source-controls';
 import { workspaces } from '@drizzle/schema/workspaces';
-import { db } from '@/server/db/client';
-import { eq } from 'drizzle-orm';
-import { AppError } from '@/server/http/errors';
+
+
+
 import { SCAN } from '../constants';
+import { findingRepository } from '../repositories/finding.repository';
+import { qualityGateRepository } from '../repositories/quality-gate.repository';
+import { scanRepository } from '../repositories/scan.repository';
 
 /** Debounce timers for repostPrComment per scanId. */
 const repostTimers = new Map<string, NodeJS.Timeout>();
@@ -105,7 +109,7 @@ export const qualityGateService = {
    * @param projectId - Project UUID for finding retrieval
    * @returns Evaluation result with status, gate config, and finding counts
    */
-  async evaluateScan(scanId: string, workspaceId: string, projectId: string) {
+  async evaluateScan(workspaceId: string, scanId: string, projectId: string) {
     logger.scan.info('evaluateScan', { scanId, workspaceId, projectId });
 
     try {
@@ -191,16 +195,16 @@ export const qualityGateService = {
    * Evaluate a PR scan against quality gate — uses git diff to determine new findings.
    * A finding is "new" if it's on a file and line that was changed in the PR.
    *
-   * @param scanId - Scan UUID to evaluate (head branch)
    * @param workspaceId - Workspace UUID for gate config lookup
-   * @param repositoryId - Repository UUID for branch diff
+   * @param scanId - Scan UUID to evaluate (head branch)
+   * @param repositoryId - Repository UUID
    * @param headBranch - PR head branch
    * @param baseBranch - PR base branch
    * @returns Evaluation result with status, gate config, new/fixed finding counts
    */
   async evaluatePrScan(
-    scanId: string,
     workspaceId: string,
+    scanId: string,
     repositoryId: string,
     headBranch: string,
     baseBranch: string,
@@ -432,7 +436,7 @@ export const qualityGateService = {
       const [ws] = await db.select({ slug: workspaces.slug }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
       const workspaceSlug = ws?.slug ?? 'workspace';
 
-      const gateResult = await this.evaluatePrScan(scanId, workspaceId, scan.repositoryId, scan.headBranch, scan.baseBranch);
+      const gateResult = await this.evaluatePrScan(workspaceId, scanId, scan.repositoryId, scan.headBranch, scan.baseBranch);
 
       // Reuse newFindingsData from evaluatePrScan (already computed via code diff)
       const diffData = (gateResult as { newFindingsData?: unknown[] }).newFindingsData ?? [];

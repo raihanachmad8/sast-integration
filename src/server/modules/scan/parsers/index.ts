@@ -5,14 +5,16 @@
  * Auto-detects SARIF by checking for `runs` key in JSON content.
  */
 
-import { parseGCCFanalyzer } from './gcc-fanalyzer.parser';
-import { parseSemgrep } from './semgrep.parser';
-import { parseCppcheck } from './cppcheck.parser';
-import { parseGitleaks } from './gitleaks.parser';
-import { parseFlawfinder } from './flawfinder.parser';
-import { parseClangTidy } from './clang-tidy.parser';
-import { normalizeFilePath } from './path-normalizer';
 import { type NewFinding } from '@drizzle/schema/findings';
+
+import { parseClangTidy } from './clang-tidy.parser';
+import { parseCppcheck } from './cppcheck.parser';
+import { parseFlawfinder } from './flawfinder.parser';
+import { parseGCCFanalyzer } from './gcc-fanalyzer.parser';
+import { parseGitleaks } from './gitleaks.parser';
+import { normalizeFilePath } from './path-normalizer';
+import { parseSemgrep } from './semgrep.parser';
+
 
 /** Check if a string looks like a UUID (not a human-readable rule name). */
 function isUuid(value: string | null | undefined): boolean {

@@ -1,7 +1,8 @@
 import { z } from "zod";
+
+import { AppError } from "@/server/http/errors";
 import { NODE_ENV, WORKSPACE_MODE } from "@/server/modules/auth/constants";
 import { MAIL } from "@/server/modules/mail/constants";
-import { AppError } from "@/server/http/errors";
 
 const nodeEnvValues = Object.values(NODE_ENV) as [string, ...string[]];
 const workspaceModeValues = Object.values(WORKSPACE_MODE) as [
@@ -26,10 +27,10 @@ const INSECURE_SECRETS = [
 const envSchema = z
   .object({
     // Core
-    DATABASE_URL: z.string().url(),
+    DATABASE_URL: z.url(),
     PORT: z.coerce.number().default(3000),
     NODE_ENV: z.enum(nodeEnvValues),
-    APP_URL: z.string().url().default("http://localhost:3000"),
+    APP_URL: z.url().default(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
 
     // Auth
     JWT_SECRET: z.string().min(32),
@@ -37,7 +38,7 @@ const envSchema = z
     REFRESH_EXPIRES_IN: z.string().default("7d"),
     WORKSPACE_MODE: z
       .enum(workspaceModeValues)
-      .default(WORKSPACE_MODE.MULTIPLE),
+      .default((process.env.NEXT_PUBLIC_WORKSPACE_MODE as string) || WORKSPACE_MODE.MULTIPLE),
 
     // Mail
     MAIL_PROVIDER: z.enum(mailProviderValues).default(MAIL.PROVIDER.CONSOLE),

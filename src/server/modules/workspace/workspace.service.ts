@@ -1,13 +1,15 @@
 import { randomUUID } from 'crypto';
-import { db } from '@/server/db/client';
+
 import { ROLE } from '@/commons/constants/permissions';
-import { workspaceRepository } from './repositories/workspace.repository';
-import { WORKSPACE } from './constants';
-import { WORKSPACE_MODE, WORKSPACE_DEFAULTS } from '@/server/modules/auth/constants';
+import type { WorkspaceCreateInput as CreateWorkspaceInput, WorkspaceUpdateInput as UpdateWorkspaceInput } from '@/commons/schemas';
+import { db } from '@/server/db/client';
 import { env } from '@/server/env';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
-import type { WorkspaceCreateInput as CreateWorkspaceInput, WorkspaceUpdateInput as UpdateWorkspaceInput } from '@/commons/schemas';
+import { WORKSPACE_MODE, WORKSPACE_DEFAULTS } from '@/server/modules/auth/constants';
+
+import { WORKSPACE } from './constants';
+import { workspaceRepository } from './repositories/workspace.repository';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -32,7 +34,7 @@ export const workspaceService = {
    */
   async list(userId: string) {
     logger.workspace.info('list', { userId });
-    const result = await workspaceRepository.listByUser(userId);
+    const result = await workspaceRepository.list(userId);
     logger.workspace.info('list completed', { count: result.length });
     return result;
   },

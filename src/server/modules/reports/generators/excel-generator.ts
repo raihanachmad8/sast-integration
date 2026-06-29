@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
-import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
+
 import { logger } from '@/server/lib/logger';
+import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
 
 // ═══════════════════════════════════════════════════════════════════
 // Enterprise SAST Excel Workbook Generator
@@ -473,5 +474,6 @@ export async function generateReportExcel(
   buildRoadmapSheet(wb, mappedFindings);
 
   const buf = await wb.xlsx.writeBuffer();
+  logger.report.info('generateReportExcel:completed', { workspaceId, findingCount: mappedFindings.length });
   return Buffer.from(buf);
 }

@@ -1,7 +1,8 @@
 import type { JobWithMetadata } from 'pg-boss';
+
 import { logger } from '@/server/lib/logger';
-import { aiVerificationService } from '@/server/modules/scan/services/ai-verification.service';
 import { findingRepository } from '@/server/modules/scan/repositories/finding.repository';
+import { aiVerificationService } from '@/server/modules/scan/services/ai-verification.service';
 
 interface AiVerifyJobData {
   scanId?: string;

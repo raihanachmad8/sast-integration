@@ -1,7 +1,8 @@
 import { eq, and, gt, sql, isNull } from 'drizzle-orm';
+
 import { db, type Tx } from '@/server/db/client';
-import { users, sessions, passwordResetTokens, emailVerificationTokens } from '@drizzle/schema';
 import { logger } from '@/server/lib/logger';
+import { users, sessions, passwordResetTokens, emailVerificationTokens } from '@drizzle/schema';
 
 export const authFlowsRepository = {
   /**

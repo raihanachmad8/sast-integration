@@ -1,15 +1,11 @@
-import { workspaceSettingsRepository } from '../repositories/workspace-settings.repository';
+import type { PrReviewSettings } from '@/modules/workspace-settings/types';
 import { logger } from '@/server/lib/logger';
+
+import { workspaceSettingsRepository } from '../repositories/workspace-settings.repository';
 
 const PR_REVIEW_SETTINGS_KEY = 'pr_review_settings';
 
-export interface PrReviewSettings {
-  postPrSummaryComment: boolean;
-  inlineCodeAnnotations: boolean;
-  publishQualityGateStatus: boolean;
-  statusContext: string;
-  reviewSummaryFormat: 'compact' | 'detailed';
-}
+export { type PrReviewSettings };
 
 const DEFAULT_PR_REVIEW_SETTINGS: PrReviewSettings = {
   postPrSummaryComment: true,

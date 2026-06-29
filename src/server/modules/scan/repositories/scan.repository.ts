@@ -1,11 +1,12 @@
-import { eq, desc, count, sql, and, or, ilike, isNull, inArray } from 'drizzle-orm';
+import { eq, desc, count, sql, and, or, isNull, inArray } from 'drizzle-orm';
+
 import { db, type Tx } from '@/server/db/client';
-import { getOffset } from '@/lib/pagination';
+import { logger } from '@/server/lib/logger';
+import { buildSearch, buildPaginationMeta } from '@/server/lib/query';
+import { findings, findingGroups, aiVerifications, findingGroupScans } from '@drizzle/schema/findings';
 import { scans, scanResults, scanUploads } from '@drizzle/schema/scans';
 import type { ProgressEvent } from '@drizzle/schema/scans';
 import { repositories } from '@drizzle/schema/source-controls';
-import { findings, findingGroups, aiVerifications, findingGroupScans } from '@drizzle/schema/findings';
-import { logger } from '@/server/lib/logger';
 
 export interface ScanListFilters {
   status?: string;
@@ -24,6 +25,7 @@ export const scanRepository = {
    * @returns Scan record or null
    */
   async findByCommitSha(repositoryId: string, commitSha: string, tx?: Tx) {
+    logger.scan.info('findByCommitSha', { repositoryId, commitSha });
     const executor = tx ?? db;
     const [scan] = await executor
       .select()
@@ -43,7 +45,6 @@ export const scanRepository = {
    */
   async listByWorkspace(workspaceId: string, params: { page: number; perPage: number; search?: string; filters?: ScanListFilters; accessibleProjectIds?: string[] }, tx?: Tx) {
     const executor = tx ?? db;
-    const offset = getOffset(params.page, params.perPage);
     const filters = params.filters ?? {};
 
     // Build where conditions
@@ -51,7 +52,7 @@ export const scanRepository = {
     if (filters.status) conditions.push(eq(scans.status, filters.status));
     if (filters.origin) conditions.push(eq(scans.origin, filters.origin));
     if (filters.repositoryId) conditions.push(eq(scans.repositoryId, filters.repositoryId));
-    if (params.search) conditions.push(ilike(repositories.name, `%${params.search}%`));
+    conditions.push(...buildSearch(params.search, repositories.name));
     if (filters.stage) {
       const VALID_STAGES = ['triggered', 'queued', 'cloning', 'scanning', 'parsing', 'ai_verifying', 'completed', 'failed', 'skipped'];
       if (VALID_STAGES.includes(filters.stage)) {
@@ -70,7 +71,8 @@ export const scanRepository = {
       );
     }
 
-    // Main query: get scans with repository info
+    // Paginate
+    const offset = (params.page - 1) * params.perPage;
     const data = await executor.select({
       id: scans.id,
       repositoryId: scans.repositoryId,
@@ -131,7 +133,7 @@ export const scanRepository = {
       .innerJoin(repositories, eq(scans.repositoryId, repositories.id))
       .where(and(...conditions));
 
-    return { data: enrichedData, total };
+    return { data: enrichedData, ...buildPaginationMeta(total, params.page, params.perPage) };
   },
 
   /**
@@ -143,7 +145,7 @@ export const scanRepository = {
    */
   async listByRepository(repositoryId: string, params: { page: number; perPage: number }, tx?: Tx) {
     const executor = tx ?? db;
-    const offset = getOffset(params.page, params.perPage);
+    const offset = (params.page - 1) * params.perPage;
     const data = await executor.select({
       id: scans.id,
       repositoryId: scans.repositoryId,
@@ -162,7 +164,7 @@ export const scanRepository = {
     const [{ total }] = await executor.select({ total: count() }).from(scans)
       .where(eq(scans.repositoryId, repositoryId));
 
-    return { data, total };
+    return { data, ...buildPaginationMeta(total, params.page, params.perPage) };
   },
 
   /**

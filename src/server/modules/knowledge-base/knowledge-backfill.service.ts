@@ -1,10 +1,13 @@
 import { z } from 'zod';
-import { knowledgeBaseRepository } from './knowledge-base.repository';
-import { AppError } from '@/server/http/errors';
+
 import { QUEUE_JOBS } from '@/commons/constants/queue';
-import { enqueue } from '@/server/modules/queue/queue.service';
-import { syncEngine } from './sync-engine';
+import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
+import { enqueue } from '@/server/modules/queue/queue.service';
+
+import { knowledgeBaseRepository } from './knowledge-base.repository';
+import { syncEngine } from './sync-engine';
+
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_RANGE_START = new Date('2002-01-01T00:00:00.000Z');

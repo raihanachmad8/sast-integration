@@ -1,7 +1,8 @@
 import { and, eq, count, or, ilike, sql, desc, inArray } from 'drizzle-orm';
+
 import { db, type Tx } from '@/server/db/client';
-import { knowledgeEntries, knowledgeSources, knowledgeBackfillJobs } from '@drizzle/schema/integrations';
 import { logger } from '@/server/lib/logger';
+import { knowledgeEntries, knowledgeSources, knowledgeBackfillJobs } from '@drizzle/schema/integrations';
 const entrySelectFields = {
   id: knowledgeEntries.id,
   sourceId: knowledgeEntries.sourceId,
@@ -30,6 +31,7 @@ export const knowledgeBaseRepository = {
     params: { search?: string; source?: string },
     tx?: Tx,
   ): Promise<number> {
+    logger.knowledge.info('countEntries', { search: params.search, source: params.source });
     const executor = tx ?? db;
     const conditions: ReturnType<typeof and> extends infer R ? R[] : never = [];
 
@@ -101,6 +103,7 @@ export const knowledgeBaseRepository = {
    * Get a single entry by ID (global — not workspace-scoped).
    */
   async findEntryById(entryId: string, tx?: Tx) {
+    logger.knowledge.info('findEntryById', { entryId });
     const executor = tx ?? db;
     const [entry] = await executor
       .select(entrySelectFields)
@@ -160,6 +163,7 @@ export const knowledgeBaseRepository = {
     tags?: string[];
     muted?: boolean;
   }, tx?: Tx) {
+    logger.knowledge.info('updateEntry', { entryId });
     const executor = tx ?? db;
     const [updated] = await executor
       .update(knowledgeEntries)
@@ -198,6 +202,7 @@ export const knowledgeBaseRepository = {
    * Count entries for a given source.
    */
   async countEntriesBySource(sourceId: string, tx?: Tx): Promise<number> {
+    logger.knowledge.info('countEntriesBySource', { sourceId });
     const executor = tx ?? db;
     const [{ total }] = await executor
       .select({ total: count() })
@@ -210,6 +215,7 @@ export const knowledgeBaseRepository = {
    * Delete all entries for a given source.
    */
   async deleteEntriesBySource(sourceId: string, tx?: Tx) {
+    logger.knowledge.info('deleteEntriesBySource', { sourceId });
     const executor = tx ?? db;
     return executor.delete(knowledgeEntries).where(eq(knowledgeEntries.sourceId, sourceId));
   },
@@ -224,6 +230,7 @@ export const knowledgeBaseRepository = {
    * @returns Matching knowledge entries with source info
    */
   async findByCweId(cweId: string, tx?: Tx) {
+    logger.knowledge.info('findByCweId', { cweId });
     const executor = tx ?? db;
     return executor
       .select({
@@ -247,8 +254,14 @@ export const knowledgeBaseRepository = {
   /**
    * List all knowledge sources with live entry counts.
    */
-  async listSources(tx?: Tx) {
+  async listSources(params?: { search?: string }, tx?: Tx) {
+    logger.knowledge.info('listSources', { search: params?.search });
     const executor = tx ?? db;
+    const conditions: ReturnType<typeof and> extends infer R ? R[] : never = [];
+    if (params?.search) {
+      conditions.push(ilike(knowledgeSources.name, `%${params.search}%`));
+    }
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
     const rows = await executor
       .select({
         id: knowledgeSources.id,
@@ -261,6 +274,7 @@ export const knowledgeBaseRepository = {
       })
       .from(knowledgeSources)
       .leftJoin(knowledgeEntries, eq(knowledgeEntries.sourceId, knowledgeSources.id))
+      .where(where)
       .groupBy(knowledgeSources.id);
     return rows;
   },
@@ -269,13 +283,14 @@ export const knowledgeBaseRepository = {
    * List sources for backward compatibility (calls listSources).
    */
   async listSourcesByWorkspace(_workspaceId: string, tx?: Tx) {
-    return this.listSources(tx);
+    return this.listSources(undefined, tx);
   },
 
   /**
    * Find a source by ID (global — not workspace-scoped).
    */
   async findSourceById(sourceId: string, tx?: Tx) {
+    logger.knowledge.info('findSourceById', { sourceId });
     const executor = tx ?? db;
     const [source] = await executor
       .select()
@@ -327,6 +342,7 @@ export const knowledgeBaseRepository = {
    * Update a knowledge source by ID.
    */
   async updateSource(sourceId: string, data: Record<string, unknown>, tx?: Tx) {
+    logger.knowledge.info('updateSource', { sourceId });
     const executor = tx ?? db;
     const [source] = await executor
       .update(knowledgeSources)
@@ -351,6 +367,7 @@ export const knowledgeBaseRepository = {
    * Update source entryCount by ID.
    */
   async updateSourceEntryCount(sourceId: string, entryCount: number, tx?: Tx) {
+    logger.knowledge.info('updateSourceEntryCount', { sourceId, entryCount });
     const executor = tx ?? db;
     return executor
       .update(knowledgeSources)
@@ -394,6 +411,7 @@ export const knowledgeBaseRepository = {
    * Get the latest active (queued or running) backfill job for a source.
    */
   async findActiveBackfillJob(sourceId: string, tx?: Tx) {
+    logger.knowledge.info('findActiveBackfillJob', { sourceId });
     const executor = tx ?? db;
     const [job] = await executor
       .select()
@@ -413,6 +431,7 @@ export const knowledgeBaseRepository = {
    * Get a backfill job by ID.
    */
   async findBackfillJobById(jobId: string, tx?: Tx) {
+    logger.knowledge.info('findBackfillJobById', { jobId });
     const executor = tx ?? db;
     const [job] = await executor
       .select()
@@ -426,6 +445,7 @@ export const knowledgeBaseRepository = {
    * Get the latest failed backfill job for a source.
    */
   async findLatestFailedBackfillJob(sourceId: string, tx?: Tx) {
+    logger.knowledge.info('findLatestFailedBackfillJob', { sourceId });
     const executor = tx ?? db;
     const [job] = await executor
       .select()
@@ -456,6 +476,7 @@ export const knowledgeBaseRepository = {
     maxRetries: number;
     importedCount: number;
   }, tx?: Tx) {
+    logger.knowledge.info('insertBackfillJob', { sourceId: data.sourceId, status: data.status });
     const executor = tx ?? db;
     const [job] = await executor
       .insert(knowledgeBackfillJobs)
@@ -488,6 +509,7 @@ export const knowledgeBaseRepository = {
    * List queued/running backfill jobs for a source (for stale job detection).
    */
   async listActiveBackfillJobs(sourceId: string, tx?: Tx) {
+    logger.knowledge.info('listActiveBackfillJobs', { sourceId });
     const executor = tx ?? db;
     return executor
       .select()
@@ -503,6 +525,7 @@ export const knowledgeBaseRepository = {
    * Count entries for a source using raw SQL (for backfill progress).
    */
   async countEntriesBySourceRaw(sourceId: string, tx?: Tx): Promise<number> {
+    logger.knowledge.info('countEntriesBySourceRaw', { sourceId });
     const executor = tx ?? db;
     const [{ total }] = await executor
       .select({ total: sql<number>`count(*)::int` })

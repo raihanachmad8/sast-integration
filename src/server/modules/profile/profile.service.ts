@@ -1,6 +1,7 @@
-import { profileRepository, type UpdateProfileInput } from './profile.repository';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
+
+import { profileRepository, type UpdateProfileInput } from './profile.repository';
 
 export const profileService = {
   /**

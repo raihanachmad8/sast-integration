@@ -1,4 +1,5 @@
 import type { Job } from 'pg-boss';
+
 import { logger } from '@/server/lib/logger';
 import { managedScanService, type ScheduledManagedScanJobData } from '@/server/modules/scan/services/managed-scan.service';
 

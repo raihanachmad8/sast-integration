@@ -1,8 +1,9 @@
-import { aiModelsRepository } from './ai-models.repository';
-import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
 import { createAiModelSchema, updateAiModelSchema } from '@/commons/schemas';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
+import { assertWorkspaceMember } from '@/server/modules/workspace/assert-workspace-member';
+
+import { aiModelsRepository } from './ai-models.repository';
 
 /**
  * Service responsible for managing AI Models.
@@ -14,8 +15,8 @@ export const aiModelsService = {
   /**
    * Creates a new AI model for a workspace.
    */
-  async createModel(workspaceId: string, input: unknown, userId: string) {
-    logger.model.info('createModel', { workspaceId });
+  async create(workspaceId: string, input: unknown, userId: string) {
+    logger.model.info('create', { workspaceId });
     await assertWorkspaceMember(workspaceId, userId);
     const data = createAiModelSchema.parse(input);
 
@@ -37,35 +38,35 @@ export const aiModelsService = {
   /**
    * Retrieves a single AI model by ID within a workspace.
    */
-  async getModelById(id: string, workspaceId?: string) {
-    logger.model.info('getModelById', { id });
-    const model = await aiModelsRepository.findById(id, workspaceId);
+  async getById(workspaceId: string, id: string) {
+    logger.model.info('getById', { id, workspaceId });
+    const model = await aiModelsRepository.findById(workspaceId, id);
     if (!model) {
       throw new AppError('AI model not found', 404, 'NOT_FOUND');
     }
-    logger.model.info('getModelById completed', { id });
+    logger.model.info('getById completed', { id });
     return model;
   },
 
   /**
    * Lists all AI models belonging to a workspace.
    */
-  async listModelsByWorkspace(workspaceId: string) {
-    logger.model.info('listModelsByWorkspace', { workspaceId });
-    const result = await aiModelsRepository.findByWorkspace(workspaceId);
-    logger.model.info('listModelsByWorkspace completed', { count: result.length });
+  async list(workspaceId: string, params?: { page?: number; perPage?: number; search?: string; sort?: string; order?: string }) {
+    logger.model.info('list', { workspaceId });
+    const result = await aiModelsRepository.list(workspaceId, params);
+    logger.model.info('list completed', { total: result.total });
     return result;
   },
 
   /**
    * Updates an existing AI model.
    */
-  async updateModel(id: string, workspaceId: string, input: unknown, userId: string) {
-    logger.model.info('updateModel', { id, workspaceId });
+  async update(workspaceId: string, id: string, input: unknown, userId: string) {
+    logger.model.info('update', { id, workspaceId });
     await assertWorkspaceMember(workspaceId, userId);
     const data = updateAiModelSchema.parse(input);
 
-    const updated = await aiModelsRepository.update(id, workspaceId, {
+    const updated = await aiModelsRepository.update(workspaceId, id, {
       ...(data.name !== undefined && { name: data.name }),
       ...(data.provider !== undefined && { provider: data.provider }),
       ...(data.baseUrl !== undefined && { baseUrl: data.baseUrl }),
@@ -78,22 +79,22 @@ export const aiModelsService = {
     if (!updated) {
       throw new AppError('AI model not found', 404, 'NOT_FOUND');
     }
-    logger.model.info('updateModel completed', { id });
+    logger.model.info('update completed', { id });
     return updated;
   },
 
   /**
    * Deletes an AI model from a workspace.
    */
-  async deleteModel(id: string, workspaceId: string, userId: string) {
+  async remove(workspaceId: string, id: string, userId: string) {
     logger.model.info('deleteModel', { id, workspaceId });
     await assertWorkspaceMember(workspaceId, userId);
-    const model = await aiModelsRepository.findById(id, workspaceId);
+    const model = await aiModelsRepository.findById(workspaceId, id);
     if (!model) {
       throw new AppError('AI model not found', 404, 'NOT_FOUND');
     }
 
-    await aiModelsRepository.delete(id, workspaceId);
-    logger.model.info('deleteModel completed', { id });
+    await aiModelsRepository.delete(workspaceId, id);
+    logger.model.info('remove completed', { id });
   },
 };

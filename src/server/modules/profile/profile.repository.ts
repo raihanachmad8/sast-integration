@@ -1,11 +1,12 @@
-import { eq, and } from 'drizzle-orm';
 import { hash, compare } from 'bcryptjs';
+import { eq, and } from 'drizzle-orm';
+
 import { db } from '@/server/db/client';
-import { users, sessions } from '@drizzle/schema/users';
-import { AUTH } from '@/server/modules/auth/constants';
-import { getStorageDriver } from '@/server/modules/storage/storage.service';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
+import { AUTH } from '@/server/modules/auth/constants';
+import { getStorageDriver } from '@/server/modules/storage/storage.service';
+import { users, sessions } from '@drizzle/schema/users';
 
 export interface UpdateProfileInput {
   name?: string;

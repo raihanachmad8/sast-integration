@@ -69,10 +69,18 @@ const SCANNER_ENGINES: ScannerEngineRecord[] = [
 
 export const scannerEnginesRepository = {
   async list(): Promise<ScannerEngineRecord[]> {
-    return SCANNER_ENGINES;
+    logger.scan.info('listScannerEngines');
+    const engines = SCANNER_ENGINES;
+    logger.scan.info('listScannerEngines completed', { count: engines.length });
+    return engines;
   },
 
   async getById(id: string): Promise<ScannerEngineRecord | null> {
-    return SCANNER_ENGINES.find((e) => e.id === id) ?? null;
+    logger.scan.info('getScannerEngineById', { id });
+    const engine = SCANNER_ENGINES.find((e) => e.id === id) ?? null;
+    if (!engine) {
+      logger.scan.warn('getScannerEngineById: scanner engine not found', { id });
+    }
+    return engine;
   },
 };

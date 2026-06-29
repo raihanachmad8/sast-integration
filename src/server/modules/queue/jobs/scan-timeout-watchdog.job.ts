@@ -11,13 +11,16 @@
  * Fails scans stuck for >30 minutes with descriptive error message.
  */
 
-import type { Job } from 'pg-boss';
-import { sql, inArray } from 'drizzle-orm';
-import { db } from '@/server/db/client';
-import { scans } from '@drizzle/schema/scans';
-import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
-import { logger } from '@/server/lib/logger';
 import { randomUUID } from 'node:crypto';
+
+import { sql, inArray } from 'drizzle-orm';
+import type { Job } from 'pg-boss';
+
+import { db } from '@/server/db/client';
+import { logger } from '@/server/lib/logger';
+import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
+import { scans } from '@drizzle/schema/scans';
+
 
 const TIMEOUT_MINUTES = 30;
 

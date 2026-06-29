@@ -29,11 +29,13 @@
  * ```
  */
 
-import type { ScannerId } from './constants';
-import path from 'node:path';
-import { readdirSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { readdirSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
+import path from 'node:path';
+
 import { env } from '@/server/env';
+
+import type { ScannerId } from './constants';
 
 /** Resolved path to the local semgrep rules directory. Uses forward slashes for cross-platform compatibility with semgrep CLI. */
 const getSemgrepRulesDir = () => env.SEMGREP_RULES_DIR ?? '';

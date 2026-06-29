@@ -1,6 +1,8 @@
-import type { StorageDriver } from './storage.interface';
-import { LocalStorageDriver } from './drivers/local.driver';
+import { env } from '@/server/env';
 import { logger } from '@/server/lib/logger';
+
+import { LocalStorageDriver } from './drivers/local.driver';
+import type { StorageDriver } from './storage.interface';
 
 type StorageProvider = 'local' | 's3' | 'cloudinary';
 
@@ -19,7 +21,7 @@ let _instance: StorageDriver | null = null;
 export async function getStorageDriver(): Promise<StorageDriver> {
   if (_instance) return _instance;
 
-  const provider = (process.env.STORAGE_PROVIDER ?? 'local') as StorageProvider;
+  const provider = env.STORAGE_PROVIDER as StorageProvider;
 
   _instance = await createDriver(provider);
   logger.storage.info('storage driver initialized', { provider, configured: _instance.isConfigured() });

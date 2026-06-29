@@ -1,6 +1,7 @@
-import { logger } from '@/server/lib/logger';
-import { stringValue, normalizeBaseUrl, type CredentialMap } from './helpers';
 import { AppError } from '@/server/http/errors';
+import { logger } from '@/server/lib/logger';
+
+import { stringValue, normalizeBaseUrl, type CredentialMap } from './helpers';
 
 interface WebhookResult {
   webhookId: string;
