@@ -2,7 +2,12 @@
  * In-memory rate limiter for auth endpoints.
  * Tracks failed attempts per key (email/IP) with sliding window.
  * Suitable for single-instance deployments (thesis scope).
+ *
+ * Disable for testing: set RATE_LIMIT_ENABLED=false in .env
  */
+
+import { env } from '@/server/env';
+import { logger } from '@/server/lib/logger';
 
 const RATE_LIMIT = {
   MAX_ATTEMPTS: 5,
@@ -11,6 +16,10 @@ const RATE_LIMIT = {
 } as const;
 
 export { RATE_LIMIT };
+
+function isRateLimitEnabled(): boolean {
+  return env.RATE_LIMIT_ENABLED;
+}
 
 interface AttemptRecord {
   count: number;
@@ -39,6 +48,8 @@ export const rateLimiter = {
    * @returns `null` if allowed, or `retryAfterMs` if blocked.
    */
   check(key: string): number | null {
+    if (!isRateLimitEnabled()) return null;
+
     const record = store.get(key);
     if (!record) return null;
 
@@ -47,6 +58,7 @@ export const rateLimiter = {
     // Locked out
     if (record.lockedUntil) {
       if (now < record.lockedUntil) {
+        logger.auth.warn('Rate limit: locked out', { key, remainingMs: record.lockedUntil - now });
         return record.lockedUntil - now;
       }
       // Lock expired — reset
@@ -67,6 +79,8 @@ export const rateLimiter = {
    * Record a failed attempt. Locks out after MAX_ATTEMPTS.
    */
   recordFailure(key: string): void {
+    if (!isRateLimitEnabled()) return;
+
     const now = Date.now();
     const record = store.get(key);
 
@@ -78,6 +92,7 @@ export const rateLimiter = {
     record.count += 1;
     if (record.count >= RATE_LIMIT.MAX_ATTEMPTS) {
       record.lockedUntil = now + RATE_LIMIT.LOCKOUT_MS;
+      logger.auth.warn('Rate limit: max attempts reached, locked out', { key, attempts: record.count });
     }
   },
 

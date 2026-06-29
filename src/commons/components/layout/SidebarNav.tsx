@@ -1,0 +1,89 @@
+'use client';
+
+import { theme } from 'antd';
+
+import { FaIcon } from '@/commons/components/FaIcon';
+import { LAYOUT } from '@/commons/constants/layout';
+
+type NavItem = {
+  key: string;
+  label: string;
+  icon: string;
+  href?: string;
+  badge?: string;
+};
+
+type NavSection = {
+  title: string;
+  groups: Array<{
+    title?: string;
+    items: NavItem[];
+  }>;
+};
+
+interface SidebarNavProps {
+  navSections: NavSection[];
+  activeKey: string;
+  isMobile: boolean;
+  mobileOpen: boolean;
+  onNavigate: (href: string) => void;
+}
+
+export function SidebarNav({ navSections, activeKey, isMobile, mobileOpen, onNavigate }: SidebarNavProps) {
+  const { token } = theme.useToken();
+
+  return (
+    <aside style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: 'none', background: token.colorSidebarBgDark, color: token.colorSidebarTextDark, zIndex: 60, transition: 'width 200ms ease, flex 200ms ease', ...(isMobile ? { position: 'fixed' as const, top: 0, left: 0, height: '100vh', width: mobileOpen ? LAYOUT.SIDEBAR_WIDTH : 0, flex: mobileOpen ? `0 0 ${LAYOUT.SIDEBAR_WIDTH}px` : '0 0 0', transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)' } : { position: 'relative' as const, width: LAYOUT.SIDEBAR_WIDTH, flex: `0 0 ${LAYOUT.SIDEBAR_WIDTH}px` }) }}>
+      {/* Sidebar brand */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: token.paddingSM, padding: `${token.paddingMD}px ${token.paddingMD}px ${token.paddingLG}px`, borderBottom: `1px solid ${token.colorSidebarBorderDark}`, flexShrink: 0 }}>
+        <div style={{ display: 'flex', width: token.sizeXL, height: token.sizeXL, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: token.borderRadius, background: token.colorPrimary, color: token.colorTextLightSolid, fontSize: token.fontSizeLG }}>
+          <FaIcon icon="fa-shield-halved" />
+        </div>
+        <div style={{ minWidth: 0, lineHeight: 1.15 }}>
+          <div style={{ overflow: 'hidden', color: token.colorTextLightSolid, fontSize: token.fontSize, fontWeight: token.fontWeightStrong, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>SAST Workspace</div>
+          <div style={{ marginTop: token.marginXXS, overflow: 'hidden', color: token.colorSidebarTextSecondaryDark, fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>AI-assisted security review</div>
+        </div>
+      </div>
+
+      {/* Sidebar nav */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {navSections.map((section, si) => (
+          <div style={{ padding: `${token.paddingMD}px ${token.paddingSM}px`, ...(si > 0 ? { borderTop: `1px solid ${token.colorSidebarBorderDark}` } : {}) }} key={section.title}>
+            <div style={{ margin: `0 ${token.paddingSM}px ${token.paddingXS}px`, color: token.colorSidebarTextSecondaryDark, fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, letterSpacing: '0.16em', textTransform: 'uppercase' as const }}>{section.title}</div>
+            {section.groups.map((group, gi) => (
+              <div style={{ marginTop: token.marginSM }} key={group.title ?? `${section.title}-${gi}`}>
+                {group.title && <div style={{ margin: `${token.marginSM}px ${token.paddingSM}px ${token.paddingXXS}px`, color: token.colorSidebarTextSecondaryDark, fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, letterSpacing: '0.12em', textTransform: 'uppercase' as const }}>{group.title}</div>}
+                <nav style={{ display: 'grid', gap: token.marginXXS }} aria-label={group.title ?? section.title}>
+                  {group.items.map((item) => {
+                    const active = activeKey === item.key;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => item.href && onNavigate(item.href)}
+                        aria-current={active ? 'page' : undefined}
+                        style={{
+                          display: 'flex', width: '100%', minHeight: token.controlHeightLG, alignItems: 'center', gap: token.marginXS,
+                          border: 0, borderRadius: token.borderRadius,
+                          background: active ? `linear-gradient(135deg, ${token.colorPrimary} 0%, ${token.colorInfo} 100%)` : 'transparent',
+                          boxShadow: active ? `0 4px 12px rgba(15,118,110,0.3)` : undefined,
+                          color: active ? token.colorTextLightSolid : token.colorSidebarTextDark,
+                          cursor: item.href ? 'pointer' : 'default',
+                          fontSize: token.fontSize, lineHeight: token.lineHeight, padding: `${token.paddingXS}px ${token.paddingSM}px`, textAlign: 'left',
+                        }}
+                      >
+                        <FaIcon icon={item.icon} style={{ width: token.sizeMS, height: token.sizeMS, flexShrink: 0, textAlign: 'center' }} />
+                        <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
+                        {item.badge && <span style={{ flexShrink: 0, borderRadius: 999, background: token.colorWarningBg, color: token.colorWarningText, fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, lineHeight: 1, padding: `${token.paddingXXS}px ${token.paddingXS}px` }}>{item.badge}</span>}
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </aside>
+  );
+}

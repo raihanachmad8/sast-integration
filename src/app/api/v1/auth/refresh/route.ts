@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { ApiResponse, buildMeta } from '@/server/http/response';
-import { authService } from '@/server/modules/auth/services/auth.service';
-import { verifyRefreshToken } from '@/server/modules/auth/services/jwt.service';
+import { NextRequest } from 'next/server';
+
+import { ApiResponse } from '@/server/http/response';
+import { logger } from '@/server/lib/logger';
 import { AUTH } from '@/server/modules/auth/constants';
 import { setRefreshCookie, clearRefreshCookie } from '@/server/modules/auth/cookie';
+import { authService } from '@/server/modules/auth/services/auth.service';
+import { verifyRefreshToken } from '@/server/modules/auth/services/jwt.service';
 
 /**
  * Returns a 401 response and clears the refresh cookie.
@@ -16,6 +18,7 @@ function unauthorizedRefresh(message: string = AUTH.ERRORS.INVALID_TOKEN) {
 }
 
 export async function POST(request: NextRequest) {
+  logger.auth.info('refresh');
   try {
     // CSRF protection for the cookie-only refresh endpoint.
     // The client must send the custom header defined in AUTH.REFRESH.
@@ -35,22 +38,19 @@ export async function POST(request: NextRequest) {
 
     const result = await authService.refresh(payload.sessionId, payload.refreshTokenId);
 
-    const response = NextResponse.json({
-      success: true,
-      message: AUTH.MESSAGES.REFRESH_SUCCESS,
-      data: {
-        tokenType: result.tokenType,
-        accessToken: result.accessToken,
-        expiresAt: result.expiresAt,
-        expiresIn: result.expiresIn,
-      },
-      meta: buildMeta(),
+    const response = ApiResponse.success(AUTH.MESSAGES.REFRESH_SUCCESS, {
+      tokenType: result.tokenType,
+      accessToken: result.accessToken,
+      expiresAt: result.expiresAt,
+      expiresIn: result.expiresIn,
     });
 
     setRefreshCookie(response, result.refreshToken);
 
+    logger.auth.info('refresh completed');
     return response;
-  } catch {
+  } catch (e) {
+    logger.auth.error('refresh failed', { error: e instanceof Error ? e.message : e });
     return unauthorizedRefresh();
   }
 }

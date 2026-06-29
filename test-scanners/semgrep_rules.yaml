@@ -1,0 +1,26 @@
+rules:
+  - id: dangerous-strcpy
+    pattern: strcpy($DST, $SRC)
+    message: "CWE-120: Buffer Copy without Checking Size of Input (strcpy)"
+    languages: [c]
+    severity: ERROR
+  - id: dangerous-sprintf
+    pattern: sprintf($BUF, $FMT, ...)
+    message: "CWE-134: Use of sprintf can cause buffer overflow"
+    languages: [c]
+    severity: ERROR
+  - id: system-call-injection
+    pattern: system($CMD)
+    message: "CWE-78: Improper Neutralization of Special Elements in OS Command"
+    languages: [c]
+    severity: ERROR
+  - id: format-string-vuln
+    pattern: printf($VAR)
+    message: "CWE-134: Uncontrolled Format String"
+    languages: [c]
+    severity: ERROR
+  - id: hardcoded-secret-api-key
+    pattern: $X = "sk-..."
+    message: "CWE-798: Hardcoded API key"
+    languages: [c]
+    severity: WARNING

@@ -1,8 +1,11 @@
-import { eq } from 'drizzle-orm';
 import { hash } from 'bcryptjs';
-import * as schema from '../schema';
+import { eq } from 'drizzle-orm';
+
 import { AUTH } from '../../src/server/modules/auth/constants';
+import * as schema from '../schema';
+
 import { OWNER_DEFAULTS } from './constants';
+
 import type { SeedModule } from './index';
 
 const OWNER_EMAIL = process.env.OWNER_EMAIL ?? OWNER_DEFAULTS.EMAIL;
@@ -19,7 +22,10 @@ export const ownerSeed: SeedModule = {
     const [created] = await db
       .insert(schema.users)
       .values({ email: OWNER_EMAIL, passwordHash, name: OWNER_NAME, emailVerifiedAt: new Date() })
-      .onConflictDoNothing()
+      .onConflictDoUpdate({
+        target: schema.users.email,
+        set: { passwordHash, name: OWNER_NAME, emailVerifiedAt: new Date() },
+      })
       .returning();
 
     const owner = created ?? (await db.select().from(schema.users).where(eq(schema.users.email, OWNER_EMAIL)).limit(1))[0];

@@ -1,5 +1,7 @@
 import type { NextResponse } from 'next/server';
+
 import { env } from '@/server/env';
+
 import { AUTH, NODE_ENV } from './constants';
 
 /** Set the httpOnly refresh-token cookie (secure in production). */

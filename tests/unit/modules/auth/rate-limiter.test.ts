@@ -4,7 +4,16 @@
  * This limiter protects sensitive endpoints (login, forgot-password, etc.)
  * against brute force and abuse by tracking failed attempts per key.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+vi.mock('@/server/env', () => ({
+  env: new Proxy({ RATE_LIMIT_ENABLED: 'true' } as Record<string, string>, {
+    get(target, prop: string) {
+      return target[prop] ?? process.env[prop] ?? '';
+    },
+  }),
+}));
+
 import { rateLimiter, RATE_LIMIT } from '@/server/modules/auth/services/rate-limiter';
 
 /**

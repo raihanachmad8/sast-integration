@@ -15,9 +15,13 @@ dist
 .env.local
 .env.*.local
 
+# logs
+logs/
+
 # debug
 npm-debug.log*
 pnpm-debug.log*
+.eslintcache
 
 # IDE
 .vscode
@@ -29,8 +33,14 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
+# compiled objects
+*.o
+
+# test coverage
+coverage/
+
 # storage
-storage/
+/storage/
 
 # misc
 *.tsbuildinfo
@@ -38,6 +48,10 @@ next-env.d.ts
 
 # playwright
 test-results/
+
+# docs (private/drafts)
+docs/superpowers/
+docs/compose/
 playwright-report/
 blob-report/
 
@@ -45,3 +59,22 @@ blob-report/
 .playwright-mcp/
 
 opencode.json
+
+# AI coding tools
+.opencode/
+.opencode*
+kilo/
+.kilo*
+kiro/
+.mimocode/
+.mimocode*
+.kiro*
+.codex/
+.codex*
+.hermes/
+.hermes*
+.claude/
+.claude*
+
+rules/
+rules*

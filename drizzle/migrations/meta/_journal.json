@@ -5,8 +5,22 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1780039388289,
-      "tag": "0000_initial_full_schema",
+      "when": 1782442969442,
+      "tag": "0000_initial_full_schemas",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782661000000,
+      "tag": "0001_drop_team_member_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782674000000,
+      "tag": "0002_drop_project_unused_fields",
       "breakpoints": true
     }
   ]

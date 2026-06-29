@@ -1,4 +1,5 @@
 import { pgTable, uuid, varchar, timestamp, jsonb } from 'drizzle-orm/pg-core';
+
 import { users } from './users';
 import { workspaces } from './workspaces';
 
@@ -45,16 +46,6 @@ export const personalAccessTokens = pgTable('personal_access_tokens', {
   revokedBy: uuid('revoked_by').references(() => users.id),
 });
 
-export const notifications = pgTable('notifications', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => users.id),
-  type: varchar('type', { length: 100 }).notNull(),
-  title: varchar('title', { length: 255 }).notNull(),
-  data: jsonb('data'),
-  readAt: timestamp('read_at'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
-
 export type WorkspaceInvitation = typeof workspaceInvitations.$inferSelect;
 export type NewWorkspaceInvitation = typeof workspaceInvitations.$inferInsert;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
@@ -63,5 +54,3 @@ export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect
 export type NewEmailVerificationToken = typeof emailVerificationTokens.$inferInsert;
 export type PersonalAccessToken = typeof personalAccessTokens.$inferSelect;
 export type NewPersonalAccessToken = typeof personalAccessTokens.$inferInsert;
-export type Notification = typeof notifications.$inferSelect;
-export type NewNotification = typeof notifications.$inferInsert;

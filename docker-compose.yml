@@ -1,0 +1,59 @@
+# =============================================================================
+# SAST Integration — Docker Compose (Production)
+# =============================================================================
+# Usage:
+#   docker compose up -d              # Start
+#   docker compose logs -f app        # Logs
+#   docker compose down               # Stop
+#   docker compose down -v            # Stop + remove volumes
+#
+# Required .env:
+#   DATABASE_URL=postgresql://user:pass@host:5432/dbname
+#   JWT_SECRET=<random-32+chars>
+#   OWNER_EMAIL=<admin@email.com>
+#   OWNER_PASSWORD=<secure-password>
+#
+# Optional .env:
+#   INCLUDE_SCANNERS=true             # Enable semgrep, flawfinder, cppcheck
+# =============================================================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - INCLUDE_SCANNERS=${INCLUDE_SCANNERS:-false}
+    container_name: sast-app
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file: .env
+    environment:
+      - STORAGE_PROVIDER=local
+      - STORAGE_LOCAL_PATH=/app/storage/uploads
+    volumes:
+      - storage:/app/storage
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: ${APP_MEMORY_LIMIT:-1G}
+          cpus: ${APP_CPU_LIMIT:-1}
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+    networks:
+      - sast-network
+
+volumes:
+  storage:
+    driver: local
+
+networks:
+  sast-network:
+    driver: bridge

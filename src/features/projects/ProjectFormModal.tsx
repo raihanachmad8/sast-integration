@@ -1,0 +1,68 @@
+'use client';
+
+import { Modal, Input, Form, theme } from 'antd';
+
+import { MODAL_WIDTH } from '@/commons/constants/layout';
+import { projectFormSchema } from '@/commons/schemas';
+import type { Project } from '@/commons/types';
+import { createZodSync } from '@/lib/utils/zod-sync';
+import type { ProjectFormInput } from '@/modules/projects/types';
+
+const rule = createZodSync(projectFormSchema);
+
+interface ProjectFormModalProps {
+  open: boolean;
+  project?: Project | null;
+  onCancel: () => void;
+  onConfirm: (input: ProjectFormInput) => void;
+  isLoading?: boolean;
+}
+
+/**
+ * Modal form for creating or editing a project with Zod-validated name and description fields.
+ *
+ * Pre-fills fields when editing an existing project.
+ *
+ * @param props - {@link ProjectFormModalProps}
+ * @returns JSX element rendering the project create/edit modal.
+ *
+ * @example
+ * <ProjectFormModal
+ *   open={true}
+ *   project={existingProject}
+ *   onCancel={() => setOpen(false)}
+ *   onConfirm={(input) => saveProject(input)}
+ *   isLoading={false}
+ * />
+ */
+export function ProjectFormModal({ open, project, onCancel, onConfirm, isLoading }: ProjectFormModalProps) {
+  const { token } = theme.useToken();
+  const [form] = Form.useForm();
+
+  return (
+    <Modal
+      open={open}
+      destroyOnHidden
+      onCancel={onCancel}
+      title={project ? 'Edit project' : 'New project'}
+      width={MODAL_WIDTH.SM}
+      okText={project ? 'Save project' : 'Create project'}
+      cancelText="Cancel"
+      confirmLoading={isLoading}
+      onOk={() => form.validateFields().then((values) => onConfirm(values))}
+    >
+      <div style={{ display: 'grid', gap: token.paddingXL, padding: `${token.paddingLG} 0` }}>
+        <Form form={form} layout="vertical" initialValues={{ name: project?.name ?? '', description: project?.description ?? '' }} onFinish={(values) => onConfirm(values)}>
+          <Form.Item label="Project name" name="name" rules={[rule]}>
+            <Input placeholder="e.g. Backend API" />
+          </Form.Item>
+
+          <Form.Item label="Description (optional)" name="description">
+            <Input.TextArea placeholder="Optional description" rows={3} style={{ resize: 'vertical' }} />
+          </Form.Item>
+          <button type="submit" style={{ display: 'none' }} aria-hidden="true" />
+        </Form>
+      </div>
+    </Modal>
+  );
+}

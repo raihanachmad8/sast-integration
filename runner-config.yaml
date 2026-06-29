@@ -1,0 +1,24 @@
+# Gitea Act Runner Config
+# Source: https://forum.gitea.com/t/gitea-actions-setup-cannot-resolve-gitea-in-checkout-repository/10360
+
+runner:
+  name: sast-runner
+  capacity: 4
+  labels:
+    - "ubuntu-latest:docker://catthehacker/ubuntu:act-latest"
+
+container:
+  # Job container join network yang sama dengan Gitea
+  network: "sast-integration_gitea-net"
+  # Override clone URL agar actions/checkout pakai hostname Docker
+  options: --env GITHUB_SERVER_URL=http://gitea:4000 --env GITHUB_API_URL=http://gitea:4000/api/v1
+  # Privileged mode untuk some tools
+  privileged: false
+  # Work directory
+  workdir_parent:
+  valid_volumes:
+    - /var/run/docker.sock
+
+host:
+  # Akses SAST app di host machine
+  workdir_parent:

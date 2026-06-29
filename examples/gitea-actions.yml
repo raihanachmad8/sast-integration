@@ -1,0 +1,481 @@
+name: SAST Security Scan
+
+on:
+  push:
+    branches: [main, develop, master]
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      tools:
+        description: 'Tools: semgrep,cppcheck,flawfinder,gitleaks,clang-tidy,gcc-fanalyzer'
+        required: false
+        default: 'semgrep,cppcheck,flawfinder,gitleaks,clang-tidy,gcc-fanalyzer'
+
+env:
+  SAST_API_URL: "${{ secrets.SAST_API_URL || 'http://host.docker.internal:3000' }}"
+  SAST_API_KEY: "${{ secrets.SAST_API_KEY }}"
+
+jobs:
+  # ─── Step 1: Create scan record first ───────────────────────────
+  init:
+    name: Create Scan
+    runs-on: ubuntu-latest
+    outputs:
+      scan_id: ${{ steps.create.outputs.scan_id }}
+    steps:
+      - name: Create scan
+        id: create
+        run: |
+          echo "Creating scan for ${GITHUB_REPOSITORY}..."
+          COMMIT_SHORT=$(echo "${GITHUB_SHA}" | cut -c1-8)
+          echo "Branch: ${GITHUB_REF_NAME}, Commit: ${COMMIT_SHORT}"
+          
+          # Build JSON body
+          cat > /tmp/ci-init.json << EOF
+          {
+            "repoName": "${GITHUB_REPOSITORY}",
+            "repoUrl": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git",
+            "branch": "${GITHUB_REF_NAME}",
+            "commit": "${GITHUB_SHA}"
+          }
+          EOF
+          
+          # Detect PR metadata (Gitea Actions provides these for pull_request events)
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            PR_NUMBER="${GITHUB_PULL_REQUEST_NUMBER}"
+            BASE_BRANCH="${GITHUB_BASE_REF}"
+            HEAD_BRANCH="${GITHUB_HEAD_REF}"
+            echo "PR #${PR_NUMBER}: ${HEAD_BRANCH} -> ${BASE_BRANCH}"
+            python3 -c "
+          import json
+          with open('/tmp/ci-init.json') as f: data = json.load(f)
+          data['prNumber'] = ${PR_NUMBER}
+          data['baseBranch'] = '${BASE_BRANCH}'
+          data['headBranch'] = '${HEAD_BRANCH}'
+          with open('/tmp/ci-init.json', 'w') as f: json.dump(data, f)
+          "
+          fi
+          
+          RESP=$(curl -s -X POST "${SAST_API_URL}/api/v1/ci/init" \
+            -H "Authorization: Bearer ${SAST_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/ci-init.json)
+          echo "Init response: ${RESP}"
+          SCAN_ID=$(echo "${RESP}" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['scanId'])")
+          echo "scan_id=${SCAN_ID}" >> ${GITHUB_OUTPUT}
+          echo "Scan created: ${SCAN_ID}"
+
+  # ─── Step 2: Run scanners in parallel (each needs init) ─────────
+  semgrep:
+    needs: [init]
+    name: Semgrep Security Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Semgrep
+        run: pip install semgrep --break-system-packages --ignore-installed PyJWT
+
+      - name: Run Semgrep
+        run: |
+          mkdir -p results
+          semgrep scan --config p/default --config p/security-audit --json --output results/semgrep.json --metrics off . || true
+          if [ ! -s results/semgrep.json ]; then echo '{"results":[]}' > results/semgrep.json; fi
+
+      - name: Upload to SAST
+        if: always()
+        run: |
+          [ -s results/semgrep.json ] || exit 0
+          FINDINGS=$(python3 -c "import json; print(len(json.load(open('results/semgrep.json')).get('results',[])))" 2>/dev/null || echo 0)
+          curl -X POST -H "Authorization: Bearer $SAST_API_KEY" \
+            -F "scanId=${{ needs.init.outputs.scan_id }}" \
+            -F "tool=semgrep" \
+            -F "sarif=@results/semgrep.json" \
+            -F "repoName=${{ github.repository }}" \
+            -F "findingsCount=${FINDINGS}" \
+            "${SAST_API_URL}/api/v1/ci/upload" || echo "Upload failed"
+
+  cppcheck:
+    needs: [init]
+    name: Cppcheck Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Cppcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y cppcheck
+
+      - name: Run Cppcheck
+        run: |
+          mkdir -p results
+          cppcheck --enable=all --inconclusive --std=c++17 --xml --xml-version=2 --output-file=results/cppcheck.xml --suppress=missingIncludeSystem --suppress=checkersReport --suppress=missingInclude --inline-suppr . 2>/dev/null || true
+          if [ ! -s results/cppcheck.xml ]; then echo '<?xml version="1.0"?><results version="2"><cppcheck version="0"/><errors/></results>' > results/cppcheck.xml; fi
+
+      - name: Convert to SARIF
+        run: |
+          python3 - << 'PYEOF'
+          import xml.etree.ElementTree as ET
+          import json, os, sys
+
+          def get_snippet_text(fp, line, context=3):
+              """Extract plain text snippet from source file."""
+              for p in [fp, os.path.join(os.getcwd(), fp)]:
+                  try:
+                      with open(p, 'r', errors='replace') as f:
+                          lines = f.readlines()
+                      start = max(0, line - 1 - context)
+                      end = min(len(lines), line + context)
+                      return ''.join(lines[start:end]).rstrip()
+                  except:
+                      continue
+              return ''
+
+          try:
+              tree = ET.parse('results/cppcheck.xml')
+          except:
+              sys.exit(0)
+
+          results = []
+          for err in tree.getroot().findall('.//error'):
+              eid = err.get('id', '')
+              if eid in {'missingIncludeSystem', 'checkersReport', 'unmatchedSuppression'}:
+                  continue
+              sev = err.get('severity', 'style')
+              msg = err.get('verbose', err.get('msg', ''))
+              cwe = err.get('cwe', '')
+              locs = err.findall('location')
+              if not locs:
+                  continue
+              pf = locs[0].get('file', '') or err.get('file0', '')
+              pl = int(locs[0].get('line', 0) or 0)
+              pc = int(locs[0].get('column', 0) or 0)
+              if pf.startswith(('/usr', '/opt')):
+                  continue
+
+              snippet = get_snippet_text(pf, pl)
+              results.append({
+                  'ruleId': eid,
+                  'level': 'error' if sev == 'error' else 'warning',
+                  'message': {'text': msg},
+                  'locations': [{
+                      'physicalLocation': {
+                          'artifactLocation': {'uri': pf},
+                          'region': {
+                              'startLine': pl,
+                              'startColumn': pc,
+                              'snippet': {'text': snippet} if snippet else None
+                          }
+                      }
+                  }],
+                  'properties': {'cwe': f'CWE-{cwe}' if cwe else '', 'severity': sev}
+              })
+
+          sarif = {'version': '2.1.0', 'runs': [{'tool': {'driver': {'name': 'cppcheck', 'version': '2.x'}}, 'results': results}]}
+          with open('results/cppcheck.sarif', 'w') as f:
+              json.dump(sarif, f, indent=2)
+          print(f'Cppcheck findings: {len(results)}')
+          PYEOF
+
+      - name: Upload to SAST
+        if: always()
+        run: |
+          [ -s results/cppcheck.sarif ] || exit 0
+          FINDINGS=$(python3 -c "import json; print(len(json.load(open('results/cppcheck.sarif'))['runs'][0]['results']))" 2>/dev/null || echo 0)
+          curl -X POST -H "Authorization: Bearer $SAST_API_KEY" \
+            -F "scanId=${{ needs.init.outputs.scan_id }}" \
+            -F "tool=cppcheck" \
+            -F "sarif=@results/cppcheck.sarif" \
+            -F "repoName=${{ github.repository }}" \
+            -F "findingsCount=${FINDINGS}" \
+            "${SAST_API_URL}/api/v1/ci/upload" || echo "Upload failed"
+
+  flawfinder:
+    needs: [init]
+    name: Flawfinder Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flawfinder
+        run: pip install flawfinder --break-system-packages
+
+      - name: Run Flawfinder
+        run: |
+          mkdir -p results
+          flawfinder --sarif --minlevel 1 --columns . > results/flawfinder.sarif 2>/dev/null || true
+          if [ ! -s results/flawfinder.sarif ]; then echo '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"flawfinder"}},"results":[]}]}' > results/flawfinder.sarif; fi
+
+      - name: Upload to SAST
+        if: always()
+        run: |
+          [ -s results/flawfinder.sarif ] || exit 0
+          FINDINGS=$(python3 -c "import json; print(len(json.load(open('results/flawfinder.sarif'))['runs'][0]['results']))" 2>/dev/null || echo 0)
+          curl -X POST -H "Authorization: Bearer $SAST_API_KEY" \
+            -F "scanId=${{ needs.init.outputs.scan_id }}" \
+            -F "tool=flawfinder" \
+            -F "sarif=@results/flawfinder.sarif" \
+            -F "repoName=${{ github.repository }}" \
+            -F "findingsCount=${FINDINGS}" \
+            "${SAST_API_URL}/api/v1/ci/upload" || echo "Upload failed"
+
+  gitleaks:
+    needs: [init]
+    name: Gitleaks Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        run: |
+          wget -q "https://github.com/gitleaks/gitleaks/releases/download/v8.18.1/gitleaks_8.18.1_linux_x64.tar.gz" -O gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz && sudo mv gitleaks /usr/local/bin/ && rm gitleaks.tar.gz
+
+      - name: Run Gitleaks
+        run: |
+          mkdir -p results
+          gitleaks detect --source . --report-format json --report-path results/gitleaks.json --no-git --verbose || true
+          if [ ! -s results/gitleaks.json ]; then echo '[]' > results/gitleaks.json; fi
+
+      - name: Convert to SARIF
+        run: |
+          python3 - << 'PYEOF'
+          import json
+          with open('results/gitleaks.json') as f:
+              findings = json.load(f)
+          results = []
+          for f in findings:
+              results.append({
+                  'ruleId': f.get('RuleID', 'unknown'),
+                  'level': 'error',
+                  'message': {'text': f.get('Description', 'Secret detected')},
+                  'locations': [{
+                      'physicalLocation': {
+                          'artifactLocation': {'uri': f.get('File', '')},
+                          'region': {
+                              'startLine': f.get('StartLine', 0),
+                              'snippet': {'text': f.get('Match', '')[:200]} if f.get('Match') else None
+                          }
+                      }
+                  }],
+                  'properties': {'entropy': f.get('Entropy', 0)}
+              })
+          sarif = {'version': '2.1.0', 'runs': [{'tool': {'driver': {'name': 'gitleaks'}}, 'results': results}]}
+          with open('results/gitleaks.sarif', 'w') as fh:
+              json.dump(sarif, fh, indent=2)
+          print(f'Gitleaks findings: {len(results)}')
+          PYEOF
+
+      - name: Upload to SAST
+        if: always()
+        run: |
+          [ -s results/gitleaks.sarif ] || exit 0
+          FINDINGS=$(python3 -c "import json; print(len(json.load(open('results/gitleaks.sarif'))['runs'][0]['results']))" 2>/dev/null || echo 0)
+          curl -X POST -H "Authorization: Bearer $SAST_API_KEY" \
+            -F "scanId=${{ needs.init.outputs.scan_id }}" \
+            -F "tool=gitleaks" \
+            -F "sarif=@results/gitleaks.sarif" \
+            -F "repoName=${{ github.repository }}" \
+            -F "findingsCount=${FINDINGS}" \
+            "${SAST_API_URL}/api/v1/ci/upload" || echo "Upload failed"
+
+  clang-tidy:
+    needs: [init]
+    name: Clang-Tidy Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Clang-Tidy
+        run: sudo apt-get update -qq && sudo apt-get install -y clang-tidy
+
+      - name: Run Clang-Tidy
+        run: |
+          mkdir -p results
+          find . -type f \( -name "*.c" -o -name "*.cpp" -o -name "*.cc" \) | grep -v -E "(_build|build|third_party|vendor)/" | xargs -P$(nproc) -I{} clang-tidy --checks='clang-analyzer-*,cert-*,bugprone-*,security-*' {} 2>/dev/null > results/clang_tidy_raw.txt || true
+
+      - name: Convert to SARIF
+        run: |
+          python3 - << 'PYEOF'
+          import re, json, os
+
+          def get_snippet_text(fp, line, context=3):
+              """Extract plain text snippet from source file."""
+              for p in [fp, os.path.join(os.getcwd(), fp)]:
+                  try:
+                      with open(p, 'r', errors='replace') as f:
+                          lines = f.readlines()
+                      start = max(0, line - 1 - context)
+                      end = min(len(lines), line + context)
+                      return ''.join(lines[start:end]).rstrip()
+                  except:
+                      continue
+              return ''
+
+          pattern = re.compile(r'^(?P<file>[^:]+):(?P<line>\d+):(?P<col>\d+):\s+(?P<sev>warning|error):\s+(?P<msg>.+?)\s+\[(?P<rule>[^\]]+)\]$')
+          results = []
+          try:
+              with open('results/clang_tidy_raw.txt') as f:
+                  for line in f:
+                      m = pattern.match(line.strip())
+                      if not m:
+                          continue
+                      fp, ln, c, s, msg, r = m.group('file'), int(m.group('line')), int(m.group('col')), m.group('sev'), m.group('msg'), m.group('rule')
+                      if fp.startswith(('/usr', '/opt')):
+                          continue
+                      snippet = get_snippet_text(fp, ln)
+                      results.append({
+                          'ruleId': r,
+                          'level': 'error' if s == 'error' else 'warning',
+                          'message': {'text': msg},
+                          'locations': [{
+                              'physicalLocation': {
+                                  'artifactLocation': {'uri': fp},
+                                  'region': {
+                                      'startLine': ln,
+                                      'startColumn': c,
+                                      'snippet': {'text': snippet} if snippet else None
+                                  }
+                              }
+                          }]
+                      })
+          except:
+              pass
+          sarif = {'version': '2.1.0', 'runs': [{'tool': {'driver': {'name': 'clang-tidy'}}, 'results': results}]}
+          with open('results/clang_tidy.sarif', 'w') as f:
+              json.dump(sarif, f, indent=2)
+          print(f'Clang-Tidy findings: {len(results)}')
+          PYEOF
+
+      - name: Upload to SAST
+        if: always()
+        run: |
+          [ -s results/clang_tidy.sarif ] || exit 0
+          FINDINGS=$(python3 -c "import json; print(len(json.load(open('results/clang_tidy.sarif'))['runs'][0]['results']))" 2>/dev/null || echo 0)
+          curl -X POST -H "Authorization: Bearer $SAST_API_KEY" \
+            -F "scanId=${{ needs.init.outputs.scan_id }}" \
+            -F "tool=clang-tidy" \
+            -F "sarif=@results/clang_tidy.sarif" \
+            -F "repoName=${{ github.repository }}" \
+            -F "findingsCount=${FINDINGS}" \
+            "${SAST_API_URL}/api/v1/ci/upload" || echo "Upload failed"
+
+  gcc-fanalyzer:
+    needs: [init]
+    name: GCC Analyzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure GCC >= 13
+        run: |
+          GCC_VER=$(gcc -dumpversion | cut -d. -f1)
+          if [ "$GCC_VER" -lt 13 ]; then sudo apt-get install -y gcc-13 && sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100; fi
+
+      - name: Run GCC -fanalyzer
+        run: |
+          mkdir -p results gcc_sarif_tmp
+          find . -type f -name "*.c" | grep -v -E "(_build|build|third_party|vendor)/" | while read -r src; do
+            gcc -fanalyzer -fdiagnostics-format=sarif-file -std=c11 -Wall -c "$src" -o /dev/null 2>/dev/null || true
+            [ -f "${src}.sarif" ] && mv "${src}.sarif" "gcc_sarif_tmp/$(basename "${src%.*}").sarif" || true
+          done
+
+      - name: Merge SARIF files
+        run: |
+          python3 - << 'PYEOF'
+          import json, glob, os
+
+          def get_snippet_text(fp, line, context=3):
+              """Extract plain text snippet from source file."""
+              fp = fp.replace('file://', '')
+              for p in [fp, os.path.join(os.getcwd(), fp)]:
+                  try:
+                      with open(p, 'r', errors='replace') as f:
+                          lines = f.readlines()
+                      start = max(0, line - 1 - context)
+                      end = min(len(lines), line + context)
+                      return ''.join(lines[start:end]).rstrip()
+                  except:
+                      continue
+              return ''
+
+          sarif_files = glob.glob('gcc_sarif_tmp/*.sarif')
+          all_results = []
+          base = None
+          for sf in sarif_files:
+              with open(sf) as f:
+                  d = json.load(f)
+              for run in d.get('runs', []):
+                  if base is None:
+                      base = run
+                      base['results'] = []
+                  for r in run.get('results', []):
+                      locs = r.get('locations', [])
+                      if locs:
+                          phys = locs[0].get('physicalLocation', {})
+                          uri = phys.get('artifactLocation', {}).get('uri', '').replace('file://', '')
+                          line = phys.get('region', {}).get('startLine', 0)
+                          if not uri.startswith(('/usr', '/opt')):
+                              snippet = get_snippet_text(uri, line)
+                              if snippet:
+                                  phys.setdefault('region', {})['snippet'] = {'text': snippet}
+                      all_results.append(r)
+          if base:
+              base['results'] = all_results
+              merged = {'version': '2.1.0', 'runs': [base]}
+          else:
+              merged = {'version': '2.1.0', 'runs': [{'tool': {'driver': {'name': 'GCC'}}, 'results': []}]}
+          with open('results/gcc_analyzer.sarif', 'w') as f:
+              json.dump(merged, f, indent=2)
+          print(f'GCC Analyzer findings: {len(all_results)}')
+          PYEOF
+
+      - name: Upload to SAST
+        if: always()
+        run: |
+          [ -s results/gcc_analyzer.sarif ] || exit 0
+          FINDINGS=$(python3 -c "import json; print(len(json.load(open('results/gcc_analyzer.sarif'))['runs'][0]['results']))" 2>/dev/null || echo 0)
+          curl -X POST -H "Authorization: Bearer $SAST_API_KEY" \
+            -F "scanId=${{ needs.init.outputs.scan_id }}" \
+            -F "tool=gcc-fanalyzer" \
+            -F "sarif=@results/gcc_analyzer.sarif" \
+            -F "repoName=${{ github.repository }}" \
+            -F "findingsCount=${FINDINGS}" \
+            "${SAST_API_URL}/api/v1/ci/upload" || echo "Upload failed"
+
+  # ─── Step 3: Finalize scan ──────────────────────────────────────
+  finalize:
+    needs: [init, semgrep, cppcheck, flawfinder, gitleaks, clang-tidy, gcc-fanalyzer]
+    if: always()
+    name: Complete Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine final status
+        id: status
+        run: |
+          if [ "${{ needs.semgrep.result }}" = "failure" ] && \
+             [ "${{ needs.cppcheck.result }}" = "failure" ] && \
+             [ "${{ needs.flawfinder.result }}" = "failure" ] && \
+             [ "${{ needs.gitleaks.result }}" = "failure" ] && \
+             [ "${{ needs.clang-tidy.result }}" = "failure" ] && \
+             [ "${{ needs.gcc-fanalyzer.result }}" = "failure" ]; then
+            echo "status=failed" >> ${GITHUB_OUTPUT}
+          else
+            echo "status=completed" >> ${GITHUB_OUTPUT}
+          fi
+
+      - name: Complete scan
+        id: complete
+        run: |
+          RESP=$(curl -s -X POST "${SAST_API_URL}/api/v1/ci/complete" \
+            -H "Authorization: Bearer ${SAST_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"scanId\":\"${{ needs.init.outputs.scan_id }}\",\"status\":\"${{ steps.status.outputs.status }}\",\"tools\":[\"semgrep\",\"cppcheck\",\"flawfinder\",\"gitleaks\",\"clang-tidy\",\"gcc-fanalyzer\"],\"platform\":\"gitea\",\"trigger\":\"ci\"}" \
+            || echo '{"data":{"qualityGate":null}}')
+          echo "Complete response: ${RESP}"
+          GATE_STATUS=$(echo "${RESP}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('qualityGate',{}).get('status','unknown') if d.get('data',{}).get('qualityGate') else 'unknown')" 2>/dev/null || echo "unknown")
+          echo "gate_status=${GATE_STATUS}" >> ${GITHUB_OUTPUT}
+          echo "Quality Gate: ${GATE_STATUS}"

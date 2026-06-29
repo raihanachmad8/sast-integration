@@ -1,15 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { ApiResponse, buildMeta } from '@/server/http/response';
-import { validateBody } from '@/server/http/validate';
-import { authService } from '@/server/modules/auth/services/auth.service';
-import { signinSchema } from '@/server/modules/auth/schemas/auth.schema';
-import { rateLimiter } from '@/server/modules/auth/services/rate-limiter';
+import { NextRequest } from 'next/server';
+
+import { HTTP } from '@/server/http/constants';
 import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { validateBody } from '@/server/http/validate';
+import { logger } from '@/server/lib/logger';
 import { AUTH } from '@/server/modules/auth/constants';
 import { setRefreshCookie } from '@/server/modules/auth/cookie';
-import { HTTP } from '@/server/http/constants';
+import { signinSchema } from '@/server/modules/auth/schemas/auth.schema';
+import { authService } from '@/server/modules/auth/services/auth.service';
+import { rateLimiter } from '@/server/modules/auth/services/rate-limiter';
 
 export async function POST(request: NextRequest) {
+  logger.auth.info('signin');
   const validation = await validateBody(request, signinSchema);
   if (!validation.success) return validation.response;
 
@@ -17,10 +20,9 @@ export async function POST(request: NextRequest) {
   const retryAfterMs = rateLimiter.check(rateLimitKey);
   if (retryAfterMs !== null) {
     const retryAfterSec = Math.ceil(retryAfterMs / 1000);
-    return NextResponse.json(
-      { success: false, message: AUTH.ERRORS.RATE_LIMITED, data: null, meta: buildMeta(), error: { code: AUTH.ERROR_CODE.AUTH, details: null } },
-      { status: 429, headers: { 'Retry-After': String(retryAfterSec) } },
-    );
+    const response = ApiResponse.error(AUTH.ERRORS.RATE_LIMITED, AUTH.ERROR_CODE.AUTH, null, 429);
+    response.headers.set('Retry-After', String(retryAfterSec));
+    return response;
   }
 
   try {
@@ -30,23 +32,20 @@ export async function POST(request: NextRequest) {
 
     rateLimiter.reset(rateLimitKey);
 
-    const response = NextResponse.json({
-      success: true,
-      message: AUTH.MESSAGES.SIGNIN_SUCCESS,
-      data: {
-        tokenType: result.tokenType,
-        accessToken: result.accessToken,
-        expiresAt: result.expiresAt,
-        expiresIn: result.expiresIn,
-        user: result.user,
-        workspace: result.workspace,
-      },
-      meta: buildMeta(),
+    const response = ApiResponse.success(AUTH.MESSAGES.SIGNIN_SUCCESS, {
+      tokenType: result.tokenType,
+      accessToken: result.accessToken,
+      expiresAt: result.expiresAt,
+      expiresIn: result.expiresIn,
+      user: result.user,
+      workspace: result.workspace,
     });
 
     setRefreshCookie(response, result.refreshToken);
+    logger.auth.info('signin completed');
     return response;
   } catch (e) {
+    logger.auth.error('signin failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError && e.statusCode === 401) {
       rateLimiter.recordFailure(rateLimitKey);
     }

@@ -1,19 +1,35 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { buildMeta } from '@/server/http/response';
-import { authenticate } from '@/server/http/authenticate';
-import { authService } from '@/server/modules/auth/services/auth.service';
+import { NextRequest } from 'next/server';
+
+import { ApiResponse } from '@/server/http/response';
+import { logger } from '@/server/lib/logger';
 import { AUTH } from '@/server/modules/auth/constants';
+import { clearRefreshCookie } from '@/server/modules/auth/cookie';
+import { authService } from '@/server/modules/auth/services/auth.service';
+import { verifyRefreshToken } from '@/server/modules/auth/services/jwt.service';
 
+/**
+ * Signout endpoint — does NOT require a valid access token.
+ * Uses the httpOnly refresh_token cookie to identify the session.
+ * This ensures logout works even when the access token is expired.
+ */
 export async function POST(request: NextRequest) {
-  const auth = await authenticate(request);
-  if (!auth.success) return auth.response;
+  logger.auth.info('signout');
+  try {
+    const refreshToken = request.cookies.get(AUTH.COOKIE.REFRESH_TOKEN)?.value;
 
-  await authService.signout(auth.context.sessionId);
+    if (refreshToken) {
+      const payload = await verifyRefreshToken(refreshToken);
+      if (payload?.sessionId) {
+        await authService.signout(payload.sessionId);
+      }
+    }
+  } catch (e) {
+    logger.auth.error('signout failed', { error: e instanceof Error ? e.message : e });
+  }
 
-  const response = NextResponse.json({ success: true, message: AUTH.MESSAGES.SIGNOUT_SUCCESS, data: null, meta: buildMeta() });
-  response.cookies.set(AUTH.COOKIE.REFRESH_TOKEN, '', {
-    path: AUTH.COOKIE.PATH,
-    maxAge: 0,
-  });
+  const response = ApiResponse.success(AUTH.MESSAGES.SIGNOUT_SUCCESS, null);
+
+  clearRefreshCookie(response);
+  logger.auth.info('signout completed');
   return response;
 }

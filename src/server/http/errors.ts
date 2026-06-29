@@ -1,3 +1,5 @@
+import { type ZodSchema, ZodError } from 'zod';
+
 import { HTTP } from '@/server/http/constants';
 
 /**
@@ -39,5 +41,21 @@ export class UnauthorizedError extends AppError {
 export class ForbiddenError extends AppError {
   constructor(message = HTTP.MESSAGES.FORBIDDEN) {
     super(message, 403, HTTP.ERROR_CODES.FORBIDDEN);
+  }
+}
+
+/**
+ * Validate data against a Zod schema, throwing AppError on failure.
+ * Use in service layer to ensure consistent error format.
+ */
+export function validateSchema<T>(schema: ZodSchema<T>, data: unknown): T {
+  try {
+    return schema.parse(data);
+  } catch (e) {
+    if (e instanceof ZodError) {
+      const message = e.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
+      throw new AppError(message, 422, HTTP.ERROR_CODES.VALIDATION);
+    }
+    throw e;
   }
 }

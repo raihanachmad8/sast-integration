@@ -1,6 +1,8 @@
 import { SignJWT, jwtVerify } from 'jose';
+
 import { env } from '@/server/env';
 import { JWT_ALGORITHM } from '@/server/http/constants';
+import { logger } from '@/server/lib/logger';
 
 function getSecret() {
   return new TextEncoder().encode(env.JWT_SECRET);
@@ -8,7 +10,6 @@ function getSecret() {
 
 export interface TokenPayload {
   sub: string;
-  email: string;
   sessionId: string;
 }
 
@@ -23,6 +24,7 @@ export interface RefreshTokenPayload {
  * Expiry configured via `JWT_EXPIRES_IN` env var (default: 15m).
  */
 export async function signAccessToken(payload: TokenPayload): Promise<string> {
+  logger.auth.debug('signAccessToken', { sub: payload.sub });
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: JWT_ALGORITHM })
     .setIssuedAt()

@@ -1,4 +1,6 @@
 import { z } from "zod";
+
+import { AppError } from "@/server/http/errors";
 import { NODE_ENV, WORKSPACE_MODE } from "@/server/modules/auth/constants";
 import { MAIL } from "@/server/modules/mail/constants";
 
@@ -14,19 +16,21 @@ const mailProviderValues = Object.values(MAIL.PROVIDER) as [
 
 /** Known dev/example values that must never reach production. */
 const INSECURE_SECRETS = [
-  "your-secret-key-minimum-32-characters-long!!",
+  "your-secret-key-minimum-32-characters-long",
   "changeme",
   "secret",
   "dev-secret",
+  "password",
+  "12345678",
 ];
 
 const envSchema = z
   .object({
     // Core
-    DATABASE_URL: z.string().url(),
+    DATABASE_URL: z.url(),
     PORT: z.coerce.number().default(3000),
     NODE_ENV: z.enum(nodeEnvValues),
-    APP_URL: z.string().url().default("http://localhost:3000"),
+    APP_URL: z.url().default(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
 
     // Auth
     JWT_SECRET: z.string().min(32),
@@ -34,7 +38,7 @@ const envSchema = z
     REFRESH_EXPIRES_IN: z.string().default("7d"),
     WORKSPACE_MODE: z
       .enum(workspaceModeValues)
-      .default(WORKSPACE_MODE.MULTIPLE),
+      .default((process.env.NEXT_PUBLIC_WORKSPACE_MODE as string) || WORKSPACE_MODE.MULTIPLE),
 
     // Mail
     MAIL_PROVIDER: z.enum(mailProviderValues).default(MAIL.PROVIDER.CONSOLE),
@@ -43,6 +47,43 @@ const envSchema = z
     SMTP_USER: z.string().optional(),
     SMTP_PASS: z.string().optional(),
     SMTP_FROM: z.string().email().default("noreply@sast.local"),
+
+    // Knowledge Base
+    NVD_API_KEY: z.string().optional(),
+
+    // Scanner Rules
+    SEMGREP_RULES_DIR: z.string().optional(),
+    GITLEAKS_CONFIG_PATH: z.string().optional(),
+    FLAWFINDER_RULES_DIR: z.string().optional(),
+    CPPCHECK_SUPPRESSIONS_PATH: z.string().optional(),
+
+    // Storage
+    STORAGE_PROVIDER: z.enum(['local', 's3', 'cloudinary']).default('local'),
+    STORAGE_LOCAL_PATH: z.string().optional(),
+    S3_BUCKET: z.string().optional(),
+    AWS_REGION: z.string().optional(),
+    AWS_ACCESS_KEY_ID: z.string().optional(),
+    AWS_SECRET_ACCESS_KEY: z.string().optional(),
+    S3_ENDPOINT: z.string().optional(),
+    CLOUDINARY_CLOUD_NAME: z.string().optional(),
+    CLOUDINARY_API_KEY: z.string().optional(),
+    CLOUDINARY_API_SECRET: z.string().optional(),
+    CLOUDINARY_FOLDER: z.string().optional(),
+
+    // Operational
+    LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+    LOG_DESTINATION: z.enum(["console", "file", "both"]).default("console"),
+    LOG_DIR: z.string().default("logs"),
+    LOG_ROTATION: z.enum(["daily", "none"]).default("daily"),
+    AI_VERIFY_BATCH_SIZE: z.coerce.number().int().min(1).max(20).default(5),
+    ALLOW_LOCAL_AI_MODELS: z
+      .string()
+      .default("true")
+      .transform((v) => v === "true"),
+    RATE_LIMIT_ENABLED: z
+      .string()
+      .default("true")
+      .transform((v) => v !== "false"),
   })
   .superRefine((data, ctx) => {
     if (data.MAIL_PROVIDER === MAIL.PROVIDER.SMTP && !data.SMTP_HOST) {
@@ -55,7 +96,8 @@ const envSchema = z
 
     // Production hardening: reject dev/placeholder values that must never ship.
     if (data.NODE_ENV === NODE_ENV.PRODUCTION) {
-      if (INSECURE_SECRETS.includes(data.JWT_SECRET.toLowerCase())) {
+      const secretLower = data.JWT_SECRET.toLowerCase();
+      if (INSECURE_SECRETS.some((insecure) => secretLower.startsWith(insecure) || secretLower.includes(insecure))) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "must not use a default/example value in production",
@@ -93,7 +135,7 @@ export const env: Env = new Proxy({} as Env, {
         const issues = result.error.issues
           .map((i) => `  ${i.path.join(".")}: ${i.message}`)
           .join("\n");
-        throw new Error(`Invalid environment variables:\n${issues}`);
+        throw new AppError(`Invalid environment variables:\n${issues}`, 500, 'ENV_VALIDATION');
       }
       _env = result.data;
     }

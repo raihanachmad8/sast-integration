@@ -1,0 +1,35 @@
+import { NextRequest } from 'next/server';
+
+import { PERMISSION } from '@/commons/constants/permissions';
+import { authenticate } from '@/server/http/authenticate';
+import { AppError } from '@/server/http/errors';
+import { ApiResponse } from '@/server/http/response';
+import { logger } from '@/server/lib/logger';
+import { dashboardService } from '@/server/modules/dashboard/dashboard.service';
+import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
+
+export async function GET(request: NextRequest) {
+  logger.dashboard.info('get request');
+
+  const auth = await authenticate(request);
+  if (!auth.success) return auth.response;
+
+  const workspaceId = request.nextUrl.searchParams.get('workspaceId');
+  if (!workspaceId) {
+    return ApiResponse.error('workspaceId is required', 'VALIDATION_ERROR', undefined, 400);
+  }
+
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.DASHBOARD_VIEW);
+  if (!workspace.success) return workspace.response;
+
+  try {
+    logger.dashboard.info('getFindingsSummary');
+    const data = await dashboardService.getFindingsSummary(workspace.context.workspaceId);
+    logger.dashboard.info('getFindingsSummary completed');
+    return ApiResponse.success('Findings summary retrieved', data);
+  } catch (error) {
+    logger.dashboard.error('getFindingsSummary failed', { error });
+    if (error instanceof AppError) return ApiResponse.error(error.message, error.code, undefined, error.statusCode);
+    return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
+  }
+}

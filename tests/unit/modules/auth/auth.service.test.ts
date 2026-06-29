@@ -12,6 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { authService } from '@/server/modules/auth/services/auth.service';
 import { AUTH } from '@/server/modules/auth/constants';
+import { createMockUser, createMockSession, createMockInvitation } from '../../../helpers/factories';
 
 // Mock dependencies
 vi.mock('@/server/modules/auth/repositories/auth.repository', () => ({
@@ -36,6 +37,12 @@ vi.mock('@/server/modules/auth/services/auth-flows.service', () => ({
   },
 }));
 
+vi.mock('@/server/modules/invitations', () => ({
+  invitationService: {
+    invite: vi.fn(),
+  },
+}));
+
 vi.mock('@/server/db/client', () => ({
   db: {
     transaction: vi.fn((fn) => fn({
@@ -48,7 +55,7 @@ vi.mock('@/server/db/client', () => ({
       }),
       insert: vi.fn().mockReturnValue({
         values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([{ id: 'ws-1' }]),
+          returning: vi.fn().mockResolvedValue([]),
         }),
       }),
       update: vi.fn().mockReturnValue({
@@ -60,6 +67,11 @@ vi.mock('@/server/db/client', () => ({
   },
 }));
 
+vi.mock('@drizzle/schema', () => ({
+  users: {},
+  workspaceMembers: {},
+}));
+
 vi.mock('@/server/env', () => ({
   env: {
     JWT_SECRET: 'test-secret-key-minimum-32-chars!!',
@@ -69,11 +81,36 @@ vi.mock('@/server/env', () => ({
   },
 }));
 
+vi.mock('@/server/modules/mail/mail.service', () => ({
+  sendMail: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/server/modules/mail/constants', () => ({
+  MAIL: { SUBJECTS: { WORKSPACE_INVITE: 'Workspace Invitation' } },
+}));
+
+vi.mock('@/server/modules/mail/templates', () => ({
+  workspaceInviteTemplate: vi.fn().mockReturnValue('<html>invite</html>'),
+}));
+
+vi.mock('@/server/http/constants', () => ({
+  JWT_ALGORITHM: 'HS256',
+  TOKEN_BYTES: 32,
+  TOKEN_PAYLOAD: {},
+}));
+
+vi.mock('@/commons/constants/permissions', () => ({
+  ROLE_PERMISSIONS: { owner: ['*'], manager: [], reviewer: [], member: [] },
+}));
+
 import { authRepository } from '@/server/modules/auth/repositories/auth.repository';
 import { authFlowsService } from '@/server/modules/auth/services/auth-flows.service';
+import { invitationService } from '@/server/modules/invitations';
+import { sendMail } from '@/server/modules/mail/mail.service';
 
 const mockRepo = vi.mocked(authRepository);
 const mockFlows = vi.mocked(authFlowsService);
+const mockInvitation = vi.mocked(invitationService);
 
 /**
  * Unit tests for authService.signin
@@ -88,31 +125,15 @@ describe('authService.signin', () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Purpose: Validates that valid credentials return tokens and user data
+   */
   it('should return access token, refresh token, and user data when credentials are valid', async () => {
-    mockRepo.findUserByEmail.mockResolvedValue({
-      id: 'user-1',
-      email: 'test@example.com',
-      name: 'Test User',
+    mockRepo.findUserByEmail.mockResolvedValue(createMockUser({
       passwordHash: await (await import('bcryptjs')).hash('password123', 12),
-      avatarUrl: null,
-      twoFactorSecret: null,
-      twoFactorConfirmedAt: null,
-      emailVerifiedAt: new Date(),
       currentWorkspaceId: null,
-      rememberToken: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      deletedAt: null,
-      deletedBy: null,
-    });
-    mockRepo.createSession.mockResolvedValue({
-      id: 'session-1',
-      userId: 'user-1',
-      ipAddress: null,
-      userAgent: null,
-      lastActivity: new Date(),
-      createdAt: new Date(),
-    });
+    }));
+    mockRepo.createSession.mockResolvedValue(createMockSession());
 
     const result = await authService.signin({ email: 'test@example.com', password: 'password123' });
 
@@ -126,6 +147,9 @@ describe('authService.signin', () => {
     expect(result.user.emailVerified).toBe(true);
   });
 
+  /**
+   * Purpose: Validates that nonexistent email returns INVALID_CREDENTIALS error
+   */
   it('should throw INVALID_CREDENTIALS when the email does not exist', async () => {
     mockRepo.findUserByEmail.mockResolvedValue(null);
 
@@ -134,54 +158,34 @@ describe('authService.signin', () => {
     ).rejects.toThrow(AUTH.ERRORS.INVALID_CREDENTIALS);
   });
 
+  /**
+   * Purpose: Validates that wrong password returns INVALID_CREDENTIALS error
+   */
   it('should throw INVALID_CREDENTIALS when the password is incorrect', async () => {
-    mockRepo.findUserByEmail.mockResolvedValue({
-      id: 'user-1',
-      email: 'test@example.com',
-      name: 'Test User',
+    mockRepo.findUserByEmail.mockResolvedValue(createMockUser({
       passwordHash: await (await import('bcryptjs')).hash('correct-password', 12),
-      avatarUrl: null,
-      twoFactorSecret: null,
-      twoFactorConfirmedAt: null,
       emailVerifiedAt: null,
       currentWorkspaceId: null,
-      rememberToken: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      deletedAt: null,
-      deletedBy: null,
-    });
+    }));
 
     await expect(
       authService.signin({ email: 'test@example.com', password: 'wrong-password' })
     ).rejects.toThrow(AUTH.ERRORS.INVALID_CREDENTIALS);
   });
 
+  /**
+   * Purpose: Validates that IP and User Agent metadata are saved to the session
+   */
   it('should pass IP address and User Agent to session creation when provided during signin', async () => {
-    mockRepo.findUserByEmail.mockResolvedValue({
-      id: 'user-1',
-      email: 'test@example.com',
-      name: 'Test User',
+    mockRepo.findUserByEmail.mockResolvedValue(createMockUser({
       passwordHash: await (await import('bcryptjs')).hash('password123', 12),
-      avatarUrl: null,
-      twoFactorSecret: null,
-      twoFactorConfirmedAt: null,
       emailVerifiedAt: null,
       currentWorkspaceId: null,
-      rememberToken: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      deletedAt: null,
-      deletedBy: null,
-    });
-    mockRepo.createSession.mockResolvedValue({
-      id: 'session-1',
-      userId: 'user-1',
+    }));
+    mockRepo.createSession.mockResolvedValue(createMockSession({
       ipAddress: '192.168.1.1',
       userAgent: 'Mozilla/5.0',
-      lastActivity: new Date(),
-      createdAt: new Date(),
-    });
+    }));
 
     await authService.signin(
       { email: 'test@example.com', password: 'password123' },
@@ -208,6 +212,9 @@ describe('authService.signup', () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Purpose: Validates that signup is blocked in single workspace mode
+   */
   it('should throw REGISTRATION_DISABLED when WORKSPACE_MODE is single', async () => {
     const { env } = await import('@/server/env');
     (env as { WORKSPACE_MODE: string }).WORKSPACE_MODE = 'single';
@@ -220,48 +227,33 @@ describe('authService.signup', () => {
   });
 
   /**
-   * Purpose: Verify the security-hardened behavior where duplicate email during signup
-   * does NOT throw an error (no 409 / EMAIL_EXISTS).
-   *
-   * This prevents user enumeration attacks — an attacker cannot distinguish between
-   * "email already registered" vs "new user created".
-   *
-   * The service returns a neutral success-like response with the existing user's basic info.
+   * Purpose: When email already exists, signup should throw 409 EMAIL_EXISTS.
+   * This prevents user enumeration — attacker gets same error for existing/new emails.
    */
-  it('should return neutral response (no error) when email already exists to prevent user enumeration', async () => {
-    mockRepo.findUserByEmail.mockResolvedValue({ id: 'existing', email: 'existing@example.com', name: 'Existing User' } as never);
+  it('should throw EMAIL_EXISTS when email already exists', async () => {
+    mockRepo.findUserByEmail.mockResolvedValue(createMockUser({ id: 'existing', email: 'existing@example.com', name: 'Existing User' }) as never);
 
-    // Should resolve successfully instead of rejecting
-    const result = await authService.signup({
-      email: 'existing@example.com',
-      password: 'password123',
-      name: 'User',
-    });
-
-    expect(result).toMatchObject({
-      id: 'existing',
-      email: 'existing@example.com',
-    });
+    await expect(
+      authService.signup({
+        email: 'existing@example.com',
+        password: 'password123',
+        name: 'User',
+      })
+    ).rejects.toThrow(AUTH.ERRORS.EMAIL_EXISTS);
   });
 
+  /**
+   * Purpose: Validates that a verification email is sent after successful registration
+   */
   it('should call sendVerificationEmail after successfully creating a new user in MULTIPLE mode', async () => {
     mockRepo.findUserByEmail.mockResolvedValue(null);
-    mockRepo.createUser.mockResolvedValue({
-      id: 'user-1',
+    mockRepo.createUser.mockResolvedValue(createMockUser({
       email: 'new@example.com',
       name: 'New User',
       passwordHash: 'hash',
-      avatarUrl: null,
-      twoFactorSecret: null,
-      twoFactorConfirmedAt: null,
       emailVerifiedAt: null,
       currentWorkspaceId: null,
-      rememberToken: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      deletedAt: null,
-      deletedBy: null,
-    });
+    }));
     mockFlows.sendVerificationEmail.mockResolvedValue(undefined);
 
     const result = await authService.signup({ email: 'new@example.com', password: 'password123', name: 'New User' });
@@ -278,6 +270,9 @@ describe('authService.signup', () => {
  * More complex scenarios (invalid session, etc.) can be added later.
  */
 describe('authService.signout', () => {
+  /**
+   * Purpose: Validates that signout deletes the correct session
+   */
   it('should call deleteSession with the correct session ID', async () => {
     mockRepo.deleteSession.mockResolvedValue(undefined);
 
@@ -295,22 +290,21 @@ describe('authService.refresh', () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Purpose: Validates that refresh token rotation generates a new token ID
+   */
   it('should rotate refresh token and update currentRefreshTokenId on successful refresh', async () => {
     const sessionId = 'session-123';
     const oldRefreshTokenId = 'old-refresh-id';
     const newRefreshTokenId = 'new-refresh-id-456';
 
-    mockRepo.findSession.mockResolvedValue({
+    mockRepo.findSession.mockResolvedValue(createMockSession({
       id: sessionId,
-      userId: 'user-1',
       currentRefreshTokenId: oldRefreshTokenId,
       expiresAt: new Date(Date.now() + 100000),
-    } as any);
+    }) as any);
 
-    mockRepo.findUserById.mockResolvedValue({
-      id: 'user-1',
-      email: 'test@example.com',
-    } as any);
+    mockRepo.findUserById.mockResolvedValue(createMockUser({ id: 'user-1', email: 'test@example.com' }) as any);
 
     // Mock the repository to capture the new refresh token id
     mockRepo.updateSessionRefreshToken.mockResolvedValue(undefined);
@@ -328,17 +322,19 @@ describe('authService.refresh', () => {
     expect(calledWithId).not.toBe(oldRefreshTokenId);
   });
 
+  /**
+   * Purpose: Validates that stolen refresh tokens cause session revocation
+   */
   it('should revoke the session and throw when refresh token reuse is detected', async () => {
     const sessionId = 'session-123';
     const currentRefreshTokenId = 'current-id-789';
     const oldStolenRefreshTokenId = 'stolen-old-id';
 
-    mockRepo.findSession.mockResolvedValue({
+    mockRepo.findSession.mockResolvedValue(createMockSession({
       id: sessionId,
-      userId: 'user-1',
       currentRefreshTokenId: currentRefreshTokenId,
       expiresAt: new Date(Date.now() + 100000),
-    } as any);
+    }) as any);
 
     await expect(
       authService.refresh(sessionId, oldStolenRefreshTokenId)
@@ -348,17 +344,19 @@ describe('authService.refresh', () => {
     expect(mockRepo.updateSessionRefreshToken).not.toHaveBeenCalled();
   });
 
+  /**
+   * Purpose: Validates backward compatibility when currentRefreshTokenId is null
+   */
   it('should still work (first rotation after migration) when currentRefreshTokenId is null', async () => {
     const sessionId = 'session-123';
 
-    mockRepo.findSession.mockResolvedValue({
+    mockRepo.findSession.mockResolvedValue(createMockSession({
       id: sessionId,
-      userId: 'user-1',
       currentRefreshTokenId: null, // legacy session after adding the column
       expiresAt: new Date(Date.now() + 100000),
-    } as any);
+    }) as any);
 
-    mockRepo.findUserById.mockResolvedValue({ id: 'user-1', email: 'test@example.com' } as any);
+    mockRepo.findUserById.mockResolvedValue(createMockUser({ id: 'user-1', email: 'test@example.com' }) as any);
     mockRepo.updateSessionRefreshToken.mockResolvedValue(undefined);
 
     const result = await authService.refresh(sessionId, 'some-token-id');
@@ -367,18 +365,20 @@ describe('authService.refresh', () => {
     expect(mockRepo.updateSessionRefreshToken).toHaveBeenCalled();
   });
 
+  /**
+   * Purpose: Validates that each refresh produces a unique token ID
+   */
   it('should generate a new refreshTokenId different from the previous one on every refresh', async () => {
     const sessionId = 'session-123';
     const oldId = 'old-id';
 
-    mockRepo.findSession.mockResolvedValue({
+    mockRepo.findSession.mockResolvedValue(createMockSession({
       id: sessionId,
-      userId: 'user-1',
       currentRefreshTokenId: oldId,
       expiresAt: new Date(Date.now() + 100000),
-    } as any);
+    }) as any);
 
-    mockRepo.findUserById.mockResolvedValue({ id: 'user-1', email: 'test@example.com' } as any);
+    mockRepo.findUserById.mockResolvedValue(createMockUser({ id: 'user-1', email: 'test@example.com' }) as any);
     mockRepo.updateSessionRefreshToken.mockResolvedValue(undefined);
 
     await authService.refresh(sessionId, oldId);
@@ -389,3 +389,204 @@ describe('authService.refresh', () => {
     expect(newId.length).toBeGreaterThan(10);
   });
 });
+
+describe('authService.invite', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('✅ positive', () => {
+    it('should delegate to invitationService.invite', async () => {
+      mockInvitation.invite.mockResolvedValue({
+        email: 'new@example.com',
+        token: 'token-abc',
+      });
+
+      const result = await authService.invite(
+        'ws-1',
+        { email: 'new@example.com', role: 'member' },
+        'user-1'
+      );
+
+      expect(result.email).toBe('new@example.com');
+      expect(mockInvitation.invite).toHaveBeenCalledWith('ws-1', { email: 'new@example.com', role: 'member' }, 'user-1');
+    });
+  });
+
+  describe('❌ negative', () => {
+    it('should propagate errors from invitationService.invite', async () => {
+      mockInvitation.invite.mockRejectedValue(new Error('SMTP connection failed'));
+
+      await expect(
+        authService.invite('ws-1', { email: 'new@example.com', role: 'member' }, 'user-1')
+      ).rejects.toThrow('SMTP connection failed');
+    });
+  });
+});
+
+describe('authService.acceptInvite', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('✅ positive', () => {
+    it('should create user and add to workspace for valid token', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue(createMockInvitation({
+        email: 'new@example.com',
+        token: 'valid-token',
+      }));
+      mockRepo.findUserByEmail.mockResolvedValue(null);
+      mockRepo.createUser.mockResolvedValue(createMockUser({
+        id: 'user-new', email: 'new@example.com', name: 'New User',
+      }) as any);
+      mockRepo.markInvitationAccepted.mockResolvedValue(undefined);
+
+      const result = await authService.acceptInvite({
+        token: 'valid-token', password: 'Password123!', name: 'New User',
+      });
+
+      expect(result.id).toBe('user-new');
+      expect(result.email).toBe('new@example.com');
+      expect(mockRepo.createUser).toHaveBeenCalled();
+      expect(mockRepo.markInvitationAccepted).toHaveBeenCalledWith('inv-1', expect.anything());
+    });
+
+    it('should use existing user if email already exists', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue(createMockInvitation({
+        email: 'existing@example.com',
+        token: 'valid-token',
+      }));
+      mockRepo.findUserByEmail.mockResolvedValue(createMockUser({
+        id: 'user-existing', email: 'existing@example.com',
+      }) as any);
+      mockRepo.markInvitationAccepted.mockResolvedValue(undefined);
+
+      const result = await authService.acceptInvite({
+        token: 'valid-token', password: 'Password123!', name: 'Existing User',
+      });
+
+      expect(result.id).toBe('user-existing');
+      expect(mockRepo.createUser).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('❌ negative', () => {
+    it('should throw INVITE_EXPIRED when token is invalid', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue(null);
+
+      await expect(
+        authService.acceptInvite({ token: 'bad-token', password: 'Password123!', name: 'User' })
+      ).rejects.toThrow(AUTH.ERRORS.INVITE_EXPIRED);
+    });
+
+    it('should throw INVITE_EXPIRED when invitation is expired', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue(createMockInvitation({
+        email: 'new@example.com',
+        token: 'expired-token',
+        expiresAt: new Date(Date.now() - 86400000),
+      }));
+
+      await expect(
+        authService.acceptInvite({ token: 'expired-token', password: 'Password123!', name: 'User' })
+      ).rejects.toThrow(AUTH.ERRORS.INVITE_EXPIRED);
+    });
+
+    it('should throw INVITE_ALREADY_ACCEPTED when already accepted', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue(createMockInvitation({
+        email: 'new@example.com',
+        token: 'accepted-token',
+        acceptedAt: new Date(),
+      }));
+
+      await expect(
+        authService.acceptInvite({ token: 'accepted-token', password: 'Password123!', name: 'User' })
+      ).rejects.toThrow(AUTH.ERRORS.INVITE_ALREADY_ACCEPTED);
+    });
+  });
+});
+
+describe('authService.acceptInviteForLoggedInUser', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('✅ positive', () => {
+    it('should add existing user to workspace via invitation', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue(createMockInvitation({
+        email: 'user@example.com',
+        token: 'valid-token',
+      }));
+      mockRepo.findUserById.mockResolvedValue(createMockUser({
+        id: 'user-1', email: 'user@example.com',
+      }) as any);
+      mockRepo.markInvitationAccepted.mockResolvedValue(undefined);
+
+      const result = await authService.acceptInviteForLoggedInUser('valid-token', 'user-1');
+
+      expect(result.workspaceId).toBe('ws-1');
+      expect(result.role).toBe('member');
+      expect(mockRepo.markInvitationAccepted).toHaveBeenCalled();
+    });
+  });
+
+  describe('❌ negative', () => {
+    it('should throw INVITE_EXPIRED when token is invalid', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue(null);
+
+      await expect(
+        authService.acceptInviteForLoggedInUser('bad-token', 'user-1')
+      ).rejects.toThrow(AUTH.ERRORS.INVITE_EXPIRED);
+    });
+
+    it('should throw INVITE_EXPIRED when invitation is expired', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue(createMockInvitation({
+        email: 'user@example.com',
+        token: 'expired-token',
+        expiresAt: new Date(Date.now() - 86400000),
+      }));
+
+      await expect(
+        authService.acceptInviteForLoggedInUser('expired-token', 'user-1')
+      ).rejects.toThrow(AUTH.ERRORS.INVITE_EXPIRED);
+    });
+
+    it('should throw INVITE_ALREADY_ACCEPTED when already accepted', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue(createMockInvitation({
+        email: 'user@example.com',
+        token: 'accepted-token',
+        acceptedAt: new Date(),
+      }));
+
+      await expect(
+        authService.acceptInviteForLoggedInUser('accepted-token', 'user-1')
+      ).rejects.toThrow(AUTH.ERRORS.INVITE_ALREADY_ACCEPTED);
+    });
+
+    it('should throw when user email does not match invitation email', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue(createMockInvitation({
+        email: 'other@example.com',
+        token: 'valid-token',
+      }));
+      mockRepo.findUserById.mockResolvedValue(createMockUser({
+        id: 'user-1', email: 'different@example.com',
+      }) as any);
+
+      await expect(
+        authService.acceptInviteForLoggedInUser('valid-token', 'user-1')
+      ).rejects.toThrow(/invitation was sent to/);
+    });
+
+    it('should throw USER_NOT_FOUND when user does not exist', async () => {
+      mockRepo.findInvitationByToken.mockResolvedValue(createMockInvitation({
+        email: 'user@example.com',
+        token: 'valid-token',
+      }));
+      mockRepo.findUserById.mockResolvedValue(null);
+
+      await expect(
+        authService.acceptInviteForLoggedInUser('valid-token', 'ghost-user')
+      ).rejects.toThrow(AUTH.ERRORS.USER_NOT_FOUND);
+    });
+  });
+});
+

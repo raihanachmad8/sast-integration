@@ -1,0 +1,63 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Next.js
+.next
+out
+
+# Build artifacts
+build
+dist
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Test files
+tests
+test-results
+playwright-report
+coverage
+vitest.config.ts
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# Documentation
+docs
+*.md
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Storage (will be mounted as volume)
+storage
+
+# Misc
+*.tsbuildinfo
+next-env.d.ts
+opencode.json
+.playwright-mcp
+rules/
+.mimocode/
+.mimocode*
+docker-compose.yml
+docker-compose.yml
+
+# AI coding tools
+.opencode/
+.opencode*
+kilo/
+.kilo*
+kiro/
+.kiro*
+.codex/
+.codex*
