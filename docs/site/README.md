@@ -54,7 +54,6 @@ docs/site/
     │   └── project-access-control.md
     └── reference/
         ├── api-overview.md
-        ├── cwe-mapping.md
         └── environment-variables.md
 ```
 

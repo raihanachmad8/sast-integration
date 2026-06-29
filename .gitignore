@@ -48,6 +48,10 @@ next-env.d.ts
 
 # playwright
 test-results/
+
+# docs (private/drafts)
+docs/superpowers/
+docs/compose/
 playwright-report/
 blob-report/
 

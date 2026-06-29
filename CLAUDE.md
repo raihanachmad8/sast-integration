@@ -50,24 +50,23 @@ src/
 │   ├── (unauthenticated)/ # Auth pages (signin, signup, password reset)
 │   └── api/v1/            # REST API route handlers (Next.js Route Handlers)
 ├── commons/               # Shared across frontend & server
-│   ├── constants/         # App config, permissions, routes, security, theme, navigation
-│   ├── schemas/           # Zod schemas (both client and server validation)
-│   ├── types/             # TypeScript interfaces (api.ts, domain.ts)
-│   └── tokens.ts          # Entity color maps (severity, verdict, status, role, scanner)
-├── components/            # Shared UI components
-│   ├── auth/              # Auth-related components (email verification banner)
-│   ├── layout/            # Shells (app-shell, authenticated-shell, public-navbar)
+│   ├── components/        # Shared UI components (LoadingState, ErrorState, EmptyState, DataTable, etc.)
+│   │   └── layout/        # Shells (AppShell, AuthenticatedShell, SidebarNav, WorkspaceSwitcher)
+│   ├── constants/         # App config, permissions, routes, security, tokens, feature-flags
 │   ├── providers/         # AntdProvider, QueryProvider
-│   └── shared/            # LoadingState, EmptyState, ErrorState, DataTable, PageHeader, etc.
+│   ├── schemas/           # Zod schemas (24 schema files, both client and server validation)
+│   ├── types/             # TypeScript interfaces (api.ts, domain.ts, findings.ts, etc.)
+│   └── utils/             # slug utility
 ├── config/                # antd-theme.ts, client-env.ts (NEXT_PUBLIC_*)
-├── features/              # Page-level feature components (projects, scan, findings, teams, etc.)
+├── features/              # Page-level feature components (20 feature modules)
 ├── lib/                   # Client-side utilities
 │   ├── api/               # Axios client with auto-refresh interceptor, error helpers
 │   ├── docs/              # MDX rendering for documentation pages
-│   ├── hooks/             # Custom React hooks (useBreakpoint, usePermissions, etc.)
-│   └── utils/             # formatDate, getInitials, roleLabel, export helpers
-├── modules/               # Client-side data layer — one folder per domain
-│   └── {domain}/          # api.ts, queries.ts (TanStack Query), hooks, types, keys
+│   ├── hooks/             # Custom React hooks (useBreakpoint, usePermissions, useWorkspace, etc.)
+│   ├── utils/             # formatDate, getInitials, roleLabel, export helpers, zod-sync
+│   └── pagination.ts      # Client-side pagination utilities
+├── modules/               # Client-side data layer — one folder per domain (21 domains)
+│   └── {domain}/          # api.ts, queries.ts (TanStack Query), keys.ts, types.ts
 ├── server/                # Server-only code (never imported by client)
 │   ├── env.ts             # Zod-validated environment (lazy proxy pattern)
 │   ├── db/client.ts       # Drizzle DB client (lazy proxy pattern)
@@ -75,18 +74,34 @@ src/
 │   │   ├── authenticate.ts  # JWT verification + session check
 │   │   ├── validate.ts      # Zod body validation (returns 422 on failure)
 │   │   ├── response.ts      # Standardized JSON responses (meta.requestId + timestamp)
-│   │   ├── errors.ts        # AppError, NotFoundError, UnauthorizedError, etc.
+│   │   ├── errors.ts        # AppError, NotFoundError, UnauthorizedError, ForbiddenError
 │   │   ├── request.ts       # Request parsing helpers (IP, user agent)
 │   │   └── constants.ts     # Headers, error codes, pagination defaults
-│   └── modules/           # Server business logic — one folder per domain
-│       ├── auth/          # Auth service, JWT service, auth-flows, rate limiter, repository
+│   └── modules/           # Server business logic — one folder per domain (20 modules)
+│       ├── auth/          # Auth service, JWT service, auth-flows, rate limiter
 │       ├── workspace/     # Workspace service, member service, repository, middleware
 │       ├── mail/          # Mail service (console/smtp) + email templates
-│       └── storage/       # File storage service (S3/Local/Cloudinary drivers)
-├── types/                 # Global type declarations
-└── utils/                 # Server-side utilities
+│       ├── storage/       # File storage service (S3/Local/Cloudinary drivers)
+│       ├── scan/          # Scanning pipeline, parsers, AI verification, findings
+│       ├── repositories/  # Repository management
+│       ├── source-control/ # SCM provider integrations (GitHub, GitLab, Gitea)
+│       ├── teams/         # Team management
+│       ├── project/       # Project management, API tokens
+│       ├── findings/      # Finding CRUD and status management
+│       ├── reports/       # Report generation (PDF/XLSX)
+│       ├── knowledge-base/ # CWE/NVD knowledge base
+│       ├── ai-models/     # AI model configuration
+│       ├── scanner-engines/ # Scanner engine management
+│       ├── schedules/     # Scheduled scan management
+│       ├── quality-gates/ # Quality gate evaluation
+│       ├── webhooks/      # Outgoing webhook management
+│       ├── dashboard/     # Dashboard aggregation queries
+│       ├── members/       # Workspace member management
+│       ├── invitations/   # Workspace invitation handling
+│       ├── profile/       # User profile management
+│       └── queue/         # pg-boss job queue (9 workers)
 drizzle/
-├── schema/               # Drizzle table definitions (11 files: users, workspaces, auth, etc.)
+├── schema/               # Drizzle table definitions (12 files: auth, findings, integrations, etc.)
 ├── migrations/            # SQL migration files + meta journal
 ├── seed.ts                # Seeds permissions, roles, owner, org workspace
 ├── reset.ts               # Drops all tables
@@ -158,7 +173,7 @@ All API responses follow a consistent structure via `ApiResponse` (`src/server/h
 - Session stored in DB, validated on every request (enables signout invalidation)
 - Rate limiter available via `rateLimiter` service
 - Production env validation rejects default/insecure secrets
-- RBAC: 4 roles (Owner, Manager, Reviewer, Member), 24 permissions defined in `src/commons/constants/permissions.ts`
+- RBAC: 4 roles (Owner, Manager, Reviewer, Member), 39 permissions defined in `src/commons/constants/permissions.ts`
 - Signup returns neutral response on duplicate emails (prevents enumeration)
 
 ### Workspace Modes
@@ -169,7 +184,7 @@ All API responses follow a consistent structure via `ApiResponse` (`src/server/h
 
 ### Shared UI Components (Four States)
 
-All views must handle Loading, Empty, Error, and Success using these shared components from `src/components/shared/`:
+All views must handle Loading, Empty, Error, and Success using these shared components from `src/commons/components/`:
 - `LoadingState` — loading spinner placeholder
 - `EmptyState` — empty state with message and optional action
 - `ErrorState` — error display with retry button
