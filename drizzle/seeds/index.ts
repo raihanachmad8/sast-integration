@@ -1,5 +1,7 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+
 import * as schema from '../schema';
+
 import { ownerSeed } from './owner';
 import { workspaceSeed } from './workspace';
 

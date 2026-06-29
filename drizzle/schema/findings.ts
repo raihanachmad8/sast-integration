@@ -1,9 +1,10 @@
 import { pgTable, uuid, varchar, text, timestamp, integer, numeric, jsonb, uniqueIndex, primaryKey, boolean, index } from 'drizzle-orm/pg-core';
-import { users } from './users';
+
+import { models } from './integrations';
 import { projects } from './projects';
 import { scans } from './scans';
-import { models } from './integrations';
 import { repositories } from './source-controls';
+import { users } from './users';
 
 export const findingGroups = pgTable('finding_groups', {
   id: uuid('id').primaryKey().defaultRandom(),

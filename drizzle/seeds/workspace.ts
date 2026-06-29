@@ -1,9 +1,12 @@
 import { eq } from 'drizzle-orm';
-import * as schema from '../schema';
+
+import { ROLE } from '../../src/commons/constants/permissions';
 import { WORKSPACE_MODE } from '../../src/server/modules/auth/constants';
 import { WORKSPACE } from '../../src/server/modules/workspace/constants';
-import { ROLE } from '../../src/commons/constants/permissions';
+import * as schema from '../schema';
+
 import { ORG_DEFAULTS } from './constants';
+
 import type { SeedModule } from './index';
 
 const ORG_NAME = process.env.ORG_NAME ?? ORG_DEFAULTS.NAME;

@@ -1,5 +1,6 @@
-import { pgTable, uuid, varchar, jsonb, timestamp, boolean, text, integer, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import { pgTable, uuid, varchar, jsonb, timestamp, boolean, text, integer, uniqueIndex, index } from 'drizzle-orm/pg-core';
+
 import { users } from './users';
 import { workspaces } from './workspaces';
 
@@ -53,34 +54,6 @@ export const webhookDeliveries = pgTable('webhook_deliveries', {
 }, (t) => [
   index('webhook_deliveries_webhook_id_idx').on(t.webhookId),
   index('webhook_deliveries_created_at_idx').on(t.createdAt),
-]);
-
-export const auditLogs = pgTable('audit_logs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
-  userId: uuid('user_id').references(() => users.id),
-  action: varchar('action', { length: 100 }).notNull(),
-  resourceType: varchar('resource_type', { length: 50 }),
-  resourceId: uuid('resource_id'),
-  data: jsonb('data'),
-  ipAddress: varchar('ip_address', { length: 45 }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
-  index('audit_logs_workspace_id_idx').on(t.workspaceId),
-  index('audit_logs_created_at_idx').on(t.createdAt),
-]);
-
-export const activityLogs = pgTable('activity_logs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
-  userId: uuid('user_id').references(() => users.id),
-  type: varchar('type', { length: 50 }).notNull(),
-  description: text('description'),
-  metadata: jsonb('metadata'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
-  index('activity_logs_workspace_id_idx').on(t.workspaceId),
-  index('activity_logs_created_at_idx').on(t.createdAt),
 ]);
 
 export const knowledgeSources = pgTable('knowledge_sources', {
@@ -141,10 +114,6 @@ export type AiModel = typeof models.$inferSelect;
 export type NewAiModel = typeof models.$inferInsert;
 export type Webhook = typeof webhooks.$inferSelect;
 export type NewWebhook = typeof webhooks.$inferInsert;
-export type AuditLog = typeof auditLogs.$inferSelect;
-export type NewAuditLog = typeof auditLogs.$inferInsert;
-export type ActivityLog = typeof activityLogs.$inferSelect;
-export type NewActivityLog = typeof activityLogs.$inferInsert;
 export type KnowledgeSource = typeof knowledgeSources.$inferSelect;
 export type NewKnowledgeSource = typeof knowledgeSources.$inferInsert;
 export type KnowledgeEntry = typeof knowledgeEntries.$inferSelect;

@@ -1,4 +1,5 @@
 import { pgTable, uuid, varchar, text, timestamp, boolean, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
+
 import { users } from './users';
 import { workspaces } from './workspaces';
 
@@ -7,9 +8,6 @@ export const projects = pgTable('projects', {
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
   name: varchar('name', { length: 255 }).notNull(),
   slug: varchar('slug', { length: 255 }).notNull(),
-  platform: varchar('platform', { length: 50 }),
-  language: varchar('language', { length: 50 }),
-  avatarUrl: text('avatar_url'),
   description: text('description'),
   lead: varchar('lead', { length: 255 }),
   createdAt: timestamp('created_at').defaultNow(),

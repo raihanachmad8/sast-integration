@@ -1,4 +1,5 @@
 import { pgTable, uuid, varchar, text, timestamp, index, uniqueIndex } from 'drizzle-orm/pg-core';
+
 import { users } from './users';
 import { workspaces } from './workspaces';
 
@@ -22,7 +23,6 @@ export const teamMembers = pgTable('team_members', {
   id: uuid('id').primaryKey().defaultRandom(),
   teamId: uuid('team_id').notNull().references(() => teams.id),
   userId: uuid('user_id').notNull().references(() => users.id),
-  role: varchar('role', { length: 20 }).notNull().$type<'admin' | 'contributor'>(),
   joinedAt: timestamp('joined_at').defaultNow().notNull(),
 }, (t) => [
   index('team_members_team_id_idx').on(t.teamId),

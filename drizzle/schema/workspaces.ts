@@ -1,5 +1,6 @@
-import { pgTable, uuid, varchar, text, timestamp, jsonb, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import { pgTable, uuid, varchar, text, timestamp, jsonb, uniqueIndex } from 'drizzle-orm/pg-core';
+
 import { users } from './users';
 
 export const workspaces = pgTable('workspaces', {

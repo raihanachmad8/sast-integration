@@ -1,10 +1,13 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+
+import { WORKSPACE_MODE, NODE_ENV } from '../src/server/modules/auth/constants';
+
 import * as schema from './schema';
 import { SEED_MODULES, OWNER_DEFAULTS, type SeedContext } from './seeds';
-import { WORKSPACE_MODE, NODE_ENV } from '../src/server/modules/auth/constants';
 
 const cwd = process.cwd();
 for (const filePath of [path.resolve(cwd, '.env.local'), path.resolve(cwd, '.env')]) {

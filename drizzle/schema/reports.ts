@@ -1,4 +1,5 @@
 import { pgTable, uuid, varchar, jsonb, timestamp, integer } from 'drizzle-orm/pg-core';
+
 import { users } from './users';
 import { workspaces } from './workspaces';
 

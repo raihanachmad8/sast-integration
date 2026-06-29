@@ -1,9 +1,10 @@
 import { pgTable, uuid, varchar, jsonb, timestamp, boolean, integer, text, uniqueIndex, index, foreignKey } from 'drizzle-orm/pg-core';
+
+import { personalAccessTokens } from './auth';
+import { projectApiTokens } from './projects';
+import { repositories } from './source-controls';
 import { users } from './users';
 import { workspaces } from './workspaces';
-import { repositories } from './source-controls';
-import { projectApiTokens } from './projects';
-import { personalAccessTokens } from './auth';
 
 export const scans = pgTable('scans', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -1,8 +1,9 @@
-import { pgTable, uuid, varchar, jsonb, timestamp, text, boolean, uniqueIndex, index, foreignKey } from 'drizzle-orm/pg-core';
 import { isNull } from 'drizzle-orm';
+import { pgTable, uuid, varchar, jsonb, timestamp, text, boolean, uniqueIndex, index, foreignKey } from 'drizzle-orm/pg-core';
+
+import { projects } from './projects';
 import { users } from './users';
 import { workspaces } from './workspaces';
-import { projects } from './projects';
 
 export const sourceControls = pgTable('source_controls', {
   id: uuid('id').primaryKey().defaultRandom(),

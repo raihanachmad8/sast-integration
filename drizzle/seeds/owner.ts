@@ -1,8 +1,11 @@
-import { eq } from 'drizzle-orm';
 import { hash } from 'bcryptjs';
-import * as schema from '../schema';
+import { eq } from 'drizzle-orm';
+
 import { AUTH } from '../../src/server/modules/auth/constants';
+import * as schema from '../schema';
+
 import { OWNER_DEFAULTS } from './constants';
+
 import type { SeedModule } from './index';
 
 const OWNER_EMAIL = process.env.OWNER_EMAIL ?? OWNER_DEFAULTS.EMAIL;
