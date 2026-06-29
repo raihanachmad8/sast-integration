@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
 import { Modal, Typography, Button, Flex, Steps, Tag, Alert, theme, App, Divider } from 'antd';
-import { MODAL_WIDTH } from '@/commons/constants/layout';
+import React, { useState } from 'react';
+
 import { FaIcon } from '@/commons/components/FaIcon';
+import { MODAL_WIDTH } from '@/commons/constants/layout';
 import { ENTITY_COLORS } from '@/commons/constants/tokens';
 
 const { Text, Link } = Typography;

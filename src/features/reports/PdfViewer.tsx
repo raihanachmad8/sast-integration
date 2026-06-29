@@ -1,11 +1,11 @@
 'use client';
 
+import { LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { Button, Spin, Typography, theme } from 'antd';
 import { useMemo, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import { Button, Spin, Typography, theme } from 'antd';
-import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { Flex, Typography, theme } from 'antd';
+
 import type { Finding } from '@/commons/types';
 
 const { Text } = Typography;

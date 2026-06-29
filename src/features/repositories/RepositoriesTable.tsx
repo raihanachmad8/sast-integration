@@ -1,19 +1,21 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
-import { Button, Select, Space, Typography, theme } from 'antd';
-import { FaIcon } from '@/commons/components/FaIcon';
-import { DataTable, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
-import { StatusPill } from '@/commons/components/StatusPill';
-import { useTableParams } from '@/lib/hooks/useTableParams';
-import { useRepositoriesQuery, useUpdateRepositoryMutation } from '@/modules/repositories';
-import { useProjectsQuery } from '@/modules/projects/queries';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { useQueryClient } from '@tanstack/react-query';
-import { repositoryKeys } from '@/modules/repositories/keys';
-import { usePermissions } from '@/lib/hooks/usePermissions';
+import { Button, Select, Space, Typography, theme } from 'antd';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+
+import { DataTable, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { StatusPill } from '@/commons/components/StatusPill';
 import { PERMISSION } from '@/commons/constants/permissions';
 import type { Repository } from '@/commons/types';
+import type { RepositoryExtended } from '@/commons/types/repositories';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { useTableParams } from '@/lib/hooks/useTableParams';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+import { useProjectsQuery } from '@/modules/projects/queries';
+import { useRepositoriesQuery, useUpdateRepositoryMutation } from '@/modules/repositories';
+import { repositoryKeys } from '@/modules/repositories/keys';
 
 interface RepositoriesTableProps {
   onRowClick: (row: Repository) => void;
@@ -67,7 +69,7 @@ export function RepositoriesTable({ onRowClick, onAssignProject: _onAssignProjec
   const { has } = usePermissions();
   const canManage = has(PERMISSION.REPOSITORY_MANAGE);
 
-  const { params, setPagination, setSearch, setFilter } = useTableParams({
+  const { params, setPagination, setSearch, setFilter, setSort } = useTableParams({
     filterKeys: ['status', 'provider', 'project'],
     defaultPageSize: 10,
   });
@@ -79,15 +81,62 @@ export function RepositoriesTable({ onRowClick, onAssignProject: _onAssignProjec
     status: params.filters.status || undefined,
     provider: params.filters.provider || undefined,
     project: params.filters.project || undefined,
+    sort: params.sortKey || undefined,
+    order: params.sortDir?.toUpperCase() as 'ASC' | 'DESC' | undefined,
   });
 
-  const projectsQuery = useProjectsQuery({ page: 1, perPage: 200 });
-  const projectOptions = useMemo(() =>
-    (projectsQuery.data?.data ?? []).map((p: { id: string; name: string }) => ({ value: p.id, label: p.name })),
-    [projectsQuery.data?.data]
-  );
+  const [projectPage, setProjectPage] = useState(1);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [debouncedProjectSearch, setDebouncedProjectSearch] = useState('');
+  const projectsQuery = useProjectsQuery({ page: projectPage, perPage: 100, search: debouncedProjectSearch || undefined });
+  const [allProjects, setAllProjects] = useState<Array<{ id: string; name: string }>>([]);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const rows = useMemo(() => (query.data?.data ?? []).map((r: Record<string, unknown>) => ({
+  useEffect(() => {
+    let cancelled = false;
+    const d = projectsQuery.data?.data ?? [];
+    queueMicrotask(() => {
+      if (cancelled) return;
+      if (projectPage === 1) {
+        // Always reset on page 1, even if empty (for search cleared)
+        setAllProjects(d);
+      } else if (d.length > 0) {
+        // Append on subsequent pages
+        setAllProjects((prev) => {
+          const ids = new Set(prev.map((x) => x.id));
+          return [...prev, ...d.filter((x) => !ids.has(x.id))];
+        });
+      }
+    });
+    return () => { cancelled = true; };
+  }, [projectsQuery.data, projectPage]);
+
+  // Debounce for project search
+  useEffect(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      setDebouncedProjectSearch(projectSearch);
+      setProjectPage(1);
+      setAllProjects([]);
+    }, 550);
+    return () => { if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current); };
+  }, [projectSearch]);
+
+  const projectOptions = useMemo(() => allProjects.map((p) => ({ value: p.id, label: p.name })), [allProjects]);
+  const projectTotal = projectsQuery.data?.meta?.total ?? 0;
+  const hasMoreProjects = allProjects.length < projectTotal;
+
+  const handleProjectScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (!hasMoreProjects || projectsQuery.isFetching) return;
+    const target = e.target as HTMLDivElement;
+    if (target.scrollTop + target.clientHeight >= target.scrollHeight - 50) setProjectPage((p) => p + 1);
+  }, [hasMoreProjects, projectsQuery.isFetching]);
+
+  const handleProjectSearch = useCallback((v: string) => {
+    setProjectSearch(v);
+  }, []);
+
+  const rows = useMemo(() => (query.data?.data ?? []).map((r: RepositoryExtended) => ({
     id: r.id as string,
     name: r.name as string,
     url: r.url as string,
@@ -285,7 +334,7 @@ export function RepositoriesTable({ onRowClick, onAssignProject: _onAssignProjec
       filters={[
         { key: 'status', label: 'Status', placeholder: 'All statuses', options: STATUS_OPTIONS },
         { key: 'provider', label: 'Provider', placeholder: 'All providers', options: PROVIDER_OPTIONS },
-        { key: 'project', label: 'Project', placeholder: 'All projects', options: projectOptions, searchable: true },
+        { key: 'project', label: 'Project', placeholder: 'All projects', options: projectOptions, onSearch: handleProjectSearch, onScroll: handleProjectScroll, isFetching: projectsQuery.isFetching, hasMore: hasMoreProjects },
       ]}
       filterValues={params.filters}
       onFilterChange={setFilter}
@@ -294,6 +343,8 @@ export function RepositoriesTable({ onRowClick, onAssignProject: _onAssignProjec
       actions={actions}
       emptyText="No repositories found. Try a different search term or filter."
       onChange={(p, ps) => setPagination(p, ps)}
+      sort={params.sortKey && params.sortDir ? { key: params.sortKey, dir: params.sortDir } : null}
+      onSortChange={(s) => setSort(s?.key ?? '', s?.dir ?? '')}
     />
   );
 }

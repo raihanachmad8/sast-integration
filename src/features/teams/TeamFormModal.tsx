@@ -1,12 +1,17 @@
 'use client';
 
 import { Modal, Input, Select, Form, Typography, theme } from 'antd';
-import { useMembersQuery } from '@/modules/members';
-import { useSessionData } from '@/modules/auth/queries';
-import type { Team } from '@/commons/types';
-import type { TeamFormInput } from '@/modules/teams/types';
+import { useEffect } from 'react';
+
 import { teamFormSchema } from '@/commons/schemas/team.schema';
+import type { Team } from '@/commons/types';
+import { useLazySelect } from '@/lib/hooks/useLazySelect';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { createZodSync } from '@/lib/utils/zod-sync';
+import { membersApi } from '@/modules/members/api';
+import { memberKeys } from '@/modules/members/keys';
+import { useTeamQuery } from '@/modules/teams';
+import type { TeamFormInput } from '@/modules/teams/types';
 
 interface TeamFormModalProps {
   open: boolean;
@@ -41,17 +46,41 @@ export function TeamFormModal({ open, team, onCancel, onConfirm, isLoading }: Te
   const { token } = theme.useToken();
   const [form] = Form.useForm();
   const rule = createZodSync(teamFormSchema);
+  const { workspaceId } = useWorkspace();
 
-  const session = useSessionData();
-  const workspaceId = session.data?.workspace?.id ?? '';
-  const membersQuery = useMembersQuery(workspaceId, { page: 1, perPage: 1000 });
-  const memberOptions = (membersQuery.data?.data ?? [])
-    .filter((m, i, arr) => arr.findIndex(x => x.userId === m.userId) === i)
-    .map(m => ({ value: m.userId, label: `${m.name} (${m.email})` }));
+  // Fetch full team data with members when editing
+  const { data: fullTeam } = useTeamQuery(team?.id ?? '');
+
+  // Lazy select for members with infinite scroll and debounced search
+  const members = useLazySelect({
+    workspaceId: workspaceId ?? '',
+    fetchFn: (ws, params) => membersApi.list(ws, params),
+    getId: (m) => m.userId,
+    getLabel: (m) => `${m.name} (${m.email})`,
+    perPage: 100,
+    baseKey: memberKeys.all,
+  });
 
   const handleNameChange = (v: string) => {
     form.setFieldsValue({ slug: slugify(v) });
   };
+
+  // Use fullTeam (with members) if available, fall back to team prop
+  const activeTeam = fullTeam ?? team;
+
+  useEffect(() => {
+    if (!open) return;
+    if (activeTeam) {
+      form.setFieldsValue({ 
+        name: activeTeam.name, 
+        slug: activeTeam.slug, 
+        description: activeTeam.description, 
+        memberIds: activeTeam.members?.map((m) => m.userId) || [] 
+      });
+    } else {
+      form.resetFields();
+    }
+  }, [open, activeTeam, form]);
 
   return (
     <Modal
@@ -63,10 +92,10 @@ export function TeamFormModal({ open, team, onCancel, onConfirm, isLoading }: Te
       okText={team ? 'Save team' : 'Create team'}
       cancelText="Cancel"
       confirmLoading={isLoading}
-      onOk={() => form.validateFields().then((values) => onConfirm(values))}
+      onOk={() => form.submit()}
     >
       <div style={{ display: 'grid', gap: token.paddingXL, padding: `${token.paddingLG} 0` }}>
-        <Form form={form} layout="vertical" initialValues={{ name: team?.name ?? '', slug: team?.slug ?? '', description: team?.description ?? '', memberIds: [] }}>
+        <Form form={form} layout="vertical" initialValues={{ name: '', slug: '', description: '', memberIds: [] }} onFinish={(values) => onConfirm(values)}>
           <Form.Item label="Team name" name="name" required rules={[rule]}>
             <Input placeholder="e.g. Security Team" onChange={(e) => handleNameChange(e.target.value)} />
           </Form.Item>
@@ -84,13 +113,20 @@ export function TeamFormModal({ open, team, onCancel, onConfirm, isLoading }: Te
               mode="multiple"
               style={{ width: '100%' }}
               placeholder="Select workspace members to add"
-              options={memberOptions}
-              filterOption={(input, opt) => (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+              options={members.options}
+              showSearch
+              onSearch={members.handleSearch}
+              onPopupScroll={members.handleScroll}
+              filterOption={false}
+              loading={members.isLoading}
+              notFoundContent={members.isFetchingNextPage ? 'Loading...' : 'No members found'}
             />
           </Form.Item>
           <Typography.Text style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary, marginTop: -token.paddingSM, display: 'block' }}>
             Members can be added or removed later from the team detail.
           </Typography.Text>
+          {/* Hidden submit button enables Enter-to-submit in the form */}
+          <button type="submit" style={{ display: 'none' }} aria-hidden="true" />
         </Form>
       </div>
     </Modal>

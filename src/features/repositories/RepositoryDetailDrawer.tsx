@@ -1,13 +1,14 @@
 'use client';
 
-import { Button, Card, Descriptions, Drawer, Space, Statistic, Tag, Typography, theme } from 'antd';
 import { CloseOutlined, CodeOutlined } from '@ant-design/icons';
-import { FaIcon } from '@/commons/components/FaIcon';
-import type { Repository } from '@/commons/types';
-import { StatusTag } from '@/commons/components/StatusTag';
+import { Button, Card, Descriptions, Drawer, Space, Statistic, Tag, Typography, theme } from 'antd';
+
 import { EmptyState } from '@/commons/components/EmptyState';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { PermissionGate } from '@/commons/components/PermissionGate';
+import { StatusTag } from '@/commons/components/StatusTag';
 import { PERMISSION } from '@/commons/constants/permissions';
+import type { Repository } from '@/commons/types';
 
 const { Text, Title } = Typography;
 

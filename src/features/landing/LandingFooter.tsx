@@ -1,30 +1,14 @@
 'use client';
 
+import { GithubOutlined } from '@ant-design/icons';
 import { Typography, Row, Col, Flex, theme } from 'antd';
 import Link from 'next/link';
-import { GithubOutlined } from '@ant-design/icons';
+
+import { ShieldIcon } from '@/commons/components/ShieldIcon';
 import { ROUTES } from '@/commons/constants';
 import { GITHUB_REPO_URL } from '@/commons/constants/landing';
 
 const { Text } = Typography;
-
-/** Brand shield icon. */
-function ShieldIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    </svg>
-  );
-}
 
 const FOOTER_LINKS = [
   {
@@ -94,7 +78,7 @@ export function LandingFooter() {
                     flexShrink: 0,
                   }}
                 >
-                  <ShieldIcon />
+                  <ShieldIcon size={14} />
                 </div>
                 <Text
                   strong

@@ -1,27 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { App, Button, Card, Flex, Form, Input, Select, Typography, Tabs, Descriptions, Statistic, theme } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
-import { useProjectQuery, useUpdateProjectMutation, useDeleteProjectMutation } from '@/modules/projects';
-import { useSessionData } from '@/modules/auth/queries';
-import { useTeamsQuery } from '@/modules/teams';
-import { useMembersQuery } from '@/modules/members';
-import { useRepositoriesQuery } from '@/modules/repositories';
-import { PageHeader } from '@/commons/components/PageHeader';
-import { ProjectApiTokens } from '@/features/projects';
-import { LoadingState } from '@/commons/components/LoadingState';
-import { ErrorState } from '@/commons/components/ErrorState';
-import { errorMessage } from '@/lib/api/errors';
-import { FaIcon } from '@/commons/components/FaIcon';
-import { formatDate } from '@/lib/utils/formatDate';
-import { StatusPill } from '@/commons/components/StatusPill';
+import { App, Button, Card, Flex, Form, Input, Select, Typography, Tabs, Descriptions, Statistic, theme } from 'antd';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
 import { useConfirm } from '@/commons/components/ConfirmDialog';
-import { projectUpdateSchema } from '@/commons/schemas/project.schema';
-import { createZodSync } from '@/lib/utils/zod-sync';
+import { ErrorState } from '@/commons/components/ErrorState';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { PageHeader } from '@/commons/components/PageHeader';
 import { PermissionGate } from '@/commons/components/PermissionGate';
+import { StatusPill } from '@/commons/components/StatusPill';
 import { PERMISSION } from '@/commons/constants/permissions';
+import { projectUpdateSchema } from '@/commons/schemas/project.schema';
+import { ProjectApiTokens } from '@/features/projects';
+import { errorMessage } from '@/lib/api/errors';
+import { formatDate } from '@/lib/utils/formatDate';
+import { createZodSync } from '@/lib/utils/zod-sync';
+import { useApiTokensQuery } from '@/modules/api-tokens';
+import { useSessionData } from '@/modules/auth/queries';
+import { useMembersQuery } from '@/modules/members';
+import { useProjectQuery, useUpdateProjectMutation, useDeleteProjectMutation } from '@/modules/projects';
+import { useRepositoriesQuery } from '@/modules/repositories';
+import { useTeamsQuery } from '@/modules/teams';
 
 interface ProjectDetailPageProps {
   projectId: string;
@@ -50,21 +52,27 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
   const updateMutation = useUpdateProjectMutation();
   const deleteMutation = useDeleteProjectMutation();
   const { confirm } = useConfirm();
-
-  const teamsQuery = useTeamsQuery({ page: 1, perPage: 100 });
-  const membersQuery = useMembersQuery(session.data?.workspace?.id ?? '', { page: 1, perPage: 1000 });
-  const reposQuery = useRepositoriesQuery({ page: 1, perPage: 200 });
+  const tokensQuery = useApiTokensQuery(projectId);
 
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'general');
   const [isEditing, setIsEditing] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [form] = Form.useForm();
   const rule = createZodSync(projectUpdateSchema);
 
+  // Teams lazy
+  const teamsQuery = useTeamsQuery({ page: 1, perPage: 100 });
   const teamOptions = (teamsQuery.data?.data ?? []).map((t) => ({ value: t.id, label: t.name }));
+
+  // Members lazy
+  const membersQuery = useMembersQuery({ page: 1, perPage: 100 });
   const memberOptions = (membersQuery.data?.data ?? [])
     .filter((m, i, arr) => arr.findIndex((x) => x.userId === m.userId) === i)
     .map((m) => ({ value: m.userId, label: `${m.name} (${m.email})` }));
+
+  // Repos lazy
+  const reposQuery = useRepositoriesQuery({ page: 1, perPage: 100 });
   const repoOptions = (reposQuery.data?.data ?? []).map((r) => ({ value: r.id, label: r.name }));
 
   useEffect(() => {
@@ -73,9 +81,9 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
         name: project.name,
         description: project.description || '',
         lead: project.lead || '',
-        repositoryIds: project.repositories || [],
-        teamIds: project.teams || [],
-        memberIds: project.members || [],
+        repositoryIds: project.repositories.map((r) => r.id),
+        teamIds: project.teams.map((t) => t.id),
+        memberIds: project.members.map((m) => m.id),
       });
     }
   }, [project, isEditing, form]);
@@ -201,7 +209,7 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
                 <Descriptions.Item label="Created">
                   {project.createdAt ? formatDate(project.createdAt) : '—'}
                 </Descriptions.Item>
-                <Descriptions.Item label="Description" span={2}>
+                <Descriptions.Item label="Description">
                   {project.description || 'No description provided.'}
                 </Descriptions.Item>
               </Descriptions>
@@ -209,7 +217,7 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
               <Card style={{ marginTop: token.marginLG }} styles={{ body: { padding: token.paddingXL } }} title="Repositories" size="small">
                 {(project.repositories ?? []).length > 0 ? (
                   <Flex wrap="wrap" gap={token.paddingXS}>
-                    {project.repositories.map((r) => <StatusPill key={r} variant="slate">{r}</StatusPill>)}
+                    {project.repositories.map((r) => <StatusPill key={r.id} variant="slate">{r.name}</StatusPill>)}
                   </Flex>
                 ) : (
                   <Typography.Text type="secondary">No repositories attached.</Typography.Text>
@@ -217,9 +225,9 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
               </Card>
 
               <Card style={{ marginTop: token.marginLG }} styles={{ body: { padding: token.paddingXL } }} title="Teams" size="small">
-                {(project.teamNames ?? project.teams ?? []).length > 0 ? (
+                {(project.teams ?? []).length > 0 ? (
                   <Flex wrap="wrap" gap={token.paddingXS}>
-                    {(project.teamNames ?? project.teams ?? []).map((t, i) => <StatusPill key={project.teams?.[i] ?? t} variant="teal">{t}</StatusPill>)}
+                    {project.teams.map((t) => <StatusPill key={t.id} variant="teal">{t.name}</StatusPill>)}
                   </Flex>
                 ) : (
                   <Typography.Text type="secondary">No teams assigned.</Typography.Text>
@@ -227,9 +235,9 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
               </Card>
 
               <Card style={{ marginTop: token.marginLG }} styles={{ body: { padding: token.paddingXL } }} title="Members" size="small">
-                {(project.memberNames ?? project.members ?? []).length > 0 ? (
+                {(project.members ?? []).length > 0 ? (
                   <Flex wrap="wrap" gap={token.paddingXS}>
-                    {(project.memberNames ?? project.members ?? []).map((m, i) => <StatusPill key={project.members?.[i] ?? m} variant="slate">{m}</StatusPill>)}
+                    {project.members.map((m) => <StatusPill key={m.id} variant="slate">{m.name}</StatusPill>)}
                   </Flex>
                 ) : (
                   <Typography.Text type="secondary">No direct members.</Typography.Text>
@@ -243,12 +251,10 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
     {
       key: 'api-tokens',
       label: (
-        <span><FaIcon icon="fa-key" style={{ marginRight: 8 }} /> API Tokens</span>
+        <span><FaIcon icon="fa-key" style={{ marginRight: 8 }} /> API Tokens ({tokensQuery.data?.data?.length ?? 0})</span>
       ),
       children: (
-        <Card styles={{ body: { padding: token.paddingXL } }}>
-          <ProjectApiTokens projectId={projectId} />
-        </Card>
+        <ProjectApiTokens projectId={projectId} createModalOpen={createModalOpen} onCloseCreate={() => setCreateModalOpen(false)} />
       ),
     },
   ];
@@ -264,9 +270,16 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
         ]}
         actions={
           <PermissionGate permission={PERMISSION.PROJECT_MANAGE}>
-            <Button danger icon={<DeleteOutlined />} onClick={handleDelete} loading={deleteMutation.isPending}>
-              Delete Project
-            </Button>
+            {activeTab === 'api-tokens' && (
+              <Button icon={<FaIcon icon="fa-plus" />} onClick={() => setCreateModalOpen(true)}>
+                Create token
+              </Button>
+            )}
+            {activeTab === 'general' && (
+              <Button danger icon={<DeleteOutlined />} onClick={handleDelete} loading={deleteMutation.isPending}>
+                Delete Project
+              </Button>
+            )}
           </PermissionGate>
         }
       />
@@ -283,12 +296,14 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
         </Card>
       </div>
 
-      <Tabs
-        activeKey={activeTab}
-        onChange={(tab) => { setActiveTab(tab); router.replace(`?tab=${tab}`, { scroll: false }); }}
-        items={tabItems}
-        size="large"
-      />
+      <Card styles={{ body: { padding: 0 } }}>
+        <Tabs
+          activeKey={activeTab}
+          onChange={(tab) => { setActiveTab(tab); router.replace(`?tab=${tab}`, { scroll: false }); }}
+          items={tabItems}
+          tabBarStyle={{ padding: `0 ${token.paddingLG}px` }}
+        />
+      </Card>
     </Flex>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button, Flex, theme } from 'antd';
+import dynamic from 'next/dynamic';
 
 import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
@@ -8,9 +9,19 @@ import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
 import { PermissionGate } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
+import { FindingsTable } from '@/features/findings';
 import { errorMessage } from '@/lib/api/errors';
-import { FindingsTable, BulkAssignModal, FindingDetailDrawer } from '@/features/findings';
+
 import { useFindingsPageState } from './useFindingsPageState';
+
+const FindingDetailDrawer = dynamic(
+  () => import('@/features/findings/FindingDetailDrawer').then((m) => m.FindingDetailDrawer),
+  { ssr: false },
+);
+const BulkAssignModal = dynamic(
+  () => import('@/features/findings/BulkAssignModal').then((m) => m.BulkAssignModal),
+  { ssr: false },
+);
 
 /**
  * Findings management page — browse, filter, review, and triage security findings.
@@ -24,9 +35,12 @@ export function FindingsPage() {
     findings,
     totalCount,
     members,
-    MEMBER_OPTIONS,
-    PROJECT_OPTIONS,
-    REPOSITORY_OPTIONS,
+    memberOptions,
+    projectOptions,
+    repositoryOptions,
+    handleMemberSearch: _handleMemberSearch, handleMemberScroll: _handleMemberScroll, isMemberFetching: _isMemberFetching, hasMoreMembers: _hasMoreMembers,
+    handleProjectSearch, handleProjectScroll, isProjectFetching, hasMoreProjects,
+    handleRepoSearch, handleRepoScroll, isRepoFetching, hasMoreRepos,
     tableParams,
     drawerOpen,
     setDrawerOpen,
@@ -100,8 +114,16 @@ export function FindingsPage() {
         onAssign={handleBulkAssign}
         onAssignRow={handleReview}
         members={members.map((m) => ({ userId: m.userId, name: m.name, email: m.email }))}
-        projectOptions={PROJECT_OPTIONS}
-        repositoryOptions={REPOSITORY_OPTIONS}
+        projectOptions={projectOptions}
+        repositoryOptions={repositoryOptions}
+        onProjectSearch={handleProjectSearch}
+        onProjectScroll={handleProjectScroll}
+        isProjectFetching={isProjectFetching}
+        hasMoreProjects={hasMoreProjects}
+        onRepoSearch={handleRepoSearch}
+        onRepoScroll={handleRepoScroll}
+        isRepoFetching={isRepoFetching}
+        hasMoreRepos={hasMoreRepos}
         sort={tableParams.sort && tableParams.order ? { key: tableParams.sort, dir: tableParams.order.toLowerCase() as 'asc' | 'desc' } : null}
         onSortChange={handleSortChange}
       />
@@ -121,7 +143,7 @@ export function FindingsPage() {
       <BulkAssignModal
         open={bulkAssignOpen}
         bulkAssignee={bulkAssignee}
-        memberOptions={MEMBER_OPTIONS}
+        memberOptions={memberOptions}
         onOk={handleBulkAssignConfirm}
         onCancel={() => setBulkAssignOpen(false)}
         onChange={(value) => setBulkAssignee(value)}

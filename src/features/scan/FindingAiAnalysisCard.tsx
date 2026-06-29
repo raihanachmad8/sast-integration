@@ -1,11 +1,13 @@
 'use client';
 
 import { Typography, Flex, theme } from 'antd';
+
 import { FaIcon } from '@/commons/components/FaIcon';
-import { STATUS_TOKENS } from '@/commons/constants/tokens';
-import type { AiRichAnalysis } from './types';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { StatusTag } from '@/commons/components/StatusTag';
+import { STATUS_TOKENS } from '@/commons/constants/tokens';
+
+import type { AiRichAnalysis } from './types';
 
 const { Text, Paragraph } = Typography;
 

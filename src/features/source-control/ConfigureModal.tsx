@@ -1,18 +1,20 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
 import { Button, Modal, Input, Select, Form, App, Typography, Card, Flex, Alert, theme } from 'antd';
-import { MODAL_WIDTH } from '@/commons/constants/layout';
-import { FaIcon } from '@/commons/components/FaIcon';
-import { SectionLabel } from '@/commons/components/SectionLabel';
-import { sourceControlApi } from '@/modules/source-control/api';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
-import { createZodSync } from '@/lib/utils/zod-sync';
+import { useState, useMemo, useCallback } from 'react';
 import { z } from 'zod';
 
+import { FaIcon } from '@/commons/components/FaIcon';
+import { SectionLabel } from '@/commons/components/SectionLabel';
+import { MODAL_WIDTH } from '@/commons/constants/layout';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+import { createZodSync } from '@/lib/utils/zod-sync';
+import { sourceControlApi } from '@/modules/source-control/api';
+
+
 const sourceControlSchema = z.object({
-  baseUrl: z.string().url('Must be a valid URL'),
-  apiUrl: z.string().url('Must be a valid URL'),
+  baseUrl: z.url('Must be a valid URL'),
+  apiUrl: z.url('Must be a valid URL'),
 });
 
 const validateSourceControl = createZodSync(sourceControlSchema);

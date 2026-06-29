@@ -1,15 +1,18 @@
 'use client';
 
-import { useEffect } from 'react';
 import { Button, App, Select, Form, Input, Flex, theme } from 'antd';
 import { useRouter } from 'next/navigation';
-import { useCreateTeamMutation, useUpdateTeamMutation } from '@/modules/teams';
-import { useMembersQuery } from '@/modules/members';
-import { useSessionData } from '@/modules/auth/queries';
-import { createZodSync } from '@/lib/utils/zod-sync';
+import { useEffect } from 'react';
+
 import { teamFormSchema } from '@/commons/schemas';
-import { errorMessage } from '@/lib/api/errors';
 import type { Team } from '@/commons/types';
+import { errorMessage } from '@/lib/api/errors';
+import { useLazySelect } from '@/lib/hooks/useLazySelect';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+import { createZodSync } from '@/lib/utils/zod-sync';
+import { membersApi } from '@/modules/members/api';
+import { memberKeys } from '@/modules/members/keys';
+import { useCreateTeamMutation, useUpdateTeamMutation, useTeamQuery } from '@/modules/teams';
 
 const rule = createZodSync(teamFormSchema);
 
@@ -31,22 +34,39 @@ export function TeamForm({ team }: TeamFormProps) {
   const router = useRouter();
   const { token } = theme.useToken();
   const [form] = Form.useForm();
+  const { workspaceId } = useWorkspace();
 
   const createMutation = useCreateTeamMutation();
   const updateMutation = useUpdateTeamMutation();
 
-  const session = useSessionData();
-  const workspaceId = session.data?.workspace?.id ?? '';
-  const membersQuery = useMembersQuery(workspaceId, { page: 1, perPage: 1000 });
-  const memberOptions = (membersQuery.data?.data ?? [])
-    .filter((m, i, arr) => arr.findIndex((x) => x.userId === m.userId) === i)
-    .map((m) => ({ value: m.userId, label: `${m.name} (${m.email})` }));
+  // Fetch full team data with members when editing
+  const { data: fullTeam } = useTeamQuery(team?.id ?? '');
+
+  // Lazy select for members with infinite scroll and debounced search
+  const members = useLazySelect({
+    workspaceId: workspaceId ?? '',
+    fetchFn: (ws, params) => membersApi.list(ws, params),
+    getId: (m) => m.userId,
+    getLabel: (m) => `${m.name} (${m.email})`,
+    perPage: 100,
+    baseKey: memberKeys.all,
+  });
+
+  // Use fullTeam (with members) if available, fall back to team prop
+  const activeTeam = fullTeam ?? team;
 
   useEffect(() => {
-    if (team) {
-      form.setFieldsValue({ name: team.name, slug: team.slug, description: team.description, memberIds: [] });
+    if (activeTeam) {
+      form.setFieldsValue({ 
+        name: activeTeam.name, 
+        slug: activeTeam.slug, 
+        description: activeTeam.description, 
+        memberIds: activeTeam.members?.map((m) => m.userId) || [] 
+      });
+    } else {
+      form.resetFields();
     }
-  }, [team, form]);
+  }, [activeTeam, form]);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const name = e.target.value;
@@ -107,8 +127,13 @@ export function TeamForm({ team }: TeamFormProps) {
           mode="multiple"
           style={{ width: '100%' }}
           placeholder="Select workspace members to add"
-          options={memberOptions}
-          filterOption={(input, opt) => (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+          options={members.options}
+          showSearch
+          onSearch={members.handleSearch}
+          onPopupScroll={members.handleScroll}
+          filterOption={false}
+          loading={members.isLoading}
+          notFoundContent={members.isFetchingNextPage ? 'Loading...' : 'No members found'}
         />
       </Form.Item>
 

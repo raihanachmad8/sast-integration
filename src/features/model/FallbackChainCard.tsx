@@ -1,10 +1,11 @@
 'use client';
 
 import { Button, Card, Flex, theme, Typography } from 'antd';
+
 import { FaIcon } from '@/commons/components/FaIcon';
-import type { AiModelRow } from '@/commons/types/ai-models';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { BORDER_RADIUS } from '@/commons/constants/layout';
+import type { AiModelRow } from '@/commons/types/ai-models';
 
 const MODEL_ROLE = {
   PRIMARY: 'primary',

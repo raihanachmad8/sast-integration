@@ -1,6 +1,5 @@
 'use client';
 
-import { Typography, Row, Col, Flex, theme } from 'antd';
 import {
   AppstoreOutlined,
   RobotOutlined,
@@ -10,6 +9,7 @@ import {
   BarChartOutlined,
   CheckOutlined,
 } from '@ant-design/icons';
+import { Typography, Row, Col, Flex, theme } from 'antd';
 
 const { Title, Text } = Typography;
 

@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useMemo } from 'react';
 import { Modal, Select, Button, Typography, Row, Col, Flex, theme } from 'antd';
+import { useState, useMemo } from 'react';
+
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { PERMISSION } from '@/commons/constants/permissions';
 import type { Finding } from '@/commons/types';
 import type { AiModelRow } from '@/commons/types/ai-models';
 import { useAiModelsQuery } from '@/modules/ai-models';
-import { PermissionGate } from '@/commons/components/PermissionGate';
-import { PERMISSION } from '@/commons/constants/permissions';
 
 const { Text } = Typography;
 

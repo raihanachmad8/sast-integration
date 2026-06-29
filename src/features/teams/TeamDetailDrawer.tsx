@@ -1,29 +1,22 @@
 'use client';
 
-import { App, Button, Drawer, Typography, Avatar, Card, Statistic, Flex, Table, theme } from 'antd';
-import { CloseOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import { FaIcon } from '@/commons/components/FaIcon';
-import { useConfirm } from '@/commons/components/ConfirmDialog';
-import { useDeleteTeamMutation } from '@/modules/teams';
-import { errorMessage } from '@/lib/api/errors';
-import type { Team, TeamMember } from '@/commons/types';
-import { StatusPill } from '@/commons/components/StatusPill';
+import { CloseOutlined } from '@ant-design/icons';
+import { Drawer, Typography, Avatar, Card, Statistic, Flex, Table, theme } from 'antd';
+
 import { EmptyState } from '@/commons/components/EmptyState';
-import { PermissionGate } from '@/commons/components/PermissionGate';
-import { PERMISSION } from '@/commons/constants/permissions';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { StatusPill } from '@/commons/components/StatusPill';
+import type { Team, TeamMember } from '@/commons/types';
 
 interface TeamDetailDrawerProps {
   open: boolean;
   team: Team | null;
   members: TeamMember[];
   onClose: () => void;
-  onEdit: (team: Team) => void;
 }
 
 /**
  * Drawer displaying team details including members, statistics, and assigned projects.
- *
- * Provides edit and delete actions with confirmation dialog for the selected team.
  *
  * @param props - {@link TeamDetailDrawerProps}
  * @returns JSX element rendering the team detail drawer.
@@ -34,13 +27,9 @@ interface TeamDetailDrawerProps {
  *   team={team}
  *   members={teamMembers}
  *   onClose={() => setOpen(false)}
- *   onEdit={(t) => openEditModal(t)}
  * />
  */
-export function TeamDetailDrawer({ open, team, members, onClose, onEdit }: TeamDetailDrawerProps) {
-  const { modal } = App.useApp();
-  const { confirm } = useConfirm();
-  const deleteMutation = useDeleteTeamMutation();
+export function TeamDetailDrawer({ open, team, members, onClose }: TeamDetailDrawerProps) {
   const { token } = theme.useToken();
 
   if (!team) {
@@ -98,31 +87,7 @@ export function TeamDetailDrawer({ open, team, members, onClose, onEdit }: TeamD
       placement="right"
       size="large"
       closeIcon={<CloseOutlined />}
-      footer={
-        <Flex gap={token.paddingSM}>
-          <PermissionGate permission={PERMISSION.TEAM_MANAGE}>
-            <Button type="primary" icon={<EditOutlined />} onClick={() => onEdit(team)}>
-              Edit
-            </Button>
-            <Button danger icon={<DeleteOutlined />} loading={deleteMutation.isPending} onClick={() => confirm({ 
-              title: 'Delete team?', 
-              content: `Delete "${team.name}"? This cannot be undone.`, 
-              danger: true,
-              onOk: () => {
-                deleteMutation.mutate(team.id, {
-                  onSuccess: () => {
-                    modal.success({ title: 'Deleted', content: `${team.name} has been deleted.` });
-                    onClose();
-                  },
-                  onError: (err) => modal.error({ title: 'Failed to delete', content: errorMessage(err) }),
-                });
-              }
-            })}>
-              Delete
-            </Button>
-          </PermissionGate>
-        </Flex>
-      }
+      footer={null}
     >
       <Flex vertical gap={token.paddingXL}>
         {/* Stats */}
@@ -131,7 +96,7 @@ export function TeamDetailDrawer({ open, team, members, onClose, onEdit }: TeamD
             <Statistic title="Members" value={team.memberCount} />
           </Card>
           <Card size="small">
-            <Statistic title="Projects" value={team.projects.length} />
+            <Statistic title="Projects" value={(team.projects ?? []).length} />
           </Card>
           <Card size="small">
             <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM, display: 'block', marginBottom: token.marginXS }}>Created</Typography.Text>
@@ -165,10 +130,10 @@ export function TeamDetailDrawer({ open, team, members, onClose, onEdit }: TeamD
         </Card>
 
         {/* Projects */}
-        <Card size="small" title={`Projects (${team.projects.length})`}>
-          {team.projects.length > 0 ? (
+        <Card size="small" title={`Projects (${(team.projects ?? []).length})`}>
+          {(team.projects ?? []).length > 0 ? (
             <Flex wrap="wrap" gap={token.paddingXS}>
-              {team.projects.map((p) => <StatusPill key={p} variant="teal">{p}</StatusPill>)}
+              {(team.projects ?? []).map((p) => <StatusPill key={p} variant="teal">{p}</StatusPill>)}
             </Flex>
           ) : (
             <Typography.Text type="secondary" style={{ fontSize: token.fontSize }}>

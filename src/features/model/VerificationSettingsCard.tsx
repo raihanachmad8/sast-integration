@@ -1,17 +1,18 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { App, Form, Select, Switch, Card, Typography, Row, Col, Flex, Button, Skeleton, theme } from 'antd';
+import { useEffect } from 'react';
+import { z } from 'zod';
+
 import { FaIcon } from '@/commons/components/FaIcon';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
-import { clientEnv } from '@/config/client-env';
-import { Api } from '@/lib/api/client';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
 import type { ApiResponse } from '@/commons/types/api';
-import { createZodSync } from '@/lib/utils/zod-sync';
-import { z } from 'zod';
+import { clientEnv } from '@/config/client-env';
+import { Api } from '@/lib/api/client';
 import { usePermissions } from '@/lib/hooks/usePermissions';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+import { createZodSync } from '@/lib/utils/zod-sync';
 
 const verificationSchema = z.object({
   confidence: z.string().min(1, 'Confidence threshold is required'),

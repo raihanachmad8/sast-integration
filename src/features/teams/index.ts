@@ -6,5 +6,5 @@ export { TeamDetailDrawer } from './TeamDetailDrawer';
 export { TeamForm } from './TeamForm';
 export { EditTeamPage } from './EditTeamPage';
 export { NewTeamPage } from './NewTeamPage';
-export type { TeamFormInput } from './types';
+export type { TeamFormInput } from '@/commons/schemas/team.schema';
 export type { Team, TeamMember } from '@/commons/types';

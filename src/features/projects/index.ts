@@ -10,4 +10,4 @@ export { ProjectListCard } from './ProjectListCard';
 export { NewProjectPage } from './NewProjectPage';
 export { ProjectsPage } from './ProjectsPage';
 export type { Project } from '@/commons/types';
-export type { ProjectFormInput } from './types';
+export type { ProjectFormInput } from '@/commons/schemas/project.schema';

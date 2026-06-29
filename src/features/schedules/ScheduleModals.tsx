@@ -1,6 +1,7 @@
 'use client';
 
 import { Modal, Input, Select, Form, App, Row, Col, theme } from 'antd';
+
 import { MODAL_WIDTH } from '@/commons/constants/layout';
 import { createScheduleSchema, updateScheduleSchema } from '@/commons/schemas/schedule.schema';
 import { createZodSync } from '@/lib/utils/zod-sync';
@@ -48,7 +49,7 @@ export function EditScheduleModal({ open, schedule, onClose, onSave }: EditSched
   const [form] = Form.useForm();
   const rule = createZodSync(updateScheduleSchema);
 
-  const reposQuery = useRepositoriesQuery({ page: 1, perPage: 200 });
+  const reposQuery = useRepositoriesQuery({ page: 1, perPage: 100 });
   const repoOptions = (reposQuery.data?.data ?? []).map((r: { id: string; name: string }) => ({ value: r.id, label: r.name }));
 
   const handleSave = () => {
@@ -122,7 +123,7 @@ export function AddScheduleModal({ open, onClose, onSave }: AddScheduleModalProp
   const [form] = Form.useForm();
   const rule = createZodSync(createScheduleSchema);
 
-  const reposQuery = useRepositoriesQuery({ page: 1, perPage: 200 });
+  const reposQuery = useRepositoriesQuery({ page: 1, perPage: 100 });
   const repoOptions = (reposQuery.data?.data ?? []).map((r: { id: string; name: string }) => ({ value: r.id, label: r.name }));
 
   const handleSave = () => {

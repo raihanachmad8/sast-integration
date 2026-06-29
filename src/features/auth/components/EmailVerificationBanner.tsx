@@ -1,9 +1,10 @@
 'use client';
 
 import { Alert, App, Button, theme } from 'antd';
-import { useEmailVerificationStatus, useSessionQuery } from '@/modules/auth/queries';
-import { authApi } from '@/modules/auth/api';
+
 import { FaIcon } from '@/commons/components/FaIcon';
+import { authApi } from '@/modules/auth/api';
+import { useEmailVerificationStatus, useSessionQuery } from '@/modules/auth/queries';
 
 /**
  * Global banner shown to authenticated users who have not verified their email.

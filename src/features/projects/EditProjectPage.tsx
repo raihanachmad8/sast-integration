@@ -1,12 +1,13 @@
 'use client';
 
 import { Typography, Flex, theme } from 'antd';
-import { useProjectQuery } from '@/modules/projects';
+
+import { ErrorState } from '@/commons/components/ErrorState';
+import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
 import { ProjectForm, ProjectApiTokens } from '@/features/projects';
-import { LoadingState } from '@/commons/components/LoadingState';
-import { ErrorState } from '@/commons/components/ErrorState';
 import { errorMessage } from '@/lib/api/errors';
+import { useProjectQuery } from '@/modules/projects';
 
 /**
  * Full-page project editor with project form and API token management.

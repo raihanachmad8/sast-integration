@@ -1,7 +1,8 @@
 'use client';
 
-import { Typography, Row, Col, Flex, Tag, theme } from 'antd';
 import { TrophyOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
+import { Typography, Row, Col, Flex, Tag, theme } from 'antd';
+
 import { LANDING_TOKENS } from '@/commons/constants/landing-tokens';
 
 const { Title, Text } = Typography;
@@ -271,76 +272,43 @@ export function LandingMetrics() {
           >
             {/* Inner scroll wrapper for mobile */}
             <div className="lp-table-scroll" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <div style={{ minWidth: 480 }}>
-            {/* Table header */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 130px 130px',
-                padding: '14px 24px',
-                background: 'rgba(255,255,255,0.05)',
-                borderBottom: '1px solid rgba(255,255,255,0.08)',
-              }}
-            >
-              <Text style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.04em' }}>
-                CAPABILITY
-              </Text>
-              <Text
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: LANDING_TOKENS.accent.teal,
-                  letterSpacing: '0.04em',
-                  textAlign: 'center',
-                }}
-              >
-                SAST INTEGRATION
-              </Text>
-              <Text
-                style={{
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: LANDING_TOKENS.text.faint,
-                  letterSpacing: '0.04em',
-                  textAlign: 'center',
-                }}
-              >
-                TRADITIONAL SAST
-              </Text>
-            </div>
-
-            {/* Table rows */}
-            {COMPARISON.map((row, i) => (
-              <div
-                key={row.label}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 130px 130px',
-                  padding: '13px 24px',
-                  background:
-                    i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
-                  borderBottom:
-                    i < COMPARISON.length - 1
-                      ? '1px solid rgba(255,255,255,0.05)'
-                      : 'none',
-                  alignItems: 'center',
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 13,
-                    color: LANDING_TOKENS.text.secondary,
-                    fontWeight: 500,
-                  }}
-                >
-                  {row.label}
-                </Text>
-                <Cell value={row.ours} />
-                <Cell value={row.traditional} />
-              </div>
-            ))}
-            </div>{/* end minWidth wrapper */}
-          </div>{/* end scroll wrapper */}
+            <table style={{ minWidth: 480, width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  <th scope="col" style={{ padding: '14px 24px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.04em' }}>
+                    CAPABILITY
+                  </th>
+                  <th scope="col" style={{ padding: '14px 24px', textAlign: 'center', width: 130, fontSize: 12, fontWeight: 700, color: LANDING_TOKENS.accent.teal, letterSpacing: '0.04em' }}>
+                    SAST INTEGRATION
+                  </th>
+                  <th scope="col" style={{ padding: '14px 24px', textAlign: 'center', width: 130, fontSize: 12, fontWeight: 700, color: LANDING_TOKENS.text.faint, letterSpacing: '0.04em' }}>
+                    TRADITIONAL SAST
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARISON.map((row, i) => (
+                  <tr
+                    key={row.label}
+                    style={{
+                      background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
+                      borderBottom: i < COMPARISON.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                    }}
+                  >
+                    <td style={{ padding: '13px 24px', fontSize: 13, color: LANDING_TOKENS.text.secondary, fontWeight: 500 }}>
+                      {row.label}
+                    </td>
+                    <td style={{ padding: '13px 24px', textAlign: 'center' }}>
+                      <Cell value={row.ours} />
+                    </td>
+                    <td style={{ padding: '13px 24px', textAlign: 'center' }}>
+                      <Cell value={row.traditional} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>{/* end scroll wrapper */}
           </div>{/* end border container */}
         </div>
       </div>

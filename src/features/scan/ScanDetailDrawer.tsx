@@ -2,14 +2,16 @@
 
 import { Drawer, Tabs, Typography, Descriptions, Statistic, Progress, Space, Card, Button, Flex, theme } from 'antd';
 import React from 'react';
+
+import { EmptyState } from '@/commons/components/EmptyState';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { StatusTag } from '@/commons/components/StatusTag';
+import { SCAN_ORIGIN } from '@/commons/constants/layout';
+
 import { FindingItem } from './FindingItem';
 import { ScanTimeline } from './ScanTimeline';
 import type { ScanDetail, ScanFinding } from './types';
-import { StatusTag } from '@/commons/components/StatusTag';
-import { StatusPill } from '@/commons/components/StatusPill';
-import { EmptyState } from '@/commons/components/EmptyState';
-import { SCAN_ORIGIN } from '@/commons/constants/layout';
 
 const { Text } = Typography;
 

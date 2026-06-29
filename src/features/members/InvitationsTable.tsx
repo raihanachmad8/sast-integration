@@ -1,21 +1,22 @@
 'use client';
 
-import { useMemo } from 'react';
 import { Typography, theme } from 'antd';
+import { useMemo } from 'react';
+
+import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { IdentityCell } from '@/commons/components/IdentityCell';
 import { StatusPill } from '@/commons/components/StatusPill';
-import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { useTableParams } from '@/lib/hooks/useTableParams';
 import { formatDate } from '@/lib/utils/formatDate';
 import { roleLabel } from '@/lib/utils/roleLabel';
-import { useTableParams } from '@/lib/hooks/useTableParams';
-import { usePermissions } from '@/lib/hooks/usePermissions';
-import { useInvitationsQuery } from '@/modules/members';
+import { useInvitationsQuery } from '@/modules/invitations';
+
 import type { Invitation } from './types';
 import { PILL_VARIANT } from './types';
 
 interface InvitationsTableProps {
-  workspaceId: string;
   onRevoke: (invitationId: string) => void;
   tabId?: string;
 }
@@ -40,7 +41,7 @@ const STATUS_FILTER_OPTIONS = [
  *   tabId="invitations"
  * />
  */
-export function InvitationsTable({ workspaceId, onRevoke, tabId }: InvitationsTableProps) {
+export function InvitationsTable({ onRevoke, tabId }: InvitationsTableProps) {
   const { isAtLeast } = usePermissions();
   const canManage = isAtLeast('manager');
   const { token } = theme.useToken();
@@ -50,10 +51,11 @@ export function InvitationsTable({ workspaceId, onRevoke, tabId }: InvitationsTa
     defaultPageSize: 10,
   });
 
-  const query = useInvitationsQuery(workspaceId, {
+  const query = useInvitationsQuery({
     page: params.page,
     perPage: params.perPage,
-    search: params.search || undefined,
+    search: params.search || '',
+    status: params.filters.status || undefined,
   });
 
   const columns: DataTableColumn<Invitation>[] = [

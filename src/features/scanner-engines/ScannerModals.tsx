@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Drawer, Input, Typography, Button, Flex, Pagination, theme } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
+import { Drawer, Input, Typography, Button, Flex, Pagination, theme } from 'antd';
+import { useState, useEffect, useRef } from 'react';
+
 import { FaIcon } from '@/commons/components/FaIcon';
-import { StatusTag } from '@/commons/components/StatusTag';
-import { StatusPill } from '@/commons/components/StatusPill';
 import { LoadingState } from '@/commons/components/LoadingState';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { StatusTag } from '@/commons/components/StatusTag';
 import { useScannerRulesQuery } from '@/modules/scanner-engines';
 
 interface Scanner {
@@ -69,7 +70,7 @@ export function RulesDrawer({ open, scanner, onClose }: ScannerRulesDrawerProps)
 
   const rules = rulesQuery.data?.rules ?? [];
   const total = rulesQuery.data?.total ?? 0;
-  const totalPages = rulesQuery.data?.totalPages ?? 0;
+  const lastPage = rulesQuery.data?.lastPage ?? 0;
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
@@ -143,7 +144,7 @@ export function RulesDrawer({ open, scanner, onClose }: ScannerRulesDrawerProps)
         )}
       </div>
 
-      {totalPages > 1 && (
+      {lastPage > 1 && (
         <div style={{ padding: token.paddingXL, borderTop: `1px solid ${token.colorBorderSecondary}`, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
           <Pagination
             current={page}

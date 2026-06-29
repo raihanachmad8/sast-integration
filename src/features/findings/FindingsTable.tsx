@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
 import { Checkbox, Button, Typography, Avatar, Flex, theme } from 'antd';
-import { FaIcon } from '@/commons/components/FaIcon';
+import { useState, useMemo, useCallback } from 'react';
+
 import { DataTable, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
-import { StatusTag } from '@/commons/components/StatusTag';
-import type { Finding } from '@/commons/types';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { PermissionGate } from '@/commons/components/PermissionGate';
+import { StatusTag } from '@/commons/components/StatusTag';
 import { PERMISSION } from '@/commons/constants/permissions';
+import type { Finding } from '@/commons/types';
 
 const { Text } = Typography;
 
@@ -31,6 +32,14 @@ interface FindingsTableProps {
   members?: Array<{ userId: string; name: string; email: string }>;
   projectOptions?: Array<{ value: string; label: string }>;
   repositoryOptions?: Array<{ value: string; label: string }>;
+  onProjectSearch?: (v: string) => void;
+  onProjectScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
+  isProjectFetching?: boolean;
+  hasMoreProjects?: boolean;
+  onRepoSearch?: (v: string) => void;
+  onRepoScroll?: (e: React.UIEvent<HTMLDivElement>) => void;
+  isRepoFetching?: boolean;
+  hasMoreRepos?: boolean;
   sort?: { key: string; dir: 'asc' | 'desc' } | null;
   onSortChange?: (sort: { key: string; dir: 'asc' | 'desc' } | null) => void;
 }
@@ -76,7 +85,15 @@ const STATUS_OPTIONS = [
  *   onReview={(row) => openReview(row)}
  * />
  */
-export function FindingsTable({ rows, isLoading, total, page, pageSize, search, filterValues, onPageChange, onSearchChange, onFilterChange, onReview, onDismiss, onResolve, onReverify, onAssign, onAssignRow, members, projectOptions = [], repositoryOptions = [], sort, onSortChange }: FindingsTableProps) {
+export function FindingsTable({
+  rows, isLoading, total, page, pageSize, search, filterValues,
+  onPageChange, onSearchChange, onFilterChange, onReview,
+  onDismiss, onResolve, onReverify, onAssign, onAssignRow,
+  members, projectOptions = [], repositoryOptions = [],
+  onProjectSearch, onProjectScroll, isProjectFetching, hasMoreProjects,
+  onRepoSearch, onRepoScroll, isRepoFetching, hasMoreRepos,
+  sort, onSortChange,
+}: FindingsTableProps) {
   const { token } = theme.useToken();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -259,8 +276,8 @@ export function FindingsTable({ rows, isLoading, total, page, pageSize, search, 
         searchValue={search}
         onSearchChange={onSearchChange}
         filters={[
-          { key: 'project', label: 'Project', placeholder: 'All projects', options: projectOptions, searchable: true },
-          { key: 'repository', label: 'Repository', placeholder: 'All repositories', options: repositoryOptions, searchable: true },
+          { key: 'project', label: 'Project', placeholder: 'All projects', options: projectOptions, onSearch: onProjectSearch, onScroll: onProjectScroll, isFetching: isProjectFetching, hasMore: hasMoreProjects },
+          { key: 'repository', label: 'Repository', placeholder: 'All repositories', options: repositoryOptions, onSearch: onRepoSearch, onScroll: onRepoScroll, isFetching: isRepoFetching, hasMore: hasMoreRepos },
           { key: 'severity', label: 'Severity', placeholder: 'All severities', options: SEVERITY_OPTIONS },
           { key: 'verdict', label: 'Verdict', placeholder: 'All verdicts', options: VERDICT_OPTIONS },
           { key: 'status', label: 'Status', placeholder: 'All statuses', options: STATUS_OPTIONS },

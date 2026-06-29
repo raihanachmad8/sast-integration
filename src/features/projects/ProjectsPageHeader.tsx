@@ -1,9 +1,10 @@
 'use client';
 
 import { Button, theme } from 'antd';
+
+import { FaIcon } from '@/commons/components/FaIcon';
 import { PageHeader } from '@/commons/components/PageHeader';
 import { PermissionGate } from '@/commons/components/PermissionGate';
-import { FaIcon } from '@/commons/components/FaIcon';
 import { PERMISSION } from '@/commons/constants/permissions';
 
 interface ProjectsPageHeaderProps {

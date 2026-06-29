@@ -1,26 +1,33 @@
 'use client';
 
-import { useState } from 'react';
-import { Alert, App, Button, Input, Modal, Typography, Form, Flex, theme } from 'antd';
-import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Alert, App, Button, Input, Modal, Typography, Form, Flex, theme } from 'antd';
+import { useState } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+
+import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { DataTable, type DataTableColumn } from '@/commons/components/DataTable';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { LoadingState } from '@/commons/components/LoadingState';
-import { DataTable, type DataTableColumn } from '@/commons/components/DataTable';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { PERMISSION } from '@/commons/constants/permissions';
+import { createApiTokenSchema, type CreateApiTokenInput } from '@/commons/schemas';
+import { errorMessage } from '@/lib/api/errors';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { useTableParams } from '@/lib/hooks/useTableParams';
-import { useApiTokensQuery, useCreateApiTokenMutation, useRevokeApiTokenMutation } from '@/modules/projects/api-token-queries';
-import { createApiTokenSchema, type CreateApiTokenInput } from '@/commons/schemas';
-import type { ApiToken } from '@/modules/projects/api-tokens';
-import { errorMessage } from '@/lib/api/errors';
 import { formatDate } from '@/lib/utils/formatDate';
-import { useConfirm } from '@/commons/components/ConfirmDialog';
-import { StatusPill } from '@/commons/components/StatusPill';
-import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
-import { PERMISSION } from '@/commons/constants/permissions';
+import { useApiTokensQuery, useCreateApiTokenMutation, useRevokeApiTokenMutation } from '@/modules/api-tokens';
+import type { ApiToken } from '@/modules/api-tokens';
 
 interface ProjectApiTokensProps {
   projectId: string;
+  /** Whether the create token modal is currently open */
+  createModalOpen?: boolean;
+  /** Callback when the create token modal should close */
+  onCloseCreate?: () => void;
+  /** Callback to open the create token modal from parent */
+  onOpenCreate?: () => void;
 }
 
 /**
@@ -34,24 +41,28 @@ interface ProjectApiTokensProps {
  * @example
  * <ProjectApiTokens projectId="proj_123" />
  */
-export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
+export function ProjectApiTokens({ projectId, createModalOpen: createModalOpenProp, onCloseCreate: onCloseCreateProp, onOpenCreate: _onOpenCreate }: ProjectApiTokensProps) {
   const { confirm } = useConfirm();
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const { isAtLeast } = usePermissions();
   const canManage = isAtLeast('manager');
 
+  // Support both controlled (parent-managed) and uncontrolled (internal) modal state
+  const [internalCreateModalOpen, setInternalCreateModalOpen] = useState(false);
+  const createModalOpen = createModalOpenProp ?? internalCreateModalOpen;
+  const onCloseCreate = onCloseCreateProp ?? (() => setInternalCreateModalOpen(false));
+
   const tokensQuery = useApiTokensQuery(projectId);
   const createMutation = useCreateApiTokenMutation(projectId);
   const revokeMutation = useRevokeApiTokenMutation(projectId);
 
-  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createdToken, setCreatedToken] = useState<{ name: string; rawToken: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<CreateApiTokenInput>({
     resolver: zodResolver(createApiTokenSchema),
-    defaultValues: { name: '' },
+    defaultValues: { name: '', permissions: ['scans:upload'] },
   });
 
   const tokens = tokensQuery.data?.data ?? [];
@@ -69,7 +80,7 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
         onSuccess: (result) => {
           setCreatedToken({ name: result.token.name, rawToken: result.rawToken });
           reset();
-          setCreateModalOpen(false);
+          onCloseCreate();
         },
         onError: (err) => message.error(errorMessage(err)),
       },
@@ -147,20 +158,9 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
       <PermissionGate
         permission={PERMISSION.PROJECT_MANAGE}
         fallback={
-          <Flex vertical gap={token.marginMD}>
-            <Typography.Title level={5} style={{ margin: 0 }}>API Tokens</Typography.Title>
-            <PermissionHint permission={PERMISSION.PROJECT_MANAGE} message="API tokens are used for CI/CD integrations. You need Manager or Owner role to manage them." />
-          </Flex>
+          <PermissionHint permission={PERMISSION.PROJECT_MANAGE} message="API tokens are used for CI/CD integrations. You need Manager or Owner role to manage them." />
         }
       >
-        <Flex justify="space-between" align="center" style={{ marginBottom: token.marginLG }}>
-          <Typography.Title level={5} style={{ margin: 0 }}>API Tokens</Typography.Title>
-          {canManage && (
-            <Button icon={<FaIcon icon="fa-plus" />} onClick={() => setCreateModalOpen(true)}>
-              Create token
-            </Button>
-          )}
-        </Flex>
 
         {tokensQuery.isLoading ? (
           <LoadingState text="Loading tokens..." />
@@ -189,7 +189,7 @@ export function ProjectApiTokens({ projectId }: ProjectApiTokensProps) {
       <Modal
         title="Create API token"
         open={createModalOpen}
-        onCancel={() => { setCreateModalOpen(false); reset(); }}
+        onCancel={() => { onCloseCreate(); reset(); }}
         onOk={handleSubmit(handleCreate)}
         confirmLoading={createMutation.isPending}
         okText="Create"

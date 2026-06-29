@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
 import { Typography, Flex, theme } from 'antd';
-import { FaIcon } from '@/commons/components/FaIcon';
+import { useMemo, useCallback } from 'react';
+
 import { DataTable, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { StatusTag } from '@/commons/components/StatusTag';
 import { SCAN_STATUS, SCAN_ORIGIN } from '@/commons/constants/layout';
+
 import type { ScanRow } from './types';
 
 interface ScanTableProps {

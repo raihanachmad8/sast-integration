@@ -1,18 +1,19 @@
 'use client';
 
+import { CloseOutlined } from '@ant-design/icons';
 import { Button, Drawer, Modal, Input, Select, Form, App, Card, Typography, Tag, Flex, theme } from 'antd';
+
+import { FaIcon } from '@/commons/components/FaIcon';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { StatusTag } from '@/commons/components/StatusTag';
 import { MODAL_WIDTH } from '@/commons/constants/layout';
+import { PERMISSION } from '@/commons/constants/permissions';
 import { updateKnowledgeEntrySchema } from '@/commons/schemas/knowledge-base.schema';
 import { createCustomRuleSchema } from '@/commons/schemas/knowledge-custom-rule.schema';
-import { createZodSync } from '@/lib/utils/zod-sync';
 import { formatDate } from '@/lib/utils/formatDate';
+import { createZodSync } from '@/lib/utils/zod-sync';
 
 const { Title } = Typography;
-import { CloseOutlined } from '@ant-design/icons';
-import { FaIcon } from '@/commons/components/FaIcon';
-import { StatusTag } from '@/commons/components/StatusTag';
-import { PermissionGate } from '@/commons/components/PermissionGate';
-import { PERMISSION } from '@/commons/constants/permissions';
 
 interface KnowledgeBaseEntry {
   id: string;

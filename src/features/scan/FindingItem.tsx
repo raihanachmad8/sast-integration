@@ -1,16 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
 import { Typography, Tooltip, Button, Flex, theme } from 'antd';
+import React, { useState } from 'react';
+
 import { FaIcon } from '@/commons/components/FaIcon';
+import { PermissionGate } from '@/commons/components/PermissionGate';
+import { StatusTag } from '@/commons/components/StatusTag';
 import { TRANSITION } from '@/commons/constants/layout';
+import { PERMISSION } from '@/commons/constants/permissions';
 import { STATUS_TOKENS } from '@/commons/constants/tokens';
+
 import { AiVerificationBadge } from './AiVerificationBadge';
 import { FindingAiAnalysisCard } from './FindingAiAnalysisCard';
 import type { ScanFinding } from './types';
-import { StatusTag } from '@/commons/components/StatusTag';
-import { PermissionGate } from '@/commons/components/PermissionGate';
-import { PERMISSION } from '@/commons/constants/permissions';
 
 const { Text, Paragraph } = Typography;
 

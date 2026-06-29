@@ -1,17 +1,18 @@
 'use client';
 
-import { App, Button, Drawer, Flex, Typography, theme } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
-import { FaIcon } from '@/commons/components/FaIcon';
-import { LAYOUT } from '@/commons/constants/layout';
+import { App, Button, Drawer, Flex, Typography, theme } from 'antd';
+
 import { useConfirm } from '@/commons/components/ConfirmDialog';
-import { useDeleteProjectMutation } from '@/modules/projects';
-import { errorMessage } from '@/lib/api/errors';
-import type { Project } from '@/commons/types';
-import { StatusPill } from '@/commons/components/StatusPill';
 import { EmptyState } from '@/commons/components/EmptyState';
+import { FaIcon } from '@/commons/components/FaIcon';
 import { PermissionGate } from '@/commons/components/PermissionGate';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { LAYOUT } from '@/commons/constants/layout';
 import { PERMISSION } from '@/commons/constants/permissions';
+import type { Project } from '@/commons/types';
+import { errorMessage } from '@/lib/api/errors';
+import { useDeleteProjectMutation } from '@/modules/projects';
 
 interface ProjectDetailDrawerProps {
   open: boolean;
@@ -71,11 +72,10 @@ export function ProjectDetailDrawer({ open, project, onClose, onEdit }: ProjectD
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: token.paddingXL }}>
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: token.marginMD }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: token.marginMD }}>
           <StatCard label="Repos" value={project.repositories?.length ?? 0} />
           <StatCard label="Teams" value={project.teams?.length ?? 0} />
           <StatCard label="Members" value={project.members?.length ?? 0} />
-          <StatCard label="Automation" value={project.automation?.length ?? 0} />
         </div>
 
         {project.description && (
@@ -88,32 +88,24 @@ export function ProjectDetailDrawer({ open, project, onClose, onEdit }: ProjectD
         <section>
           <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: token.fontWeightStrong }}>Repositories</Typography.Title>
           {project.repositories?.length > 0
-            ? <Flex wrap="wrap" gap={token.paddingXS}>{project.repositories.map(r => <StatusPill key={r} variant="slate">{r}</StatusPill>)}</Flex>
+            ? <Flex wrap="wrap" gap={token.paddingXS}>{project.repositories.map(r => <StatusPill key={r.id} variant="slate">{r.name}</StatusPill>)}</Flex>
             : <Typography.Paragraph style={{ color: token.colorTextSecondary, fontSize: token.fontSize }}>No repositories attached.</Typography.Paragraph>
           }
         </section>
 
         <section>
           <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: token.fontWeightStrong }}>Teams</Typography.Title>
-          {(project.teamNames ?? project.teams ?? []).length > 0
-            ? <Flex wrap="wrap" gap={token.paddingXS}>{(project.teamNames ?? project.teams ?? []).map((t, i) => <StatusPill key={project.teams?.[i] ?? t} variant="teal">{t}</StatusPill>)}</Flex>
+          {(project.teams?.length ?? 0) > 0
+            ? <Flex wrap="wrap" gap={token.paddingXS}>{project.teams?.map(t => <StatusPill key={t.id} variant="teal">{t.name}</StatusPill>)}</Flex>
             : <Typography.Paragraph style={{ color: token.colorTextSecondary, fontSize: token.fontSize }}>No teams assigned.</Typography.Paragraph>
           }
         </section>
 
         <section>
           <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: token.fontWeightStrong }}>Direct members</Typography.Title>
-          {(project.memberNames ?? project.members ?? []).length > 0
-            ? <Flex wrap="wrap" gap={token.paddingXS}>{(project.memberNames ?? project.members ?? []).map((m, i) => <StatusPill key={project.members?.[i] ?? m} variant="slate">{m}</StatusPill>)}</Flex>
+          {(project.members?.length ?? 0) > 0
+            ? <Flex wrap="wrap" gap={token.paddingXS}>{project.members?.map(m => <StatusPill key={m.id} variant="slate">{m.name}</StatusPill>)}</Flex>
             : <Typography.Paragraph style={{ color: token.colorTextSecondary, fontSize: token.fontSize }}>No direct members.</Typography.Paragraph>
-          }
-        </section>
-
-        <section>
-          <Typography.Title level={5} style={{ marginBottom: token.marginMD, marginTop: 0, fontWeight: token.fontWeightStrong }}>Automation</Typography.Title>
-          {project.automation?.length > 0
-            ? <Flex wrap="wrap" gap={token.paddingXS}>{project.automation.map(a => <StatusPill key={a} variant="teal">{a}</StatusPill>)}</Flex>
-            : <StatusPill variant="slate">Manual</StatusPill>
           }
         </section>
 

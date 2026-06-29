@@ -1,12 +1,13 @@
 'use client';
 
 import { Table } from 'antd';
-import { LoadingState } from '@/commons/components/LoadingState';
+
 import { EmptyState } from '@/commons/components/EmptyState';
 import { ErrorState } from '@/commons/components/ErrorState';
-import { useQualityGateConfigQuery } from '@/modules/quality-gates';
-import type { QualityGate } from '@/commons/types/reports';
+import { LoadingState } from '@/commons/components/LoadingState';
 import { StatusPill } from '@/commons/components/StatusPill';
+import { useQualityGateConfigQuery } from '@/modules/quality-gates';
+import type { QualityGateConfig } from '@/modules/quality-gates/api';
 
 interface GateConfigTableProps {
   workspaceId: string;
@@ -95,7 +96,7 @@ export function GateConfigTable(_props: GateConfigTableProps) {
     <Table
       columns={columns}
       dataSource={[gate]}
-      rowKey={(r: QualityGate) => r.id}
+      rowKey={(r: QualityGateConfig) => r.id}
       pagination={false}
       size="middle"
       scroll={{ x: 600 }}

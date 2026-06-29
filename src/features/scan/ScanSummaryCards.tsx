@@ -1,9 +1,11 @@
 'use client';
 
 import { Card, Row, Col, Typography, Flex, theme } from 'antd';
+
 import { FaIcon } from '@/commons/components/FaIcon';
-import { STATUS_TOKENS } from '@/commons/constants/tokens';
 import { SCAN_STATUS, SCAN_ORIGIN } from '@/commons/constants/layout';
+import { STATUS_TOKENS } from '@/commons/constants/tokens';
+
 import type { ScanRow } from './types';
 
 interface ScanSummaryCardsProps {

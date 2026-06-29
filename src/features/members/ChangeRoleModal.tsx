@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
 import { Modal, Select, Form, Card, Flex, Tag, Typography, theme } from 'antd';
+import { useEffect } from 'react';
+
+import { changeRoleSchema } from '@/commons/schemas';
 import { ASSIGNABLE_ROLES, ROLE_HELP, roleLabel } from '@/lib/utils/roleLabel';
 import { createZodSync } from '@/lib/utils/zod-sync';
-import { changeRoleSchema } from '@/commons/schemas';
 
 /** Zod-powered form rule — validates role from single schema source. */
 const rule = createZodSync(changeRoleSchema);

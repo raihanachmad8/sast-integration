@@ -1,11 +1,12 @@
 'use client';
 
-import { Card, Button, Typography, Tag, Flex, Space, theme } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
+import { Card, Button, Typography, Tag, Flex, Space, theme } from 'antd';
+
 import { FaIcon } from '@/commons/components/FaIcon';
-import type { PendingInvitation } from '@/modules/workspace/types';
 import { getInitials } from '@/lib/utils/getInitials';
 import { roleLabel } from '@/lib/utils/roleLabel';
+import type { PendingInvitation } from '@/modules/workspace/types';
 
 const { Text } = Typography;
 

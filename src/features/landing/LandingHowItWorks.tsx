@@ -1,12 +1,13 @@
 'use client';
 
-import { Typography, Row, Col, Flex, Tag, theme } from 'antd';
 import {
   ApiOutlined,
   SecurityScanOutlined,
   RobotOutlined,
   FileTextOutlined,
 } from '@ant-design/icons';
+import { Typography, Row, Col, Flex, Tag, theme } from 'antd';
+
 import { LANDING_TOKENS } from '@/commons/constants/landing-tokens';
 
 const { Title, Text } = Typography;

@@ -1,9 +1,10 @@
 'use client';
 
-import { Card, Button, Typography, Flex, Alert, theme } from 'antd';
-import { StatusPill } from '@/commons/components/StatusPill';
 import { LeftOutlined, PlusOutlined } from '@ant-design/icons';
+import { Card, Button, Typography, Flex, Alert, theme } from 'antd';
+
 import { FaIcon } from '@/commons/components/FaIcon';
+import { StatusPill } from '@/commons/components/StatusPill';
 
 const { Title, Text, Paragraph } = Typography;
 

@@ -1,8 +1,10 @@
 'use client';
 
 import { Timeline, Typography, Empty, Flex, theme } from 'antd';
+
 import { FaIcon } from '@/commons/components/FaIcon';
 import { BORDER_RADIUS } from '@/commons/constants/layout';
+
 import type { TimelineEvent, TimelineEventType } from './types';
 
 const { Text } = Typography;

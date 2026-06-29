@@ -1,16 +1,18 @@
 'use client';
 
-import React, { Suspense } from 'react';
-import { Drawer, Typography, Flex, Spin, theme } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
-import { CodeBlock } from '@/commons/components/CodeBlock';
+import { Drawer, Typography, Flex, Spin, theme } from 'antd';
+import React, { Suspense } from 'react';
+
 import { AiAnalysisCard } from '@/commons/components/AiAnalysisCard';
+import { CodeBlock } from '@/commons/components/CodeBlock';
+import { EmptyState } from '@/commons/components/EmptyState';
 import { MemberSelect } from '@/commons/components/MemberSelect';
 import { StatusTag } from '@/commons/components/StatusTag';
-import { EmptyState } from '@/commons/components/EmptyState';
-import { ScannerOutputSection } from './ScannerOutputSection';
-import { FindingActions } from './FindingActions';
 import type { Finding } from '@/commons/types';
+
+import { FindingActions } from './FindingActions';
+import { ScannerOutputSection } from './ScannerOutputSection';
 
 const { Title, Text } = Typography;
 

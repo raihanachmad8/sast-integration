@@ -1,9 +1,10 @@
 'use client';
 
 import { Card, Typography, theme } from 'antd';
-import type { DashboardFinding } from '@/modules/dashboard';
-import { StatusTag } from '@/commons/components/StatusTag';
+
 import { StatusPill } from '@/commons/components/StatusPill';
+import { StatusTag } from '@/commons/components/StatusTag';
+import type { DashboardFinding } from '@/modules/dashboard';
 
 interface AttentionRequiredProps {
   /** Array of findings requiring attention. */

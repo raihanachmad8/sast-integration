@@ -1,12 +1,13 @@
 'use client';
 
 import { Typography, Flex, theme } from 'antd';
-import { useTeamQuery } from '@/modules/teams';
+
+import { ErrorState } from '@/commons/components/ErrorState';
+import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
 import { TeamForm } from '@/features/teams';
-import { LoadingState } from '@/commons/components/LoadingState';
-import { ErrorState } from '@/commons/components/ErrorState';
 import { errorMessage } from '@/lib/api/errors';
+import { useTeamQuery } from '@/modules/teams';
 
 /**
  * Full-page team editor with the TeamForm component.

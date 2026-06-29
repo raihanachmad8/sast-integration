@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { Button, Drawer, Typography, Flex, Input, Tag, Space, theme, App } from 'antd';
 import { CloseOutlined, LinkOutlined, CopyOutlined } from '@ant-design/icons';
+import { Button, Drawer, Typography, Flex, Input, Tag, Space, theme, App } from 'antd';
+import { useState, useCallback } from 'react';
+
 import { FaIcon } from '@/commons/components/FaIcon';
 import { BORDER_RADIUS } from '@/commons/constants/layout';
+
 import { GITHUB_GUIDE } from './GitHubGuide';
 import { GITLAB_GUIDE } from './GitLabGuide';
 import { GITEA_GUIDE } from './GiteaGuide';

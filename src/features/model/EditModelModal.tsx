@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
-import { Modal, Input, Select, Form, App, theme, Flex, Typography, Tooltip } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
-import { MODAL_WIDTH, MODEL_ROLE } from '@/commons/constants/layout';
+import { Modal, Input, Select, Form, App, theme, Flex, Typography, Tooltip } from 'antd';
+import { useState, useMemo, useCallback } from 'react';
+
 import { FaIcon } from '@/commons/components/FaIcon';
-import { PROVIDERS, ROLE_OPTIONS, PROFILE_TYPE_OPTIONS, PROVIDER } from './providers';
+import { MODAL_WIDTH, MODEL_ROLE } from '@/commons/constants/layout';
 import { updateAiModelSchema } from '@/commons/schemas/ai-model.schema';
 import { createZodSync } from '@/lib/utils/zod-sync';
+
+import { PROVIDERS, ROLE_OPTIONS, PROFILE_TYPE_OPTIONS, PROVIDER } from './providers';
 
 interface Model {
   id: string;

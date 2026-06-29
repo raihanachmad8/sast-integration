@@ -1,5 +1,6 @@
 import { ROLE } from '@/commons/constants/permissions';
-import type { Member as ApiMember, Invitation as ApiInvitation } from '@/modules/members/api';
+import type { Invitation as ApiInvitation } from '@/modules/invitations/api';
+import type { Member as ApiMember } from '@/modules/members/api';
 
 /** Represents a workspace member with their profile and role information. */
 export type Member = ApiMember;

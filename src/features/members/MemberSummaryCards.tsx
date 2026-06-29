@@ -1,9 +1,10 @@
 'use client';
 
 import { Avatar, Card, Row, Col, Typography, Flex, theme } from 'antd';
+
 import { FaIcon } from '@/commons/components/FaIcon';
-import { roleLabel } from '@/lib/utils/roleLabel';
 import { usePermissions } from '@/lib/hooks/usePermissions';
+import { roleLabel } from '@/lib/utils/roleLabel';
 
 interface MemberSummaryCardsProps {
   memberCount: number;

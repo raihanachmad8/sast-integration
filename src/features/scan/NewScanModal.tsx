@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo } from 'react';
 import { Modal, Select, Typography, Button, Form, Flex, theme } from 'antd';
-import { MODAL_WIDTH } from '@/commons/constants/layout';
+import { useMemo } from 'react';
+
 import { FaIcon } from '@/commons/components/FaIcon';
+import { MODAL_WIDTH } from '@/commons/constants/layout';
 import { createScanSchema } from '@/commons/schemas/scan.schema';
 import { createZodSync } from '@/lib/utils/zod-sync';
 import { useScannerAvailabilityQuery, useRepositoryBranchesQuery } from '@/modules/scan/queries';
+
 import type { ScanConfig } from './types';
 
 const { Text } = Typography;

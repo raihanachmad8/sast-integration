@@ -1,12 +1,13 @@
 'use client';
 
-import { Card, Button, Typography, Tag, Flex, Space, theme } from 'antd';
 import { RightOutlined } from '@ant-design/icons';
-import { WORKSPACE } from '@/server/modules/workspace/constants';
+import { Card, Button, Typography, Tag, Flex, Space, theme } from 'antd';
+
 import { FaIcon } from '@/commons/components/FaIcon';
+import { WORKSPACE } from '@/commons/constants/workspace';
+import { formatJoinedDate } from '@/lib/utils/formatDate';
 import { getInitials } from '@/lib/utils/getInitials';
 import { roleLabel } from '@/lib/utils/roleLabel';
-import { formatJoinedDate } from '@/lib/utils/formatDate';
 
 const { Text } = Typography;
 

@@ -1,12 +1,13 @@
 'use client';
 
 import { Input, Modal, Select, Form, Card, Flex, Typography, theme } from 'antd';
-import { ROLE } from '@/commons/constants/permissions';
+
 import { ErrorBanner } from '@/commons/components/ErrorBanner';
-import { ASSIGNABLE_ROLES, ROLE_HELP, roleLabel, formatFieldLabel } from '@/lib/utils/roleLabel';
-import { errorMessage, fieldErrors, fieldErrorMessage } from '@/lib/api/errors';
-import { createZodSync } from '@/lib/utils/zod-sync';
+import { ROLE } from '@/commons/constants/permissions';
 import { inviteMemberSchema } from '@/commons/schemas';
+import { errorMessage, fieldErrors, fieldErrorMessage } from '@/lib/api/errors';
+import { ASSIGNABLE_ROLES, ROLE_HELP, roleLabel, formatFieldLabel } from '@/lib/utils/roleLabel';
+import { createZodSync } from '@/lib/utils/zod-sync';
 
 /** Zod-powered form rule — validates email + role from single schema source. */
 const rule = createZodSync(inviteMemberSchema);

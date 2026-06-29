@@ -1,10 +1,11 @@
 'use client';
 
 import { Modal, Input, Form, theme } from 'antd';
+
 import { MODAL_WIDTH } from '@/commons/constants/layout';
-import { createZodSync } from '@/lib/utils/zod-sync';
 import { projectFormSchema } from '@/commons/schemas';
 import type { Project } from '@/commons/types';
+import { createZodSync } from '@/lib/utils/zod-sync';
 import type { ProjectFormInput } from '@/modules/projects/types';
 
 const rule = createZodSync(projectFormSchema);
@@ -51,7 +52,7 @@ export function ProjectFormModal({ open, project, onCancel, onConfirm, isLoading
       onOk={() => form.validateFields().then((values) => onConfirm(values))}
     >
       <div style={{ display: 'grid', gap: token.paddingXL, padding: `${token.paddingLG} 0` }}>
-        <Form form={form} layout="vertical" initialValues={{ name: project?.name ?? '', description: project?.description ?? '' }}>
+        <Form form={form} layout="vertical" initialValues={{ name: project?.name ?? '', description: project?.description ?? '' }} onFinish={(values) => onConfirm(values)}>
           <Form.Item label="Project name" name="name" rules={[rule]}>
             <Input placeholder="e.g. Backend API" />
           </Form.Item>
@@ -59,6 +60,7 @@ export function ProjectFormModal({ open, project, onCancel, onConfirm, isLoading
           <Form.Item label="Description (optional)" name="description">
             <Input.TextArea placeholder="Optional description" rows={3} style={{ resize: 'vertical' }} />
           </Form.Item>
+          <button type="submit" style={{ display: 'none' }} aria-hidden="true" />
         </Form>
       </div>
     </Modal>

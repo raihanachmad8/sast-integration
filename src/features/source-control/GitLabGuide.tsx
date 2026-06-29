@@ -1,5 +1,6 @@
-import type { SetupGuide } from './SetupGuideDrawer';
 import { APP_BASE_URL } from '@/commons/constants/app';
+
+import type { SetupGuide } from './SetupGuideDrawer';
 
 const cbUrl = (id: string) => `${APP_BASE_URL}/api/v1/source-control/callback/${id}`;
 

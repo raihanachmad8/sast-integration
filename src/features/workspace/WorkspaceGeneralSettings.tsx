@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
 import { Form, Input, Button, Card, App, Flex, theme } from 'antd';
-import { useWorkspaceDetailQuery, useUpdateWorkspaceMutation } from '@/modules/workspace/queries';
-import { createZodSync } from '@/lib/utils/zod-sync';
-import { workspaceUpdateSchema } from '@/commons/schemas';
-import { LoadingState } from '@/commons/components/LoadingState';
+import { useEffect } from 'react';
+
 import { ErrorState } from '@/commons/components/ErrorState';
-import { errorMessage } from '@/lib/api/errors';
+import { LoadingState } from '@/commons/components/LoadingState';
 import { PermissionGate } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
+import { workspaceUpdateSchema } from '@/commons/schemas';
+import { errorMessage } from '@/lib/api/errors';
+import { createZodSync } from '@/lib/utils/zod-sync';
+import { useWorkspaceDetailQuery, useUpdateWorkspaceMutation } from '@/modules/workspace/queries';
 
 const rule = createZodSync(workspaceUpdateSchema);
 

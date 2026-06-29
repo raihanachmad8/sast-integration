@@ -1,6 +1,7 @@
 'use client';
 
 import { Card, Col, Row, Typography, theme } from 'antd';
+
 import { FaIcon } from '@/commons/components/FaIcon';
 
 interface DashboardSummaryCardsProps {

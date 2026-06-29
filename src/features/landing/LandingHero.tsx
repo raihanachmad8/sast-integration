@@ -1,7 +1,5 @@
 'use client';
 
-import { Button, Typography, Row, Col, Flex, theme, Tag } from 'antd';
-import Link from 'next/link';
 import {
   ArrowRightOutlined,
   GithubOutlined,
@@ -10,6 +8,9 @@ import {
   RobotOutlined,
   ThunderboltFilled,
 } from '@ant-design/icons';
+import { Button, Typography, Row, Col, Flex, theme, Tag } from 'antd';
+import Link from 'next/link';
+
 import { ROUTES } from '@/commons/constants';
 import { GITHUB_REPO_URL } from '@/commons/constants/landing';
 

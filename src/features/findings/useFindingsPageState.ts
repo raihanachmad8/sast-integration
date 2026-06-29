@@ -1,15 +1,24 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { App } from 'antd';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useMemo, useCallback } from 'react';
+
+import type { MemberListQuery as _MemberListQuery } from '@/commons/schemas/member.schema';
+import type { Finding } from '@/commons/types';
+import { useLazySelect } from '@/lib/hooks/useLazySelect';
+import { useTableParams } from '@/lib/hooks/useTableParams';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { useSessionData } from '@/modules/auth/queries';
 import { useFindingsQuery, useUpdateFindingMutation, useRunAiVerificationMutation, useBulkUpdateFindingsMutation, findingsApi } from '@/modules/findings';
-import { useLazyFilterOptions } from '@/lib/hooks/useLazyFilterOptions';
-import { useTableParams } from '@/lib/hooks/useTableParams';
-import type { Finding } from '@/commons/types';
 import type { FindingListParams } from '@/modules/findings/types';
+import { membersApi } from '@/modules/members/api';
+import { memberKeys } from '@/modules/members/keys';
+import { projectsApi } from '@/modules/projects/api';
+import { projectKeys } from '@/modules/projects/keys';
+import { repositoriesApi } from '@/modules/repositories/api';
+import { repositoryKeys } from '@/modules/repositories/keys';
 
 export function useFindingsPageState() {
   const { message } = App.useApp();
@@ -18,6 +27,7 @@ export function useFindingsPageState() {
   const queryClient = useQueryClient();
   const session = useSessionData();
   const workspaceSlug = session.data?.workspace?.slug ?? '';
+  const { workspaceId } = useWorkspace();
 
   const scanIdFromUrl = searchParams.get('scanId') || undefined;
 
@@ -41,10 +51,32 @@ export function useFindingsPageState() {
   };
 
   const findingsQuery = useFindingsQuery(tableParams);
-  const { members, memberOptions: MEMBER_OPTIONS, projectOptions: PROJECT_OPTIONS, repoOptions: REPOSITORY_OPTIONS } = useLazyFilterOptions({
-    workspaceId: session.data?.workspace?.id ?? '',
-    search: params.search || '',
+
+  // Lazy-loaded filter options via useLazySelect
+  const members = useLazySelect<{ userId: string; name: string; email: string }>({
+    workspaceId: workspaceId ?? '',
+    fetchFn: (ws, p) => membersApi.list(ws, { page: p.page, perPage: p.perPage, search: p.search }),
+    getId: (m) => m.userId,
+    getLabel: (m) => `${m.name} (${m.email})`,
+    baseKey: memberKeys.all,
   });
+
+  const projects = useLazySelect<{ id: string; name: string }>({
+    workspaceId: workspaceId ?? '',
+    fetchFn: (ws, p) => projectsApi.list(ws, { page: p.page, perPage: p.perPage, search: p.search }),
+    getId: (p) => p.id,
+    getLabel: (p) => p.name,
+    baseKey: projectKeys.all,
+  });
+
+  const repos = useLazySelect<{ id: string; name: string }>({
+    workspaceId: workspaceId ?? '',
+    fetchFn: (ws, p) => repositoriesApi.list(ws, { page: p.page, perPage: p.perPage, search: p.search }),
+    getId: (r) => r.id,
+    getLabel: (r) => r.name,
+    baseKey: repositoryKeys.all,
+  });
+
   const updateStatusMutation = useUpdateFindingMutation();
   const verifyMutation = useRunAiVerificationMutation();
   const bulkUpdateMutation = useBulkUpdateFindingsMutation();
@@ -215,7 +247,7 @@ export function useFindingsPageState() {
         onSuccess: () => {
           completed++;
           if (completed === bulkAssignIds.length) {
-            const member = members.find((m) => m.userId === bulkAssignee);
+            const member = members.data.find((m) => m.userId === bulkAssignee);
             message.success(`${bulkAssignIds.length} finding(s) assigned to ${member?.name ?? bulkAssignee}`);
             findingsQuery.refetch();
           }
@@ -245,10 +277,22 @@ export function useFindingsPageState() {
     findingsQuery,
     findings,
     totalCount,
-    members,
-    MEMBER_OPTIONS,
-    PROJECT_OPTIONS,
-    REPOSITORY_OPTIONS,
+    members: members.data,
+    memberOptions: members.options,
+    projectOptions: projects.options,
+    repositoryOptions: repos.options,
+    handleMemberSearch: members.handleSearch,
+    handleMemberScroll: members.handleScroll,
+    isMemberFetching: members.isFetchingNextPage,
+    hasMoreMembers: members.hasNextPage,
+    handleProjectSearch: projects.handleSearch,
+    handleProjectScroll: projects.handleScroll,
+    isProjectFetching: projects.isFetchingNextPage,
+    hasMoreProjects: projects.hasNextPage,
+    handleRepoSearch: repos.handleSearch,
+    handleRepoScroll: repos.handleScroll,
+    isRepoFetching: repos.isFetchingNextPage,
+    hasMoreRepos: repos.hasNextPage,
     tableParams,
     drawerOpen,
     setDrawerOpen,

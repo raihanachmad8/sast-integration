@@ -1,6 +1,7 @@
 'use client';
 
 import { Card, Flex, theme } from 'antd';
+
 import { StatusPill } from '@/commons/components/StatusPill';
 
 interface HealthItem {

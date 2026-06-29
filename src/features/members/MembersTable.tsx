@@ -1,23 +1,24 @@
 'use client';
 
-import { useMemo } from 'react';
 import { Typography, theme } from 'antd';
-import { ROLE } from '@/commons/constants/permissions';
+import { useMemo } from 'react';
+
+import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { IdentityCell } from '@/commons/components/IdentityCell';
 import { StatusPill } from '@/commons/components/StatusPill';
-import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
-import { getInitials } from '@/lib/utils/getInitials';
-import { formatDate } from '@/lib/utils/formatDate';
-import { roleLabel } from '@/lib/utils/roleLabel';
-import { useTableParams } from '@/lib/hooks/useTableParams';
+import { ROLE } from '@/commons/constants/permissions';
 import { usePermissions } from '@/lib/hooks/usePermissions';
+import { useTableParams } from '@/lib/hooks/useTableParams';
+import { formatDate } from '@/lib/utils/formatDate';
+import { getInitials } from '@/lib/utils/getInitials';
+import { roleLabel } from '@/lib/utils/roleLabel';
 import { useMembersQuery } from '@/modules/members';
+
 import type { Member } from './types';
 import { PILL_VARIANT } from './types';
 
 interface MembersTableProps {
-  workspaceId: string;
   currentUserId: string | undefined;
   onEdit: (member: Member) => void;
   onRemove: (userId: string) => void;
@@ -49,7 +50,6 @@ const ROLE_FILTER_OPTIONS = [
  * />
  */
 export function MembersTable({
-  workspaceId,
   currentUserId,
   onEdit,
   onRemove,
@@ -60,16 +60,18 @@ export function MembersTable({
   const canChangeRole = isAtLeast(ROLE.OWNER);
   const { token } = theme.useToken();
 
-  const { params, setPagination, setSearch, setFilter } = useTableParams({
+  const { params, setPagination, setSearch, setFilter, setSort } = useTableParams({
     filterKeys: ['role'],
     defaultPageSize: 10,
   });
 
-  const query = useMembersQuery(workspaceId, {
+  const query = useMembersQuery({
     page: params.page,
     perPage: params.perPage,
-    search: params.search || undefined,
-    role: params.filters.role || undefined,
+    search: params.search || '',
+    role: (params.filters.role || undefined) as 'member' | 'owner' | 'manager' | 'reviewer' | undefined,
+    sort: (params.sortKey || undefined) as 'email' | 'role' | 'name' | 'joinedAt' | undefined,
+    order: params.sortDir as 'desc' | 'asc' | undefined,
   });
 
   const activeFilters = useMemo(() => {
@@ -175,6 +177,8 @@ export function MembersTable({
         actions={actions.length > 0 ? actions : undefined}
         emptyText="No members found. Try a different search term or role filter."
         onChange={(p, ps) => setPagination(p, ps)}
+        sort={params.sortKey && params.sortDir ? { key: params.sortKey, dir: params.sortDir } : null}
+        onSortChange={(s) => setSort(s?.key ?? '', s?.dir ?? '')}
       />
     </div>
   );

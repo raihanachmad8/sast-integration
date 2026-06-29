@@ -1,8 +1,9 @@
 'use client';
 
+import { ArrowRightOutlined, BookOutlined, CheckCircleFilled } from '@ant-design/icons';
 import { Button, Typography, Flex, theme } from 'antd';
 import Link from 'next/link';
-import { ArrowRightOutlined, BookOutlined, CheckCircleFilled } from '@ant-design/icons';
+
 import { ROUTES } from '@/commons/constants';
 
 const { Title, Paragraph, Text } = Typography;
