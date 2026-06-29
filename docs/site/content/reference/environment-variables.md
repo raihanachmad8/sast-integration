@@ -1,74 +1,86 @@
+---
+title: Environment Variables
+description: Complete environment variable reference
+---
+
 # Environment Variables
 
-## Server-Side Variables
+## Required
 
-### Core
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/sast_db` |
+| `JWT_SECRET` | Secret for JWT tokens (min 32 chars) | `<random-32+ chars>` |
+| `NODE_ENV` | Environment mode | `development` / `production` |
+| `OWNER_EMAIL` | Admin email for initial seed | `admin@domain.com` |
+| `OWNER_PASSWORD` | Admin password | `<secure-password>` |
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DATABASE_URL` | Yes | — | PostgreSQL connection string |
-| `REDIS_URL` | Yes | — | Redis connection string |
-| `AUTH_SECRET` | Yes | — | Session encryption secret |
-| `NODE_ENV` | No | `development` | Environment mode |
-
-### Feature Flags (Server)
+## Optional
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FEATURE_FLAG_SCAN_MANAGED` | `true` | Managed scanning |
-| `FEATURE_FLAG_SCAN_EXTERNAL_UPLOAD` | `true` | External CI upload |
-| `FEATURE_FLAG_AI_VERIFICATION` | `true` | AI verification |
-| `FEATURE_FLAG_QUALITY_GATES` | `true` | Quality gate policies |
-| `FEATURE_FLAG_TEAMS` | `true` | Team management |
-| `FEATURE_FLAG_PROJECTS` | `true` | Project organization |
-| `FEATURE_FLAG_KNOWLEDGE_BASE` | `true` | Knowledge base |
-| `FEATURE_FLAG_SCHEDULES` | `false` | Recurring scans |
+| `PORT` | `3000` | Application port |
+| `APP_URL` | `http://localhost:3000` | Server-side app URL |
+| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | Client-side app URL |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:3000/api/v1` | Client-side API URL |
+| `WORKSPACE_MODE` | `multiple` | `single` or `multiple` |
+| `MAIL_PROVIDER` | `console` | `console` or `smtp` |
+| `NVD_API_KEY` | — | NVD API key for knowledge base |
+| `STORAGE_PROVIDER` | `local` | `local`, `s3`, or `cloudinary` |
+
+## Feature Flags
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FEATURE_FLAG_SCAN_MANAGED` | `true` | Managed scan feature |
+| `FEATURE_FLAG_SCAN_EXTERNAL_UPLOAD` | `true` | External upload feature |
+| `FEATURE_FLAG_AI_VERIFICATION` | `true` | AI verification feature |
+| `FEATURE_FLAG_QUALITY_GATES` | `true` | Quality gates feature |
+| `FEATURE_FLAG_TEAMS` | `true` | Teams feature |
+| `FEATURE_FLAG_PROJECTS` | `true` | Projects feature |
+| `FEATURE_FLAG_KNOWLEDGE_BASE` | `true` | Knowledge base feature |
+| `FEATURE_FLAG_SCHEDULES` | `false` | Scheduled scans feature |
 | `FEATURE_FLAG_SOURCE_CONTROL_GITHUB` | `true` | GitHub integration |
 | `FEATURE_FLAG_SOURCE_CONTROL_GITLAB` | `true` | GitLab integration |
 | `FEATURE_FLAG_SOURCE_CONTROL_GITEA` | `true` | Gitea integration |
-| `FEATURE_FLAG_WEBHOOKS` | `false` | Outgoing webhooks |
-| `FEATURE_FLAG_SCAN_PROFILES` | `true` | Scan policies |
-| `FEATURE_FLAG_SCANNER_ENGINES` | `true` | Scanner configuration |
-| `FEATURE_FLAG_AI_MODELS` | `true` | AI model management |
-| `FEATURE_FLAG_REPORTS` | `true` | PDF/XLSX reports |
-| `FEATURE_FLAG_ARENA` | `false` | AI comparison |
+| `FEATURE_FLAG_WEBHOOKS` | `false` | Webhooks feature |
+| `FEATURE_FLAG_SCAN_PROFILES` | `true` | Scan profiles feature |
+| `FEATURE_FLAG_SCANNER_ENGINES` | `true` | Scanner engines feature |
+| `FEATURE_FLAG_AI_MODELS` | `true` | AI models feature |
+| `FEATURE_FLAG_REPORTS` | `true` | Reports feature |
+| `FEATURE_FLAG_ARENA` | `false` | Arena comparison feature |
 
-### Scanner
-
-| Variable | Description |
-|----------|-------------|
-| `SEMGREP_RULES_DIR` | Custom Semgrep rules directory |
-| `FLAWFINDER_RULES_DIR` | Custom Flawfinder rules directory |
-| `CPPCHECK_SUPPRESSIONS_PATH` | Cppcheck suppressions file |
-
-### Storage
+## Scanner Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `STORAGE_TYPE` | `local` | `local` or `s3` |
-| `STORAGE_PATH` | `./storage` | Local storage path |
-| `SAST_S3_BUCKET` | — | S3 bucket name |
-| `SAST_S3_REGION` | — | S3 region |
-| `SAST_S3_ACCESS_KEY` | — | S3 access key |
-| `SAST_S3_SECRET_KEY` | — | S3 secret key |
+| `SEMGREP_RULES_DIR` | `./rules/semgrep` | Custom Semgrep rules directory |
+| `GITLEAKS_CONFIG_PATH` | — | Custom Gitleaks config file |
+| `FLAWFINDER_RULES_DIR` | `./rules/flawfinder` | Custom Flawfinder rules |
+| `CPPCHECK_SUPPRESSIONS_PATH` | — | Cppcheck suppressions file |
 
-## Client-Side Variables
+## Client-Safe (NEXT_PUBLIC_*)
 
-All client-side feature flags use the `NEXT_PUBLIC_` prefix:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | Client app URL |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:3000/api/v1` | Client API URL |
+| `NEXT_PUBLIC_WORKSPACE_MODE` | `multiple` | Workspace mode |
+| `NEXT_PUBLIC_FEATURE_FLAG_*` | varies | Feature flags (17 total) |
 
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_FEATURE_FLAG_TEAMS` | Client teams flag |
-| `NEXT_PUBLIC_FEATURE_FLAG_PROJECTS` | Client projects flag |
-| `NEXT_PUBLIC_FEATURE_FLAG_KNOWLEDGE_BASE` | Client knowledge base flag |
-| `NEXT_PUBLIC_FEATURE_FLAG_SCANNER_ENGINES` | Client scanner engines flag |
-| `NEXT_PUBLIC_FEATURE_FLAG_AI_MODELS` | Client AI models flag |
-| `NEXT_PUBLIC_FEATURE_FLAG_REPORTS` | Client reports flag |
+## Security
 
-## CI/CD Variables
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `JWT_EXPIRES_IN` | `15m` | Access token expiry |
+| `REFRESH_EXPIRES_IN` | `7d` | Refresh token expiry |
+| `RATE_LIMIT_ENABLED` | `true` | Enable rate limiting |
 
-| Variable | Description |
-|----------|-------------|
-| `SAST_API_URL` | Platform API base URL |
-| `SAST_PROJECT_TOKEN` | Project API token |
-| `SAST_SCAN_ID` | Scan ID from init response |
+## Seeder
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OWNER_EMAIL` | `owner@sast.local` | Owner email |
+| `OWNER_PASSWORD` | `ChangeMe123!` | Owner password |
+| `ORG_NAME` | `SAST Organization` | Organization name |
+| `ORG_SLUG` | `sast-org` | Organization slug |

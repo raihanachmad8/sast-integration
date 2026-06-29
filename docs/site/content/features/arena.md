@@ -1,44 +1,39 @@
+---
+title: Arena
+description: AI model comparison and testing
+---
+
 # Arena
 
 ## Overview
 
 Arena provides A/B comparison of AI model configurations. Test different models, prompts, and settings to find the optimal verification setup.
 
+> **Note:** Arena is currently behind a feature flag (`FEATURE_FLAG_ARENA=false` by default). Enable it in your `.env` to access this feature.
+
 ## How It Works
 
-1. Create a comparison run
-2. Select findings to verify
-3. Configure model variants
-4. Run comparison
-5. Review results and pick the best model
+```mermaid
+flowchart TD
+    A["Create comparison run"] --> B["Select findings to verify"]
+    B --> C["Choose model configurations"]
+    C --> D["Run verification"]
+    D --> E["Compare results"]
+
+    style A fill:#4a9eff,color:#fff
+    style E fill:#22c55e,color:#fff
+```
+
+1. **Create comparison run** — Select a set of findings
+2. **Choose models** — Pick 2+ model configurations to compare
+3. **Run verification** — Each model verifies the same findings
+4. **Compare results** — See accuracy, speed, and cost differences
 
 ## Use Cases
 
-| Scenario | Description |
+| Use Case | Description |
 |----------|-------------|
-| Model Selection | Compare GPT-4 vs Claude vs local models |
-| Prompt Tuning | Test strict vs balanced prompts |
-| Cost Optimization | Find cheapest model with acceptable accuracy |
-
-## Comparison Metrics
-
-| Metric | Description |
-|--------|-------------|
-| Accuracy | % of correct verdicts |
-| Precision | % of TP verdicts that are correct |
-| Recall | % of actual TPs detected |
-| F1 Score | Harmonic mean of precision and recall |
-| Latency | Average response time |
-| Cost | Per-finding verification cost |
-
-## API Endpoints
-
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/arena` | `ARENA_VIEW` |
-| POST | `/arena` | `ARENA_MANAGE` |
-| GET | `/arena/:runId` | `ARENA_VIEW` |
-
-## Feature Flag
-
-Arena requires `FEATURE_FLAG_ARENA=true` (disabled by default).
+| Model selection | Compare Ollama vs OpenAI vs Anthropic |
+| Prompt tuning | Test strict vs balanced vs aggressive presets |
+| Threshold optimization | Find optimal confidence threshold |
+| Cost analysis | Compare cost per verification |

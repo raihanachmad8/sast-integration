@@ -1,62 +1,138 @@
+---
+title: Welcome
+description: Multi-scanner static application security testing platform with AI-powered false positive reduction
+---
+
 # Welcome to SAST Integration
 
 > Multi-scanner static application security testing platform with AI-powered false positive reduction.
 
-SAST Integration is a comprehensive security scanning platform that combines 6 scanner engines with LLM-based verification to deliver actionable security findings with minimal false positives.
+SAST Integration unifies 6 scanner engines with AI-powered verification to deliver actionable security findings with minimal false positives. Built for teams that need comprehensive code security analysis without the noise.
 
 ## Key Capabilities
 
-| Feature | Description |
-|---------|-------------|
-| **6 Scanner Engines** | Semgrep, Gitleaks, Flawfinder, Cppcheck, Clang-Tidy, GCC Fanalyzer |
-| **AI Verification** | QLoRA-tuned LLM reduces false positives by 70%+ |
-| **Source Control** | GitHub, GitLab, and Gitea integration |
-| **Knowledge Base** | CWE, NVD, and MITRE ATT&CK context enrichment |
-| **RBAC** | 4 roles with 37 granular permissions |
-| **Reporting** | PDF and XLSX security report generation |
+| Capability | Description | Details |
+|------------|-------------|---------|
+| **6 Scanner Engines** | Multi-language security analysis | Semgrep (30+ languages), Gitleaks (secrets), Flawfinder/Cppcheck/Clang-Tidy/GCC FanAnalyzer (C/C++) |
+| **AI Verification** | LLM-powered false positive reduction | Primary + fallback model chain, knowledge-base context enrichment |
+| **Source Control** | SCM integration | GitHub, GitLab, Gitea — auto-sync, webhooks, PR analysis |
+| **Knowledge Base** | NVD context enrichment | NVD feed sync (every 6h) |
+| **RBAC** | Role-based access control | 4 roles, 39 permissions, workspace-scoped |
+| **Quality Gates** | Automated scan evaluation | Configurable fail rules, commit status integration |
+| **Reporting** | PDF/XLSX/CSV exports | Findings list, scan summaries, workspace overviews |
+| **Scanning** | Scheduled + on-demand scans | Cron-based schedules, PR-triggered, CI/CD upload |
 
-## Quick Links
+## Architecture Overview
 
-- **[Installation](getting-started/installation.md)** — Set up your environment
-- **[First Scan](getting-started/first-scan.md)** — Run your first security scan
-- **[Architecture](architecture/overview.md)** — Understand the system design
-- **[API Reference](reference/api-overview.md)** — REST API documentation
+```mermaid
+graph TB
+    subgraph "User Interface"
+        Browser["🌐 Browser"]
+        CLI["⌨️ CI/CD"]
+    end
+
+    subgraph "Application"
+        NextJS["Next.js 16<br/>App Router"]
+        API["REST API<br/>/api/v1"]
+        Workers["pg-boss<br/>Workers"]
+    end
+
+    subgraph "Scanners"
+        Semgrep["🔍 Semgrep"]
+        Gitleaks["🔑 Gitleaks"]
+        Cppcheck["⚡ C/C++ Scanners"]
+    end
+
+    subgraph "AI"
+        LLM["🤖 LLM Providers"]
+        KB["📚 Knowledge Base"]
+    end
+
+    subgraph "Data"
+        PG[("🐘 PostgreSQL")]
+        Storage["📦 Storage"]
+    end
+
+    Browser --> NextJS
+    CLI --> API
+    NextJS --> API
+    API --> Workers
+    Workers --> Semgrep
+    Workers --> Gitleaks
+    Workers --> Cppcheck
+    Workers --> LLM
+    LLM --> KB
+    API --> PG
+    Workers --> PG
+    Workers --> Storage
+```
+
+## Tech Stack
+
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Framework | Next.js (App Router) | 16.2.9 |
+| Language | TypeScript (strict) | 5 |
+| UI | Ant Design | 6 |
+| ORM | Drizzle ORM | 0.45.2 |
+| Database | PostgreSQL | 16 |
+| Queue | pg-boss | — |
+| Auth | JWT (jose) + bcryptjs | — |
+| Validation | Zod | — |
+| Testing | Vitest + Playwright | — |
+| Container | Docker (Alpine Linux) | — |
+| Package Manager | pnpm | 10+ |
 
 ## How It Works
+
+```mermaid
+flowchart LR
+    A["1️⃣ Connect<br/>Import repos"] --> B["2️⃣ Scan<br/>Run 6 scanners"]
+    B --> C["3️⃣ Verify<br/>AI reduces FPs"]
+    C --> D["4️⃣ Triage<br/>Review & assign"]
+    D --> E["5️⃣ Report<br/>Generate PDF/XLSX"]
+
+    style A fill:#4a9eff,color:#fff
+    style B fill:#f59e0b,color:#fff
+    style C fill:#a855f7,color:#fff
+    style D fill:#22c55e,color:#fff
+    style E fill:#ef4444,color:#fff
+```
 
 1. **Connect** — Import repositories from GitHub, GitLab, or Gitea
 2. **Scan** — Run multi-engine static analysis with 6 scanners
 3. **Verify** — AI verifies findings and reduces false positives
-4. **Report** — Generate PDF/XLSX security reports
+4. **Triage** — Review, assign, resolve, or dismiss findings
+5. **Report** — Generate PDF/XLSX security reports
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Next.js App Router, React, TypeScript, Tailwind CSS, Ant Design |
-| Backend | Next.js API Routes, TypeScript |
-| Database | PostgreSQL with Drizzle ORM |
-| Queue | pg-boss (PostgreSQL-based job queue) |
-| Session | Redis |
-| AI | LLM providers with QLoRA fine-tuning |
-
-## Getting Started
+## Quick Start
 
 ```bash
-# Clone the repository
+# Clone and install
 git clone https://github.com/your-org/sast-integration.git
+cd sast-integration
+pnpm install
 
-# Install dependencies
-npm install
-
-# Set up environment
+# Configure environment
 cp .env.example .env
+# Edit .env — set DATABASE_URL, JWT_SECRET, OWNER_EMAIL, OWNER_PASSWORD
 
-# Run database migrations
-npm run db:migrate
+# Setup database
+pnpm db:reset
 
 # Start development server
-npm run dev
+pnpm dev
 ```
 
-See the [Installation Guide](getting-started/installation.md) for detailed setup instructions.
+Access at **http://localhost:3000** — sign up with the `OWNER_EMAIL` from your `.env`.
+
+## Quick Links
+
+| Section | Description |
+|---------|-------------|
+| [Installation](getting-started/installation.md) | Environment setup and installation |
+| [First Scan](getting-started/first-scan.md) | Run your first security scan |
+| [Architecture](architecture/overview.md) | System design and technical overview |
+| [Features](features/scans.md) | Scan management and capabilities |
+| [API Reference](reference/api-overview.md) | REST API documentation |
+| [Deployment](../../DEPLOYMENT.md) | Production deployment guide |

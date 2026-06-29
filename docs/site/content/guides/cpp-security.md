@@ -1,88 +1,55 @@
+---
+title: C/C++ Security Guide
+description: Common C/C++ vulnerabilities and scanner recommendations
+---
+
 # C/C++ Security Guide
 
 ## Overview
 
-C/C++ code requires special attention due to memory safety issues. This guide covers common vulnerabilities and how the scanner engines detect them.
+C/C++ code requires special attention due to memory safety issues. This guide covers common vulnerabilities and scanner recommendations.
 
 ## Common Vulnerabilities
 
-### Buffer Overflows
+| Vulnerability | CWE | Scanner | Description |
+|---------------|-----|---------|-------------|
+| Buffer Overflow | CWE-120 | Flawfinder, Cppcheck | Writing beyond array bounds |
+| Format String | CWE-134 | Flawfinder | User input in format strings |
+| Use-After-Free | CWE-416 | Clang-Tidy, GCC | Accessing freed memory |
+| Integer Overflow | CWE-190 | Cppcheck | Arithmetic overflow |
+| Null Dereference | CWE-476 | Cppcheck, Clang-Tidy | Pointer used without null check |
+| Memory Leak | CWE-401 | Cppcheck, GCC | Unallocated memory |
 
-| Scanner | Detection |
-|---------|-----------|
-| Flawfinder | strcpy, strncpy, sprintf, gets |
-| Cppcheck | Array bounds checking |
-| Clang-Tidy | `cert-*`, `security-*` checks |
-| GCC Fanalyzer | Static analysis with `-fanalyzer` |
+## Recommended Scanner Combination
 
-### Memory Leaks
+```mermaid
+graph LR
+    A["C/C++ Codebase"] --> B["Semgrep<br/>Language-agnostic rules"]
+    A --> C["Flawfinder<br/>Pattern matching"]
+    A --> D["Cppcheck<br/>Static analysis"]
+    A --> E["Clang-Tidy<br/>Linting"]
+    A --> F["GCC FanAnalyzer<br/>Data flow"]
 
-| Scanner | Detection |
-|---------|-----------|
-| Cppcheck | Resource leak detection |
-| Clang-Tidy | `clang-analyzer-cplusplus.NewDeleteLeaks` |
-| GCC Fanalyzer | Heap allocation tracking |
-
-### Format String Vulnerabilities
-
-| Scanner | Detection |
-|---------|-----------|
-| Flawfinder | printf, fprintf with user input |
-| Clang-Tidy | `security-formatString` |
-
-## Recommended Scanner Configuration
-
-For comprehensive C/C++ analysis:
-
-```bash
-# All C/C++ scanners
-scanners: ['semgrep', 'flawfinder', 'cppcheck', 'clang-tidy', 'gcc-fanalyzer']
+    style B fill:#4a9eff,color:#fff
+    style C fill:#22c55e,color:#fff
+    style D fill:#f59e0b,color:#fff
+    style E fill:#a855f7,color:#fff
+    style F fill:#06b6d4,color:#fff
 ```
 
-### Semgrep Rules for C
+## Scanner Capabilities
 
-The platform includes 100+ C-specific rules:
+| Scanner | Strengths | Weaknesses |
+|---------|-----------|------------|
+| **Flawfinder** | Fast, pattern-based, low false negatives | High false positives |
+| **Cppcheck** | Deep analysis, no compilation needed | Slower, requires source |
+| **Clang-Tidy** | Rich checks, fix suggestions | Requires compilation setup |
+| **GCC FanAnalyzer** | Data flow analysis, deep | Requires GCC, slower |
 
-| Rule | CWE | Description |
-|------|-----|-------------|
-| `insecure-use-string-copy-fn` | CWE-676 | strcpy/strncpy usage |
-| `insecure-use-gets-fn` | CWE-120 | gets() usage |
-| `buffer-overrun` | CWE-120 | Buffer overflow patterns |
-| `use-of-uninitialized-variable` | CWE-457 | Uninitialized variables |
+## Best Practices
 
-## Clang-Tidy Checks
-
-Enabled checks for security:
-
-| Check | Category | Severity |
-|-------|----------|----------|
-| `cert-err33-c` | CERT | High |
-| `security-*` | Security | High |
-| `clang-analyzer-*` | Analyzer | Medium |
-| `bugprone-*` | Bugprone | Medium |
-
-## Cppcheck Configuration
-
-```bash
-cppcheck --enable=warning,style,performance,portability,information \
-         --force --quiet --xml --xml-version=2
-```
-
-## GCC Fanalyzer
-
-```bash
-gcc -fanalyzer -Wall source.c -c
-```
-
-CWE mapping for GCC fanalyzer:
-
-| CWE | Severity |
-|-----|----------|
-| CWE-416 (Use After Free) | High |
-| CWE-476 (NULL Pointer) | High |
-| CWE-78 (Command Injection) | High |
-| CWE-120 (Buffer Overflow) | High |
-| CWE-125 (Out of Bounds Read) | High |
-| CWE-401 (Memory Leak) | Medium |
-| CWE-690 (NULL Deref) | Medium |
-| CWE-190 (Integer Overflow) | Medium |
+1. Use **Semgrep + Gitleaks** for all languages
+2. Add **Flawfinder** for quick C/C++ checks
+3. Use **Cppcheck** for deeper analysis
+4. Enable **Clang-Tidy** if build system is available
+5. Use **GCC FanAnalyzer** for critical C/C++ code

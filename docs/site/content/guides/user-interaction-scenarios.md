@@ -1,78 +1,88 @@
+---
+title: User Interaction Scenarios
+description: Common user journeys through the platform
+---
+
 # User Interaction Scenarios
 
-## Scenario 1: Developer — First-Time Setup
+## Scenario 1: First-Time Setup
 
-**Role:** Developer (member)
+```mermaid
+sequenceDiagram
+    actor Admin
+    participant App
 
-1. Receive workspace invitation via email
-2. Create account and set password
-3. Accept invitation
-4. View workspace dashboard (limited view)
-
-## Scenario 2: Security Lead — Full Workflow
-
-**Role:** Owner
-
-1. Connect GitHub organization
-2. Import 10 repositories
-3. Configure AI model (GPT-4)
-4. Create quality gates (fail on critical)
-5. Run first scans on all repos
-6. Review AI-verified findings
-7. Assign critical findings to developers
-8. Generate compliance report (PDF)
-9. Share report with stakeholders
-
-## Scenario 3: Developer — Finding Triage
-
-**Role:** Reviewer
-
-1. Receive notification for new findings
-2. Open Finding detail
-3. Review code snippet and AI verdict
-4. Confirm true positive
-5. Add comment with remediation plan
-6. Mark as "verified"
-7. Assign to team member
-
-## Scenario 4: Manager — Team Organization
-
-**Role:** Manager
-
-1. Create teams (Frontend, Backend, DevOps)
-2. Assign members to teams
-3. Create projects with team assignments
-4. Configure project-specific scan policies
-5. Review team activity in audit logs
-
-## Scenario 5: CI/CD Integration
-
-**Role:** DevOps (member)
-
-1. Create project API token
-2. Add scanner to CI pipeline
-3. Configure CI workflow:
-
-```yaml
-- name: Run SAST Scan
-  run: |
-    semgrep scan --json --config p/default > results.json
-    curl -X POST $SAST_API/ci/upload \
-      -H "Authorization: Bearer $TOKEN" \
-      -F "scanId=$SCAN_ID" \
-      -F "tool=semgrep" \
-      -F "sarif=@results.json"
+    Admin->>App: Sign up with email
+    App->>App: Create personal workspace
+    Admin->>App: Connect GitHub/GitLab
+    Admin->>App: Import repository
+    Admin->>App: Run first scan
+    App->>App: View findings
 ```
 
-4. Review findings in web UI
-5. Quality gate blocks merge if critical findings
+## Scenario 2: Run a Scan
 
-## Scenario 6: Audit Review
+```mermaid
+flowchart TD
+    A["Go to Scans"] --> B["Click New Scan"]
+    B --> C["Select Repository"]
+    C --> D["Select Branch"]
+    D --> E["Choose Scanners"]
+    E --> F["Start Scan"]
+    F --> G["Monitor Progress"]
+    G --> H["View Findings"]
+```
 
-**Role:** Owner
+## Scenario 3: Triage Findings
 
-1. Open audit logs page
-2. Filter by date range and action type
-3. Review member changes
-4. Export audit trail for compliance
-5. Generate security report
+```mermaid
+flowchart TD
+    A["Go to Findings"] --> B["Filter by severity"]
+    B --> C["Open finding detail"]
+    C --> D{"AI verdict?"}
+    D -->|"True Positive"| E["Acknowledge + assign"]
+    D -->|"False Positive"| F["Dismiss"]
+    D -->|"Pending"| G["Manual review"]
+    E --> H["Track to resolution"]
+```
+
+## Scenario 4: Set Up CI/CD
+
+```mermaid
+sequenceDiagram
+    participant Dev
+    participant SAST
+    participant CI as CI/CD
+
+    Dev->>SAST: Create Project API Token
+    Dev->>CI: Configure pipeline with token
+    CI->>SAST: POST /scans/upload/init
+    CI->>SAST: POST /scans/upload (results)
+    CI->>SAST: POST /scans/upload/complete
+    SAST->>SAST: Parse + AI verify
+```
+
+## Scenario 5: Invite Team
+
+```mermaid
+sequenceDiagram
+    actor Owner
+    participant App
+
+    Owner->>App: Go to Members
+    Owner->>App: Invite member by email
+    App->>App: Send invitation email
+    App->>App: Member accepts
+    Owner->>App: Assign to project
+```
+
+## Scenario 6: Generate Report
+
+```mermaid
+flowchart TD
+    A["Go to Reports"] --> B["Click Generate"]
+    B --> C["Select filters"]
+    C --> D["Choose format (PDF/XLSX)"]
+    D --> E["Generate"]
+    E --> F["Download"]
+```

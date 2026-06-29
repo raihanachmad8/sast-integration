@@ -1,79 +1,61 @@
+---
+title: Schedules
+description: Automated recurring scan schedules
+---
+
 # Schedules
 
 ## Overview
 
-Schedules automate recurring scans using cron expressions. Configure scans to run daily, weekly, or on custom schedules.
+Schedules automate recurring scans using cron expressions.
 
-## Schedule Structure
+## Create Schedule
 
-```typescript
-interface Schedule {
-  id: string;
-  workspace_id: string;
-  repository_id: string;
-  branch: string;
-  cron_expression: string;
-  timezone: string;
-  active: boolean;
-  last_run_at: Date | null;
-  next_run_at: Date | null;
-  created_by: string;
-}
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI
+    participant API
+    participant DB[(Database)]
+
+    User->>UI: Click "Add Schedule"
+    UI->>API: POST /api/v1/schedules
+    API->>DB: INSERT schedule
+    API->>DB: Calculate nextRunAt
+    API-->>UI: 201 { schedule }
 ```
 
-## Creating a Schedule
-
-### Via UI
-
-1. Go to **Schedules** page
-2. Click **Add Schedule**
-3. Select repository and branch
-4. Enter cron expression
-5. Set timezone
-6. Click **Create**
-
-### Via API
-
-```bash
-POST /api/v1/workspaces/:workspaceId/schedules
-{
-  "repositoryId": "uuid",
-  "branch": "main",
-  "cronExpression": "0 2 * * *",
-  "timezone": "UTC"
-}
-```
-
-## Cron Expressions
+## Cron Examples
 
 | Expression | Description |
-|------------|-------------|
-| `0 2 * * *` | Daily at 2 AM |
-| `0 2 * * 1` | Weekly on Monday at 2 AM |
-| `0 2 1 * *` | Monthly on 1st at 2 AM |
+|-----------|-------------|
+| `0 2 * * *` | Daily at 2:00 AM |
 | `0 */6 * * *` | Every 6 hours |
-| `0 2 * * 1-5` | Weekdays at 2 AM |
+| `0 9 * * 1-5` | Weekdays at 9:00 AM |
+| `0 0 1 * *` | First day of each month |
 
-## Timezone
+## Execution Flow
 
-Schedules support timezone-aware cron expressions:
+```mermaid
+flowchart TD
+    A["trigger-scheduled-managed-scan<br/>worker runs every minute"] --> B["SELECT schedules WHERE<br/>active = true AND nextRunAt <= now()"]
+    B --> C{"Due schedules?"}
+    C -->|"Yes"| D["Enqueue run-managed-scan"]
+    C -->|"No"| E["Sleep until next check"]
+    D --> F["UPDATE schedule:<br/>lastRunAt, nextRunAt"]
 
-```json
-{
-  "timezone": "America/New_York"
-}
+    style D fill:#4a9eff,color:#fff
 ```
 
-## Schedule Management
+## Toggle Schedule
 
-| Action | Endpoint |
-|--------|----------|
-| List | `GET /schedules` |
-| Create | `POST /schedules` |
-| Update | `PUT /schedules/:id` |
-| Delete | `DELETE /schedules/:id` |
-| Toggle | `PUT /schedules/:id/toggle` |
+```mermaid
+sequenceDiagram
+    actor User
+    participant API
+    participant DB[(Database)]
 
-## Feature Flag
-
-Schedules require `FEATURE_FLAG_SCHEDULES=true` (disabled by default).
+    User->>API: PATCH /api/v1/schedules/:id
+    API->>DB: UPDATE schedule SET active = ?
+    API-->>User: 200
+```

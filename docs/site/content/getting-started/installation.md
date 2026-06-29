@@ -1,92 +1,204 @@
+---
+title: Installation
+description: Step-by-step installation guide for SAST Integration
+---
+
 # Installation
 
 ## Prerequisites
 
 | Requirement | Version | Purpose |
 |------------|---------|---------|
-| Node.js | 20+ | Runtime |
-| PostgreSQL | 15+ | Database |
-| Redis | 7+ | Session store |
+| Node.js | 22+ | Runtime |
+| pnpm | 10+ | Package manager |
+| PostgreSQL | 16 | Database |
 | Git | 2.x | Repository cloning |
-| npm | 10+ | Package management |
+| Docker | 24+ | Container runtime (optional) |
+
+## Quick Start
+
+```mermaid
+flowchart TD
+    A["git clone"] --> B["pnpm install"]
+    B --> C["cp .env.example .env"]
+    C --> D["Configure DATABASE_URL"]
+    D --> E["pnpm db:reset"]
+    E --> F["pnpm dev"]
+    F --> G["http://localhost:3000"]
+
+    style A fill:#4a9eff,color:#fff
+    style E fill:#22c55e,color:#fff
+    style G fill:#f59e0b,color:#fff
+```
+
+### Step 1: Clone and Install
+
+```bash
+git clone https://github.com/your-org/sast-integration.git
+cd sast-integration
+pnpm install
+```
+
+### Step 2: Configure Environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your configuration:
+
+```bash
+# Database (required)
+DATABASE_URL=postgresql://postgres:root@localhost:5432/sast_db
+
+# Auth (required — minimum 32 characters)
+JWT_SECRET=your-secret-key-minimum-32-characters-long!!
+
+# App
+NODE_ENV=development
+PORT=3000
+
+# Owner account (created on first seed)
+OWNER_EMAIL=admin@yourdomain.com
+OWNER_PASSWORD=SecurePassword123!
+
+# Workspace mode
+# single = one shared org workspace (invite-only)
+# multiple = users self-signup + create workspaces (default)
+WORKSPACE_MODE=multiple
+```
+
+### Step 3: Setup Database
+
+```bash
+# Full reset: drop all tables → push schema → seed data
+pnpm db:reset
+```
+
+This creates the database schema and seeds:
+- Default permissions and roles
+- Owner user account
+- Organization workspace (in single mode)
+
+### Step 4: Start Development
+
+```bash
+pnpm dev
+```
+
+Access at **http://localhost:3000**.
 
 ## Scanner Dependencies
 
-Install the scanners you need (all are optional):
+All scanners are optional — install what you need:
+
+| Scanner | Purpose | Install |
+|---------|---------|---------|
+| **Semgrep** | Multi-language (30+) SAST | `pip install semgrep` |
+| **Gitleaks** | Secret detection | [Download binary](https://github.com/gitleaks/gitleaks/releases) |
+| **Flawfinder** | C/C++ pattern matching | `pip install flawfinder` |
+| **Cppcheck** | C/C++ static analysis | `apt install cppcheck` / `brew install cppcheck` |
+| **Clang-Tidy** | C/C++ linting | `apt install clang-tidy` / `brew install llvm` |
+| **GCC FanAnalyzer** | C/C++ data flow | Requires GCC 10+ |
 
 ```bash
-# Semgrep (multi-language, 30+ languages)
-pip install semgrep
+# Linux (Ubuntu/Debian)
+sudo apt install cppcheck clang-tidy gcc
 
-# Gitleaks (secrets detection)
-# Download from: https://github.com/gitleaks/gitleaks/releases
+# macOS
+brew install cppcheck llvm gcc
 
-# Flawfinder (C/C++ buffer overflows)
-pip install flawfinder
-
-# Cppcheck (C/C++ static analysis)
-# Ubuntu: sudo apt install cppcheck
-# macOS: brew install cppcheck
-
-# Clang-Tidy (C/C++ linter)
-# Ubuntu: sudo apt install clang-tidy
-# macOS: brew install llvm
-
-# GCC Fanalyzer (C/C++ static analysis)
-# Requires GCC 10+ with --enable analyzer
+# Docker (Alpine — included in image with INCLUDE_SCANNERS=true)
+# Already installed: semgrep, flawfinder, cppcheck, clang-tidy, gcc, gitleaks
 ```
 
-## Environment Setup
+## Docker Installation
+
+### Build Image
 
 ```bash
-# Copy environment template
-cp .env.example .env
+# Standard build
+docker build -t sast-integration .
 
-# Required variables
-DATABASE_URL=postgresql://user:pass@localhost:5432/sast
-REDIS_URL=redis://localhost:6379
-AUTH_SECRET=your-random-secret-here
-
-# Feature flags (enable/disable features)
-FEATURE_FLAG_TEAMS=true
-FEATURE_FLAG_PROJECTS=true
-FEATURE_FLAG_KNOWLEDGE_BASE=true
-FEATURE_FLAG_SCANNER_ENGINES=true
-FEATURE_FLAG_AI_MODELS=true
+# Build with all scanners included
+docker build --build-arg INCLUDE_SCANNERS=true -t sast-integration .
 ```
 
-## Database Setup
+### Run Container
 
 ```bash
-# Generate Drizzle schema
-npm run db:generate
-
-# Run migrations
-npm run db:migrate
-
-# Seed initial data (optional)
-npm run db:seed
+# Run with .env file (recommended)
+docker run -d --name sast-app -p 3000:3000 --sysctl net.ipv6.conf.all.disable_ipv6=1 --restart unless-stopped --env-file .env sast-integration
 ```
 
-## Start Development
+> **Important:** The `--sysctl net.ipv6.conf.all.disable_ipv6=1` flag fixes DNS resolution timeouts with external PostgreSQL providers (Neon, Supabase). See [Docker Networking](../../DEPLOYMENT.md#docker-networking) for details.
 
-```bash
-npm run dev
-```
-
-The application runs at `http://localhost:3000`.
-
-## Production Build
-
-```bash
-npm run build
-npm start
-```
-
-## Docker (Alternative)
+### Docker Compose
 
 ```bash
 docker compose up -d
+docker compose logs -f app
 ```
 
-This starts PostgreSQL, Redis, and the application server.
+## Available Commands
+
+```bash
+# Development
+pnpm dev                    # Start dev server (http://localhost:3000)
+pnpm build                  # Production build
+pnpm start                  # Start production server
+pnpm lint                   # ESLint check
+
+# Testing
+pnpm test                   # Unit tests (Vitest)
+pnpm test:e2e               # API end-to-end tests
+pnpm test:ui                # Playwright UI tests (headless)
+pnpm test:ui:headed         # Playwright UI tests (headed)
+
+# Database
+pnpm db:generate            # Generate migration from schema changes
+pnpm db:migrate             # Run pending migrations
+pnpm db:push                # Push schema directly (dev only)
+pnpm db:reset               # Drop → push → seed
+pnpm db:seed                # Seed default data only
+pnpm db:studio              # Open Drizzle Studio GUI
+```
+
+## Environment Variables
+
+### Required
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/sast_db` |
+| `JWT_SECRET` | Secret for JWT tokens (min 32 chars) | `<random-32+ chars>` |
+| `NODE_ENV` | Environment mode | `development` / `production` |
+| `OWNER_EMAIL` | Admin email for initial seed | `admin@domain.com` |
+| `OWNER_PASSWORD` | Admin password | `<secure-password>` |
+
+### Optional
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3000` | Application port |
+| `WORKSPACE_MODE` | `multiple` | `single` or `multiple` |
+| `MAIL_PROVIDER` | `console` | `console` or `smtp` |
+| `STORAGE_PROVIDER` | `local` | `local`, `s3`, or `cloudinary` |
+
+See [Environment Variables Reference](../reference/environment-variables.md) for the complete list.
+
+## Verify Installation
+
+```bash
+# Check health endpoint
+curl http://localhost:3000/api/v1/health
+
+# Expected response
+{
+  "success": true,
+  "message": "OK",
+  "data": {
+    "status": "healthy"
+  }
+}
+```

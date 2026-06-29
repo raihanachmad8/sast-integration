@@ -1,63 +1,71 @@
+---
+title: Project Access Control
+description: Project-level access control and member management
+---
+
 # Project Access Control
 
 ## Overview
 
-Projects provide an additional layer of access control within workspaces. Each project can have its own members, repositories, and API tokens.
+Projects provide an additional layer of access control within workspaces.
 
 ## Project Structure
 
+```mermaid
+graph TB
+    W["Workspace"] --> P["Project"]
+    P --> R["Repositories"]
+    P --> M["Members"]
+    P --> T["Teams"]
+    P --> API["API Tokens"]
+    P --> S["Scans"]
+    P --> F["Findings"]
+
+    style W fill:#4a9eff,color:#fff
+    style P fill:#f59e0b,color:#fff
 ```
-Workspace
-  └── Project
-        ├── Members (with roles)
-        ├── Repositories
-        ├── API Tokens
-        └── Scan Policies
+
+## Access Methods
+
+| Method | Description |
+|--------|-------------|
+| **Direct membership** | User → project via `project_members` |
+| **Team assignment** | Team → project via `project_teams` |
+| **Workspace role** | Owner/Manager have full project access |
+
+## Access Check Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API
+    participant DB[(Database)]
+
+    User->>API: GET /api/v1/projects/:id/scans
+    API->>API: authenticate(request)
+    API->>DB: getAccessibleProjectIds(userId, workspaceId)
+    API->>API: Check if projectId in accessible IDs
+    API->>DB: SELECT scans WHERE project_id = ?
+    API-->>User: 200 or 403
 ```
 
 ## Project Members
 
-| Role | Capabilities |
-|------|-------------|
-| owner | Full project access |
-| manager | Manage settings, members |
-| member | View and run scans |
+| Role | Permissions |
+|------|------------|
+| Admin | Full project management |
+| Member | View project data |
 
-## Access Control Rules
+## Project Teams
 
-1. **Workspace scope**: Projects belong to a workspace
-2. **Member scope**: Users must be workspace members
-3. **Project membership**: Optional project-level membership
-4. **Repository scope**: Repositories can be assigned to projects
+Teams can be assigned to projects for group-based access:
 
-## API Token Scope
+```mermaid
+graph LR
+    T["Team A"] --> P["Project X"]
+    T["Team A"] --> P2["Project Y"]
+    T2["Team B"] --> P
 
-Project API tokens are scoped to a single project:
-
-```typescript
-interface ProjectApiToken {
-  id: string;
-  project_id: string;
-  name: string;
-  token_hash: string;
-  created_at: Date;
-}
+    style T fill:#4a9eff,color:#fff
+    style T2 fill:#10b981,color:#fff
 ```
-
-## API Endpoints
-
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/projects` | `PROJECT_VIEW` |
-| POST | `/projects` | `PROJECT_MANAGE` |
-| GET | `/projects/:projectId` | `PROJECT_VIEW` |
-| PUT | `/projects/:projectId` | `PROJECT_MANAGE` |
-| DELETE | `/projects/:projectId` | `PROJECT_MANAGE` |
-| GET | `/projects/:projectId/api-tokens` | `PROJECT_VIEW` |
-| POST | `/projects/:projectId/api-tokens` | `PROJECT_MANAGE` |
-| DELETE | `/projects/:projectId/api-tokens/:tokenId` | `PROJECT_MANAGE` |
-| GET | `/projects/:projectId/members` | `PROJECT_MANAGE` |
-
-## Feature Flag
-
-Projects require `FEATURE_FLAG_PROJECTS=true`.

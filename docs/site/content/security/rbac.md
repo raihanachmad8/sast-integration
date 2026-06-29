@@ -1,89 +1,75 @@
+---
+title: Role-Based Access Control
+description: 4 roles with 39 granular permissions
+---
+
 # Role-Based Access Control (RBAC)
 
 ## Overview
 
-SAST Integration implements granular RBAC with 4 roles and 37 permissions.
+SAST Integration implements granular RBAC with 4 roles and 39 permissions.
 
 ## Role Hierarchy
 
-```
-owner (4) > manager (3) > reviewer (2) > member (1)
-```
+```mermaid
+graph TB
+    Owner["👑 Owner<br/>Level 4<br/>39 permissions"] --> Manager["🔧 Manager<br/>Level 3<br/>39 permissions"]
+    Manager --> Reviewer["🔍 Reviewer<br/>Level 2<br/>23 permissions"]
+    Reviewer --> Member["👤 Member<br/>Level 1<br/>17 permissions"]
 
-## Roles
-
-| Role | Level | Description |
-|------|-------|-------------|
-| owner | 4 | Full access, manage billing, delete workspace |
-| manager | 3 | Most access, invite members, manage settings |
-| reviewer | 2 | Run scans, triage findings, export reports |
-| member | 1 | View-only access across all resources |
+    style Owner fill:#ef4444,color:#fff
+    style Manager fill:#f59e0b,color:#fff
+    style Reviewer fill:#4a9eff,color:#fff
+    style Member fill:#22c55e,color:#fff
+```
 
 ## Permission Matrix
 
-| Permission | owner | manager | reviewer | member |
+| Capability | Owner | Manager | Reviewer | Member |
 |------------|:-----:|:-------:|:--------:|:------:|
-| DASHBOARD_VIEW | X | X | X | X |
-| REPOSITORY_VIEW | X | X | X | X |
-| REPOSITORY_MANAGE | X | X | - | - |
-| SCAN_VIEW | X | X | X | X |
-| SCAN_RUN | X | X | X | - |
-| FINDING_VIEW | X | X | X | X |
-| FINDING_TRIAGE | X | X | X | - |
-| FINDING_OVERRIDE_AI | X | X | X | - |
-| REPORT_VIEW | X | X | X | X |
-| REPORT_EXPORT | X | X | X | - |
-| MEMBER_VIEW | X | X | X | X |
-| MEMBER_INVITE | X | X | - | - |
-| MEMBER_MANAGE | X | X | - | - |
-| TEAM_VIEW | X | X | X | X |
-| TEAM_MANAGE | X | X | - | - |
-| PROJECT_VIEW | X | X | X | X |
-| PROJECT_MANAGE | X | X | - | - |
-| WORKSPACE_SETTINGS_VIEW | X | X | X | X |
-| WORKSPACE_SETTINGS_MANAGE | X | X | - | - |
-| AUDIT_VIEW | X | X | X | - |
+| View dashboard | ✅ | ✅ | ✅ | ✅ |
+| View findings | ✅ | ✅ | ✅ | ✅ |
+| Trigger scans | ✅ | ✅ | ✅ | ❌ |
+| Triage findings | ✅ | ✅ | ✅ | ❌ |
+| Override AI verdict | ✅ | ✅ | ✅ | ❌ |
+| Export reports | ✅ | ✅ | ✅ | ❌ |
+| Manage members | ✅ | ✅ | ✅ | ❌ |
+| Change member roles | ✅ | ✅ | ❌ | ❌ |
+| Workspace settings | ✅ | ✅ | ❌ | ❌ |
 
-## Permission Format
+## Permission Resources
 
+| Resource | Permissions |
+|----------|------------|
+| `dashboard` | view |
+| `repository` | view, manage |
+| `scan` | view, run, upload |
+| `finding` | view, triage, override_ai |
+| `report` | view, export |
+| `arena` | view, manage |
+| `member` | view, invite, manage |
+| `team` | view, manage |
+| `project` | view, manage |
+| `integration` | view, manage |
+| `webhook` | view, manage |
+| `schedule` | view, manage |
+| `policy` | view, manage |
+| `quality_gate` | view, manage |
+| `scanner` | view, manage |
+| `ai_model` | view, manage |
+| `knowledge` | read, manage |
+| `workspace` | view, settings |
+| `audit` | read |
+
+## Permission Checking
+
+```mermaid
+flowchart LR
+    A["User action"] --> B["PermissionGate<br/>component"]
+    B --> C{"Has permission?"}
+    C -->|"Yes"| D["Render action"]
+    C -->|"No"| E["Hide/disable action"]
+
+    style D fill:#22c55e,color:#fff
+    style E fill:#ef4444,color:#fff
 ```
-resource:action
-```
-
-### Resources (18)
-
-dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, scanner, ai_model, knowledge, workspace, audit
-
-### Actions (9)
-
-view, manage, run, triage, override_ai, export, invite, settings, read
-
-## Component Guards
-
-### PermissionGate (UI)
-
-```tsx
-<PermissionGate permission={PERMISSION.SCAN_RUN} fallback={<PermissionHint />}>
-  <Button>Run Scan</Button>
-</PermissionGate>
-```
-
-### requirePermission (API)
-
-```typescript
-const result = await requirePermission(
-  withWorkspaceId(request, workspaceId),
-  auth.context,
-  PERMISSION.SCAN_RUN
-);
-if (!result.success) return result.response;
-```
-
-## Role Summary
-
-| Role | Total | View Only | View + Manage | Special |
-|------|-------|-----------|---------------|---------|
-| owner | 35 | - | all | everything |
-| manager | 35 | - | most | +MEMBER_INVITE |
-| reviewer | 21 | 14 | 7 | +SCAN_RUN, +FINDING_TRIAGE, +FINDING_OVERRIDE_AI, +REPORT_EXPORT |
-| member | 16 | 16 | - | view-only across all resources |

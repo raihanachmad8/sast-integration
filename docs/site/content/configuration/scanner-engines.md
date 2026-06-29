@@ -1,3 +1,8 @@
+---
+title: Scanner Engines
+description: Configure and manage security scanner engines
+---
+
 # Scanner Engines
 
 ## Overview
@@ -6,101 +11,51 @@ Configure and manage the 6 scanner engines available in the platform.
 
 ## Scanner Overview
 
-| Scanner | Language Focus | Output | Binary |
-|---------|---------------|--------|--------|
-| semgrep | 30+ languages | JSON | `semgrep` |
-| gitleaks | Secrets | JSON | `gitleaks` |
-| flawfinder | C/C++ | SARIF | `flawfinder` |
-| cppcheck | C/C++ | XML | `cppcheck` |
-| clang-tidy | C/C++ | Text | `clang-tidy` |
-| gcc-fanalyzer | C/C++ | Text | `gcc` |
-
-## Scanner Configuration
-
-### Semgrep
-
-```typescript
-{
-  command: 'semgrep',
-  args: (targetDir) => [
-    'scan',
-    '--json',
-    '--config', SEMGREP_RULES_DIR,
-    '--metrics=off',
-    '--disable-version-check',
-    '--no-git-ignore',
-    '--skip-unknown-extensions',
-    targetDir,
-  ],
-  format: 'json',
-}
+```mermaid
+graph LR
+    subgraph "Multi-Language"
+        Semgrep["🔍 Semgrep<br/>30+ languages"]
+        Gitleaks["🔑 Gitleaks<br/>Secrets"]
+    end
+    subgraph "C/C++"
+        Flawfinder["🐛 Flawfinder"]
+        Cppcheck["⚡ Cppcheck"]
+        ClangTidy["🔧 Clang-Tidy"]
+        GCC["🏗️ GCC FanAnalyzer"]
+    end
+    style Semgrep fill:#4a9eff,color:#fff
+    style Gitleaks fill:#ef4444,color:#fff
 ```
 
-### Gitleaks
-
-```typescript
-{
-  command: 'gitleaks',
-  args: (targetDir) => [
-    'detect',
-    '--source', targetDir,
-    '--report-format', 'json',
-    '--report-path', 'results.json',
-    '--no-git',
-  ],
-  format: 'json',
-  outputStream: 'results.json',
-}
-```
-
-### Flawfinder
-
-```typescript
-{
-  command: 'flawfinder',
-  args: (targetDir) => ['--sarif', '--columns', targetDir],
-  format: 'sarif',
-}
-```
-
-### Cppcheck
-
-```typescript
-{
-  command: 'cppcheck',
-  args: (targetDir) => [
-    '--enable=warning,style,performance,portability,information',
-    '--force', '--quiet', '--xml', '--xml-version=2',
-    '.',
-  ],
-  format: 'xml',
-}
-```
+| Scanner | Languages | Output | Binary |
+|---------|-----------|--------|--------|
+| Semgrep | 30+ | JSON | `semgrep` |
+| Gitleaks | All | JSON | `gitleaks` |
+| Flawfinder | C/C++ | SARIF | `flawfinder` |
+| Cppcheck | C/C++ | XML | `cppcheck` |
+| Clang-Tidy | C/C++ | Text | `clang-tidy` |
+| GCC FanAnalyzer | C/C++ | Text | `gcc -fanalyzer` |
 
 ## Availability Check
 
-```bash
-GET /api/v1/workspaces/:workspaceId/scanners
+```mermaid
+sequenceDiagram
+    participant UI
+    participant API
+    participant System
 
-# Response
-{
-  "semgrep": true,
-  "gitleaks": true,
-  "flawfinder": false,
-  "cppcheck": true,
-  "clang-tidy": false,
-  "gcc-fanalyzer": true
-}
+    UI->>API: GET /api/v1/scanner-engines
+    API->>System: which semgrep / semgrep --version
+    API->>System: which gitleaks / gitleaks version
+    API->>System: which cppcheck / cppcheck --version
+    System-->>API: Version info
+    API-->>UI: 200 [{ name, version, installed }]
 ```
 
-## Limits
+## Custom Rules
 
-| Setting | Value |
-|---------|-------|
-| Max output buffer | 50MB |
-| Scanner timeout | 300 seconds |
-| Default scanners | semgrep, gitleaks |
-
-## Feature Flag
-
-Scanner engines configuration requires `FEATURE_FLAG_SCANNER_ENGINES=true`.
+| Scanner | Config | Directory |
+|---------|--------|-----------|
+| Semgrep | `SEMGREP_RULES_DIR` | `./rules/semgrep/` |
+| Gitleaks | `GITLEAKS_CONFIG_PATH` | `./.gitleaks.toml` |
+| Flawfinder | `FLAWFINDER_RULES_DIR` | `./rules/flawfinder/` |

@@ -1,3 +1,8 @@
+---
+title: API Overview
+description: REST API documentation and conventions
+---
+
 # API Overview
 
 ## Base URL
@@ -8,133 +13,97 @@
 
 ## Authentication
 
-All authenticated endpoints require:
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API
 
+    Client->>API: GET /api/v1/scans
+    Note right of Client: Header: Authorization: Bearer <token>
+    API->>API: Verify JWT
+    API->>API: Check session
+    API->>API: Extract workspaceId
+    API-->>Client: 200 { data }
 ```
-Authorization: Bearer <token>
-```
 
-## Response Envelope
+## Response Format
 
-All responses follow a standard envelope:
-
-```typescript
-interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T | null;
-  meta?: {
-    page?: number;
-    limit?: number;
-    total?: number;
-  };
+```json
+{
+  "success": true,
+  "message": "Data retrieved successfully",
+  "data": { ... },
+  "meta": {
+    "requestId": "abc-123",
+    "timestamp": "2026-06-27T00:00:00Z",
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 150,
+      "totalPages": 8
+    }
+  }
 }
 ```
 
-## Endpoint Groups
+## Error Format
 
-### Authentication
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "data": null,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "details": [
+      { "field": "email", "message": "Invalid email" }
+    ]
+  }
+}
+```
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/auth/signup` | Create account |
-| POST | `/auth/signin` | Sign in |
-| POST | `/auth/signout` | Sign out |
-| POST | `/auth/refresh` | Refresh session |
+## HTTP Status Codes
 
-### Workspaces
+| Code | Usage |
+|------|-------|
+| 200 | Success |
+| 201 | Created |
+| 204 | No Content (delete) |
+| 401 | Unauthorized (no/invalid token) |
+| 403 | Forbidden (missing permissions) |
+| 404 | Not Found |
+| 409 | Conflict (duplicate) |
+| 410 | Gone (expired invitation) |
+| 422 | Validation Error (Zod) |
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/workspaces` | List workspaces |
-| POST | `/workspaces` | Create workspace |
-| GET | `/workspaces/:id` | Get workspace |
-| PUT | `/workspaces/:id` | Update workspace |
+## API Modules
 
-### Repositories
-
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/workspaces/:id/repositories` | `REPOSITORY_VIEW` |
-| PATCH | `/workspaces/:id/repositories/:repoId` | `REPOSITORY_MANAGE` |
-| GET | `/workspaces/:id/repositories/:repoId/branches` | `REPOSITORY_VIEW` |
-
-### Scans
-
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/workspaces/:id/scans` | `SCAN_VIEW` |
-| POST | `/workspaces/:id/scans` | `SCAN_RUN` |
-| GET | `/workspaces/:id/scans/:scanId` | `SCAN_VIEW` |
-| POST | `/workspaces/:id/scans/upload` | `SCAN_RUN` |
-| GET | `/workspaces/:id/scanners` | `SCAN_VIEW` |
-
-### Findings
-
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/workspaces/:id/findings` | `SCAN_VIEW` |
-| GET | `/workspaces/:id/findings/:findingId` | `SCAN_VIEW` |
-| PATCH | `/workspaces/:id/findings/:findingId` | `FINDING_TRIAGE` |
-| POST | `/workspaces/:id/findings/:findingId/verify` | `FINDING_OVERRIDE_AI` |
-| PUT | `/workspaces/:id/findings/bulk` | `FINDING_TRIAGE` |
-
-### Reports
-
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/workspaces/:id/reports` | `REPORT_VIEW` |
-| POST | `/workspaces/:id/reports` | `REPORT_EXPORT` |
-| GET | `/workspaces/:id/reports/:reportId/download` | `REPORT_VIEW` |
-
-### Members
-
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/workspaces/:id/members` | `MEMBER_VIEW` |
-| POST | `/workspaces/:id/invitations` | `MEMBER_INVITE` |
-| PATCH | `/workspaces/:id/members/:userId` | `MEMBER_MANAGE` |
-| DELETE | `/workspaces/:id/members/:userId` | `MEMBER_MANAGE` |
-
-### Teams
-
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/workspaces/:id/teams` | `TEAM_VIEW` |
-| POST | `/workspaces/:id/teams` | `TEAM_MANAGE` |
-| PUT | `/workspaces/:id/teams/:teamId` | `TEAM_MANAGE` |
-| DELETE | `/workspaces/:id/teams/:teamId` | `TEAM_MANAGE` |
-
-### Projects
-
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/workspaces/:id/projects` | `PROJECT_VIEW` |
-| POST | `/workspaces/:id/projects` | `PROJECT_MANAGE` |
-| PUT | `/workspaces/:id/projects/:projectId` | `PROJECT_MANAGE` |
-| DELETE | `/workspaces/:id/projects/:projectId` | `PROJECT_MANAGE` |
-
-## Error Responses
-
-| Code | Description |
-|------|-------------|
-| 400 | Validation error |
-| 401 | Unauthorized |
-| 403 | Forbidden (insufficient permissions) |
-| 404 | Resource not found |
-| 409 | Conflict (duplicate resource) |
-| 500 | Internal server error |
-
-## Pagination
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| page | 1 | Page number |
-| per_page | 20 | Items per page |
+| Module | Base Path | Endpoints |
+|--------|-----------|-----------|
+| Auth | `/auth` | 13 |
+| Workspaces | `/workspaces` | 11 |
+| Projects | `/projects` | 5 |
+| Scans | `/scans` | 7 |
+| Findings | `/findings` | 8 |
+| Repositories | `/repositories` | 7 |
+| Source Controls | `/source-controls` | 8 |
+| AI Models | `/ai-models` | 2 |
+| Knowledge | `/knowledge` | 7 |
+| Webhooks | `/webhooks` | 3 |
+| Reports | `/reports` | 4 |
+| Dashboard | `/dashboard` | 4 |
+| Teams | `/teams` | 3 |
+| Members | `/members` | 3 |
+| Schedules | `/schedules` | 3 |
+| Quality Gates | `/quality-gates` | 3 |
+| Scanner Engines | `/scanner-engines` | 2 |
+| Notifications | `/notifications` | 2 |
+| Audit Logs | `/audit-logs` | 2 |
 
 ## Rate Limiting
 
-| Limit | Window |
-|-------|--------|
-| 100 requests | 1 minute |
-| 1000 requests | 1 hour |
+Rate limiting is applied per-IP for sensitive endpoints (signin, signup, password reset).
+
+## CORS
+
+CORS is configured for the production domain. Cross-origin requests from unauthorized origins are rejected.

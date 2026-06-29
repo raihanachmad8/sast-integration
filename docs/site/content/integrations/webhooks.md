@@ -1,3 +1,8 @@
+---
+title: Webhooks
+description: Send notifications to external services
+---
+
 # Webhooks
 
 ## Overview
@@ -8,88 +13,64 @@ Webhooks send real-time notifications to external services when events occur in 
 
 | Event | Trigger |
 |-------|---------|
-| scan.completed | Scan finishes |
-| scan.failed | Scan fails |
-| finding.created | New finding detected |
-| finding.status_changed | Finding triaged |
-| report.generated | Report ready |
+| `scan.completed` | Scan finishes successfully |
+| `scan.failed` | Scan fails |
+| `finding.created` | New finding detected |
+| `finding.resolved` | Finding resolved |
+| `finding.dismissed` | Finding dismissed |
 
-## Configuration
+## Create Webhook
 
-### Creating a Webhook
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI
+    participant API
+    participant DB[(Database)]
 
-1. Go to **Webhooks** page
-2. Click **Add Webhook**
-3. Enter URL and secret
-4. Select events to subscribe
-5. Click **Create**
-
-### Webhook Payload
-
-```json
-{
-  "event": "scan.completed",
-  "timestamp": "2026-06-25T10:30:00Z",
-  "workspace_id": "uuid",
-  "data": {
-    "scan_id": "uuid",
-    "repository": "my-repo",
-    "branch": "main",
-    "status": "completed",
-    "findings_count": 12,
-    "critical_count": 2
-  }
-}
+    User->>UI: Click "Add Webhook"
+    UI->>API: POST /api/v1/webhooks
+    API->>DB: INSERT webhook
+    API-->>UI: 201 { webhook }
 ```
 
-### Authentication
+## Event Delivery
 
-Webhooks include a signature header:
+```mermaid
+flowchart TD
+    A["Event occurs"] --> B["Find active webhooks"]
+    B --> C{"Webhook exists?"}
+    C -->|"Yes"| D["Build payload"]
+    C -->|"No"| E["Skip"]
+    D --> F["POST to URL<br/>(with HMAC signature)"]
+    F --> G{"Response?"}
+    G -->|"2xx"| H["Log: success"]
+    G -->|"Error"| I["Log: failed"]
 
+    style H fill:#22c55e,color:#fff
+    style I fill:#ef4444,color:#fff
 ```
-X-Webhook-Signature: sha256=...
+
+## Delivery Log
+
+Each delivery is recorded with:
+- `event`: Which event triggered it
+- `status`: success/failed/pending
+- `response_status`: HTTP status code
+- `request_body`: Payload sent
+- `response_body`: Response received
+- `duration_ms`: Round-trip time
+
+## Test Webhook
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant API
+    participant External
+
+    User->>API: POST /api/v1/webhooks/:id/test
+    API->>External: POST { test: true }
+    External-->>API: 200 OK
+    API-->>User: 200 { success: true }
 ```
-
-Verify with:
-
-```typescript
-const crypto = require('crypto');
-const signature = crypto
-  .createHmac('sha256', secret)
-  .update(body)
-  .digest('hex');
-```
-
-## Delivery
-
-| Setting | Default |
-|---------|---------|
-| Timeout | 30 seconds |
-| Retries | 3 |
-| Retry delay | 5, 30, 120 seconds |
-
-## Delivery History
-
-View delivery status for each webhook:
-
-| Status | Description |
-|--------|-------------|
-| success | Delivered (2xx response) |
-| failed | Delivery failed after retries |
-| pending | Waiting to be delivered |
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/webhooks` | List webhooks |
-| POST | `/webhooks` | Create webhook |
-| GET | `/webhooks/:id` | Webhook detail |
-| PUT | `/webhooks/:id` | Update webhook |
-| DELETE | `/webhooks/:id` | Delete webhook |
-| GET | `/webhooks/:id/deliveries` | Delivery history |
-| POST | `/webhooks/:id/test` | Test webhook |
-
-## Feature Flag
-
-Webhooks require `FEATURE_FLAG_WEBHOOKS=true` (disabled by default).

@@ -1,85 +1,71 @@
+---
+title: Quality Gates
+description: Automated scan quality evaluation
+---
+
 # Quality Gates
 
 ## Overview
 
 Quality gates evaluate scan results against configurable thresholds and block merges when criteria are not met.
 
-## Gate Configuration
+## Configuration
 
 | Setting | Description | Default |
 |---------|-------------|---------|
-| threshold | Maximum findings allowed | 0 |
-| fail_on_critical | Block on critical true positives | true |
-| fail_on_high_tp | Block on high true positives | false |
-| warn_on_pending | Warn on pending AI verification | true |
-| require_human_ack | Require human acknowledgment | false |
-| pending_behavior | How to handle pending findings | `warn` |
-
-## Gate Evaluation
-
-Quality gates evaluate after scan completion:
-
-1. Count findings by severity and AI verdict
-2. Compare against thresholds
-3. Return pass/fail status
-4. Block PR merge if gate fails
+| `fail_on_critical` | Block on critical findings | `true` |
+| `fail_on_high` | Block on high findings | `true` |
+| `fail_on_high_tp` | Block on high true-positive findings | `true` |
+| `fail_on_medium` | Block on medium findings | `false` |
+| `fail_on_low` | Block on low findings | `false` |
+| `fail_on_pending` | Block on pending findings | `true` |
+| `pending_behavior` | How to handle pending | `warn` |
+| `require_human_ack` | Require human acknowledgment | `false` |
 
 ## Evaluation Flow
 
-```
-Scan Complete → Evaluate Quality Gate → Set Commit Status → Post PR Comment
-```
+```mermaid
+flowchart TD
+    A["Scan completed"] --> B["Get quality gate config"]
+    B --> C["Count findings by severity"]
+    C --> D{"Evaluate rules"}
+    D --> E{"fail_on_critical<br/>AND critical > 0?"}
+    E -->|"Yes"| I["FAIL"]
+    E -->|"No"| K["PASS"]
+    D --> F{"fail_on_high<br/>AND high > 0?"}
+    F -->|"Yes"| I
+    F -->|"No"| K
+    D --> G{"fail_on_pending<br/>AND pending > 0?"}
+    G -->|"pending_behavior=fail"| I
+    G -->|"pending_behavior=warn"| J["WARN"]
+    G -->|"pending_behavior=ignore"| K
 
-## PR Integration
-
-When a quality gate fails:
-
-1. Commit status set to **failed**
-2. PR comment posted with details
-3. Merge blocked until gate passes
-
-### PR Comment Example
-
-```
-❌ Quality Gate Failed
-
-Critical (TP): 2 (threshold: 0)
-High (TP): 5 (threshold: 0)
-Pending AI: 3
-
-Fix findings to merge this PR.
+    style I fill:#ef4444,color:#fff
+    style J fill:#f59e0b,color:#fff
+    style K fill:#22c55e,color:#fff
 ```
 
-## Configuration
+## Commit Status Integration
 
-### Via UI
+```mermaid
+sequenceDiagram
+    participant Gate
+    participant SCM as SCM Provider
+    participant DB[(Database)]
 
-1. Go to **Quality Gates** page
-2. Configure thresholds
-3. Set blocking behavior
-4. Click **Save**
-
-### Via API
-
-```bash
-PUT /api/v1/quality-gates
-{
-  "threshold": 0,
-  "fail_on_critical": true,
-  "fail_on_high_tp": true,
-  "warn_on_pending": true,
-  "require_human_ack": false,
-  "pending_behavior": "warn"
-}
+    Gate->>Gate: Evaluate rules
+    Gate->>DB: INSERT quality_gate_result
+    Gate->>SCM: POST commit status
+    Note right of SCM: success / pending / failure
 ```
 
-## API Endpoints
+## PR Context
 
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/quality-gates` | `POLICY_VIEW` |
-| PUT | `/quality-gates` | `POLICY_MANAGE` |
+When scanning a PR, quality gates track:
 
-## Feature Flag
-
-Quality gates require `FEATURE_FLAG_QUALITY_GATES=true`.
+| Metric | Description |
+|--------|-------------|
+| `new_findings` | Findings new in this PR |
+| `fixed_findings` | Findings fixed in this PR |
+| `persistent_findings` | Pre-existing findings |
+| `blocking_findings` | Findings that fail the gate |

@@ -1,75 +1,96 @@
-# Custom Semgrep Rules
+---
+title: Custom Rules
+description: Write and configure custom security rules
+---
+
+# Custom Rules
 
 ## Overview
 
-The platform supports custom Semgrep rules via the `SEMGREP_RULES_DIR` environment variable.
+The platform supports custom rules for Semgrep, Gitleaks, and Flawfinder.
 
-## Rule Directory Structure
+## Semgrep Custom Rules
+
+### Directory Structure
 
 ```
 rules/semgrep/
-├── c/
-│   └── custom-c-rules.yaml
-├── java/
-│   └── custom-java-rules.yaml
-├── javascript/
-│   └── custom-js-rules.yaml
-├── python/
-│   └── custom-python-rules.yaml
-└── generic/
-    └── custom-generic-rules.yaml
+├── custom-rules.yaml
+├── security/
+│   └── sql-injection.yaml
+└── best-practices/
+    └── error-handling.yaml
 ```
 
-## Rule Format
+### Rule Format
 
 ```yaml
 rules:
-- id: my-custom-rule
-  pattern-either:
-  - pattern: dangerousFunction(...)
-  - pattern: unsafePattern(...)
-  message: >-
-    Description of the security issue found.
-  metadata:
-    cwe:
-    - 'CWE-XXX: Vulnerability Category'
-    category: security
-    technology:
-    - language-name
-    confidence: HIGH
-  languages: [language]
-  severity: WARNING
+  - id: custom-sql-injection
+    pattern: |
+      $QUERY = "SELECT ..." + $INPUT
+      ...
+    message: Potential SQL injection via string concatenation
+    severity: ERROR
+    languages: [python, javascript, typescript]
+    metadata:
+      cwe: "CWE-89"
+      category: security
 ```
 
-## Rule Severity Levels
+### Environment Variable
 
-| Level | Description |
-|-------|-------------|
-| ERROR | Critical security issues |
-| WARNING | Security concerns |
-| INFO | Code quality issues |
+```bash
+SEMGREP_RULES_DIR=./rules/semgrep
+```
+
+## Gitleaks Custom Rules
+
+### Configuration File
+
+```toml
+# .gitleaks.toml
+[[rules]]
+id = "custom-api-key"
+description = "Custom API key pattern"
+regex = '''(?i)(api[_-]?key[_-]?=|[\'"])[A-Za-z0-9]{32,}'''
+tags = ["api-key", "custom"]
+```
+
+### Environment Variable
+
+```bash
+GITLEAKS_CONFIG_PATH=./.gitleaks.toml
+```
+
+## Flawfinder Custom Rules
+
+### Directory Structure
+
+```
+rules/flawfinder/
+├── custom-rules.ff
+```
+
+### Rule Format
+
+```
+# Custom flawfinder rules
+function_name:short maxlen:10 context:function
+```
+
+### Environment Variable
+
+```bash
+FLAWFINDER_RULES_DIR=./rules/flawfinder
+```
 
 ## Testing Rules
 
 ```bash
-# Run semgrep with custom rules
-SEMGREP_RULES_DIR=rules/semgrep semgrep scan --config p/default --json target/
+# Test Semgrep rules
+semgrep --config ./rules/semgrep/ --test ./test-files/
+
+# Test Gitleaks rules
+gitleaks detect --config .gitleaks.toml --source ./test-files/
 ```
-
-## Language Packs
-
-| Directory | Language | Rules Count |
-|-----------|----------|-------------|
-| `c/` | C | 25+ |
-| `java/` | Java | 30+ |
-| `javascript/` | JavaScript | 40+ |
-| `typescript/` | TypeScript | 35+ |
-| `python/` | Python | 30+ |
-| `go/` | Go | 20+ |
-| `ruby/` | Ruby | 15+ |
-| `rust/` | Rust | 10+ |
-| `php/` | PHP | 20+ |
-| `csharp/` | C# | 15+ |
-| `terraform/` | Terraform | 10+ |
-| `dockerfile/` | Dockerfile | 5+ |
-| `yaml/` | YAML | 10+ |

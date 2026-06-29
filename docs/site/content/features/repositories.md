@@ -1,76 +1,90 @@
+---
+title: Repositories
+description: Connect and manage code repositories for security scanning
+---
+
 # Repositories
 
 ## Overview
 
-Repositories connect your code to the scanning platform. Import repositories from GitHub, GitLab, or Gitea for automated security analysis.
+Repositories connect your code to the scanning platform. Import from GitHub, GitLab, or Gitea for automated security analysis.
 
 ## Supported Providers
 
-| Provider | Features |
-|----------|----------|
-| GitHub | Webhooks, PR comments, commit status |
-| GitLab | Webhooks, MR comments, commit status |
-| Gitea | Webhooks, PR comments, commit status |
+| Provider | OAuth | Webhooks | PR Comments | Commit Status |
+|----------|:-----:|:--------:|:-----------:|:-------------:|
+| GitHub | ✅ | ✅ | ✅ | ✅ |
+| GitLab | ✅ | ✅ | ✅ | ✅ |
+| Gitea | ✅ | ✅ | ✅ | ✅ |
 
-## Repository States
+## Repository Management
 
-| State | Description |
-|-------|-------------|
-| `connected` | SCM integration active |
-| `syncing` | Branch sync in progress |
-| `error` | Connection issue |
+```mermaid
+flowchart TD
+    A["Repository"] --> B{"Connection Type?"}
+    B -->|"SCM"| C["Connected via GitHub/GitLab/Gitea"]
+    B -->|"External"| D["Manual URL entry"]
+
+    C --> E["Auto-sync repos"]
+    C --> F["Webhook for auto-scan"]
+    C --> G["PR analysis"]
+
+    D --> H["CI/CD upload"]
+    D --> I["Manual scan trigger"]
+
+    style C fill:#4a9eff,color:#fff
+    style D fill:#f59e0b,color:#fff
+```
 
 ## Import Flow
 
-1. Connect SCM provider (OAuth/Token)
-2. List available repositories
-3. Select repositories to import
-4. System creates repository records
-5. Initial branch sync
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI
+    participant API
+    participant SCM as SCM Provider
+    participant DB[(Database)]
 
-## API Endpoints
-
-### List Repositories
-
-```
-GET /api/v1/workspaces/:workspaceId/repositories
-```
-
-### Update Repository
-
-```
-PATCH /api/v1/workspaces/:workspaceId/repositories/:repoId
+    User->>UI: Click "Import Repository"
+    UI->>API: POST /api/v1/repositories/import
+    API->>DB: INSERT repository
+    API->>SCM: Setup webhook (if auto-scan enabled)
+    SCM-->>API: Webhook ID
+    API->>DB: Store webhook_external_id
+    API-->>UI: 201 { repository }
 ```
 
-### List Branches
+## Connection Types
 
-```
-GET /api/v1/workspaces/:workspaceId/repositories/:repoId/branches
+| Type | Description | Scanning Method |
+|------|-------------|-----------------|
+| `scm` | Connected via GitHub/GitLab/Gitea | Managed scan (git clone) |
+| `external` | Manual URL entry | CI/CD upload |
+
+## Auto-Scan
+
+When `auto_scan` is enabled, webhooks trigger scans automatically:
+
+```mermaid
+flowchart LR
+    A["Git push"] --> B["Webhook fires"]
+    B --> C["SAST receives event"]
+    C --> D["Enqueue managed scan"]
+    D --> E["Scan executes"]
+
+    style A fill:#22c55e,color:#fff
+    style E fill:#4a9eff,color:#fff
 ```
 
 ## Repository Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID | Primary key |
-| name | VARCHAR | Repository name |
-| full_name | VARCHAR | Provider full name (owner/repo) |
-| default_branch | VARCHAR | Default branch name |
-| connection_type | VARCHAR | `scm` or `external` |
-| source_control_id | UUID | FK to source_controls |
-| status | VARCHAR | Connection status |
-
-## External Uploads
-
-For repositories not connected via SCM:
-
-```bash
-POST /api/v1/ci/init
-{
-  "repoName": "my-repo",
-  "branch": "main",
-  "commit": "abc123"
-}
-```
-
-The system auto-creates external repository records.
+| Field | Description |
+|-------|-------------|
+| `name` | Repository name |
+| `url` | Repository URL |
+| `default_branch` | Default branch (usually `main`) |
+| `connection_type` | `scm` or `external` |
+| `auto_scan` | Enable auto-scan on push |
+| `project_id` | Associated project |
+| `external_id` | SCM provider ID |

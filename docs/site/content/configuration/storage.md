@@ -1,73 +1,56 @@
+---
+title: Storage
+description: Configure file storage for scan results and reports
+---
+
 # Storage
 
 ## Overview
 
-Scan results and reports are stored in object storage (S3-compatible or local filesystem).
+Scan results and reports are stored in object storage (S3-compatible, Cloudinary, or local filesystem).
 
-## Storage Structure
+## Storage Providers
 
-```
-{scanId}/
-├── semgrep-{timestamp}.json
-├── gitleaks-{timestamp}.json
-├── flawfinder-{timestamp}.sarif
-├── cppcheck-{timestamp}.xml
-├── clang-tidy-{timestamp}.txt
-└── gcc-fanalyzer-{timestamp}.txt
-```
+| Provider | Use Case | Configuration |
+|----------|----------|---------------|
+| **Local** | Development | `STORAGE_PROVIDER=local` |
+| **S3** | Production | `STORAGE_PROVIDER=s3` |
+| **Cloudinary** | CDN + optimization | `STORAGE_PROVIDER=cloudinary` |
 
-## Storage Configuration
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `STORAGE_TYPE` | `local` or `s3` | `local` |
-| `STORAGE_PATH` | Local storage path | `./storage` |
-| `S3_BUCKET` | S3 bucket name | — |
-| `S3_REGION` | S3 region | — |
-| `S3_ACCESS_KEY` | S3 access key | — |
-| `S3_SECRET_KEY` | S3 secret key | — |
-
-### Local Storage
+## Local Storage
 
 ```bash
-STORAGE_TYPE=local
-STORAGE_PATH=./storage
+STORAGE_PROVIDER=local
+STORAGE_LOCAL_PATH=./storage
 ```
 
-### S3 Storage
+**Docker:** Must mount volume to persist data:
 
 ```bash
-STORAGE_TYPE=s3
-SAST_S3_BUCKET=my-sast-bucket
-SAST_S3_REGION=us-east-1
-SAST_S3_ACCESS_KEY=xxx
-SAST_S3_SECRET_KEY=xxx
+docker run -d -v sast-storage:/app/storage ...
 ```
 
-## Retention
-
-| Policy | Default |
-|--------|---------|
-| Scan files | 90 days |
-| Reports | 30 days |
-| Cleanup schedule | Daily |
-
-### Cleanup Job
+## S3 Storage
 
 ```bash
-# Automatic cleanup via queue job
-cleanup-old-scan-files
+STORAGE_PROVIDER=s3
+SAST_BUCKET=sast-uploads
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your-key
+AWS_SECRET_ACCESS_KEY=your-secret
+S3_ENDPOINT=https://s3.us-east-1.amazonaws.com
 ```
 
-## File Size Limits
+## Cloudinary Storage
 
-| Scanner | Max Output |
-|---------|-----------|
-| semgrep | 50MB |
-| gitleaks | 50MB |
-| flawfinder | 50MB |
-| cppcheck | 50MB |
-| clang-tidy | 50MB |
-| gcc-fanalyzer | 50MB |
+```bash
+STORAGE_PROVIDER=cloudinary
+CLOUDINARY_CLOUD_NAME=your-cloud
+CLOUDINARY_API_KEY=your-key
+CLOUDINARY_API_SECRET=your-secret
+CLOUDINARY_FOLDER=sast
+```
+
+## File Cleanup
+
+The `cleanup-old-scan-files` worker runs daily at 2 AM to remove old scan artifacts.

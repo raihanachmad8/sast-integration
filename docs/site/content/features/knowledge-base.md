@@ -1,58 +1,109 @@
+---
+title: Knowledge Base
+description: CWE/NVD knowledge management for AI verification context
+---
+
 # Knowledge Base
 
 ## Overview
 
-The knowledge base provides CWE, NVD, and MITRE ATT&CK context to enrich findings and improve AI verification accuracy.
+The knowledge base provides NVD context to enrich findings and improve AI verification accuracy.
 
 ## Knowledge Sources
 
-| Source | Content |
-|--------|---------|
-| CWE | Common Weakness Enumeration entries |
-| NVD | National Vulnerability Database CVEs |
-| MITRE | ATT&CK technique mappings |
+```mermaid
+graph LR
+    subgraph "Sources"
+        NVD["NVD Feed"]
+        CWE["CWE Catalog"]
+        Custom["Custom Rules"]
+    end
 
-## How Knowledge Enrichment Works
+    subgraph "Sync"
+        Sync["sync-knowledge-base<br/>worker (every 6h)"]
+        Backfill["nvd-knowledge-backfill<br/>worker (manual)"]
+    end
 
-1. Finding has `cwe_id` from scanner
-2. System queries knowledge base for matching entries
-3. Context is injected into AI verification prompt
-4. AI uses enriched context for better classification
+    subgraph "Store"
+        Entries["knowledge_entries"]
+    end
 
-## Example
+    subgraph "AI"
+        AI["AI Verification"]
+    end
 
-```typescript
-const cweContext = await buildCweContext('CWE-787');
-// Returns:
-// "CWE Knowledge (CWE-787 - Out-of-bounds Write):
-//  Description: The software writes data past the end, or before the beginning, of the intended buffer.
-//  Severity: High
-//  Remediation: Use bounds-checking interfaces, validate array indices"
+    NVD --> Sync
+    CWE --> Sync
+    Sync --> Entries
+    Backfill --> Entries
+    Entries --> AI
+
+    style Entries fill:#336791,color:#fff
+    style AI fill:#f59e0b,color:#fff
 ```
 
-## Knowledge Base Entries
+| Source | Content |
+|--------|---------|
+| **NVD** | National Vulnerability Database feed |
+| **CWE** | Common Weakness Enumeration catalog |
+| **Custom** | User-defined knowledge entries |
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID | Primary key |
-| workspace_id | UUID | Workspace scope |
-| cwe_id | VARCHAR | CWE identifier |
-| title | VARCHAR | Short title |
-| description | TEXT | Detailed description |
-| severity | VARCHAR | Recommended severity |
-| remediation | TEXT | Fix guidance |
-| source | VARCHAR | Knowledge source |
+## Sync Flow
 
-## API Endpoints
+```mermaid
+sequenceDiagram
+    participant Cron
+    participant Worker
+    participant NVD as NVD API
+    participant DB[(Database)]
 
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/knowledge-base` | `KNOWLEDGE_VIEW` |
-| POST | `/knowledge-base` | `KNOWLEDGE_MANAGE` |
-| GET | `/knowledge-base/:entryId` | `KNOWLEDGE_VIEW` |
-| PATCH | `/knowledge-base/:entryId` | `KNOWLEDGE_MANAGE` |
-| DELETE | `/knowledge-base/:entryId` | `KNOWLEDGE_MANAGE` |
+    Cron->>Worker: Every 6 hours
+    Worker->>DB: SELECT knowledge_sources
+    Worker->>NVD: Fetch recent CVEs
+    NVD-->>Worker: CVE data
+    Worker->>DB: UPSERT knowledge_entries
+    Worker->>DB: UPDATE lastSyncedAt
+```
 
-## Feature Flag
+## AI Enrichment
 
-Knowledge base requires `FEATURE_FLAG_KNOWLEDGE_BASE=true`.
+During AI verification, the system enriches prompts with relevant knowledge:
+
+```mermaid
+flowchart LR
+    A["Finding with CWE-89"] --> B["Query knowledge_entries<br/>WHERE cwe_id = 'CWE-89'"]
+    B --> C["Include in AI prompt:<br/>- CWE title & description<br/>- Remediation steps<br/>- Related weaknesses"]
+    C --> D["AI verifies with<br/>better context"]
+
+    style B fill:#336791,color:#fff
+    style D fill:#22c55e,color:#fff
+```
+
+## Entry Fields
+
+| Field | Description |
+|-------|-------------|
+| `cwe_id` | CWE identifier (e.g., CWE-89) |
+| `title` | Weakness title |
+| `content` | Detailed description |
+| `severity` | Critical, High, Medium, Low |
+| `remediation` | Fix guidance |
+| `tags` | Category tags (JSONB) |
+| `muted` | Exclude from AI context |
+
+## Mute Entry
+
+Muted entries are excluded from AI verification context:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI
+    participant API
+    participant DB[(Database)]
+
+    User->>UI: Click "Mute" on knowledge entry
+    UI->>API: PATCH /api/v1/knowledge/entries/:id
+    API->>DB: UPDATE knowledge_entries SET muted = true
+    API-->>UI: 200
+```

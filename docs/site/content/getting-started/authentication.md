@@ -1,65 +1,242 @@
+---
+title: Authentication
+description: Sign in, sign up, password reset, and token management
+---
+
 # Authentication
 
-## Overview
+SAST Integration uses JWT-based authentication with refresh token rotation and reuse detection.
 
-SAST Integration uses session-based authentication with secure HTTP-only cookies. Passwords are hashed with bcrypt.
+## Auth Architecture
 
-## Auth Flow
+```mermaid
+graph TB
+    subgraph "Client"
+        Browser["Browser"]
+        Token["In-Memory<br/>Access Token<br/>(15 min)"]
+        Cookie["HttpOnly Cookie<br/>Refresh Token<br/>(7 days)"]
+    end
 
+    subgraph "Server"
+        API["API Routes"]
+        JWT["JWT Service"]
+        Session["Session Service"]
+    end
+
+    subgraph "Database"
+        DB[("PostgreSQL<br/>sessions table")]
+    end
+
+    Browser --> API
+    API --> JWT
+    JWT --> Session
+    Session --> DB
+    Browser --> Token
+    Browser --> Cookie
+
+    style Token fill:#22c55e,color:#fff
+    style Cookie fill:#f59e0b,color:#fff
+    style DB fill:#336791,color:#fff
 ```
-Login Request → Validate Credentials → Create Session → Set Cookie → Redirect to Workspace
+
+## Sign In
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Client
+    participant API
+    participant Auth as Auth Service
+    participant DB[(Database)]
+
+    User->>Client: Enter email + password
+    Client->>API: POST /api/v1/auth/signin
+    API->>Auth: authService.signin()
+    Auth->>DB: SELECT user WHERE email = ?
+    Auth->>Auth: bcrypt.compare(password, hash)
+    Auth->>DB: INSERT session
+    Auth->>Auth: Generate access JWT (15 min)
+    Auth->>Auth: Generate refresh JWT (7 days)
+    Auth-->>API: { accessToken, refreshToken, user }
+    API-->>Client: 200 + Set-Cookie
+    Client->>Client: Store accessToken in memory
+```
+
+**Request:**
+
+```bash
+POST /api/v1/auth/signin
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "your-password"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "accessToken": "eyJhbGciOi...",
+    "refreshToken": "eyJhbGciOi...",
+    "user": {
+      "id": "uuid",
+      "email": "user@example.com",
+      "name": "User Name"
+    }
+  }
+}
 ```
 
 ## Sign Up
 
+```mermaid
+sequenceDiagram
+    actor User
+    participant API
+    participant Auth
+    participant Mail
+    participant DB[(Database)]
+
+    User->>API: POST /api/v1/auth/signup
+    API->>Auth: authService.signup()
+    Auth->>DB: Check email existence
+    Auth->>DB: INSERT user (bcrypt hash)
+    Auth->>DB: Create personal workspace
+    Auth->>DB: INSERT workspace_member (owner)
+    Auth->>DB: INSERT email_verification_token
+    Auth->>Mail: Send verification email
+    Auth-->>API: 200 "Check your email"
+    Note right of Auth: Same response whether<br/>email exists or not<br/>(prevents enumeration)
 ```
+
+**Request:**
+
+```bash
 POST /api/v1/auth/signup
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "SecurePassword123!"
+}
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| name | string | Yes | Full name |
-| email | string | Yes | Email address |
-| password | string | Yes | Minimum 8 characters |
+## Password Reset
 
-## Sign In
+```mermaid
+sequenceDiagram
+    actor User
+    participant API
+    participant Auth
+    participant Mail
+    participant DB[(Database)]
 
+    User->>API: POST /auth/forgot-password
+    API->>DB: INSERT password_reset_token
+    API->>Mail: Send reset link
+    API-->>User: "Check your email"
+
+    User->>API: POST /auth/reset-password
+    API->>Auth: authService.resetPassword()
+    Auth->>DB: UPDATE passwordHash
+    Auth->>DB: UPDATE token.usedAt
+    Auth->>DB: DELETE all user sessions
+    Auth-->>User: "Password updated"
 ```
-POST /api/v1/auth/signin
+
+## Token Refresh
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant API
+    participant DB[(Database)]
+
+    C->>API: POST /auth/refresh
+    Note right of C: Header: x-refresh-request: 1
+    Note right of C: Cookie: refreshToken
+    API->>DB: Find session
+    API->>API: Verify refresh JWT
+    API->>DB: Check currentRefreshTokenId
+    API->>DB: UPDATE session (new refreshTokenId)
+    API->>API: Generate new tokens
+    API-->>C: 200 { newAccessToken, newRefreshToken }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| email | string | Yes | Email address |
-| password | string | Yes | Password |
+## Refresh Token Rotation + Reuse Detection
 
-## Session Management
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant API
+    participant DB[(Database)]
 
-- Sessions are stored in Redis with configurable TTL
-- HTTP-only cookies prevent XSS attacks
-- Secure flag enabled in production
-- Sessions are invalidated on sign out
+    Note over C, DB: Normal: Each refresh rotates the token
+    C->>API: POST /auth/refresh (token A)
+    API->>DB: token A matches currentRefreshTokenId ✓
+    API->>DB: UPDATE session (new ID for token B)
+    API-->>C: { accessToken, refreshToken: B }
 
-## Refresh Token Rotation
+    Note over C, DB: Attack: Stolen old token
+    C->>API: POST /auth/refresh (stolen token A)
+    API->>DB: token A ≠ currentRefreshTokenId (now B)
+    API->>DB: DELETE all sessions for user
+    API-->>C: 401 Unauthorized
+```
 
-The platform implements refresh token rotation with reuse detection:
+**Key security features:**
+- Each refresh generates a new `refreshTokenId`
+- Presenting an old `refreshTokenId` = token was stolen
+- On detection: **all sessions for the user are deleted**
+- CSRF protection: `x-refresh-request: 1` header required
 
-1. On each authenticated request, a new refresh token is issued
-2. The old refresh token is invalidated
-3. If a reused (already-invalidated) token is detected, all sessions for that user are revoked
-4. The refresh endpoint requires the `x-refresh-request: 1` header
+## Email Verification
 
-## Password Requirements
+```mermaid
+sequenceDiagram
+    actor User
+    participant API
+    participant Mail
+    participant DB[(Database)]
 
-- Minimum 8 characters
-- Stored with bcrypt (12 rounds)
-- Never logged or exposed in API responses
+    User->>API: GET /auth/verify-email?token=xxx
+    API->>DB: Validate token (exists, not expired)
+    API->>DB: UPDATE user.emailVerifiedAt
+    API->>DB: DELETE verification token
+    API-->>User: 200 "Email verified"
+```
 
-## Protected Routes
+## Personal Access Tokens (PAT)
 
-All routes under `/(authenticated)/` require a valid session. The `AuthenticatedShell` component handles:
+For API automation:
 
-1. Session validation on mount
-2. Workspace slug verification
-3. Redirect to `/auth/signin` on session expiry
-4. Redirect to `/workspaces` on workspace mismatch
+```mermaid
+graph LR
+    A["Create PAT"] --> B["Token shown ONCE<br/>(64 chars)"]
+    B --> C["SHA-256 hash stored"]
+    C --> D["Auth: hash lookup"]
+
+    style B fill:#f59e0b,color:#fff
+    style C fill:#22c55e,color:#fff
+```
+
+- Token shown to user **only once** at creation
+- Only SHA-256 hash stored in database
+- Configurable expiry
+- Can be revoked at any time
+
+## Password Security
+
+| Mechanism | Implementation |
+|-----------|---------------|
+| Hashing | bcryptjs with cost factor 12 |
+| Minimum length | 8 characters |
+| Storage | Only bcrypt hash, never plaintext |
+| Reset flow | Token-based, single-use, 1-hour expiry |
+| Timing safety | bcrypt.compare is timing-safe |
+| Enumeration prevention | Same response for existing/non-existing emails |

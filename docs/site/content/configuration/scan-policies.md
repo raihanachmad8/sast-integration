@@ -1,63 +1,43 @@
+---
+title: Scan Policies
+description: Configure which scanners to run and how to handle results
+---
+
 # Scan Policies
 
 ## Overview
 
-Scan policies define which scanners to run and how to handle results. Configure policies per project or workspace-wide.
-
-## Policy Structure
-
-```typescript
-interface ScanPolicy {
-  id: string;
-  workspace_id: string;
-  name: string;
-  scanners: ScannerId[];
-  enabled: boolean;
-  created_at: Date;
-}
-```
+Scan policies define which scanners to run and how to handle results.
 
 ## Default Scanners
 
-When no policy is specified:
-
-```typescript
-const DEFAULT_SCANNERS: ScannerId[] = ['semgrep', 'gitleaks'];
-```
+| Scanner | Default | Notes |
+|---------|:-------:|-------|
+| Semgrep | ✅ | Always recommended |
+| Gitleaks | ✅ | Always recommended |
+| Flawfinder | ❌ | C/C++ only |
+| Cppcheck | ❌ | C/C++ only |
+| Clang-Tidy | ❌ | C/C++ only |
+| GCC FanAnalyzer | ❌ | C/C++ only |
 
 ## Scanner Selection
 
-| Scanner | Default | Recommended |
-|---------|---------|-------------|
-| semgrep | Yes | Always |
-| gitleaks | Yes | Always |
-| flawfinder | No | C/C++ projects |
-| cppcheck | No | C/C++ projects |
-| clang-tidy | No | C/C++ projects |
-| gcc-fanalyzer | No | C/C++ projects |
+```mermaid
+flowchart TD
+    A["Trigger scan"] --> B{"Codebase type?"}
+    B -->|"Multi-language"| C["Semgrep + Gitleaks"]
+    B -->|"C/C++"| D["All 6 scanners"]
+    B -->|"Custom"| E["User selects"]
 
-## Policy Configuration
-
-### Via UI
-
-1. Go to **Scan Policies** page
-2. Click **Add Policy**
-3. Enter policy name
-4. Select scanners
-5. Configure thresholds
-6. Click **Save**
-
-### Via API
-
-```bash
-POST /api/v1/workspaces/:workspaceId/scan-policies
-{
-  "name": "C/C++ Full Scan",
-  "scanners": ["semgrep", "gitleaks", "flawfinder", "cppcheck", "clang-tidy", "gcc-fanalyzer"],
-  "enabled": true
-}
+    style C fill:#4a9eff,color:#fff
+    style D fill:#f59e0b,color:#fff
 ```
 
-## Feature Flag
+## Branch Patterns
 
-Scan policies require `FEATURE_FLAG_SCAN_PROFILES=true`.
+| Pattern | Description |
+|---------|-------------|
+| `main` | Default branch |
+| `develop` | Development branch |
+| `feature/*` | Feature branches |
+| `release/*` | Release branches |

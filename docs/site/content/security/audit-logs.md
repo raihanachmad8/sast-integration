@@ -1,92 +1,53 @@
+---
+title: Audit Logs
+description: Track all significant actions in the workspace
+---
+
 # Audit Logs
 
 ## Overview
 
 Audit logs track all significant actions in the workspace for compliance and security monitoring.
 
-## Logged Events
+## Log Types
 
-| Category | Events |
-|----------|--------|
-| Auth | Login, logout, signup, password change |
-| Workspace | Create, update, delete, member changes |
-| Repository | Import, sync, delete |
-| Scan | Trigger, complete, fail |
-| Finding | Create, status change, assignment, AI verify |
-| Report | Generate, download, delete |
-| Settings | Update workspace settings, feature flags |
+| Log Type | Records |
+|----------|---------|
+| `audit_logs` | User actions (who, what, when, where) |
+| `activity_logs` | System events (scan completed, finding updated) |
+| `finding_history` | Finding field changes (old → new value) |
 
 ## Audit Log Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID | Primary key |
-| workspace_id | UUID | Workspace scope |
-| user_id | UUID | Actor |
-| action | VARCHAR | Action type |
-| resource_type | VARCHAR | Resource type |
-| resource_id | UUID | Resource ID |
-| details | JSONB | Action details |
-| ip_address | VARCHAR | Client IP |
-| user_agent | VARCHAR | Client user agent |
-| created_at | TIMESTAMP | When action occurred |
+| Field | Description |
+|-------|-------------|
+| `workspace_id` | Workspace scope |
+| `user_id` | Who performed the action |
+| `action` | What was done |
+| `resource_type` | Type of resource affected |
+| `resource_id` | Specific resource |
+| `data` | Additional context (JSONB) |
+| `ip_address` | Client IP |
+| `created_at` | When it happened |
 
-## Querying Audit Logs
+## Activity Log Fields
 
-### Via UI
+| Field | Description |
+|-------|-------------|
+| `workspace_id` | Workspace scope |
+| `user_id` | User (if applicable) |
+| `type` | Event type |
+| `description` | Human-readable description |
+| `metadata` | Additional data (JSONB) |
 
-1. Go to **Audit Logs** page
-2. Filter by:
-   - Date range
-   - User
-   - Action type
-   - Resource type
-3. Export as CSV
+## Finding History
 
-### Via API
+Tracks field changes on findings:
 
-```bash
-GET /api/v1/audit-logs?from=2026-06-01&to=2026-06-25&action=scan.triggered
-```
-
-### Response
-
-```json
-{
-  "data": [
-    {
-      "id": "uuid",
-      "user": "john@example.com",
-      "action": "scan.triggered",
-      "resource_type": "scan",
-      "resource_id": "uuid",
-      "details": { "repository": "my-repo", "branch": "main" },
-      "ip_address": "192.168.1.1",
-      "created_at": "2026-06-25T10:30:00Z"
-    }
-  ],
-  "total": 150
-}
-```
-
-## Activity Logs
-
-Lighter-weight logging for UI activity:
-
-```bash
-GET /api/v1/activity-logs
-```
-
-## API Endpoints
-
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/audit-logs` | `AUDIT_VIEW` |
-| GET | `/activity-logs` | `AUDIT_VIEW` |
-
-## Retention
-
-| Policy | Default |
-|--------|---------|
-| Audit logs | 365 days |
-| Activity logs | 90 days |
+| Field | Description |
+|-------|-------------|
+| `finding_id` | Finding affected |
+| `field` | Field changed |
+| `old_value` | Previous value |
+| `new_value` | New value |
+| `created_by` | Who made the change |

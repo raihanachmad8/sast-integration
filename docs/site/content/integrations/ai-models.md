@@ -1,3 +1,8 @@
+---
+title: AI Models
+description: Configure LLM providers for AI verification
+---
+
 # AI Models
 
 ## Overview
@@ -6,79 +11,73 @@ Configure LLM providers for AI-powered finding verification. Each workspace can 
 
 ## Supported Providers
 
-| Provider | Models | Auth |
-|----------|--------|------|
-| OpenAI | GPT-4, GPT-3.5 | API Key |
-| Anthropic | Claude | API Key |
-| Azure OpenAI | GPT-4, GPT-3.5 | Endpoint + Key |
+| Provider | Default Base URL | Notes |
+|----------|-----------------|-------|
+| Ollama | `http://localhost:11434` | Local, free |
+| OpenAI | `https://api.openai.com/v1` | Cloud, paid |
+| Anthropic | `https://api.anthropic.com` | Cloud, paid |
+| Groq | `https://api.groq.com/openai/v1` | Cloud, fast |
+| Modal | Custom | Serverless GPU |
+| Custom | User-defined | Any OpenAI-compatible API |
 
-## Configuration
+## Add Model
 
-### Adding a Model
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI
+    participant API
+    participant DB[(Database)]
 
-1. Go to **AI Models** page
-2. Click **Add Model**
-3. Select provider
-4. Enter API key and model settings
-5. Click **Test Connection**
-6. Click **Save**
-
-### Model Settings
-
-| Setting | Description |
-|---------|-------------|
-| Provider | LLM provider name |
-| Model ID | Model identifier |
-| API Key | Provider API key |
-| Temperature | 0.0-1.0 (lower = more deterministic) |
-| Max Tokens | Maximum response tokens |
-| Prompt Variant | strict or balanced |
-
-## Prompt Variants
-
-### Strict
-
-Detailed analysis with:
-- Data flow tracing
-- Taint source identification
-- CWE prediction
-- Fix suggestions
-
-### Balanced
-
-Brief analysis with:
-- Verdict and confidence
-- Short explanation
-
-## Model Testing
-
-Test model configuration:
-
-```bash
-POST /api/v1/workspaces/:workspaceId/model/:modelId/test
+    User->>UI: Click "Add Model"
+    UI->>API: POST /api/v1/ai-models
+    API->>API: Encrypt API key
+    API->>DB: INSERT ai_model
+    API-->>UI: 201 { model }
 ```
 
-Returns sample verification result.
+## Test Model
 
-## Model Presets
+```mermaid
+sequenceDiagram
+    actor User
+    participant API
+    participant AI as AI Provider
 
-| Preset | Provider | Model | Use Case |
-|--------|----------|-------|----------|
-| Default | OpenAI | GPT-4 | General |
-| Fast | OpenAI | GPT-3.5-turbo | Quick verification |
-| Thorough | Anthropic | Claude | Detailed analysis |
+    User->>API: POST /api/v1/ai-models/:id/test
+    API->>AI: Send test prompt
+    AI-->>API: Response
+    API->>API: Update model status
+    API-->>UI: 200 { status, latency }
+```
 
-## API Endpoints
+## Fallback Chain
 
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/model` | `AI_MODEL_VIEW` |
-| POST | `/model` | `AI_MODEL_MANAGE` |
-| GET | `/model/:modelId` | `AI_MODEL_VIEW` |
-| PUT | `/model/:modelId` | `AI_MODEL_MANAGE` |
-| DELETE | `/model/:modelId` | `AI_MODEL_MANAGE` |
-| POST | `/model/:modelId/test` | `AI_MODEL_MANAGE` |
+```mermaid
+flowchart TD
+    A["AI verification needed"] --> B["Try primary model<br/>(priority: 1)"]
+    B --> C{"Success?"}
+    C -->|"Yes"| D["Return result"]
+    C -->|"Timeout/Error"| E["Try fallback model<br/>(priority: 2+)"]
+    E --> F{"Success?"}
+    F -->|"Yes"| D
+    F -->|"No more models"| G["Mark as pending<br/>(human review)"]
 
-## Feature Flag
+    style D fill:#22c55e,color:#fff
+    style G fill:#f59e0b,color:#fff
+```
 
-AI models require `FEATURE_FLAG_AI_MODELS=true`.
+## Model Roles
+
+| Role | Purpose |
+|------|---------|
+| `primary` | First choice for verification |
+| `fallback` | Backup when primary fails |
+
+## Prompt Presets
+
+| Preset | Description |
+|--------|-------------|
+| `strict` | Conservative, high precision |
+| `balanced` | Default, good precision/recall |
+| `aggressive` | Catch more, may have more FP |

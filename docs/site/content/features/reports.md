@@ -1,65 +1,69 @@
+---
+title: Reports
+description: Generate and export security reports
+---
+
 # Reports
 
 ## Overview
 
-Reports provide exportable security summaries in PDF and XLSX formats for compliance and stakeholder communication.
+Reports provide exportable security summaries in PDF, XLSX, and CSV formats for compliance and stakeholder communication.
 
 ## Report Types
 
 | Format | Use Case |
 |--------|----------|
-| PDF | Formal security reports, compliance |
-| XLSX | Data analysis, spreadsheet review |
+| **PDF** | Executive summary, compliance audits |
+| **XLSX** | Data analysis, team collaboration |
+| **CSV** | Integration with other tools |
 
-## Generating Reports
+## Generate Report
 
-### Via UI
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI
+    participant API
+    participant Worker
+    participant DB[(Database)]
 
-1. Go to **Reports** page
-2. Click **Generate Report**
-3. Select scope (workspace, project, or scan)
-4. Choose format (PDF/XLSX)
-5. Click **Generate**
-
-### Via API
-
-```bash
-POST /api/v1/workspaces/:workspaceId/reports
-{
-  "type": "pdf",
-  "scope": "workspace",
-  "projectIds": ["uuid"]
-}
+    User->>UI: Click "Generate Report"
+    UI->>UI: Select filters (project, date range, severity)
+    User->>UI: Click "Generate"
+    UI->>API: POST /api/v1/reports
+    API->>DB: INSERT report (status: generating)
+    API->>Worker: Enqueue report generation
+    API-->>UI: 201 { reportId }
+    Worker->>DB: UPDATE report status → generated
+    Worker->>DB: Store file in storage
 ```
 
-## Report Contents
+## Report Fields
 
-| Section | Content |
-|---------|---------|
-| Executive Summary | Key metrics, risk score |
-| Findings by Severity | Critical, high, medium, low breakdown |
-| Findings by Scanner | Per-scanner analysis |
-| AI Verification Stats | TP/FP ratios, confidence |
-| Recommendations | Prioritized remediation steps |
+| Field | Description |
+|-------|-------------|
+| `type` | PDF, XLSX, or CSV |
+| `title` | Report title |
+| `filters` | Applied filters (project, severity, date range) |
+| `status` | generating, generated, failed |
+| `file_path` | Storage path |
+| `file_size` | File size in bytes |
+| `format` | Output format |
 
-## Report Lifecycle
+## Download Report
 
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI
+    participant API
+    participant Storage
+    participant DB[(Database)]
+
+    User->>UI: Click "Download"
+    UI->>API: GET /api/v1/reports/:id/download
+    API->>DB: Get report file_path
+    API->>Storage: Get signed URL
+    Storage-->>API: URL
+    API-->>UI: 302 redirect to URL
 ```
-generating → ready → downloadable
-           → expired (after retention period)
-```
-
-## API Endpoints
-
-| Method | Endpoint | Permission |
-|--------|----------|-----------|
-| GET | `/reports` | `REPORT_VIEW` |
-| POST | `/reports` | `REPORT_EXPORT` |
-| GET | `/reports/:reportId` | `REPORT_VIEW` |
-| DELETE | `/reports/:reportId` | `REPORT_EXPORT` |
-| GET | `/reports/:reportId/download` | `REPORT_VIEW` |
-| GET | `/reports/:reportId/preview` | `REPORT_VIEW` |
-
-## Feature Flag
-
-Reports require `FEATURE_FLAG_REPORTS=true`.
