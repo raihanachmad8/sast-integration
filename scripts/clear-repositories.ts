@@ -9,8 +9,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { drizzle } from 'drizzle-orm/node-postgres';
+
 import { sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
 
 // Load env
 const envPaths = [

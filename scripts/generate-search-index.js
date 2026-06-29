@@ -8,9 +8,6 @@
  * extracted from docs/content/*.md files.
  */
 
-const fs = require('fs');
-const path = require('path');
-
 const CONTENT_DIR = path.join(__dirname, '../docs/content');
 const OUTPUT_FILE = path.join(__dirname, '../src/lib/docs/search-index.ts');
 
@@ -53,7 +50,7 @@ function extractParagraphs(content) {
 }
 
 /** Generate search index from all markdown files */
-function generateSearchIndex() {
+function generateSearchIndex(fs, path) {
   const index = {};
 
   // Read all markdown files
@@ -91,4 +88,13 @@ export const SEARCH_INDEX: Record<string, SearchEntry> = ${JSON.stringify(index,
   console.log(`Generated search index with ${Object.keys(index).length} pages`);
 }
 
-generateSearchIndex();
+async function main() {
+  const fs = (await import('fs')).default;
+  const path = (await import('path')).default;
+  generateSearchIndex(fs, path);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
