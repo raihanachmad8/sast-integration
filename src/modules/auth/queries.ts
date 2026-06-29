@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
+
+import { STALE } from '@/commons/constants/query';
+import type { ApiResponse } from '@/commons/types/api';
+import { setAccessToken, setWorkspaceId, refreshAccessToken, clearWorkspaceCache } from '@/lib/api/client';
+
 import { authApi } from './api';
 import { authKeys } from './keys';
-import { setAccessToken, setWorkspaceId, refreshAccessToken, clearWorkspaceCache } from '@/lib/api/client';
-import { STALE } from '@/commons/constants/query';
 import type { SessionData, SigninResponse, RefreshTokenResponse } from './types';
-import type { ApiResponse } from '@/commons/types/api';
+
 
 /**
  * Query hook for the current user session.

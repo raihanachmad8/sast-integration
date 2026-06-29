@@ -1,11 +1,12 @@
-import type { ScanRow, Finding } from '@/commons/types/domain';
-import type { ScanDetailData, TriggerScanPayload } from './types';
-import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
+import type { ApiResponse } from '@/commons/types/api';
+import type { ScanRow, Finding } from '@/commons/types/domain';
+import type { ListParams, PaginatedResponse } from '@/commons/types/pagination';
+import { clientEnv } from '@/config/client-env';
 import { Api } from '@/lib/api/client';
 import { extractPaginated } from '@/lib/api/pagination';
-import type { ApiResponse } from '@/commons/types/api';
-import type { ListParams, PaginatedResponse } from '@/commons/types/pagination';
+
+import type { ScanDetailData, TriggerScanPayload } from './types';
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });
 

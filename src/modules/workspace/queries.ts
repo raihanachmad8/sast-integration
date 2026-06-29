@@ -1,12 +1,14 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { workspaceApi } from './api';
-import { workspaceKeys } from './keys';
-import { authKeys } from '@/modules/auth/keys';
+
 import { STALE } from '@/commons/constants/query';
 import { setWorkspaceId } from '@/lib/api/client';
+import { authKeys } from '@/modules/auth/keys';
 import { useSessionQuery } from '@/modules/auth/queries';
+
+import { workspaceApi } from './api';
+import { workspaceKeys } from './keys';
 import type { WorkspaceItem } from './types';
 
 export function useWorkspacesQuery() {

@@ -1,11 +1,14 @@
-import { Api } from '@/lib/api/client';
-import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
-import { extractPaginated } from '@/lib/api/pagination';
 import type { ApiResponse } from '@/commons/types/api';
 import type { PaginatedResponse } from '@/commons/types/pagination';
+import type { ScannerRule } from '@/commons/types/scanner';
+import { clientEnv } from '@/config/client-env';
+import { Api } from '@/lib/api/client';
+import { extractPaginated } from '@/lib/api/pagination';
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });
+
+export type { ScannerRule };
 
 export interface ScannerEngine {
   name: string;
@@ -16,17 +19,6 @@ export interface ScannerEngine {
   status: 'ready' | 'not_installed';
 }
 
-export interface ScannerRule {
-  id: string;
-  name: string;
-  description: string;
-  severity: string;
-  languages: string[];
-  cwe?: string;
-  path: string;
-  enabled: boolean;
-}
-
 export interface ScannerRulesResponse {
   scanner: string;
   rulesPath: string;
@@ -35,14 +27,13 @@ export interface ScannerRulesResponse {
   page: number;
   perPage: number;
   total: number;
-  totalPages: number;
+  lastPage: number;
 }
 
 export const scannerEnginesApi = {
-  async list(): Promise<{ data: ScannerEngine[]; total: number }> {
+  async list(): Promise<PaginatedResponse<ScannerEngine>> {
     const response = await _api.Get<ApiResponse<PaginatedResponse<ScannerEngine>>>(ENDPOINTS.SCANNER_ENGINES.LIST);
-    const result = extractPaginated(response);
-    return { data: result.data, total: result.meta.total };
+    return extractPaginated(response);
   },
 
   async getRules(scannerId: string, params?: { page?: number; perPage?: number; search?: string }): Promise<ScannerRulesResponse> {
@@ -54,7 +45,7 @@ export const scannerEnginesApi = {
     const qs = new URLSearchParams(queryParams).toString();
     const url = ENDPOINTS.SCANNER_ENGINES.RULES(scannerId) + (qs ? `?${qs}` : '');
     const response = await _api.Get<ApiResponse<{ scanner: string; rulesPath: string; rules: ScannerRule[]; packs: string[] }>>(url);
-    const pagination = response.meta?.pagination;
+    const paginated = extractPaginated(response as unknown as ApiResponse<PaginatedResponse<ScannerRule>>);
     const data = response.data;
 
     return {
@@ -62,10 +53,7 @@ export const scannerEnginesApi = {
       rulesPath: data?.rulesPath ?? '',
       rules: data?.rules ?? [],
       packs: data?.packs ?? [],
-      page: pagination?.page ?? 1,
-      perPage: pagination?.perPage ?? 50,
-      total: pagination?.total ?? 0,
-      totalPages: pagination?.totalPages ?? 0,
+      ...paginated.meta,
     };
   },
 };

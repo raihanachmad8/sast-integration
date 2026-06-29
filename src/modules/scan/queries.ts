@@ -1,12 +1,15 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+
+import { STALE } from '@/commons/constants/query';
+import type { ListParams } from '@/commons/types/pagination';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+
 import { scanApi, type ScannerAvailability } from './api';
 import { scanKeys } from './keys';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
-import { STALE } from '@/commons/constants/query';
 import type { TriggerScanPayload } from './types';
-import type { ListParams } from '@/commons/types/pagination';
+
 
 /** Poll every 3 seconds while a scan is in progress. */
 const SCAN_POLL_INTERVAL = 3_000;

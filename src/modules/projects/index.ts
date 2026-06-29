@@ -10,7 +10,6 @@
  * ```
  */
 export { projectsApi } from './api';
-export { projectApiTokensApi, type ApiToken, type CreateApiTokenResult } from './api-tokens';
 export { projectKeys } from './keys';
 export {
   useProjectsQuery,
@@ -19,9 +18,4 @@ export {
   useUpdateProjectMutation,
   useDeleteProjectMutation,
 } from './queries';
-export {
-  useApiTokensQuery,
-  useCreateApiTokenMutation,
-  useRevokeApiTokenMutation,
-} from './api-token-queries';
 export type { ProjectFormInput } from './types';

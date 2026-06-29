@@ -1,10 +1,12 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+
 import { STALE } from '@/commons/constants/query';
-import { findingKeys } from './keys';
-import { findingsApi } from './api';
 import { useWorkspace } from '@/lib/hooks/useWorkspace';
+
+import { findingsApi } from './api';
+import { findingKeys } from './keys';
 import type { FindingListParams } from './types';
 
 type UpdateFindingPayload = {
@@ -26,41 +28,21 @@ type BulkUpdateFindingsPayload = {
  * Supports filtering, sorting, and pagination. Uses keepPreviousData for smooth transitions.
  *
  * @param params - Filtering, sorting, and pagination parameters for findings.
+ * @param enabled - Override to force-disable the query (default: !!workspaceId).
  *
  * @example
  * ```tsx
- * const { data, isLoading } = useFindingsQuery({ status: 'open', page: 1 });
+ * const { data, isLoading } = useFindingsQuery({ page: 1, perPage: 10, status: 'open' });
  * ```
  */
-export function useFindingsQuery(params: FindingListParams) {
+export function useFindingsQuery(params?: Partial<FindingListParams>, enabled?: boolean) {
   const { workspaceId } = useWorkspace();
   return useQuery({
-    queryKey: findingKeys.list(params),
+    queryKey: findingKeys.list(workspaceId!, params),
     queryFn: () => findingsApi.list(workspaceId!, params),
-    staleTime: STALE.DEFAULT,
+    staleTime: STALE.FILTER,
     placeholderData: keepPreviousData,
-    enabled: !!workspaceId,
-  });
-}
-
-/**
- * Query hook for grouped findings within a specific project.
- * Returns findings grouped by a common attribute (e.g., file path or rule).
- *
- * @param projectId - The project ID to fetch grouped findings for. Skipped if empty.
- *
- * @example
- * ```tsx
- * const { data: groups } = useFindingGroupsQuery('proj-123');
- * ```
- */
-export function useFindingGroupsQuery(projectId: string) {
-  const { workspaceId } = useWorkspace();
-  return useQuery({
-    queryKey: findingKeys.groups(projectId),
-    queryFn: () => findingsApi.listGroups(workspaceId!, projectId),
-    enabled: !!projectId && !!workspaceId,
-    staleTime: STALE.DEFAULT,
+    enabled: enabled !== undefined ? enabled && !!workspaceId : !!workspaceId,
   });
 }
 
@@ -69,26 +51,26 @@ export function useFindingGroupsQuery(projectId: string) {
  * Returns full finding details including metadata and history.
  *
  * @param id - The finding ID to fetch. Skipped if empty.
+ * @param enabled - Override to force-disable the query.
  *
  * @example
  * ```tsx
  * const { data: finding } = useFindingQuery('find-abc');
- * console.log(finding?.severity); // 'HIGH'
  * ```
  */
-export function useFindingQuery(id: string) {
+export function useFindingQuery(id: string, enabled?: boolean) {
   const { workspaceId } = useWorkspace();
   return useQuery({
     queryKey: findingKeys.detail(id),
     queryFn: () => findingsApi.get(workspaceId!, id),
-    enabled: !!id && !!workspaceId,
+    enabled: enabled !== undefined ? enabled && !!id && !!workspaceId : !!id && !!workspaceId,
     staleTime: STALE.DEFAULT,
   });
 }
 
 /**
  * Mutation hook for updating a single finding (severity, verdict, status, assignment, or notes).
- * Invalidates all finding-related queries on success.
+ * Optimistically updates the cache, then rolls back on error.
  *
  * @example
  * ```tsx
@@ -102,7 +84,34 @@ export function useUpdateFindingMutation() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateFindingPayload }) =>
       findingsApi.update(workspaceId!, id, payload),
-    onSuccess: () => {
+    onMutate: async ({ id, payload }) => {
+      await qc.cancelQueries({ queryKey: findingKeys.all });
+      const previous = qc.getQueriesData({ queryKey: findingKeys.all });
+      qc.setQueriesData({ queryKey: findingKeys.all }, (old: unknown) => {
+        if (!old || typeof old !== 'object') return old;
+        // Optimistic update for list queries with data array
+        const obj = old as { data?: unknown[] };
+        if (Array.isArray(obj.data)) {
+          return {
+            ...obj,
+            data: obj.data.map((item: unknown) => {
+              const record = item as Record<string, unknown>;
+              return record.id === id ? { ...record, ...payload } : record;
+            }),
+          };
+        }
+        return old;
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        for (const [key, data] of context.previous) {
+          qc.setQueryData(key, data);
+        }
+      }
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: findingKeys.all });
     },
   });
@@ -159,7 +168,7 @@ export function useRunAiVerificationMutation() {
  * @example
  * ```tsx
  * const verifyMutation = useVerifyFindingMutation();
- * verifyMutation.mutate('find-abc');
+ * verifyMutation.mutate({ findingId: 'find-abc', modelId: 'model-1' });
  * ```
  */
 export function useVerifyFindingMutation() {

@@ -1,7 +1,8 @@
-import { Api } from '@/lib/api/client';
-import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
 import type { ApiResponse } from '@/commons/types/api';
+import { clientEnv } from '@/config/client-env';
+import { Api } from '@/lib/api/client';
+
 import type { DashboardStats, DashboardScan, DashboardFinding, DashboardHealth } from './types';
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });

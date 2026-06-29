@@ -1,10 +1,10 @@
-import { Api } from '@/lib/api/client';
-import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
-import { extractPaginated } from '@/lib/api/pagination';
+import type { AiModelRow } from '@/commons/types/ai-models';
 import type { ApiResponse } from '@/commons/types/api';
 import type { ListParams, PaginatedResponse } from '@/commons/types/pagination';
-import type { AiModelRow } from '@/commons/types/ai-models';
+import { clientEnv } from '@/config/client-env';
+import { Api } from '@/lib/api/client';
+import { extractPaginated } from '@/lib/api/pagination';
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });
 

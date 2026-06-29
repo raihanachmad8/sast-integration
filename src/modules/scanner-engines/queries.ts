@@ -1,9 +1,11 @@
 'use client';
 
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { scannerEngineKeys } from './keys';
-import { scannerEnginesApi } from './api';
+
 import { STALE } from '@/commons/constants/query';
+
+import { scannerEnginesApi } from './api';
+import { scannerEngineKeys } from './keys';
 
 /**
  * Query hook for fetching all available scanner engines.

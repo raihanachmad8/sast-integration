@@ -1,11 +1,10 @@
+/**
+ * Team module types.
+ *
+ * Input types are inferred from Zod schemas (single source of truth).
+ * This file only re-exports them for convenience.
+ */
+import type { TeamFormInput as TeamFormInputSchema } from '@/commons/schemas/team.schema';
+
 /** Team form input for creating or updating a team. */
-export interface TeamFormInput {
-  /** Team display name. */
-  name: string;
-  /** URL-friendly slug identifier. */
-  slug: string;
-  /** Optional description of the team's purpose. */
-  description: string;
-  /** Array of user IDs to add as team members. */
-  memberIds: string[];
-}
+export type TeamFormInput = TeamFormInputSchema;

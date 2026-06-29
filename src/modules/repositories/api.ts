@@ -1,17 +1,17 @@
-import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
+import type { ApiResponse } from '@/commons/types/api';
+import type { ListParams as _ListParams, PaginatedResponse } from '@/commons/types/pagination';
+import type { RepositoryExtended, SourceControl } from '@/commons/types/repositories';
+import { clientEnv } from '@/config/client-env';
 import { Api } from '@/lib/api/client';
 import { extractPaginated } from '@/lib/api/pagination';
-import type { ApiResponse } from '@/commons/types/api';
-import type { ListParams, PaginatedResponse } from '@/commons/types/pagination';
-import type { RepositoryExtended, SourceControl } from '@/commons/types/repositories';
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });
 
 export const repositoriesApi = {
-  async list(workspaceId: string, params: ListParams & { imported?: boolean }): Promise<PaginatedResponse<RepositoryExtended>> {
+  async list(workspaceId: string, params?: Record<string, unknown>): Promise<PaginatedResponse<RepositoryExtended>> {
     const queryParams: Record<string, string> = {};
-    if (params.imported !== undefined) queryParams.imported = String(params.imported);
+    if (params?.imported !== undefined) queryParams.imported = String(params.imported);
     const response = await _api.Get<ApiResponse<PaginatedResponse<RepositoryExtended>>>(ENDPOINTS.REPOSITORIES.LIST_WORKSPACE(workspaceId), { ...params, ...queryParams });
     return extractPaginated(response);
   },

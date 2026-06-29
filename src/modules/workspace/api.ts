@@ -1,8 +1,10 @@
-import { Api } from '@/lib/api/client';
-import type { ApiResponse } from '@/commons/types/api';
-import type { WorkspaceItem, PendingInvitation } from './types';
-import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
+import type { ApiResponse } from '@/commons/types/api';
+import { clientEnv } from '@/config/client-env';
+import { Api } from '@/lib/api/client';
+
+import type { WorkspaceItem, PendingInvitation } from './types';
+
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });
 

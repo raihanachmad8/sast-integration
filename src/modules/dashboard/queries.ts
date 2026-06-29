@@ -1,9 +1,11 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { dashboardKeys } from './keys';
-import { dashboardApi } from './api';
+
 import { STALE } from '@/commons/constants/query';
+
+import { dashboardApi } from './api';
+import { dashboardKeys } from './keys';
 
 /**
  * Query hook for fetching dashboard summary statistics.

@@ -1,8 +1,8 @@
-import { Api } from '@/lib/api/client';
-import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
 import type { ApiResponse } from '@/commons/types/api';
 import type { Profile } from '@/commons/types/auth';
+import { clientEnv } from '@/config/client-env';
+import { Api } from '@/lib/api/client';
 const _api = Api({ baseUrl: clientEnv.apiUrl });
 
 export const profileApi = {

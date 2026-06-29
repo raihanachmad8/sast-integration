@@ -1,8 +1,11 @@
-import type { FindingExtended, FindingGroup } from '@/commons/types/findings';
-import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
-import { Api } from '@/lib/api/client';
 import type { ApiResponse } from '@/commons/types/api';
+import type { FindingExtended, FindingGroup } from '@/commons/types/findings';
+import type { PaginatedResponse } from '@/commons/types/pagination';
+import { clientEnv } from '@/config/client-env';
+import { Api } from '@/lib/api/client';
+import { extractPaginated } from '@/lib/api/pagination';
+
 import type { FindingListParams, FindingListResponse } from './types';
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });
@@ -25,17 +28,9 @@ export const findingsApi = {
    * @param params - Pagination, filter, and sort parameters.
    * @returns Paginated result with data array and meta (total, page, perPage, lastPage).
    */
-  async list(workspaceId: string, params: FindingListParams): Promise<FindingListResponse<FindingExtended>> {
-    const response = await _api.Get<ApiResponse<FindingExtended[]>>(ENDPOINTS.FINDINGS.LIST(workspaceId), { ...params });
-    return {
-      data: response.data ?? [],
-      meta: {
-        page: response.meta?.pagination?.page ?? params.page,
-        perPage: response.meta?.pagination?.perPage ?? params.perPage,
-        total: response.meta?.pagination?.total ?? 0,
-        totalPages: response.meta?.pagination?.totalPages ?? 0,
-      },
-    };
+  async list(workspaceId: string, params?: Partial<FindingListParams>): Promise<FindingListResponse<FindingExtended>> {
+    const response = await _api.Get<ApiResponse<PaginatedResponse<FindingExtended>>>(ENDPOINTS.FINDINGS.LIST(workspaceId), { ...params });
+    return extractPaginated(response);
   },
 
   /**

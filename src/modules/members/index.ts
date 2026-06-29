@@ -1,20 +1,19 @@
 /**
- * Members module — workspace member management and invitations.
+ * Members module — workspace member management.
  *
  * @module members
  *
  * @example
  * ```ts
- * import { useMembersQuery, useInviteMemberMutation } from '@/modules/members';
- * import type { Member, Invitation } from '@/modules/members';
+ * import { membersApi, useMembersQuery, memberKeys } from '@/modules/members';
+ * import type { Member } from '@/modules/members';
  * ```
  */
+export { membersApi } from './api';
+export { memberKeys } from './keys';
 export {
   useMembersQuery,
   useUpdateMemberRoleMutation,
   useRemoveMemberMutation,
-  useInvitationsQuery,
-  useInviteMemberMutation,
-  useRevokeInvitationMutation,
 } from './queries';
-export type { Member, Invitation } from './api';
+export type { Member } from './api';

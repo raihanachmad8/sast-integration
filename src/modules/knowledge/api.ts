@@ -1,10 +1,11 @@
-import { Api } from '@/lib/api/client';
-import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
-import type { ApiResponse } from '@/commons/types/api';
-import type { ListParams, PaginatedResponse } from '@/commons/types/pagination';
-import type { KnowledgeSource, KnowledgeEntryRow, KnowledgeBackfillJob } from '@/commons/types/knowledge';
 import type { CreateKnowledgeEntryInput, CreateKnowledgeSourceInput, UpdateKnowledgeEntryInput, UpdateKnowledgeSourceInput } from '@/commons/schemas/knowledge-base.schema';
+import type { ApiResponse } from '@/commons/types/api';
+import type { KnowledgeSource, KnowledgeEntryRow, KnowledgeBackfillJob } from '@/commons/types/knowledge';
+import type { ListParams, PaginatedResponse } from '@/commons/types/pagination';
+import { clientEnv } from '@/config/client-env';
+import { Api } from '@/lib/api/client';
+import { extractPaginated } from '@/lib/api/pagination';
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });
 
@@ -152,15 +153,10 @@ export const knowledgeApi = {
     const qs = new URLSearchParams(queryParams).toString();
     const url = ENDPOINTS.KNOWLEDGE_BASE.LIST(workspaceId) + (qs ? `?${qs}` : '');
     const response = await _api.Get<ApiResponse<RawEntriesPage>>(url);
-    const pagination = response.meta?.pagination;
+    const paginated = extractPaginated(response as unknown as ApiResponse<PaginatedResponse<KnowledgeEntryRow>>);
     return {
       data: Array.isArray(response.data?.data) ? response.data.data.map(mapEntry) : [],
-      meta: {
-        page: pagination?.page ?? response.data.page,
-        perPage: pagination?.perPage ?? response.data.perPage,
-        total: pagination?.total ?? response.data.total,
-        lastPage: pagination?.totalPages ?? Math.ceil(response.data.total / response.data.perPage),
-      },
+      meta: paginated.meta,
     };
   },
 

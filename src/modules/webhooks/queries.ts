@@ -1,11 +1,13 @@
 'use client';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { webhookKeys } from './keys';
-import { webhooksApi } from './api';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
+
 import { STALE } from '@/commons/constants/query';
-import type { ListParams } from '@/commons/types/pagination';
 import type { CreateWebhookInput } from '@/commons/schemas/webhook.schema';
+import type { ListParams } from '@/commons/types/pagination';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+
+import { webhooksApi } from './api';
+import { webhookKeys } from './keys';
 
 /**
  * Query hook for paginated webhooks in the current workspace.
@@ -20,7 +22,7 @@ import type { CreateWebhookInput } from '@/commons/schemas/webhook.schema';
  */
 export function useWebhooksQuery(params: ListParams) {
   const { workspaceId } = useWorkspace();
-  return useQuery({ queryKey: webhookKeys.list(params), queryFn: () => webhooksApi.list(workspaceId!, params), staleTime: STALE.DEFAULT, placeholderData: keepPreviousData, enabled: !!workspaceId });
+  return useQuery({ queryKey: webhookKeys.list(workspaceId!, params), queryFn: () => webhooksApi.list(workspaceId!, params), staleTime: STALE.DEFAULT, placeholderData: keepPreviousData, enabled: !!workspaceId });
 }
 
 /**

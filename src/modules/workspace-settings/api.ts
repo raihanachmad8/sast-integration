@@ -1,17 +1,13 @@
-import { Api } from '@/lib/api/client';
-import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
 import type { ApiResponse } from '@/commons/types/api';
+import { clientEnv } from '@/config/client-env';
+import { Api } from '@/lib/api/client';
+
+import type { PrReviewSettings } from './types';
+
+export type { PrReviewSettings };
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });
-
-export interface PrReviewSettings {
-  postPrSummaryComment: boolean;
-  inlineCodeAnnotations: boolean;
-  publishQualityGateStatus: boolean;
-  statusContext: string;
-  reviewSummaryFormat: 'compact' | 'detailed';
-}
 
 export const workspaceSettingsApi = {
   async getPrReviewSettings(workspaceId: string): Promise<PrReviewSettings> {

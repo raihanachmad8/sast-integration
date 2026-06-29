@@ -1,32 +1,13 @@
 /**
- * Project form input for creating or updating a project.
+ * Project module types.
  *
- * @example
- * ```ts
- * const input: ProjectFormInput = {
- *   name: 'Payment Gateway',
- *   description: 'PCI-compliant payment processing',
- *   lead: 'Alice Tan',
- *   teamIds: ['tm_01', 'tm_03'],
- *   memberIds: ['usr_01', 'usr_02'],
- *   repositoryIds: ['repo_01', 'repo_02'],
- * };
- * ```
+ * Input types are inferred from Zod schemas (single source of truth).
+ * Response/view types are defined here.
  */
-export interface ProjectFormInput {
-  /** Project display name. */
-  name: string;
-  /** Optional description of the project. */
-  description: string;
-  /** Optional lead contact name. */
-  lead: string;
-  /** Array of team IDs to attach to the project. */
-  teamIds: string[];
-  /** Array of user IDs for direct member access. */
-  memberIds: string[];
-  /** Array of repository IDs to attach. */
-  repositoryIds: string[];
-}
+import type { ProjectFormInput as ProjectFormInputSchema } from '@/commons/schemas/project.schema';
+
+/** Project form input for creating or updating a project. */
+export type ProjectFormInput = ProjectFormInputSchema;
 
 /**
  * A member of a project (direct or team-based).

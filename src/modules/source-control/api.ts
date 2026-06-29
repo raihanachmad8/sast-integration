@@ -1,9 +1,11 @@
-import { Api } from '@/lib/api/client';
+import { ENDPOINTS } from '@/commons/constants/endpoints';
 import type { ApiResponse } from '@/commons/types/api';
 import type { PaginatedResponse } from '@/commons/types/pagination';
-import type { ScmProviderConnection, RepositoryCatalog } from './types';
 import { clientEnv } from '@/config/client-env';
-import { ENDPOINTS } from '@/commons/constants/endpoints';
+import { Api } from '@/lib/api/client';
+
+import type { ScmProviderConnection, RepositoryCatalog } from './types';
+
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });
 

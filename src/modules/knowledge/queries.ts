@@ -1,10 +1,12 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { knowledgeKeys } from './keys';
-import { knowledgeApi, type KnowledgeEntriesParams } from './api';
+
 import { STALE } from '@/commons/constants/query';
 import type { ListParams } from '@/commons/types/pagination';
+
+import { knowledgeApi, type KnowledgeEntriesParams } from './api';
+import { knowledgeKeys } from './keys';
 
 /**
  * Query hook for paginated knowledge sources in a workspace.

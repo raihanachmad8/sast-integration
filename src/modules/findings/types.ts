@@ -1,4 +1,5 @@
 import type { Severity, AiVerdict, FindingStatus } from '@/commons/types/domain';
+import type { PaginatedResponse } from '@/commons/types/pagination';
 
 /**
  * Parameters for fetching findings with server-side pagination, filtering, and sorting.
@@ -17,19 +18,8 @@ export interface FindingListParams {
   order?: 'ASC' | 'DESC';
 }
 
-/**
- * Paginated response from the findings API.
- * Matches the actual API response format from ApiResponse paginated helper.
- */
-export interface FindingListResponse<T> {
-  data: T[];
-  meta: {
-    page: number;
-    perPage: number;
-    total: number;
-    totalPages: number;
-  };
-}
+/** Paginated findings list response — reuses shared PaginatedResponse. */
+export type FindingListResponse<T> = PaginatedResponse<T>;
 
 /**
  * Payload for assigning a finding to a user.

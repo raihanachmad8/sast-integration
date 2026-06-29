@@ -5,7 +5,7 @@
  *
  * @example
  * ```ts
- * import { useFindingsQuery, useFindingGroupsQuery } from '@/modules/findings';
+ * import { useFindingsQuery, useFindingQuery } from '@/modules/findings';
  * import type { FindingListParams, FindingListResponse } from '@/modules/findings';
  * ```
  */
@@ -13,7 +13,6 @@ export { findingKeys } from './keys';
 export { findingsApi } from './api';
 export {
   useFindingsQuery,
-  useFindingGroupsQuery,
   useFindingQuery,
   useUpdateFindingMutation,
   useBulkUpdateFindingsMutation,

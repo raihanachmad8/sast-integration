@@ -1,12 +1,14 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { repositoryKeys } from './keys';
-import { repositoriesApi } from './api';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
+
 import { STALE } from '@/commons/constants/query';
-import type { ListParams } from '@/commons/types/pagination';
 import type { CreateSourceControlInput } from '@/commons/schemas/source-control.schema';
+import type { ListParams } from '@/commons/types/pagination';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+
+import { repositoriesApi } from './api';
+import { repositoryKeys } from './keys';
 
 /**
  * Query hook for paginated repositories in the current workspace.
@@ -19,9 +21,9 @@ import type { CreateSourceControlInput } from '@/commons/schemas/source-control.
  * const { data, isLoading } = useRepositoriesQuery({ page: 1, imported: true });
  * ```
  */
-export function useRepositoriesQuery(params: ListParams & { imported?: boolean }) {
+export function useRepositoriesQuery(params: ListParams & { imported?: boolean }, enabled?: boolean) {
   const { workspaceId } = useWorkspace();
-  return useQuery({ queryKey: repositoryKeys.list(params), queryFn: () => repositoriesApi.list(workspaceId!, params), staleTime: STALE.DEFAULT, placeholderData: keepPreviousData, enabled: !!workspaceId });
+  return useQuery({ queryKey: repositoryKeys.list(params), queryFn: () => repositoriesApi.list(workspaceId!, params), staleTime: STALE.FILTERED, placeholderData: keepPreviousData, enabled: enabled !== undefined ? enabled && !!workspaceId : !!workspaceId });
 }
 
 /**
@@ -92,7 +94,7 @@ export function useReposQuery(params: ListParams) {
   return useQuery({
     queryKey: repositoryKeys.list(params),
     queryFn: () => repositoriesApi.list(workspaceId!, params),
-    staleTime: STALE.DEFAULT,
+    staleTime: STALE.FILTERED,
     placeholderData: keepPreviousData,
     enabled: !!workspaceId,
   });

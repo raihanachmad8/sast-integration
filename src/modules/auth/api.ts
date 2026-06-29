@@ -1,7 +1,8 @@
-import { Api } from '@/lib/api/client';
-import type { ApiResponse } from '@/commons/types/api';
 import { ENDPOINTS, SECURITY } from '@/commons/constants';
+import type { ApiResponse } from '@/commons/types/api';
 import { clientEnv } from '@/config/client-env';
+import { Api } from '@/lib/api/client';
+
 import type { SessionData, SigninResponse, RefreshTokenResponse } from './types';
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });

@@ -1,11 +1,13 @@
-import type { Project } from '@/commons/types';
-import type { ProjectFormInput, ProjectMember } from './types';
-import { extractPaginated } from '@/lib/api/pagination';
-import type { ApiResponse } from '@/commons/types/api';
-import type { ListParams, PaginatedResponse } from '@/commons/types/pagination';
-import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
+import type { ProjectListQuery as _ProjectListQuery } from '@/commons/schemas/project.schema';
+import type { Project } from '@/commons/types';
+import type { ApiResponse } from '@/commons/types/api';
+import type { PaginatedResponse } from '@/commons/types/pagination';
+import { clientEnv } from '@/config/client-env';
 import { Api } from '@/lib/api/client';
+import { extractPaginated } from '@/lib/api/pagination';
+
+import type { ProjectFormInput, ProjectMember } from './types';
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });
 
@@ -33,7 +35,7 @@ export const projectsApi = {
    * projects.data.forEach(p => console.log(`${p.name}: ${p.repositories.length} repos`));
    * ```
    */
-  async list(workspaceId: string, params: ListParams): Promise<PaginatedResponse<Project>> {
+  async list(workspaceId: string, params?: Record<string, unknown>): Promise<PaginatedResponse<Project>> {
     const response = await _api.Get<ApiResponse<PaginatedResponse<Project>>>(ENDPOINTS.PROJECTS.LIST(workspaceId), params);
     return extractPaginated(response);
   },

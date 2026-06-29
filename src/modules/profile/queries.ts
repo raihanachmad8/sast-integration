@@ -1,9 +1,11 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+import { STALE } from '@/commons/constants/query';
+import { authKeys } from '@/modules/auth/keys';
+
 import { profileApi } from './api';
 import { profileKeys } from './keys';
-import { authKeys } from '@/modules/auth/keys';
-import { STALE } from '@/commons/constants/query';
 
 /**
  * Query hook for fetching a user profile by ID.

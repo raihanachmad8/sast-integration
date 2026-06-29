@@ -1,11 +1,28 @@
-import { Api } from '@/lib/api/client';
-import { clientEnv } from '@/config/client-env';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
 import type { ApiResponse } from '@/commons/types/api';
-import type { QualityGate } from '@/commons/types/reports';
+import { clientEnv } from '@/config/client-env';
+import { Api } from '@/lib/api/client';
 const _api = Api({ baseUrl: clientEnv.apiUrl });
 
-function mapGate(raw: Record<string, unknown>): QualityGate {
+/** Quality gate configuration — workspace-level pass/fail rules. */
+export interface QualityGateConfig {
+  id: string;
+  workspaceId: string;
+  threshold: string;
+  failOnCritical: boolean;
+  failOnHighTp: boolean;
+  failOnHigh: boolean;
+  failOnMedium: boolean;
+  failOnLow: boolean;
+  failOnPending: boolean;
+  failOnTp: boolean;
+  warnOnPending: boolean;
+  requireHumanAck: boolean;
+  pendingBehavior: string;
+  createdAt: string;
+}
+
+function mapGate(raw: Record<string, unknown>): QualityGateConfig {
   return {
     id: raw.id as string,
     workspaceId: raw.workspaceId as string,
@@ -25,12 +42,12 @@ function mapGate(raw: Record<string, unknown>): QualityGate {
 }
 
 export const qualityGatesApi = {
-  async getConfig() {
+  async getConfig(): Promise<QualityGateConfig | null> {
     const { data } = await _api.Get<ApiResponse<Record<string, unknown>>>(ENDPOINTS.QUALITY_GATES.CONFIG);
     return data ? mapGate(data) : null;
   },
 
-  async updateConfig(data: Record<string, unknown>) {
+  async updateConfig(data: Record<string, unknown>): Promise<QualityGateConfig | null> {
     const { data: result } = await _api.Put<ApiResponse<Record<string, unknown>>>(ENDPOINTS.QUALITY_GATES.CONFIG, data);
     return result ? mapGate(result) : null;
   },

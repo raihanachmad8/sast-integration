@@ -1,15 +1,17 @@
 'use client';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { scheduleKeys } from './keys';
-import { schedulesApi } from './api';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
+
 import { STALE } from '@/commons/constants/query';
-import type { ListParams } from '@/commons/types/pagination';
 import type { CreateScheduleInput, UpdateScheduleInput } from '@/commons/schemas/schedule.schema';
+import type { ListParams } from '@/commons/types/pagination';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+
+import { schedulesApi } from './api';
+import { scheduleKeys } from './keys';
 
 export function useSchedulesQuery(params: ListParams) {
   const { workspaceId } = useWorkspace();
-  return useQuery({ queryKey: scheduleKeys.list(params), queryFn: () => schedulesApi.list(workspaceId!, params), staleTime: STALE.DEFAULT, placeholderData: keepPreviousData, enabled: !!workspaceId });
+  return useQuery({ queryKey: scheduleKeys.list(workspaceId!, params), queryFn: () => schedulesApi.list(workspaceId!, params), staleTime: STALE.DEFAULT, placeholderData: keepPreviousData, enabled: !!workspaceId });
 }
 
 export function useCreateScheduleMutation() {

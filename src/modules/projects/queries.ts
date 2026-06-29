@@ -1,23 +1,27 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+
+import { STALE } from '@/commons/constants/query';
+import type { ProjectListQuery } from '@/commons/schemas/project.schema';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+
 import { projectsApi } from './api';
 import { projectKeys } from './keys';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
-import { STALE } from '@/commons/constants/query';
 import type { ProjectFormInput } from './types';
-import type { ListParams } from '@/commons/types/pagination';
+
 
 /**
  * Query hook for fetching all projects in the current workspace.
- * Stale time: 5 minutes.
+ * Stale time: 30 seconds (FILTERED) — filter-sensitive queries need shorter cache
+ * to ensure fresh data when users switch between filter combinations.
  */
-export function useProjectsQuery(params: ListParams) {
+export function useProjectsQuery(params: Partial<Omit<ProjectListQuery, 'workspace_id' | 'order'>> & { order?: string }) {
   const { workspaceId } = useWorkspace();
   return useQuery({
-    queryKey: projectKeys.list(params),
+    queryKey: projectKeys.list(workspaceId!, params),
     queryFn: () => projectsApi.list(workspaceId!, params),
-    staleTime: STALE.DEFAULT,
+    staleTime: STALE.FILTERED,
     placeholderData: keepPreviousData,
     enabled: !!workspaceId,
   });
@@ -33,7 +37,7 @@ export function useProjectQuery(projectId: string) {
     queryKey: projectKeys.detail(projectId),
     queryFn: () => projectsApi.get(workspaceId!, projectId),
     enabled: !!projectId && !!workspaceId,
-    staleTime: STALE.DEFAULT,
+    staleTime: STALE.SHORT,
   });
 }
 

@@ -1,9 +1,11 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { workspaceSettingsApi, type PrReviewSettings } from './api';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
+
 import { STALE } from '@/commons/constants/query';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+
+import { workspaceSettingsApi, type PrReviewSettings } from './api';
 
 export type { PrReviewSettings };
 

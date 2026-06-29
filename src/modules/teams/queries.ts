@@ -1,12 +1,15 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+
+import { STALE } from '@/commons/constants/query';
+import type { TeamListQuery } from '@/commons/schemas/team.schema';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
+
 import { teamsApi } from './api';
 import { teamKeys } from './keys';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
-import { STALE } from '@/commons/constants/query';
 import type { TeamFormInput } from './types';
-import type { ListParams } from '@/commons/types/pagination';
+
 
 /**
  * Query hook for paginated teams in the current workspace.
@@ -18,13 +21,13 @@ import type { ListParams } from '@/commons/types/pagination';
  * const { data, isLoading } = useTeamsQuery({ page: 1, perPage: 20 });
  * ```
  */
-export function useTeamsQuery(params: ListParams) {
+export function useTeamsQuery(params?: Partial<TeamListQuery>, enabled?: boolean) {
   const { workspaceId } = useWorkspace();
   return useQuery({
-    queryKey: teamKeys.list(params),
+    queryKey: teamKeys.list(workspaceId!, params),
     queryFn: () => teamsApi.list(workspaceId!, params),
-    staleTime: STALE.DEFAULT,
-    enabled: !!workspaceId,
+    enabled: enabled !== undefined ? enabled && !!workspaceId : !!workspaceId,
+    staleTime: STALE.FILTERED,
     placeholderData: keepPreviousData,
   });
 }
@@ -45,27 +48,7 @@ export function useTeamQuery(teamId: string) {
     queryKey: teamKeys.detail(teamId),
     queryFn: () => teamsApi.get(workspaceId!, teamId),
     enabled: !!teamId && !!workspaceId,
-    staleTime: STALE.DEFAULT,
-  });
-}
-
-/**
- * Query hook for fetching members of a specific team.
- *
- * @param teamId - The team ID to fetch members for. Skipped if empty.
- *
- * @example
- * ```tsx
- * const { data: members } = useTeamMembersQuery('team-abc');
- * ```
- */
-export function useTeamMembersQuery(teamId: string) {
-  const { workspaceId } = useWorkspace();
-  return useQuery({
-    queryKey: teamKeys.members(teamId),
-    queryFn: () => teamsApi.getMembers(workspaceId!, teamId),
-    enabled: !!teamId && !!workspaceId,
-    staleTime: STALE.DEFAULT,
+    staleTime: STALE.FILTER,
   });
 }
 
