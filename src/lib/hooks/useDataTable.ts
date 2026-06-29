@@ -1,8 +1,9 @@
 'use client';
 
-import { useTableParams } from './useTableParams';
 import { type TableSource, type FilterConfig } from '@/commons/components/DataTable';
 import type { ListParams } from '@/commons/types/pagination';
+
+import { useTableParams } from './useTableParams';
 
 interface UseDataTableOptions {
   /** Filter keys to sync with URL */

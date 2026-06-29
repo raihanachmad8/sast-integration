@@ -38,7 +38,7 @@ export const DOCS_CONFIG: DocSection[] = [
       { slug: 'findings', title: 'Findings', description: 'Security finding management', file: 'findings.md' },
       { slug: 'reports', title: 'Reports', description: 'Report generation and export', file: 'reports.md' },
       { slug: 'arena', title: 'Arena', description: 'Scanner comparison workspace', file: 'arena.md' },
-      { slug: 'knowledge-base', title: 'Knowledge Base', description: 'CWE, NVD, MITRE integration', file: 'knowledge-base.md' },
+      { slug: 'knowledge-base', title: 'Knowledge Base', description: 'CWE & NVD knowledge management', file: 'knowledge-base.md' },
     ],
   },
   {

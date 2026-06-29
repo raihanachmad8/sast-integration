@@ -2,7 +2,7 @@
  * Auto-generated search index from markdown files.
  * Run: node scripts/generate-search-index.js
  * 
- * Last generated: 2026-06-26T12:40:25.109Z
+ * Last generated: 2026-06-27T02:40:10.797Z
  */
 
 export interface SearchEntry {
@@ -284,7 +284,7 @@ export const SEARCH_INDEX: Record<string, SearchEntry> = {
       "API Endpoints",
       "Feature Flag"
     ],
-    "content": "The knowledge base provides CWE, NVD, and MITRE ATT&CK context to enrich findings and improve AI verification accuracy. 1. Finding has cwe_id from scanner 2. System queries knowledge base for matching entries 3. Context is injected into AI verification prompt 4. AI uses enriched context for better classification Knowledge base requires FEATURE_FLAG_KNOWLEDGE_BASE=true."
+    "content": "The knowledge base provides CWE and NVD context to enrich findings and improve AI verification accuracy. 1. Finding has cwe_id from scanner 2. System queries knowledge base for matching entries 3. Context is injected into AI verification prompt 4. AI uses enriched context for better classification Knowledge base requires FEATURE_FLAG_KNOWLEDGE_BASE=true."
   },
   "overview": {
     "headings": [
@@ -354,14 +354,14 @@ export const SEARCH_INDEX: Record<string, SearchEntry> = {
       "Roles",
       "Permission Matrix",
       "Permission Format",
-      "Resources (18)",
-      "Actions (9)",
+      "Resources (19)",
+      "Actions (10)",
       "Component Guards",
       "PermissionGate (UI)",
       "requirePermission (API)",
       "Role Summary"
     ],
-    "content": "SAST Integration implements granular RBAC with 4 roles and 36 permissions. dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, scanner, ai_model, knowledge, workspace, audit view, manage, run, triage, override_ai, export, invite, settings, read"
+    "content": "SAST Integration implements granular RBAC with 4 roles and 39 permissions. dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, quality_gate, scanner, ai_model, knowledge, workspace, audit view, manage, run, upload, triage, override_ai, export, invite, settings, read"
   },
   "reports": {
     "headings": [
@@ -604,12 +604,12 @@ export const SEARCH_INDEX: Record<string, SearchEntry> = {
       "Multi-Workspace",
       "Permission System",
       "Format",
-      "Resources (18)",
-      "Actions (9)",
-      "Total Permissions: 36",
+      "Resources (19)",
+      "Actions (10)",
+      "Total Permissions: 39",
       "Feature Flags"
     ],
-    "content": "SAST Integration uses a workspace-based multi-tenant architecture. Workspaces isolate data, members, and configurations. Users can belong to multiple workspaces: dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, scanner, ai_model, knowledge, workspace, audit view, manage, run, triage, override_ai, export, invite, settings, read Each workspace can have different features enabled:"
+    "content": "SAST Integration uses a workspace-based multi-tenant architecture. Workspaces isolate data, members, and configurations. Users can belong to multiple workspaces: dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, quality_gate, scanner, ai_model, knowledge, workspace, audit view, manage, run, upload, triage, override_ai, export, invite, settings, read Each workspace can have different features enabled:"
   },
   "workspace-permissions": {
     "headings": [

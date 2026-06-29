@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface TableParams {
   page: number;
@@ -39,7 +39,7 @@ interface UseTableParamsReturn<T> {
 
 function decode(sp: URLSearchParams, opts: { defaultPageSize: number; searchKey: string; orderKey: string; filterKeys: string[] }): TableParams {
   const page = Math.max(1, parseInt(sp.get('page') ?? '1', 10) || 1);
-  const perPage = Math.max(1, parseInt(sp.get('per_page') ?? String(opts.defaultPageSize), 10) || opts.defaultPageSize);
+  const perPage = Math.max(1, parseInt(sp.get('perPage') ?? sp.get('per_page') ?? String(opts.defaultPageSize), 10) || opts.defaultPageSize);
   const search = sp.get(opts.searchKey) ?? '';
   const order = sp.get(opts.orderKey) ?? '';
   const sortKey = sp.get('sort') ?? '';
@@ -56,7 +56,7 @@ function decode(sp: URLSearchParams, opts: { defaultPageSize: number; searchKey:
 function encode(p: TableParams, opts: { defaultPageSize: number; searchKey: string; orderKey: string }, existingParams?: URLSearchParams): string {
   const u = new URLSearchParams(existingParams?.toString() ?? '');
   if (p.page > 1) u.set('page', String(p.page)); else u.delete('page');
-  if (p.perPage !== opts.defaultPageSize) u.set('per_page', String(p.perPage)); else u.delete('per_page');
+  if (p.perPage !== opts.defaultPageSize) u.set('perPage', String(p.perPage)); else u.delete('perPage');
   if (p.search) u.set(opts.searchKey, p.search); else u.delete(opts.searchKey);
   if (p.order) u.set(opts.orderKey, p.order); else u.delete(opts.orderKey);
   if (p.sortKey && p.sortDir) {
@@ -180,7 +180,16 @@ export function useTableParams<T = unknown>(options: UseTableParamsOptions<T> = 
   }, [pushUrl]);
 
   const setFilter = useCallback((key: string, value: string) => {
-    const next = { ...paramsRef.current, filters: { ...paramsRef.current.filters, [key]: value }, page: 1 };
+    const nextFilters = { ...paramsRef.current.filters };
+    
+    if (value === '' || value === 'all' || value === undefined) {
+      // Hapus key filter ketika value kosong, sama seperti reff project
+      delete nextFilters[key];
+    } else {
+      nextFilters[key] = value;
+    }
+    
+    const next = { ...paramsRef.current, filters: nextFilters, page: 1 };
     setParams(next);
     paramsRef.current = next;
     pushUrl(next);

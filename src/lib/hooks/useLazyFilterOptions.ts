@@ -1,96 +1,81 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useDebouncedValue } from './useDebouncedValue';
-import { useMembersQuery } from '@/modules/members/queries';
-import { useProjectsQuery } from '@/modules/projects/queries';
-import { useRepositoriesQuery } from '@/modules/repositories/queries';
+import { useMemo } from 'react';
 
-interface FilterOption {
-  value: string;
-  label: string;
-}
+import type { MemberListQuery as _MemberListQuery } from '@/commons/schemas/member.schema';
+import { membersApi } from '@/modules/members/api';
+import { memberKeys } from '@/modules/members/keys';
+import { projectsApi } from '@/modules/projects/api';
+import { projectKeys } from '@/modules/projects/keys';
+import { repositoriesApi } from '@/modules/repositories/api';
+import { repositoryKeys } from '@/modules/repositories/keys';
+
+import { useLazySelect } from './useLazySelect';
+import { useWorkspace } from './useWorkspace';
 
 interface UseLazyFilterOptionsParams {
-  workspaceId: string;
-  search?: string;
   initialLoad?: number;
 }
 
 /**
- * Hook for lazy-loading filter dropdown options from the database.
- * Fetches only initial N items on mount, then fetches more as user types (debounced).
+ * Infinite scroll filter options for members, projects, and repositories.
  *
- * @param params - workspaceId, optional search term, initial load count
- * @returns Object with members, projects, repositories option arrays and loading states
- *
- * @example
- * const { memberOptions, projectOptions, repoOptions, isMembersLoading } = useLazyFilterOptions({
- *   workspaceId: 'ws-123',
- *   search: debouncedSearch,
- * });
+ * Uses useLazySelect internally to reduce boilerplate.
+ * Maintains backward compatibility with existing callers (e.g. FindingsPage).
  */
-export function useLazyFilterOptions({ workspaceId, search = '', initialLoad = 20 }: UseLazyFilterOptionsParams) {
-  const debouncedSearch = useDebouncedValue(search, 300);
-  const perPage = debouncedSearch ? 100 : initialLoad;
+export function useLazyFilterOptions({ initialLoad = 10 }: UseLazyFilterOptionsParams = {}) {
+  const { workspaceId } = useWorkspace();
 
-  const membersQuery = useMembersQuery(workspaceId, {
-    page: 1,
-    perPage,
-    search: debouncedSearch || undefined,
+  const members = useLazySelect<{ userId: string; name: string; email: string }>({
+    workspaceId: workspaceId ?? '',
+    fetchFn: (ws, p) => membersApi.list(ws, { page: p.page, perPage: p.perPage, search: p.search }),
+    getId: (m) => m.userId,
+    getLabel: (m) => `${m.name} (${m.email})`,
+    perPage: initialLoad,
+    baseKey: memberKeys.all,
   });
 
-  const projectsQuery = useProjectsQuery({
-    page: 1,
-    perPage,
-    search: debouncedSearch || undefined,
+  const projects = useLazySelect<{ id: string; name: string }>({
+    workspaceId: workspaceId ?? '',
+    fetchFn: (ws, p) => projectsApi.list(ws, { page: p.page, perPage: p.perPage, search: p.search }),
+    getId: (p) => p.id,
+    getLabel: (p) => p.name,
+    perPage: initialLoad,
+    baseKey: projectKeys.all,
   });
 
-  const reposQuery = useRepositoriesQuery({
-    page: 1,
-    perPage,
-    search: debouncedSearch || undefined,
+  const repos = useLazySelect<{ id: string; name: string }>({
+    workspaceId: workspaceId ?? '',
+    fetchFn: (ws, p) => repositoriesApi.list(ws, { page: p.page, perPage: p.perPage, search: p.search }),
+    getId: (r) => r.id,
+    getLabel: (r) => r.name,
+    perPage: initialLoad,
+    baseKey: repositoryKeys.all,
   });
 
-  const memberOptions: FilterOption[] = useMemo(() =>
-    (membersQuery.data?.data ?? []).map((m: { userId: string; name: string; email: string }) => ({
-      value: m.userId,
-      label: `${m.name} (${m.email})`,
-    })),
-    [membersQuery.data]
-  );
-
-  const projectOptions: FilterOption[] = useMemo(() =>
-    (projectsQuery.data?.data ?? []).map((p: { id: string; name: string }) => ({
-      value: p.id,
-      label: p.name,
-    })),
-    [projectsQuery.data]
-  );
-
-  const repoOptions: FilterOption[] = useMemo(() =>
-    (reposQuery.data?.data ?? []).map((r: { id: string; name: string }) => ({
-      value: r.id,
-      label: r.name,
-    })),
-    [reposQuery.data]
-  );
-
-  const members = useMemo(() =>
-    (membersQuery.data?.data ?? []) as unknown as Array<{ userId: string; name: string; email: string }>,
-    [membersQuery.data]
-  );
-
-  return {
-    members,
-    memberOptions,
-    projectOptions,
-    repoOptions,
-    isMembersLoading: membersQuery.isLoading,
-    isProjectsLoading: projectsQuery.isLoading,
-    isReposLoading: reposQuery.isLoading,
-    memberTotal: membersQuery.data?.meta?.total ?? 0,
-    projectTotal: projectsQuery.data?.meta?.total ?? 0,
-    repoTotal: reposQuery.data?.meta?.total ?? 0,
-  };
+  return useMemo(() => ({
+    members: members.data,
+    memberOptions: members.options,
+    projectOptions: projects.options,
+    repoOptions: repos.options,
+    isMembersLoading: members.isLoading,
+    isProjectsLoading: projects.isLoading,
+    isReposLoading: repos.isLoading,
+    isMemberFetching: members.isFetchingNextPage,
+    isProjectFetching: projects.isFetchingNextPage,
+    isRepoFetching: repos.isFetchingNextPage,
+    hasMoreMembers: members.hasNextPage,
+    hasMoreProjects: projects.hasNextPage,
+    hasMoreRepos: repos.hasNextPage,
+    handleMemberSearch: members.handleSearch,
+    handleProjectSearch: projects.handleSearch,
+    handleRepoSearch: repos.handleSearch,
+    handleMemberScroll: members.handleScroll,
+    handleProjectScroll: projects.handleScroll,
+    handleRepoScroll: repos.handleScroll,
+  }), [
+    members.data, members.options, members.isLoading, members.isFetchingNextPage, members.hasNextPage, members.handleSearch, members.handleScroll,
+    projects.options, projects.isLoading, projects.isFetchingNextPage, projects.hasNextPage, projects.handleSearch, projects.handleScroll,
+    repos.options, repos.isLoading, repos.isFetchingNextPage, repos.hasNextPage, repos.handleSearch, repos.handleScroll,
+  ]);
 }

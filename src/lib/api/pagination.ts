@@ -15,7 +15,7 @@ export function extractPaginated<T>(response: ApiResponse<PaginatedResponse<T>>)
       page: pagination?.page ?? 1,
       perPage: pagination?.perPage ?? 10,
       total: pagination?.total ?? 0,
-      lastPage: pagination?.totalPages ?? 1,
+      lastPage: pagination?.lastPage ?? 1,
     },
   };
 }

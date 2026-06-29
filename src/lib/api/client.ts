@@ -1,4 +1,5 @@
 import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios';
+
 import { SECURITY } from '@/commons/constants';
 import { clientEnv } from '@/config/client-env';
 

@@ -1,8 +1,10 @@
 'use client';
 
+import { Typography, theme } from 'antd';
 import React from 'react';
-import { Typography, Alert, theme } from 'antd';
-import { CODE_BLOCK, INLINE_CODE, FONT_SIZE } from './tokens';
+
+import { slugify, extractText } from './shared-utils';
+import { CODE_BLOCK, INLINE_CODE } from './tokens';
 
 const { Title, Paragraph } = Typography;
 
@@ -74,6 +76,7 @@ function StyledTH({ children, ...props }: React.ComponentPropsWithoutRef<'th'>) 
   const { token } = theme.useToken();
   return (
     <th
+      scope="col"
       style={{
         textAlign: 'left',
         padding: `${token.paddingSM}px ${token.paddingLG}px`,
@@ -109,20 +112,6 @@ function StyledTD({ children, ...props }: React.ComponentPropsWithoutRef<'td'>) 
 }
 
 /* ─── Heading ─── */
-const slugCounters = new Map<string, number>();
-
-function slugify(text: string): string {
-  const base = text.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
-  const count = slugCounters.get(base) ?? 0;
-  slugCounters.set(base, count + 1);
-  return count === 0 ? base : `${base}-${count}`;
-}
-
-// Reset counters when page changes (called from markdown renderer)
-export function resetSlugCounters() {
-  slugCounters.clear();
-}
-
 function Heading({ level, children, ...props }: { level: 1 | 2 | 3 | 4 } & React.ComponentPropsWithoutRef<'h1' | 'h2' | 'h3' | 'h4'>) {
   const { token } = theme.useToken();
   const config = {
@@ -133,13 +122,14 @@ function Heading({ level, children, ...props }: { level: 1 | 2 | 3 | 4 } & React
   };
   const cfg = config[level];
 
-  const textContent = typeof children === 'string' ? children : '';
+  const textContent = extractText(children);
   const id = slugify(textContent);
 
   return (
     <Title
       level={level}
       id={id}
+      suppressHydrationWarning
       style={{
         marginTop: cfg.mt,
         marginBottom: cfg.mb,
@@ -200,18 +190,24 @@ export const mdxComponents = {
 
   hr: (props: React.ComponentPropsWithoutRef<'hr'>) => {
     const { token } = theme.useToken();
-    return <div style={{ borderTop: `1px solid ${token.colorBorderSecondary}`, margin: `${token.marginXXL}px 0` }} {...props} />;
+    return <hr style={{ border: 'none', borderTop: `1px solid ${token.colorBorderSecondary}`, margin: `${token.marginXXL}px 0` }} {...props} />;
   },
 
   blockquote: ({ children }: React.ComponentPropsWithoutRef<'blockquote'>) => {
     const { token } = theme.useToken();
     return (
-      <Alert
-        type="info"
-        showIcon
-        style={{ margin: `${token.marginLG}px 0`, borderRadius: token.borderRadiusLG }}
-        message={<div style={{ fontSize: token.fontSizeLG }}>{children}</div>}
-      />
+      <blockquote
+        style={{
+          margin: `${token.marginLG}px 0`,
+          padding: `${token.paddingMD}px ${token.paddingLG}px`,
+          borderLeft: `4px solid ${token.colorPrimary}`,
+          background: token.colorFillQuaternary,
+          borderRadius: `0 ${token.borderRadiusLG}px ${token.borderRadiusLG}px 0`,
+          color: token.colorText,
+        }}
+      >
+        {children}
+      </blockquote>
     );
   },
 

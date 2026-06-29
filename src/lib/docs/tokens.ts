@@ -29,16 +29,6 @@ export const CODE_BLOCK_DARK = {
   fontSize: FONT_SIZE.sm,
 } as const;
 
-// ═══════════════════════════════════════════════════════════
-// Code Block Tokens — Light Theme
-// ═══════════════════════════════════════════════════════════
-export const CODE_BLOCK_LIGHT = {
-  bg: '#f8fafc',
-  text: '#334155',
-  border: '#e2e8f0',
-  fontSize: FONT_SIZE.sm,
-} as const;
-
 // Default code block (dark)
 export const CODE_BLOCK = CODE_BLOCK_DARK;
 
@@ -76,21 +66,3 @@ export const TEXT = {
   body: '#64748b',
 } as const;
 
-// ═══════════════════════════════════════════════════════════
-// Landing Page Tokens
-// ═══════════════════════════════════════════════════════════
-export const LANDING = {
-  hero: {
-    badgeText: '#0f766e',
-    subtitle: '#64748b',
-    trustText: '#64748b',
-  },
-  stats: {
-    value: '#0f766e',
-    label: '#64748b',
-  },
-  feature: {
-    title: '#0f172a',
-    description: '#64748b',
-  },
-} as const;
