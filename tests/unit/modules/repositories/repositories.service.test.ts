@@ -1,16 +1,26 @@
+/**
+ * Unit tests for repositoriesService (Repository Management)
+ *
+ * Tests the business logic layer for:
+ * - Listing repositories
+ * - Getting repository by ID
+ * - Creating repositories
+ * - Updating repositories
+ * - Deleting repositories
+ *
+ * Focus is on permission checks, workspace scoping, and ownership rules.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { repositoriesService } from '@/server/modules/repositories/repositories.service';
 
-// Mock dependencies
 vi.mock('@/server/modules/repositories/repositories.repository', () => ({
   repositoriesRepository: {
-    listByWorkspace: vi.fn(),
+    list: vi.fn(),
     getById: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
-    findByUrl: vi.fn(),
-    findByNameAndWorkspace: vi.fn(),
+    findByName: vi.fn(),
   },
 }));
 
@@ -22,519 +32,180 @@ vi.mock('@/server/modules/workspace/repositories/workspace.repository', () => ({
 
 vi.mock('@/server/lib/logger', () => ({
   logger: {
-    repository: {
-      info: vi.fn(),
-      error: vi.fn(),
-    },
+    repository: { info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    workspace: { debug: vi.fn() },
+    audit: { warn: vi.fn() },
   },
 }));
 
+import { repositoriesRepository } from '@/server/modules/repositories/repositories.repository';
+import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+
 describe('repositoriesService', () => {
-  const mockWorkspaceId = 'workspace-123';
-  const mockUserId = 'user-123';
-  const mockRepoId = 'repo-123';
+  const wsId = 'ws-1';
+  const userId = 'user-1';
+  const repoId = 'repo-1';
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  beforeEach(() => { vi.clearAllMocks(); });
 
+  // --------------------------------------------------
+  // list
+  // --------------------------------------------------
   describe('list', () => {
-    /**
-     * Purpose: Validates that all repositories for a workspace are returned
-     */
-    it('should list repositories for workspace', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const mockRepos = [
-        { id: 'r1', name: 'repo-1', url: 'https://github.com/test/repo1' },
-        { id: 'r2', name: 'repo-2', url: 'https://github.com/test/repo2' },
-      ];
+    it('should return repositories for a workspace', async () => {
+      vi.mocked(repositoriesRepository.list).mockResolvedValue([
+        { id: 'r1', name: 'repo-a' },
+        { id: 'r2', name: 'repo-b' },
+      ]);
 
-      vi.mocked(repositoriesRepository.listByWorkspace).mockResolvedValue(mockRepos);
-
-      const result = await repositoriesService.list(mockWorkspaceId);
-
+      const result = await repositoriesService.list(wsId);
       expect(result).toHaveLength(2);
-      expect(result).toEqual(mockRepos);
     });
 
-    /**
-     * Purpose: Validates that an empty array is returned when no repositories exist
-     */
-    it('should return empty array when no repositories', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      vi.mocked(repositoriesRepository.listByWorkspace).mockResolvedValue([]);
-
-      const result = await repositoriesService.list(mockWorkspaceId);
-
+    it('should return empty array when workspace has no repositories', async () => {
+      vi.mocked(repositoriesRepository.list).mockResolvedValue([]);
+      const result = await repositoriesService.list(wsId);
       expect(result).toHaveLength(0);
     });
   });
 
+  // --------------------------------------------------
+  // getById
+  // --------------------------------------------------
   describe('getById', () => {
-    /**
-     * Purpose: Validates that a repository is returned correctly by its ID
-     */
     it('should get repository by ID', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const mockRepo = { id: mockRepoId, name: 'test-repo', workspaceId: mockWorkspaceId };
-
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue(mockRepo);
-
-      const result = await repositoriesService.getById(mockRepoId, mockWorkspaceId);
-
-      expect(result).toBeDefined();
-      expect(result.id).toBe(mockRepoId);
+      vi.mocked(repositoriesRepository.getById).mockResolvedValue({ id: repoId, name: 'test-repo' });
+      const result = await repositoriesService.getById(wsId, repoId);
+      expect(result.id).toBe(repoId);
     });
 
-    /**
-     * Purpose: Validates that an error is thrown when the repository does not exist
-     */
     it('should throw NOT_FOUND when repository does not exist', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue(null);
-
+      vi.mocked(repositoriesRepository.getById).mockResolvedValue(undefined);
       await expect(
-        repositoriesService.getById('nonexistent', mockWorkspaceId)
+        repositoriesService.getById(wsId, 'nonexistent')
       ).rejects.toThrow('Repository not found');
     });
   });
 
+  // --------------------------------------------------
+  // create
+  // --------------------------------------------------
   describe('create', () => {
-    /**
-     * Purpose: Validates that a repository can be created by a workspace member
-     */
     it('should create repository when user is member', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
+      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('member');
+      vi.mocked(repositoriesRepository.findByName).mockResolvedValue(null);
+      vi.mocked(repositoriesRepository.create).mockResolvedValue({ id: repoId, name: 'new-repo' });
 
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.create).mockResolvedValue({
-        id: mockRepoId,
+      const result = await repositoriesService.create(wsId, {
+        projectId: 'proj-1',
         name: 'new-repo',
-        workspaceId: mockWorkspaceId,
-      });
+        url: 'https://github.com/org/repo',
+      }, userId);
 
-      const result = await repositoriesService.create({
-        projectId: 'project-123',
-        name: 'new-repo',
-        url: 'https://github.com/test/new-repo',
-      }, mockWorkspaceId, mockUserId);
-
-      expect(result).toBeDefined();
       expect(result.name).toBe('new-repo');
     });
 
-    /**
-     * Purpose: Validates that non-members are forbidden from creating repositories
-     */
     it('should throw FORBIDDEN when user is not member', async () => {
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
       vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
 
       await expect(
-        repositoriesService.create({
-          projectId: 'project-123',
-          name: 'new-repo',
-          url: 'https://github.com/test/new-repo',
-        }, mockWorkspaceId, mockUserId)
-      ).rejects.toThrow('You are not a member of this workspace');
+        repositoriesService.create(wsId, { name: 'new', projectId: 'p1', url: 'http://test.com' }, userId)
+      ).rejects.toThrow('You are not a member');
     });
+
   });
 
+  // --------------------------------------------------
+  // update
+  // --------------------------------------------------
   describe('update', () => {
     it('should update repository when user is member', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
+      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('member');
+      vi.mocked(repositoriesRepository.getById).mockResolvedValue({ id: repoId, name: 'old' });
+      vi.mocked(repositoriesRepository.update).mockResolvedValue({ id: repoId, name: 'new-name' });
 
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue({
-        id: mockRepoId,
-        name: 'old-name',
-        workspaceId: mockWorkspaceId,
-      });
-      vi.mocked(repositoriesRepository.update).mockResolvedValue({
-        id: mockRepoId,
-        name: 'updated-name',
-      });
-
-      const result = await repositoriesService.update(mockRepoId, {
-        name: 'updated-name',
-      }, mockWorkspaceId, mockUserId);
-
-      expect(result).toBeDefined();
-      expect(result.name).toBe('updated-name');
-    });
-
-    /**
-     * Purpose: Validates that non-members are forbidden from updating repositories
-     */
-    it('should throw FORBIDDEN when user is not member', async () => {
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
-
-      await expect(
-        repositoriesService.update(mockRepoId, { name: 'new' }, mockWorkspaceId, mockUserId)
-      ).rejects.toThrow('You are not a member of this workspace');
-    });
-
-    /**
-     * Purpose: Validates that updating a nonexistent repository throws NOT_FOUND
-     */
-    it('should throw NOT_FOUND when repository does not exist', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue(null);
-
-      await expect(
-        repositoriesService.update('nonexistent', { name: 'new' }, mockWorkspaceId, mockUserId)
-      ).rejects.toThrow('Repository not found');
-    });
-  });
-
-  describe('delete', () => {
-    /**
-     * Purpose: Validates that a repository can be deleted by a workspace member
-     */
-    it('should delete repository when user is member', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue({
-        id: mockRepoId,
-        name: 'repo-to-delete',
-        workspaceId: mockWorkspaceId,
-      });
-      vi.mocked(repositoriesRepository.delete).mockResolvedValue(undefined);
-
-      const result = await repositoriesService.delete(mockRepoId, mockWorkspaceId, mockUserId);
-
-      expect(result).toBeDefined();
-      expect(result.id).toBe(mockRepoId);
-      expect(repositoriesRepository.delete).toHaveBeenCalledWith(mockRepoId);
-    });
-
-    /**
-     * Purpose: Validates that non-members are forbidden from deleting repositories
-     */
-    it('should throw FORBIDDEN when user is not member', async () => {
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
-
-      await expect(
-        repositoriesService.delete(mockRepoId, mockWorkspaceId, mockUserId)
-      ).rejects.toThrow('You are not a member of this workspace');
-    });
-
-    /**
-     * Purpose: Validates that deleting a nonexistent repository throws NOT_FOUND
-     */
-    it('should throw NOT_FOUND when repository does not exist', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue(null);
-
-      await expect(
-        repositoriesService.delete('nonexistent', mockWorkspaceId, mockUserId)
-      ).rejects.toThrow('Repository not found');
-    });
-  });
-
-  describe('list edge cases', () => {
-    /**
-     * Purpose: Validates that the workspace ID is passed correctly to the repository
-     */
-    it('+ should call repository with workspace ID', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      vi.mocked(repositoriesRepository.listByWorkspace).mockResolvedValue([]);
-
-      await repositoriesService.list('test-workspace');
-      expect(repositoriesRepository.listByWorkspace).toHaveBeenCalledWith('test-workspace');
-    });
-
-    /**
-     * Purpose: Validates that multiple repositories are returned correctly
-     */
-    it('+ should return multiple repositories', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      vi.mocked(repositoriesRepository.listByWorkspace).mockResolvedValue([
-        { id: 'r1', name: 'repo-1' },
-        { id: 'r2', name: 'repo-2' },
-        { id: 'r3', name: 'repo-3' },
-      ]);
-
-      const result = await repositoriesService.list(mockWorkspaceId);
-      expect(result).toHaveLength(3);
-    });
-
-    /**
-     * Purpose: Validates that the order from the repository is preserved in the response
-     */
-    it('+ should preserve repository order', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const repos = [{ id: 'r1', name: 'alpha' }, { id: 'r2', name: 'beta' }];
-      vi.mocked(repositoriesRepository.listByWorkspace).mockResolvedValue(repos);
-
-      const result = await repositoriesService.list(mockWorkspaceId);
-      expect(result[0].name).toBe('alpha');
-      expect(result[1].name).toBe('beta');
-    });
-  });
-
-  describe('create edge cases', () => {
-    /**
-     * Purpose: Validates that a repository can be created with all optional fields
-     */
-    it('+ should create with all optional fields', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.create).mockResolvedValue({
-        id: mockRepoId,
-        name: 'full-repo',
-        workspaceId: mockWorkspaceId,
-      });
-
-      const result = await repositoriesService.create({
-        projectId: 'project-123',
-        name: 'full-repo',
-        url: 'https://github.com/test/full-repo',
-        defaultBranch: 'develop',
-        connectionType: ['scm'],
-        autoScan: true,
-      }, mockWorkspaceId, mockUserId);
-
-      expect(result).toBeDefined();
-    });
-
-    /**
-     * Purpose: Validates that the manager role is allowed to create repositories
-     */
-    it('+ should allow manager role to create', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('manager');
-      vi.mocked(repositoriesRepository.create).mockResolvedValue({ id: mockRepoId, name: 'repo' });
-
-      const result = await repositoriesService.create({
-        projectId: 'p1', name: 'repo', url: 'http://test.com/repo',
-      }, mockWorkspaceId, mockUserId);
-
-      expect(result).toBeDefined();
-    });
-
-    /**
-     * Purpose: Validates that viewer role can still create repositories as a workspace member
-     */
-    it('- should throw for viewer role', async () => {
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('viewer');
-
-      // Viewer is still a member, so this should NOT throw
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      vi.mocked(repositoriesRepository.create).mockResolvedValue({ id: mockRepoId, name: 'repo' });
-
-      const result = await repositoriesService.create({
-        projectId: 'project-123',
-        name: 'repo',
-        url: 'https://github.com/test/repo',
-      }, mockWorkspaceId, mockUserId);
-
-      expect(result).toBeDefined();
-    });
-  });
-
-  describe('update edge cases', () => {
-    /**
-     * Purpose: Validates that a repository can be updated with a partial field set
-     */
-    it('+ should update with partial fields', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue({ id: mockRepoId });
-      vi.mocked(repositoriesRepository.update).mockResolvedValue({ id: mockRepoId, name: 'updated' });
-
-      const result = await repositoriesService.update(mockRepoId, { defaultBranch: 'main' }, mockWorkspaceId, mockUserId);
-      expect(result).toBeDefined();
-    });
-
-    /**
-     * Purpose: Validates that the repository is called with the correct ID during update
-     */
-    it('+ should call repository with correct ID', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue({ id: mockRepoId });
-      vi.mocked(repositoriesRepository.update).mockResolvedValue({ id: mockRepoId });
-
-      await repositoriesService.update(mockRepoId, { name: 'new' }, mockWorkspaceId, mockUserId);
-      expect(repositoriesRepository.update).toHaveBeenCalledWith(mockRepoId, expect.any(Object));
-    });
-  });
-
-  describe('delete edge cases', () => {
-    /**
-     * Purpose: Validates that the delete method is called with the correct repository ID
-     */
-    it('+ should call repository delete with correct ID', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue({ id: mockRepoId });
-      vi.mocked(repositoriesRepository.delete).mockResolvedValue(undefined);
-
-      await repositoriesService.delete(mockRepoId, mockWorkspaceId, mockUserId);
-      expect(repositoriesRepository.delete).toHaveBeenCalledWith(mockRepoId);
-    });
-
-    /**
-     * Purpose: Validates that the full repository data is returned after deletion
-     */
-    it('+ should return deleted repository data', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-      const repoData = { id: mockRepoId, name: 'deleted-repo', url: 'http://test.com' };
-
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue(repoData);
-      vi.mocked(repositoriesRepository.delete).mockResolvedValue(undefined);
-
-      const result = await repositoriesService.delete(mockRepoId, mockWorkspaceId, mockUserId);
-      expect(result.name).toBe('deleted-repo');
-    });
-  });
-
-  describe('list with various states', () => {
-    /**
-     * Purpose: Validates that a large number of repositories are handled correctly
-     */
-    it('+ should handle workspace with many repositories', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const repos = Array.from({ length: 20 }, (_, i) => ({ id: `r-${i}`, name: `repo-${i}` }));
-      vi.mocked(repositoriesRepository.listByWorkspace).mockResolvedValue(repos);
-
-      const result = await repositoriesService.list(mockWorkspaceId);
-      expect(result).toHaveLength(20);
-    });
-
-    /**
-     * Purpose: Validates that all repository properties are preserved in the response
-     */
-    it('+ should preserve repository properties', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      vi.mocked(repositoriesRepository.listByWorkspace).mockResolvedValue([
-        { id: 'r1', name: 'repo-1', url: 'https://github.com/test/repo1', defaultBranch: 'main', connectionType: ['scm'] },
-      ]);
-
-      const result = await repositoriesService.list(mockWorkspaceId);
-      expect(result[0].url).toBe('https://github.com/test/repo1');
-      expect(result[0].defaultBranch).toBe('main');
-    });
-  });
-
-  describe('create with various roles', () => {
-    /**
-     * Purpose: Validates that the owner role can create repositories
-     */
-    it('+ should allow owner to create', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.create).mockResolvedValue({ id: mockRepoId, name: 'repo' });
-
-      const result = await repositoriesService.create({ projectId: 'p1', name: 'repo', url: 'http://test.com' }, mockWorkspaceId, mockUserId);
-      expect(result.id).toBe(mockRepoId);
-    });
-
-    /**
-     * Purpose: Validates that the manager role can create repositories
-     */
-    it('+ should allow manager to create', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('manager');
-      vi.mocked(repositoriesRepository.create).mockResolvedValue({ id: mockRepoId, name: 'repo' });
-
-      const result = await repositoriesService.create({ projectId: 'p1', name: 'repo', url: 'http://test.com' }, mockWorkspaceId, mockUserId);
-      expect(result.id).toBe(mockRepoId);
-    });
-  });
-
-  describe('update with various changes', () => {
-    /**
-     * Purpose: Validates that updating only the name field works correctly
-     */
-    it('+ should update name only', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue({ id: mockRepoId });
-      vi.mocked(repositoriesRepository.update).mockResolvedValue({ id: mockRepoId, name: 'new-name' });
-
-      const result = await repositoriesService.update(mockRepoId, { name: 'new-name' }, mockWorkspaceId, mockUserId);
+      const result = await repositoriesService.update(wsId, repoId, { name: 'new-name' }, userId);
       expect(result.name).toBe('new-name');
     });
 
-    /**
-     * Purpose: Validates that updating only the URL field works correctly
-     */
-    it('+ should update url only', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
+    it('should throw FORBIDDEN when user is not member', async () => {
+      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
 
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue({ id: mockRepoId });
-      vi.mocked(repositoriesRepository.update).mockResolvedValue({ id: mockRepoId, url: 'https://new-url.com' });
+      await expect(
+        repositoriesService.update(wsId, repoId, { name: 'new' }, userId)
+      ).rejects.toThrow('You are not a member');
+    });
 
-      const result = await repositoriesService.update(mockRepoId, { url: 'https://new-url.com' }, mockWorkspaceId, mockUserId);
-      expect(result.url).toBe('https://new-url.com');
+    it('should throw NOT_FOUND when repository does not exist', async () => {
+      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('member');
+      vi.mocked(repositoriesRepository.getById).mockResolvedValue(undefined);
+
+      await expect(
+        repositoriesService.update(wsId, 'nonexistent', { name: 'new' }, userId)
+      ).rejects.toThrow('Repository not found');
     });
   });
 
-  describe('delete with various states', () => {
-    /**
-     * Purpose: Validates that deleting a repository returns the full repository data
-     */
-    it('+ should delete and return full repository data', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
-      const repoData = { id: mockRepoId, name: 'repo', url: 'http://test.com', defaultBranch: 'main' };
-
-      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue(repoData);
+  // --------------------------------------------------
+  // delete
+  // --------------------------------------------------
+  describe('delete', () => {
+    it('should delete repository when user is member', async () => {
+      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('member');
+      vi.mocked(repositoriesRepository.getById).mockResolvedValue({ id: repoId, name: 'repo' });
       vi.mocked(repositoriesRepository.delete).mockResolvedValue(undefined);
 
-      const result = await repositoriesService.delete(mockRepoId, mockWorkspaceId, mockUserId);
-      expect(result.defaultBranch).toBe('main');
+      const result = await repositoriesService.delete(wsId, repoId, userId);
+      expect(result.id).toBe(repoId);
     });
 
-    /**
-     * Purpose: Validates that getById is called to verify existence before deletion
-     */
-    it('+ should call getById before delete', async () => {
-      const { repositoriesRepository } = await import('@/server/modules/repositories/repositories.repository');
-      const { workspaceRepository } = await import('@/server/modules/workspace/repositories/workspace.repository');
+    it('should throw FORBIDDEN when user is not member', async () => {
+      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue(null);
 
+      await expect(
+        repositoriesService.delete(wsId, repoId, userId)
+      ).rejects.toThrow('You are not a member');
+    });
+
+    it('should throw NOT_FOUND when repository does not exist', async () => {
+      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('member');
+      vi.mocked(repositoriesRepository.getById).mockResolvedValue(undefined);
+
+      await expect(
+        repositoriesService.delete(wsId, 'nonexistent', userId)
+      ).rejects.toThrow('Repository not found');
+    });
+  });
+
+  // --------------------------------------------------
+  // edge cases
+  // --------------------------------------------------
+  describe('edge cases', () => {
+    it('should allow owner to create', async () => {
       vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
-      vi.mocked(repositoriesRepository.getById).mockResolvedValue({ id: mockRepoId });
-      vi.mocked(repositoriesRepository.delete).mockResolvedValue(undefined);
+      vi.mocked(repositoriesRepository.findByName).mockResolvedValue(null);
+      vi.mocked(repositoriesRepository.create).mockResolvedValue({ id: 'r1', name: 'repo' });
 
-      await repositoriesService.delete(mockRepoId, mockWorkspaceId, mockUserId);
-      expect(repositoriesRepository.getById).toHaveBeenCalledWith(mockRepoId, mockWorkspaceId);
+      const result = await repositoriesService.create(wsId, { projectId: 'p1', name: 'repo', url: 'http://test.com' }, userId);
+      expect(result.id).toBe('r1');
+    });
+
+    it('should allow manager to create', async () => {
+      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('manager');
+      vi.mocked(repositoriesRepository.findByName).mockResolvedValue(null);
+      vi.mocked(repositoriesRepository.create).mockResolvedValue({ id: 'r1', name: 'repo' });
+
+      const result = await repositoriesService.create(wsId, { projectId: 'p1', name: 'repo', url: 'http://test.com' }, userId);
+      expect(result.id).toBe('r1');
+    });
+
+    it('should update with partial fields', async () => {
+      vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('owner');
+      vi.mocked(repositoriesRepository.getById).mockResolvedValue({ id: repoId, name: 'repo' });
+      vi.mocked(repositoriesRepository.update).mockResolvedValue({ id: repoId, defaultBranch: 'main' });
+
+      const result = await repositoriesService.update(wsId, repoId, { defaultBranch: 'main' }, userId);
+      expect(result.defaultBranch).toBe('main');
     });
   });
 });

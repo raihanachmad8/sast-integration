@@ -6,6 +6,7 @@ import { createMockWorkspace, createMockUser } from '../../../helpers/factories'
 
 vi.mock('@/server/modules/workspace/repositories/workspace.repository', () => ({
   workspaceRepository: {
+    list: vi.fn(),
     listByUser: vi.fn(),
     findById: vi.fn(),
     findBySlug: vi.fn(),
@@ -43,17 +44,17 @@ describe('workspaceService.list', () => {
    * Purpose: Validates that the user's workspace list is returned correctly
    */
   it('+ should return the list of workspaces the user is a member of', async () => {
-    mockRepo.listByUser.mockResolvedValue([createMockWorkspace({ name: 'Test', slug: 'test', role: ROLE.OWNER } as never)]);
+    mockRepo.list.mockResolvedValue([createMockWorkspace({ name: 'Test', slug: 'test', role: ROLE.OWNER } as never)]);
     const result = await workspaceService.list('user-1');
     expect(result).toHaveLength(1);
-    expect(mockRepo.listByUser).toHaveBeenCalledWith('user-1');
+    expect(mockRepo.list).toHaveBeenCalledWith('user-1');
   });
 
   /**
    * Purpose: Validates that multiple workspaces are returned when the user belongs to more than one
    */
   it('+ should return multiple workspaces', async () => {
-    mockRepo.listByUser.mockResolvedValue([
+    mockRepo.list.mockResolvedValue([
       createMockWorkspace({ name: 'Org' }),
       createMockWorkspace({ id: 'ws-2', name: 'Personal' }),
     ] as never);
@@ -65,7 +66,7 @@ describe('workspaceService.list', () => {
    * Purpose: Validates that an empty array is returned when the user has no workspaces
    */
   it('- should return empty array when user has no workspaces', async () => {
-    mockRepo.listByUser.mockResolvedValue([]);
+    mockRepo.list.mockResolvedValue([]);
     const result = await workspaceService.list('user-1');
     expect(result).toEqual([]);
   });

@@ -1,26 +1,24 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// The health route imports db from @/server/db/client.
-// Mock it so tests don't need a real PostgreSQL connection.
-vi.mock('@/server/db/client', () => ({
-  db: {
-    execute: vi.fn(),
+vi.mock('@/server/lib/logger', () => ({
+  logger: {
+    app: { debug: vi.fn(), info: vi.fn(), error: vi.fn(), warn: vi.fn() },
   },
 }));
 
-vi.mock('@/server/lib/logger', () => ({
-  logger: {
-    scan: { info: vi.fn(), debug: vi.fn(), error: vi.fn(), warn: vi.fn() },
+vi.mock('@/server/modules/health/health.service', () => ({
+  healthService: {
+    check: vi.fn().mockResolvedValue({
+      status: 'healthy',
+      statusCode: 200,
+      checks: { app: 'healthy', database: 'healthy' },
+    }),
   },
 }));
 
 import { GET } from '@/app/api/v1/health/route';
-import { db } from '@/server/db/client';
 
 describe('Health API Route', () => {
-  /**
-   * Purpose: Validates that the health endpoint returns a healthy status
-   */
   it('should return healthy status', async () => {
     const response = await GET();
     const data = await response.json();
@@ -30,9 +28,6 @@ describe('Health API Route', () => {
     expect(data.data.status).toBe('healthy');
   });
 
-  /**
-   * Purpose: Validates that the timestamp is a valid ISO date string
-   */
   it('should return valid ISO timestamp', async () => {
     const response = await GET();
     const data = await response.json();
@@ -41,9 +36,6 @@ describe('Health API Route', () => {
     expect(timestamp.getTime()).not.toBeNaN();
   });
 
-  /**
-   * Purpose: Validates that the response contains all required fields
-   */
   it('should return consistent response structure', async () => {
     const response = await GET();
     const data = await response.json();
@@ -57,19 +49,12 @@ describe('Health API Route', () => {
     expect(data.data.checks).toHaveProperty('database');
   });
 
-  /**
-   * Purpose: Validates that the health endpoint is publicly accessible without auth
-   */
   it('should not require authentication', async () => {
-    // Health endpoint is public - no auth header needed
     const response = await GET();
     expect(response.status).toBe(200);
     expect(response.status).not.toBe(401);
   });
 
-  /**
-   * Purpose: Validates that the response indicates healthy status
-   */
   it('should return healthy status text', async () => {
     const response = await GET();
     const data = await response.json();

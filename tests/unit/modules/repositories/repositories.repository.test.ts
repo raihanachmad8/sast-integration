@@ -30,6 +30,11 @@ vi.mock('@/server/lib/logger', () => ({
   },
 }));
 
+vi.mock('@/server/lib/query', () => ({
+  buildSearch: vi.fn(() => []),
+  buildSort: vi.fn(() => vi.fn()),
+}));
+
 vi.mock('@drizzle/schema/source-controls', () => ({
   repositories: {
     id: 'id',
@@ -64,7 +69,9 @@ import type { repositoriesRepository as RepoRepositoryType } from '@/server/modu
 function selectChain(result: unknown[]) {
   return {
     from: vi.fn().mockReturnValue({
-      where: vi.fn().mockResolvedValue(result),
+      where: vi.fn().mockReturnValue({
+        orderBy: vi.fn().mockResolvedValue(result),
+      }),
     }),
   };
 }
@@ -127,9 +134,9 @@ describe('repositoriesRepository', () => {
   });
 
   // --------------------------------------------------
-  // listByWorkspace
+  // list
   // --------------------------------------------------
-  describe('listByWorkspace', () => {
+  describe('list', () => {
     describe('positive', () => {
       it('should return all non-deleted repositories for a workspace', async () => {
         const mockRepos = [
@@ -138,7 +145,7 @@ describe('repositoriesRepository', () => {
         ];
         vi.mocked(db.select).mockReturnValue(selectChain(mockRepos));
 
-        const result = await repositoriesRepository.listByWorkspace('ws-1');
+        const result = await repositoriesRepository.list('ws-1');
 
         expect(result).toEqual(mockRepos);
         expect(db.select).toHaveBeenCalledWith();
@@ -147,7 +154,7 @@ describe('repositoriesRepository', () => {
       it('should filter by workspaceId and exclude soft-deleted records', async () => {
         vi.mocked(db.select).mockReturnValue(selectChain([]));
 
-        await repositoriesRepository.listByWorkspace('ws-1');
+        await repositoriesRepository.list('ws-1');
 
         expect(eq).toHaveBeenCalledWith(repositories.workspaceId, 'ws-1');
         expect(isNull).toHaveBeenCalledWith(repositories.deletedAt);
@@ -159,7 +166,7 @@ describe('repositoriesRepository', () => {
       it('should return empty array when workspace has no repositories', async () => {
         vi.mocked(db.select).mockReturnValue(selectChain([]));
 
-        const result = await repositoriesRepository.listByWorkspace('ws-empty');
+        const result = await repositoriesRepository.list('ws-empty');
 
         expect(result).toEqual([]);
       });
@@ -183,10 +190,10 @@ describe('repositoriesRepository', () => {
       it('should query with id, workspaceId, and non-deleted conditions', async () => {
         vi.mocked(db.select).mockReturnValue(selectWithLimitChain([{ id: 'r1' }]));
 
-        await repositoriesRepository.getById('r1', 'ws-1');
+        await repositoriesRepository.getById('ws-1', 'r1');
 
-        expect(eq).toHaveBeenCalledWith(repositories.id, 'r1');
         expect(eq).toHaveBeenCalledWith(repositories.workspaceId, 'ws-1');
+        expect(eq).toHaveBeenCalledWith(repositories.id, 'r1');
         expect(isNull).toHaveBeenCalledWith(repositories.deletedAt);
       });
     });
@@ -195,7 +202,7 @@ describe('repositoriesRepository', () => {
       it('should return null when repository does not exist', async () => {
         vi.mocked(db.select).mockReturnValue(selectWithLimitChain([]));
 
-        const result = await repositoriesRepository.getById('nonexistent', 'ws-1');
+        const result = await repositoriesRepository.getById('ws-1', 'nonexistent');
 
         expect(result).toBeNull();
       });
@@ -440,15 +447,15 @@ describe('repositoriesRepository', () => {
   });
 
   // --------------------------------------------------
-  // findByNameAndWorkspace
+  // findByName
   // --------------------------------------------------
-  describe('findByNameAndWorkspace', () => {
+  describe('findByName', () => {
     describe('positive', () => {
       it('should return repository when found by name within workspace', async () => {
         const mockRepo = { id: 'r1', name: 'test-repo', workspaceId: 'ws-1', deletedAt: null };
         vi.mocked(db.select).mockReturnValue(selectWithLimitChain([mockRepo]));
 
-        const result = await repositoriesRepository.findByNameAndWorkspace('test-repo', 'ws-1');
+        const result = await repositoriesRepository.findByName('ws-1', 'test-repo');
 
         expect(result).toEqual(mockRepo);
       });
@@ -456,17 +463,17 @@ describe('repositoriesRepository', () => {
       it('should query with name, workspaceId, and non-deleted conditions', async () => {
         vi.mocked(db.select).mockReturnValue(selectWithLimitChain([{ id: 'r1' }]));
 
-        await repositoriesRepository.findByNameAndWorkspace('test-repo', 'ws-1');
+        await repositoriesRepository.findByName('ws-1', 'test-repo');
 
-        expect(eq).toHaveBeenCalledWith(repositories.name, 'test-repo');
         expect(eq).toHaveBeenCalledWith(repositories.workspaceId, 'ws-1');
+        expect(eq).toHaveBeenCalledWith(repositories.name, 'test-repo');
         expect(isNull).toHaveBeenCalledWith(repositories.deletedAt);
       });
 
       it('should use transaction when tx is passed', async () => {
         const mockTx = { select: vi.fn().mockReturnValue(selectWithLimitChain([{ id: 'r1' }])), insert: vi.fn(), update: vi.fn(), delete: vi.fn() };
 
-        const result = await repositoriesRepository.findByNameAndWorkspace('test-repo', 'ws-1', mockTx as never);
+        const result = await repositoriesRepository.findByName('ws-1', 'test-repo', mockTx as never);
 
         expect(result).toEqual({ id: 'r1' });
         expect(mockTx.select).toHaveBeenCalledWith();
@@ -478,7 +485,7 @@ describe('repositoriesRepository', () => {
       it('should return null when no repository matches the name in the workspace', async () => {
         vi.mocked(db.select).mockReturnValue(selectWithLimitChain([]));
 
-        const result = await repositoriesRepository.findByNameAndWorkspace('nonexistent', 'ws-1');
+        const result = await repositoriesRepository.findByName('ws-1', 'nonexistent');
 
         expect(result).toBeNull();
       });

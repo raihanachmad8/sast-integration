@@ -12,6 +12,16 @@
  * - Interface compliance
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock('@/server/env', () => ({
+  env: new Proxy({} as Record<string, string>, {
+    get(_target, prop: string) {
+      const val = process.env[prop as string];
+      return val === undefined ? undefined : val;
+    },
+  }),
+}));
+
 import { mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 

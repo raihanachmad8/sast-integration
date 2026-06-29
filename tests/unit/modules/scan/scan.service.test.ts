@@ -252,7 +252,7 @@ describe('scanService', () => {
         vi.mocked(scanRepository.getById).mockResolvedValue(createMockScan({ id: 'scan-1' }));
         vi.mocked(scanRepository.getScanResults).mockResolvedValue([{ id: 'sr-1', scanner: 'semgrep' }]);
 
-        const result = await scanService.getScanResults('scan-1', 'ws-1', 'user-1');
+        const result = await scanService.getScanResults('ws-1', 'scan-1', 'user-1');
 
         expect(result).toHaveLength(1);
         expect(scanRepository.getScanResults).toHaveBeenCalledWith('scan-1');
@@ -290,7 +290,7 @@ describe('scanService', () => {
         vi.mocked(workspaceRepository.getMemberRole).mockResolvedValue('member');
         vi.mocked(scanRepository.updateStatus).mockResolvedValue(createMockScan({ id: 'scan-1', status: 'running' }));
 
-        const result = await scanService.updateStatus('scan-1', 'running', 'ws-1', 'user-1');
+        const result = await scanService.updateStatus('ws-1', 'scan-1', 'running', 'user-1');
 
         expect(result.status).toBe('running');
         expect(scanRepository.updateStatus).toHaveBeenCalledWith('scan-1', 'running');

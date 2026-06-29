@@ -17,6 +17,38 @@ let token: string;
 let WORKSPACE_ID: string;
 const createdProjectIds: string[] = [];
 
+function expectProjectSummaryShape(project: Record<string, unknown>) {
+  expect(Array.isArray(project.members)).toBe(true);
+  expect(Array.isArray(project.teams)).toBe(true);
+  expect(Array.isArray(project.repositories)).toBe(true);
+
+  for (const member of project.members as Array<Record<string, unknown>>) {
+    expect(member).toMatchObject({
+      id: expect.any(String),
+      name: expect.any(String),
+      email: expect.any(String),
+    });
+  }
+  for (const team of project.teams as Array<Record<string, unknown>>) {
+    expect(team).toMatchObject({
+      id: expect.any(String),
+      name: expect.any(String),
+    });
+  }
+  for (const repository of project.repositories as Array<Record<string, unknown>>) {
+    expect(repository).toMatchObject({
+      id: expect.any(String),
+      name: expect.any(String),
+    });
+  }
+
+  expect(project).not.toHaveProperty('memberNames');
+  expect(project).not.toHaveProperty('teamNames');
+  expect(project).not.toHaveProperty('repositoryIds');
+  expect(project).not.toHaveProperty('memberIds');
+  expect(project).not.toHaveProperty('teamIds');
+}
+
 beforeAll(async () => {
   const session = await signin();
   token = session.accessToken;
@@ -34,7 +66,7 @@ afterAll(async () => {
   } catch {
     // Cleanup is best-effort, don't fail tests
   }
-});
+}, 60000);
 
 describe('GET /api/v1/workspaces/[workspaceId]/projects', () => {
   /**
@@ -56,6 +88,9 @@ describe('GET /api/v1/workspaces/[workspaceId]/projects', () => {
     expect(res.status).toBe(200);
     expect(json.success).toBe(true);
     expect(Array.isArray(json.data)).toBe(true);
+    for (const project of json.data) {
+      expectProjectSummaryShape(project);
+    }
   });
 
   /**
@@ -111,7 +146,7 @@ describe('POST /api/v1/workspaces/[workspaceId]/projects', () => {
   });
 
   /**
-   * Purpose: Verify that optional fields (description, platform, language) are persisted on creation.
+   * Purpose: Verify that optional fields (description) are persisted on creation.
    */
   it('should create a project with optional fields', async () => {
     const projectName = `E2E Full Project ${Date.now()}`;
@@ -121,15 +156,11 @@ describe('POST /api/v1/workspaces/[workspaceId]/projects', () => {
       body: JSON.stringify({
         name: projectName,
         description: 'A test project',
-        platform: 'web',
-        language: 'typescript',
       }),
     });
     const json = await res.json();
     expect(res.status).toBe(201);
     expect(json.data.description).toBe('A test project');
-    expect(json.data.platform).toBe('web');
-    expect(json.data.language).toBe('typescript');
     createdProjectIds.push(json.data.id);
   });
 });
@@ -164,6 +195,7 @@ describe('GET /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.data.id).toBe(projectId);
+    expectProjectSummaryShape(json.data);
   });
 
   /**
@@ -177,13 +209,13 @@ describe('GET /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
   });
 });
 
-describe('PUT /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
+describe('PATCH /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
   /**
    * Purpose: Ensure the project update endpoint rejects unauthenticated requests with 401.
    */
   it('should return 401 without token', async () => {
     const res = await api('/workspaces/ws-1/projects/proj-1', {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify({ name: 'Updated' }),
     });
     expect(res.status).toBe(401);
@@ -205,7 +237,7 @@ describe('PUT /api/v1/workspaces/[workspaceId]/projects/[projectId]', () => {
     createdProjectIds.push(projectId);
 
     const res = await api(`/workspaces/${WORKSPACE_ID}/projects/${projectId}`, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: { Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name: 'Updated Project' }),
     });

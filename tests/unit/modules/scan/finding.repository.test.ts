@@ -25,6 +25,7 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('@/server/lib/logger', () => ({
   logger: {
     scan: { debug: vi.fn(), info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+    finding: { debug: vi.fn(), info: vi.fn(), error: vi.fn(), warn: vi.fn() },
   },
 }));
 

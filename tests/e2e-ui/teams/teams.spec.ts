@@ -64,14 +64,15 @@ test.describe('Teams Page - Table', () => {
 
 test.describe('Teams Page - Table Row Actions', () => {
   /**
-   * Purpose: Verify that View and Edit action buttons are visible on team table rows.
+   * Purpose: Verify that View, Edit, and Delete action buttons are visible on team table rows.
    */
-  test('should show View and Edit action buttons on team rows', async ({ page }) => {
+  test('should show View, Edit, and Delete action buttons on team rows', async ({ page }) => {
     await signInAndGoToTeams(page);
     const firstRow = page.locator('tbody tr').first();
     if (await firstRow.isVisible()) {
       await expect(firstRow.getByRole('button', { name: 'View' })).toBeVisible();
       await expect(firstRow.getByRole('button', { name: 'Edit' })).toBeVisible();
+      await expect(firstRow.getByRole('button', { name: 'Delete' })).toBeVisible();
     }
   });
 
@@ -167,15 +168,14 @@ test.describe('Teams Page - Team Detail Drawer', () => {
   });
 
   /**
-   * Purpose: Verify that the team detail drawer footer contains Edit and Delete action buttons.
+   * Purpose: Verify that the team detail drawer footer contains Delete action button.
    */
-  test('should display Edit and Delete buttons in drawer footer', async ({ page }) => {
+  test('should display Delete button in drawer footer', async ({ page }) => {
     await signInAndGoToTeams(page);
     const firstRow = page.locator('tbody tr').first();
     if (await firstRow.isVisible()) {
       await firstRow.getByRole('button', { name: 'View' }).click();
       await expect(page.locator('.ant-drawer')).toBeVisible({ timeout: 5_000 });
-      await expect(page.locator('.ant-drawer-footer').getByRole('button', { name: 'Edit' })).toBeVisible();
       await expect(page.locator('.ant-drawer-footer').getByRole('button', { name: 'Delete' })).toBeVisible();
     }
   });
@@ -243,20 +243,6 @@ test.describe('Teams Page - Edit Flow', () => {
     if (await firstRow.isVisible()) {
       await firstRow.getByRole('button', { name: 'Edit' }).click();
       await expect(page.getByRole('button', { name: 'Save team' })).toBeVisible({ timeout: 5_000 });
-    }
-  });
-
-  /**
-   * Purpose: Verify that clicking Edit from within the detail drawer also opens the edit team modal.
-   */
-  test('should open edit modal from detail drawer Edit button', async ({ page }) => {
-    await signInAndGoToTeams(page);
-    const firstRow = page.locator('tbody tr').first();
-    if (await firstRow.isVisible()) {
-      await firstRow.getByRole('button', { name: 'View' }).click();
-      await expect(page.locator('.ant-drawer')).toBeVisible({ timeout: 5_000 });
-      await page.locator('.ant-drawer-footer').getByRole('button', { name: 'Edit' }).click();
-      await expect(page.getByRole('dialog', { name: /Edit team/ })).toBeVisible({ timeout: 5_000 });
     }
   });
 

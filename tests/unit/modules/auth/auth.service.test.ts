@@ -37,6 +37,12 @@ vi.mock('@/server/modules/auth/services/auth-flows.service', () => ({
   },
 }));
 
+vi.mock('@/server/modules/invitations', () => ({
+  invitationService: {
+    invite: vi.fn(),
+  },
+}));
+
 vi.mock('@/server/db/client', () => ({
   db: {
     transaction: vi.fn((fn) => fn({
@@ -99,10 +105,12 @@ vi.mock('@/commons/constants/permissions', () => ({
 
 import { authRepository } from '@/server/modules/auth/repositories/auth.repository';
 import { authFlowsService } from '@/server/modules/auth/services/auth-flows.service';
+import { invitationService } from '@/server/modules/invitations';
 import { sendMail } from '@/server/modules/mail/mail.service';
 
 const mockRepo = vi.mocked(authRepository);
 const mockFlows = vi.mocked(authFlowsService);
+const mockInvitation = vi.mocked(invitationService);
 
 /**
  * Unit tests for authService.signin
@@ -388,44 +396,29 @@ describe('authService.invite', () => {
   });
 
   describe('✅ positive', () => {
-    it('should create invitation and send email for valid request', async () => {
-      mockRepo.createInvitation.mockResolvedValue(createMockInvitation({
+    it('should delegate to invitationService.invite', async () => {
+      mockInvitation.invite.mockResolvedValue({
         email: 'new@example.com',
         token: 'token-abc',
-      }));
-      mockRepo.getUserWorkspace.mockResolvedValue({ name: 'My Workspace' });
+      });
 
       const result = await authService.invite(
-        { email: 'new@example.com', role: 'member' },
         'ws-1',
+        { email: 'new@example.com', role: 'member' },
         'user-1'
       );
 
       expect(result.email).toBe('new@example.com');
-      expect(result.token).toBeDefined();
-      expect(mockRepo.createInvitation).toHaveBeenCalledWith(expect.objectContaining({
-        email: 'new@example.com',
-        role: 'member',
-        workspaceId: 'ws-1',
-        invitedBy: 'user-1',
-      }));
-      expect(sendMail).toHaveBeenCalledWith(expect.objectContaining({
-        to: 'new@example.com',
-      }));
+      expect(mockInvitation.invite).toHaveBeenCalledWith('ws-1', { email: 'new@example.com', role: 'member' }, 'user-1');
     });
   });
 
   describe('❌ negative', () => {
-    it('should propagate email service errors', async () => {
-      mockRepo.createInvitation.mockResolvedValue(createMockInvitation({
-        email: 'new@example.com',
-        token: 'token-abc',
-      }));
-      mockRepo.getUserWorkspace.mockResolvedValue({ name: 'My Workspace' });
-      vi.mocked(sendMail).mockRejectedValueOnce(new Error('SMTP connection failed'));
+    it('should propagate errors from invitationService.invite', async () => {
+      mockInvitation.invite.mockRejectedValue(new Error('SMTP connection failed'));
 
       await expect(
-        authService.invite({ email: 'new@example.com', role: 'member' }, 'ws-1', 'user-1')
+        authService.invite('ws-1', { email: 'new@example.com', role: 'member' }, 'user-1')
       ).rejects.toThrow('SMTP connection failed');
     });
   });

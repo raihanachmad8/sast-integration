@@ -305,7 +305,7 @@ describe('webhookService edge cases', () => {
   it('+ should call listByWorkspace with correct ID', async () => {
     mockRepo.listByWorkspace.mockResolvedValue([]);
     await webhookService.listWebhooksByWorkspace('ws-99');
-    expect(mockRepo.listByWorkspace).toHaveBeenCalledWith('ws-99');
+    expect(mockRepo.listByWorkspace).toHaveBeenCalledWith('ws-99', undefined);
   });
 
   /**

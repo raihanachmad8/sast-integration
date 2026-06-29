@@ -86,8 +86,8 @@ describe('qualityGatesService.updateConfig', () => {
     mockRepo.upsertConfig.mockResolvedValue({ id: 'qg-1', threshold: 'high' });
 
     const result = await qualityGatesService.updateConfig(
-      gateInput({ threshold: 'high' }),
       'ws-1',
+      gateInput({ threshold: 'high' }),
       'user-1'
     );
     expect(result.threshold).toBe('high');
@@ -102,8 +102,8 @@ describe('qualityGatesService.updateConfig', () => {
 
     await expect(
       qualityGatesService.updateConfig(
-        gateInput({ threshold: 'medium', failOnCritical: false, pendingBehavior: 'fail' }),
         'ws-1',
+        gateInput({ threshold: 'medium', failOnCritical: false, pendingBehavior: 'fail' }),
         'user-1'
       )
     ).resolves.toBeDefined();
@@ -115,7 +115,7 @@ describe('qualityGatesService.updateConfig', () => {
   it('- should throw FORBIDDEN when user is not a member', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
     await expect(
-      qualityGatesService.updateConfig({ threshold: 'medium' }, 'ws-1', 'user-1')
+      qualityGatesService.updateConfig('ws-1', { threshold: 'medium' }, 'user-1')
     ).rejects.toThrow('You are not a member');
   });
 
@@ -126,8 +126,8 @@ describe('qualityGatesService.updateConfig', () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockRepo.upsertConfig.mockResolvedValue({});
     await qualityGatesService.updateConfig(
-      gateInput({ threshold: 'low', failOnCritical: true, failOnHighTp: true, warnOnPending: false, requireHumanAck: true, pendingBehavior: 'ignore' }),
       'ws-2',
+      gateInput({ threshold: 'low', failOnCritical: true, failOnHighTp: true, warnOnPending: false, requireHumanAck: true, pendingBehavior: 'ignore' }),
       'user-1'
     );
     expect(mockRepo.upsertConfig).toHaveBeenCalledWith('ws-2', expect.objectContaining({ threshold: 'low' }));
@@ -161,7 +161,7 @@ describe('❌ negative', () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('owner');
     mockRepo.upsertConfig.mockRejectedValue(new Error('DB timeout'));
     await expect(
-      qualityGatesService.updateConfig(gateInput({ threshold: 'high' }), 'ws-1', 'user-1')
+      qualityGatesService.updateConfig('ws-1', gateInput({ threshold: 'high' }), 'user-1')
     ).rejects.toThrow('DB timeout');
   });
 });
@@ -177,8 +177,9 @@ describe('qualityGatesService edge cases', () => {
     mockRepo.upsertConfig.mockResolvedValue({ id: 'qg-1', threshold: 'critical' });
 
     const result = await qualityGatesService.updateConfig(
+      'ws-1',
       gateInput({ threshold: 'critical' }),
-      'ws-1', 'user-1'
+      'user-1'
     );
     expect(result.threshold).toBe('critical');
   });
@@ -189,7 +190,7 @@ describe('qualityGatesService edge cases', () => {
   it('- should throw for viewer role', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('viewer');
     await expect(
-      qualityGatesService.updateConfig({ threshold: 'high' }, 'ws-1', 'user-1')
+      qualityGatesService.updateConfig('ws-1', { threshold: 'high' }, 'user-1')
     ).rejects.toThrow();
   });
 
@@ -199,7 +200,7 @@ describe('qualityGatesService edge cases', () => {
   it('- should throw for member role (only owner/manager allowed)', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     await expect(
-      qualityGatesService.updateConfig({ threshold: 'high' }, 'ws-1', 'user-1')
+      qualityGatesService.updateConfig('ws-1', { threshold: 'high' }, 'user-1')
     ).rejects.toThrow();
   });
 
@@ -241,8 +242,9 @@ describe('qualityGatesService edge cases', () => {
     mockRepo.upsertConfig.mockResolvedValue({ id: 'qg-1', threshold: 'low' });
 
     const result = await qualityGatesService.updateConfig(
+      'ws-1',
       gateInput({ threshold: 'low', failOnCritical: false, pendingBehavior: 'ignore' }),
-      'ws-1', 'user-1'
+      'user-1'
     );
     expect(result.threshold).toBe('low');
   });
@@ -255,8 +257,9 @@ describe('qualityGatesService edge cases', () => {
     mockRepo.upsertConfig.mockResolvedValue({ id: 'qg-1', pendingBehavior: 'fail' });
 
     const result = await qualityGatesService.updateConfig(
+      'ws-1',
       gateInput({ pendingBehavior: 'fail' }),
-      'ws-1', 'user-1'
+      'user-1'
     );
     expect(result.pendingBehavior).toBe('fail');
   });
@@ -269,8 +272,9 @@ describe('qualityGatesService edge cases', () => {
     mockRepo.upsertConfig.mockResolvedValue({ id: 'qg-1', pendingBehavior: 'ignore' });
 
     const result = await qualityGatesService.updateConfig(
+      'ws-1',
       gateInput({ pendingBehavior: 'ignore' }),
-      'ws-1', 'user-1'
+      'user-1'
     );
     expect(result.pendingBehavior).toBe('ignore');
   });
@@ -283,8 +287,9 @@ describe('qualityGatesService edge cases', () => {
     mockRepo.upsertConfig.mockResolvedValue({ id: 'qg-1', requireHumanAck: true });
 
     const result = await qualityGatesService.updateConfig(
+      'ws-1',
       gateInput({ requireHumanAck: true }),
-      'ws-1', 'user-1'
+      'user-1'
     );
     expect(result.requireHumanAck).toBe(true);
   });
@@ -303,8 +308,9 @@ describe('qualityGatesService edge cases', () => {
     });
 
     const result = await qualityGatesService.updateConfig(
+      'ws-1',
       gateInput({ threshold: 'critical', failOnCritical: false, failOnHighTp: false, failOnHigh: false, failOnMedium: false, failOnLow: false, failOnPending: false, failOnTp: false, warnOnPending: false, requireHumanAck: false }),
-      'ws-1', 'user-1'
+      'user-1'
     );
     expect(result.failOnCritical).toBe(false);
   });
@@ -323,8 +329,9 @@ describe('qualityGatesService edge cases', () => {
     });
 
     const result = await qualityGatesService.updateConfig(
+      'ws-1',
       gateInput({ threshold: 'low', failOnCritical: true, failOnHighTp: true, failOnHigh: true, failOnMedium: true, failOnLow: true, failOnPending: true, failOnTp: true, warnOnPending: true, requireHumanAck: true, pendingBehavior: 'fail' }),
-      'ws-1', 'user-1'
+      'user-1'
     );
     expect(result.failOnCritical).toBe(true);
     expect(result.failOnHighTp).toBe(true);
@@ -340,8 +347,9 @@ describe('qualityGatesService edge cases', () => {
     mockRepo.upsertConfig.mockResolvedValue({ id: 'qg-1' });
 
     await qualityGatesService.updateConfig(
+      'ws-1',
       gateInput({ threshold: 'medium' }),
-      'ws-1', 'user-1'
+      'user-1'
     );
     expect(mockRepo.upsertConfig).toHaveBeenCalledWith('ws-1', expect.objectContaining({ threshold: 'medium' }));
   });
@@ -352,7 +360,7 @@ describe('qualityGatesService edge cases', () => {
   it('- should throw for undefined role', async () => {
     mockWorkspaceRepo.getMemberRole.mockResolvedValue(undefined);
     await expect(
-      qualityGatesService.updateConfig({ threshold: 'high' }, 'ws-1', 'user-1')
+      qualityGatesService.updateConfig('ws-1', { threshold: 'high' }, 'user-1')
     ).rejects.toThrow();
   });
 
@@ -422,8 +430,9 @@ describe('qualityGatesService edge cases', () => {
     mockRepo.upsertConfig.mockResolvedValue({ id: 'qg-1', threshold: 'critical' });
 
     const result = await qualityGatesService.updateConfig(
+      'ws-1',
       gateInput({ threshold: 'critical' }),
-      'ws-1', 'user-1'
+      'user-1'
     );
     expect(result.threshold).toBe('critical');
   });
@@ -445,8 +454,9 @@ describe('qualityGatesService edge cases', () => {
     mockRepo.upsertConfig.mockResolvedValue({ id: 'qg-1', threshold: 'medium' });
 
     const result = await qualityGatesService.updateConfig(
+      'ws-1',
       gateInput({ threshold: 'medium' }),
-      'ws-1', 'user-1'
+      'user-1'
     );
     expect(result.threshold).toBe('medium');
   });
@@ -490,8 +500,9 @@ describe('qualityGatesService edge cases', () => {
     });
 
     const result = await qualityGatesService.updateConfig(
+      'ws-1',
       gateInput({ threshold: 'critical', failOnCritical: true, failOnHighTp: true, warnOnPending: true, requireHumanAck: true, pendingBehavior: 'fail' }),
-      'ws-1', 'user-1'
+      'user-1'
     );
     expect(result.failOnCritical).toBe(true);
     expect(result.failOnHighTp).toBe(true);

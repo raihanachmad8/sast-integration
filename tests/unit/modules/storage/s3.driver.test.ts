@@ -13,6 +13,15 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('@/server/env', () => ({
+  env: new Proxy({} as Record<string, string>, {
+    get(_target, prop: string) {
+      const val = process.env[prop as string];
+      return val === undefined ? undefined : val;
+    },
+  }),
+}));
+
 // --- Mock AWS SDK ---
 const mockSend = vi.fn().mockResolvedValue({});
 
