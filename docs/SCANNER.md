@@ -1218,7 +1218,7 @@ interface Finding {
   lineNumber?: number;
   message?: string;
   cwe?: string;
-  status: 'open' | 'verified' | 'fixed' | 'false_positive' | 'ignored';
+  status: 'open' | 'dismissed' | 'resolved';
   aiVerdict?: 'true_positive' | 'false_positive' | 'pending';
   confidence?: number;
   codeSnippet?: string;

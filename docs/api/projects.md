@@ -155,7 +155,7 @@ Get project detail.
 
 ---
 
-## PUT /projects/:projectId
+## PATCH /projects/:projectId
 
 Update a project.
 

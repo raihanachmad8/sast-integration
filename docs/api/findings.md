@@ -17,7 +17,7 @@ List findings with optional filters.
 |-------|------|----------|-------------|
 | `projectId` | uuid | No | Filter by project |
 | `scanId` | uuid | No | Filter by scan |
-| `status` | string | No | `open`, `fixed`, `false_positive`, `ignored` |
+| `status` | string | No | `open`, `dismissed`, `resolved` |
 | `severity` | string | No | `critical`, `high`, `medium`, `low`, `info` |
 | `scanner` | string | No | Scanner name |
 | `page` | number | No | Page number (default: 1) |

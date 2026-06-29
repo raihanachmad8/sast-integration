@@ -85,16 +85,16 @@ The route checks `requirePermission(WEBHOOK_MANAGE)` for the workspace, then cal
 
 **Location:** `src/commons/constants/permissions.ts:40-78`
 
-AGENTS.md and documentation claim 24 permissions. The `PERMISSION` constant actually defines 31 distinct permissions. This is a documentation discrepancy, not a security vulnerability.
+Documentation previously claimed 24 permissions. The `PERMISSION` constant actually defines 39 distinct permissions. This has been corrected in documentation as of June 2026.
 
 **Roles defined (correctly):**
 
 | Role | Hierarchy | Permission Count |
 |------|-----------|-----------------|
-| owner | 4 | All 31 |
-| manager | 3 | 24 |
-| reviewer | 2 | 17 |
-| member | 1 | 10 |
+| owner | 4 | All 39 |
+| manager | 3 | 39 |
+| reviewer | 2 | 23 |
+| member | 1 | 17 |
 
 **Positive:** Self-role change blocked at `src/server/modules/workspace/services/member.service.ts:41-42`. Owner role assignment blocked at schema level (`src/commons/schemas/member.schema.ts:4`) and service level (`member.service.ts:44-46`). Profile/workspace update schemas restrict fields — no mass assignment risk.
 

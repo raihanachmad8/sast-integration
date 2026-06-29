@@ -26,7 +26,6 @@ Response Format: `{ success: boolean, message: string, data: T | null, meta: { r
 | Dashboard | [dashboard.md](./dashboard.md) | Dashboard statistics |
 | Settings | [settings.md](./settings.md) | Verification and PR review settings |
 | Scanner Engines | [scanner-engines.md](./scanner-engines.md) | Scanner engine configuration |
-| Notifications | [notifications.md](./notifications.md) | Notification system |
 | Audit Logs | [audit-logs.md](./audit-logs.md) | Audit trail |
 | Activity Logs | [activity-logs.md](./activity-logs.md) | Activity tracking |
 | Profile | [profile.md](./profile.md) | User profile management |
@@ -876,7 +875,7 @@ List findings with filters.
 |-------|------|----------|-------------|
 | `projectId` | uuid | Yes | Project UUID |
 | `scanId` | uuid | No | Filter by scan |
-| `status` | string | No | `open`, `fixed`, `false_positive`, `ignored` |
+| `status` | string | No | `open`, `dismissed`, `resolved` |
 | `severity` | string | No | `critical`, `high`, `medium`, `low`, `info` |
 | `scanner` | string | No | Scanner name |
 | `assignedTo` | uuid | No | Assigned user UUID |
@@ -901,7 +900,7 @@ Update finding status.
 
 **Auth:** Bearer token + workspace membership
 
-**Request Body:** `{ "status": "open" | "fixed" | "false_positive" | "ignored" }`
+**Request Body:** `{ "status": "open" | "dismissed" | "resolved" }`
 
 **Note:** Records status change in `finding_history` for audit trail.
 
@@ -1198,50 +1197,6 @@ Update verification settings for a workspace.
   "confidenceThreshold": "95",
   "timeout": "120",
   "cweMismatch": "fail"
-}
-```
-
----
-
-## Notifications
-
-### GET /notifications
-List notifications for the current user.
-
-**Auth:** Bearer token
-
-**Query Parameters:**
-| Param | Type | Default | Description |
-|-------|------|---------|-------------|
-| limit | number | 20 | Max items (1-200) |
-| offset | number | 0 | Pagination offset |
-
-**Response Data:**
-```json
-[
-  {
-    "id": "uuid",
-    "workspaceId": "uuid",
-    "userId": "uuid",
-    "type": "scan_completed",
-    "description": "Scan completed for repository backend-api",
-    "metadata": {},
-    "createdAt": "2026-06-15T10:00:00Z"
-  }
-]
-```
-
----
-
-### GET /notifications/unread-count
-Get unread notification count for the current user.
-
-**Auth:** Bearer token
-
-**Response Data:**
-```json
-{
-  "count": 5
 }
 ```
 

@@ -68,7 +68,7 @@
 resource:action
 ```
 
-### Resources (18)
+### Resources (19)
 
 | Resource | Key |
 |----------|-----|
@@ -85,19 +85,21 @@ resource:action
 | Webhook | `webhook` |
 | Schedule | `schedule` |
 | Policy | `policy` |
+| Quality Gate | `quality_gate` |
 | Scanner | `scanner` |
 | AI Model | `ai_model` |
 | Knowledge | `knowledge` |
 | Workspace | `workspace` |
 | Audit | `audit` |
 
-### Actions (9)
+### Actions (10)
 
 | Action | Key |
 |--------|-----|
 | View | `view` |
 | Manage | `manage` |
 | Run | `run` |
+| Upload | `upload` |
 | Triage | `triage` |
 | Override AI | `override_ai` |
 | Export | `export` |
@@ -105,7 +107,7 @@ resource:action
 | Settings | `settings` |
 | Read | `read` |
 
-### All Permissions (35)
+### All Permissions (39)
 
 | Permission | Value | Description |
 |------------|-------|-------------|
@@ -160,51 +162,53 @@ owner (4) > manager (3) > reviewer (2) > member (1)
 
 | Permission | owner | manager | reviewer | member |
 |------------|:-----:|:-------:|:--------:|:------:|
-| `DASHBOARD_VIEW` | X | X | X | X |
-| `REPOSITORY_VIEW` | X | X | X | X |
-| `REPOSITORY_MANAGE` | X | X | - | - |
-| `SCAN_VIEW` | X | X | X | X |
-| `SCAN_RUN` | X | X | X | - |
-| `FINDING_VIEW` | X | X | X | X |
-| `FINDING_TRIAGE` | X | X | X | - |
-| `FINDING_OVERRIDE_AI` | X | X | X | - |
-| `REPORT_VIEW` | X | X | X | X |
-| `REPORT_EXPORT` | X | X | X | - |
-| `ARENA_VIEW` | X | X | X | X |
-| `ARENA_MANAGE` | X | X | - | - |
-| `MEMBER_VIEW` | X | X | X | X |
-| `MEMBER_INVITE` | X | X | - | - |
-| `MEMBER_MANAGE` | X | X | - | - |
-| `TEAM_VIEW` | X | X | X | X |
-| `TEAM_MANAGE` | X | X | - | - |
-| `PROJECT_VIEW` | X | X | X | X |
-| `PROJECT_MANAGE` | X | X | - | - |
-| `INTEGRATION_VIEW` | X | X | X | X |
-| `INTEGRATION_MANAGE` | X | X | - | - |
-| `WEBHOOK_VIEW` | X | X | X | X |
-| `WEBHOOK_MANAGE` | X | X | - | - |
-| `SCHEDULE_VIEW` | X | X | X | X |
-| `SCHEDULE_MANAGE` | X | X | - | - |
-| `POLICY_VIEW` | X | X | X | - |
-| `POLICY_MANAGE` | X | X | - | - |
-| `SCANNER_VIEW` | X | X | X | X |
-| `SCANNER_MANAGE` | X | X | - | - |
-| `AI_MODEL_VIEW` | X | X | X | X |
-| `AI_MODEL_MANAGE` | X | X | - | - |
-| `KNOWLEDGE_VIEW` | X | X | X | X |
-| `KNOWLEDGE_MANAGE` | X | X | - | - |
-| `WORKSPACE_SETTINGS_VIEW` | X | X | X | X |
-| `WORKSPACE_SETTINGS_MANAGE` | X | X | - | - |
-| `AUDIT_VIEW` | X | X | X | - |
+| `DASHBOARD_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `REPOSITORY_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `REPOSITORY_MANAGE` | ☑ | ☑ | ☐ | ☐ |
+| `SCAN_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `SCAN_RUN` | ☑ | ☑ | ☑ | ☐ |
+| `FINDING_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `FINDING_TRIAGE` | ☑ | ☑ | ☑ | ☐ |
+| `FINDING_OVERRIDE_AI` | ☑ | ☑ | ☑ | ☐ |
+| `REPORT_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `REPORT_EXPORT` | ☑ | ☑ | ☑ | ☐ |
+| `ARENA_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `ARENA_MANAGE` | ☑ | ☑ | ☐ | ☐ |
+| `MEMBER_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `MEMBER_INVITE` | ☑ | ☑ | ☑ | ☐ |
+| `MEMBER_MANAGE` | ☑ | ☑ | ☑ | ☐ |
+| `TEAM_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `TEAM_MANAGE` | ☑ | ☑ | ☐ | ☐ |
+| `PROJECT_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `PROJECT_MANAGE` | ☑ | ☑ | ☐ | ☐ |
+| `INTEGRATION_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `INTEGRATION_MANAGE` | ☑ | ☑ | ☐ | ☐ |
+| `WEBHOOK_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `WEBHOOK_MANAGE` | ☑ | ☑ | ☐ | ☐ |
+| `SCHEDULE_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `SCHEDULE_MANAGE` | ☑ | ☑ | ☐ | ☐ |
+| `POLICY_VIEW` | ☑ | ☑ | ☑ | ☐ |
+| `POLICY_MANAGE` | ☑ | ☑ | ☐ | ☐ |
+| `QUALITY_GATE_VIEW` | ☑ | ☑ | ☑ | ☐ |
+| `QUALITY_GATE_MANAGE` | ☑ | ☑ | ☐ | ☐ |
+| `SCANNER_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `SCANNER_MANAGE` | ☑ | ☑ | ☐ | ☐ |
+| `AI_MODEL_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `AI_MODEL_MANAGE` | ☑ | ☑ | ☐ | ☐ |
+| `KNOWLEDGE_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `KNOWLEDGE_MANAGE` | ☑ | ☑ | ☐ | ☐ |
+| `WORKSPACE_SETTINGS_VIEW` | ☑ | ☑ | ☑ | ☑ |
+| `WORKSPACE_SETTINGS_MANAGE` | ☑ | ☑ | ☐ | ☐ |
+| `AUDIT_VIEW` | ☑ | ☑ | ☑ | ☐ |
 
 ### Role Summary
 
 | Role | Total | View Only | View + Manage | Special |
 |------|-------|-----------|---------------|---------|
-| `owner` | 35 | - | all | everything |
-| `manager` | 35 | - | most | +MEMBER_INVITE |
+| `owner` | 35 | ☐ | all | everything |
+| `manager` | 35 | ☐ | most | +MEMBER_INVITE |
 | `reviewer` | 21 | 14 | 7 | +SCAN_RUN, +FINDING_TRIAGE, +FINDING_OVERRIDE_AI, +REPORT_EXPORT |
-| `member` | 16 | 16 | - | view-only across all resources |
+| `member` | 16 | 16 | ☐ | view-only across all resources |
 
 ---
 
@@ -310,13 +314,13 @@ Action buttons use MANAGE permissions as inline gates.
 
 | Page | Route | Top-Level Gate | Inline Gate | API Permissions |
 |------|-------|---------------|-------------|-----------------|
-| Dashboard | `/{slug}` | - | - | `DASHBOARD_VIEW` |
-| Repositories | `/{slug}/repositories` | - | - | `REPOSITORY_VIEW` |
+| Dashboard | `/{slug}` | ☐ | - | `DASHBOARD_VIEW` |
+| Repositories | `/{slug}/repositories` | ☐ | - | `REPOSITORY_VIEW` |
 | Scan | `/{slug}/scan` | `SCAN_VIEW` | `SCAN_RUN` | `SCAN_VIEW`, `SCAN_RUN` |
 | Findings | `/{slug}/findings` | `FINDING_VIEW` | `FINDING_OVERRIDE_AI` | `SCAN_VIEW`, `FINDING_TRIAGE`, `FINDING_OVERRIDE_AI` |
 | Members | `/{slug}/members` | `MEMBER_VIEW` | `MEMBER_INVITE` | `MEMBER_VIEW`, `MEMBER_INVITE`, `MEMBER_MANAGE` |
-| Profile | `/{slug}/profile` | - | - | - (personal) |
-| Settings | `/{slug}/settings` | - | `WORKSPACE_SETTINGS_MANAGE` | `WORKSPACE_SETTINGS_VIEW`, `WORKSPACE_SETTINGS_MANAGE` |
+| Profile | `/{slug}/profile` | ☐ | - | - (personal) |
+| Settings | `/{slug}/settings` | ☐ | `WORKSPACE_SETTINGS_MANAGE` | `WORKSPACE_SETTINGS_VIEW`, `WORKSPACE_SETTINGS_MANAGE` |
 
 ### Feature-Flagged Pages
 
@@ -326,7 +330,7 @@ Action buttons use MANAGE permissions as inline gates.
 | Projects | `/{slug}/projects` | `PROJECTS` | `PROJECT_VIEW` | `PROJECT_MANAGE` | `PROJECT_VIEW`, `PROJECT_MANAGE` |
 | Schedules | `/{slug}/schedules` | `SCHEDULES` | `SCHEDULE_VIEW` | `SCHEDULE_MANAGE` | `SCHEDULE_VIEW`, `SCHEDULE_MANAGE` |
 | Reports | `/{slug}/reports` | `REPORTS` | `REPORT_VIEW` | `REPORT_EXPORT` | `REPORT_VIEW`, `REPORT_EXPORT` |
-| Arena | `/{slug}/arena` | `ARENA` | `ARENA_VIEW` | - | `ARENA_MANAGE` |
+| Arena | `/{slug}/arena` | `ARENA` | `ARENA_VIEW` | ☐ | `ARENA_MANAGE` |
 | Source Control | `/{slug}/source-control` | `anyFlags[3 SCM]` | `INTEGRATION_VIEW` | `INTEGRATION_MANAGE` | `INTEGRATION_VIEW`, `INTEGRATION_MANAGE` |
 | Webhooks | `/{slug}/webhooks` | `WEBHOOKS` | `WEBHOOK_VIEW` | `WEBHOOK_MANAGE` | `WEBHOOK_MANAGE` |
 | Scanner Engines | `/{slug}/scanner-engines` | `SCANNER_ENGINES` | `SCANNER_VIEW` | `SCANNER_MANAGE` | `SCANNER_MANAGE` |
@@ -338,13 +342,13 @@ Action buttons use MANAGE permissions as inline gates.
 
 | Page | Route | FeatureGate | Top-Level Gate |
 |------|-------|-------------|----------------|
-| Teams New | `/{slug}/teams/new` | `TEAMS` | - |
-| Teams Edit | `/{slug}/teams/[teamId]/edit` | `TEAMS` | - |
-| Projects New | `/{slug}/projects/new` | `PROJECTS` | - |
-| Projects Detail | `/{slug}/projects/[projectId]` | `PROJECTS` | - |
-| Projects Edit | `/{slug}/projects/[projectId]/edit` | `PROJECTS` | - |
-| Projects Repo | `/{slug}/projects/[projectId]/repositories/[repoId]` | `PROJECTS` | - |
-| Security | `/{slug}/security` | - | redirect → `/profile` |
+| Teams New | `/{slug}/teams/new` | `TEAMS` | ☐ |
+| Teams Edit | `/{slug}/teams/[teamId]/edit` | `TEAMS` | ☐ |
+| Projects New | `/{slug}/projects/new` | `PROJECTS` | ☐ |
+| Projects Detail | `/{slug}/projects/[projectId]` | `PROJECTS` | ☐ |
+| Projects Edit | `/{slug}/projects/[projectId]/edit` | `PROJECTS` | ☐ |
+| Projects Repo | `/{slug}/projects/[projectId]/repositories/[repoId]` | `PROJECTS` | ☐ |
+| Security | `/{slug}/security` | ☐ | redirect → `/profile` |
 
 ---
 
@@ -429,7 +433,7 @@ Action buttons use MANAGE permissions as inline gates.
 | `/api/v1/workspaces/:id/projects` | GET | `PROJECT_VIEW` |
 | `/api/v1/workspaces/:id/projects` | POST | `PROJECT_MANAGE` |
 | `/api/v1/workspaces/:id/projects/:projectId` | GET | `PROJECT_VIEW` |
-| `/api/v1/workspaces/:id/projects/:projectId` | PUT | `PROJECT_MANAGE` |
+| `/api/v1/workspaces/:id/projects/:projectId` | PATCH | `PROJECT_MANAGE` |
 | `/api/v1/workspaces/:id/projects/:projectId` | DELETE | `PROJECT_MANAGE` |
 | `/api/v1/workspaces/:id/projects/:projectId/api-tokens` | GET | `PROJECT_VIEW` |
 | `/api/v1/workspaces/:id/projects/:projectId/api-tokens` | POST | `PROJECT_MANAGE` |
@@ -565,24 +569,24 @@ Configure
 
 | Item | Guard Type | Check |
 |------|------------|-------|
-| Dashboard | Always visible | - |
-| Repositories | Always visible | - |
-| Scans | Always visible | - |
-| Findings | Always visible | - |
+| Dashboard | Always visible | ☐ |
+| Repositories | Always visible | ☐ |
+| Scans | Always visible | ☐ |
+| Findings | Always visible | ☐ |
 | Reports | Feature flag | `flags[FEATURE_FLAG.REPORTS]` |
 | Arena | Feature flag | `flags[FEATURE_FLAG.ARENA]` |
 | Members | Permission | `has(PERMISSION.MEMBER_VIEW)` |
 | Teams | Feature flag | `flags[FEATURE_FLAG.TEAMS]` |
 | Projects | Feature flag | `flags[FEATURE_FLAG.PROJECTS]` |
 | Schedules | Feature flag | `flags[FEATURE_FLAG.SCHEDULES]` |
-| Profile | Always visible | - |
+| Profile | Always visible | ☐ |
 | Source Control | Feature flag (OR) | `[GITHUB, GITLAB, GITEA].some(f => flags[f])` |
 | Webhooks | Feature flag | `flags[FEATURE_FLAG.WEBHOOKS]` |
 | Scanner Engines | Feature flag | `flags[FEATURE_FLAG.SCANNER_ENGINES]` |
 | AI Models | Feature flag | `flags[FEATURE_FLAG.AI_MODELS]` |
 | Quality Gates | Feature flag | `flags[FEATURE_FLAG.QUALITY_GATES]` |
 | Knowledge Base | Feature flag | `flags[FEATURE_FLAG.KNOWLEDGE_BASE]` |
-| Workspace Settings | Always visible | - |
+| Workspace Settings | Always visible | ☐ |
 
 **Rule:** Feature-flagged items check feature flag only. If feature is OFF, permission is irrelevant.
 

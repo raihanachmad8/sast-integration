@@ -2,7 +2,7 @@
 
 **Purpose**: This document tracks the phased delivery of SAST Integration toward a production-ready thesis defense in June 2026.
 
-**Current Status**: M5 (Projects, Repositories & SCM) is largely complete with all core features implemented and tested. The platform now supports full SCM integration, scanning pipeline, AI verification, and comprehensive UI with no fake data or stubs.
+**Current Status**: M9 (Advanced RBAC, Teams & Audit) is complete with all core features implemented and tested. The platform now supports full SCM integration, scanning pipeline, AI verification, team management, RBAC, audit logging, and comprehensive UI with no fake data or stubs. M10 (Deployment, UAT & Thesis Defense) is in progress.
 
 **Target**: v1.0.0 — Full thesis defense (June 2026)
 
@@ -13,7 +13,7 @@
 | Milestone | Version | Focus Area                          | Status     |
 |-----------|---------|-------------------------------------|------------|
 | M1        | v0.1.0  | Project Setup & Architecture        | ✅ Complete |
-| M2        | v0.2.0  | Database Schema & Seeding (44 tables) | ✅ Complete |
+| M2        | v0.2.0  | Database Schema & Seeding (41 tables) | ✅ Complete |
 | M3        | v0.3.0  | Authentication, Sessions & Security | ✅ Complete |
 | M4        | v0.4.0  | Multi-Workspace Management & Collaboration | ✅ Complete |
 | M5        | v0.5.0  | Projects, Repositories & SCM Integration | ✅ Complete |
@@ -78,7 +78,7 @@
 
 **Delivered**:
 - Team management with member assignment
-- RBAC with 24 permissions across 4 roles
+- RBAC with 39 permissions across 4 roles
 - Audit logs with workspace scoping
 - Activity logs tracking
 - Verification settings management

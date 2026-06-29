@@ -12,7 +12,7 @@
 - **Primary Keys:** `uuid` with `gen_random_uuid()` default
 - **Timestamps:** All tables use `created_at` / `updated_at` where applicable
 - **Soft Deletes:** Most domain entities use `deleted_at` / `deleted_by`
-- **Total Tables:** 44
+- **Total Tables:** 45
 
 ---
 
@@ -84,10 +84,63 @@
 │              │────<│ password_reset_tokens│
 │              │────<│ email_verification_tokens│
 │              │────<│ personal_access_tokens│
-│              │────<│   notifications   │
 │              └────<│  role_permissions │
 │                    │ user_permissions  │
 │                    └──────────────────┘
+```
+
+### Mermaid ER Diagram
+
+```mermaid
+erDiagram
+    users ||--o{ workspace_members : "joins"
+    workspaces ||--o{ workspace_members : "has"
+    workspaces ||--o{ workspace_settings : "configures"
+    workspaces ||--o{ teams : "contains"
+    teams ||--o{ team_members : "has"
+    users ||--o{ team_members : "joins"
+    workspaces ||--o{ projects : "contains"
+    projects ||--o{ project_members : "has"
+    users ||--o{ project_members : "joins"
+    projects ||--o{ project_teams : "has"
+    projects ||--o{ environments : "defines"
+    projects ||--o{ project_api_tokens : "issues"
+    projects ||--o{ repositories : "owns"
+    repositories ||--o{ scans : "triggers"
+    scans ||--o{ findings : "produces"
+    scans ||--o{ scan_results : "stores"
+    scans ||--o{ scan_uploads : "receives"
+    scans ||--o{ commit_statuses : "posts"
+    findings }o--|| finding_groups : "groups into"
+    finding_groups ||--o{ ai_verifications : "verified by"
+    finding_groups ||--o{ finding_group_scans : "appears in"
+    scans ||--o{ finding_group_scans : "contains"
+    findings ||--o{ finding_history : "tracked by"
+    scans ||--o{ quality_gate_results : "evaluated by"
+    workspaces ||--o{ quality_gates : "configures"
+    quality_gates ||--o{ quality_gate_results : "applies to"
+    workspaces ||--o{ source_controls : "connects"
+    source_controls ||--o{ source_control_repositories : "syncs"
+    source_controls ||--o{ source_control_imports : "imports"
+    source_control_imports }o--|| repositories : "creates"
+    workspaces ||--o{ webhooks : "creates"
+    webhooks ||--o{ webhook_deliveries : "delivers"
+    workspaces ||--o{ schedules : "manages"
+    workspaces ||--o{ ai_models : "uses"
+    workspaces ||--o{ knowledge_sources : "imports"
+    knowledge_sources ||--o{ knowledge_entries : "contains"
+    knowledge_sources ||--o{ knowledge_backfill_jobs : "backfills"
+    workspaces ||--o{ reports : "generates"
+    workspaces ||--o{ storage_files : "stores"
+    workspaces ||--o{ audit_logs : "logs"
+    workspaces ||--o{ activity_logs : "tracks"
+    workspaces ||--o{ workspace_invitations : "invites"
+    users ||--o{ sessions : "has"
+    users ||--o{ user_settings : "configures"
+    users ||--o{ password_reset_tokens : "resets"
+    users ||--o{ email_verification_tokens : "verifies"
+    users ||--o{ personal_access_tokens : "creates"
+    users ||--o{ notifications : "receives"
 ```
 
 ---
@@ -229,7 +282,6 @@
 | id | uuid | PK | gen_random_uuid() | |
 | team_id | uuid | NOT NULL | FK → teams.id | |
 | user_id | uuid | NOT NULL | FK → users.id | |
-| role | varchar(20) | NOT NULL | | `'admin'` or `'contributor'` |
 | joined_at | timestamp | NOT NULL | now() | |
 
 ---
@@ -544,7 +596,7 @@
 | group_id | uuid | nullable | FK → finding_groups.id | |
 | cwe_id | varchar(20) | nullable | | e.g. `"CWE-89"` |
 | severity | varchar(20) | NOT NULL | | `'critical'` / `'high'` / `'medium'` / `'low'` / `'info'` |
-| status | varchar(20) | NOT NULL | 'open' | `'open'` / `'fixed'` / `'false_positive'` / `'ignored'` |
+| status | varchar(20) | NOT NULL | 'open' | `'open'` / `'dismissed'` / `'resolved'` |
 | active | boolean | NOT NULL | true | Whether finding is currently active |
 | file_path | varchar(500) | nullable | | Relative path from repo root |
 | line_number | integer | nullable | | |
@@ -818,18 +870,6 @@
 | expires_at | timestamp | nullable | | |
 | revoked_at | timestamp | nullable | | |
 | revoked_by | uuid | nullable | FK → users.id | |
-
-#### `notifications`
-
-| Column | Type | Nullable | Default | Notes |
-|--------|------|----------|---------|-------|
-| id | uuid | PK | gen_random_uuid() | |
-| user_id | uuid | NOT NULL | FK → users.id | |
-| type | varchar(100) | NOT NULL | | Notification type |
-| title | varchar(255) | NOT NULL | | |
-| data | jsonb | nullable | | Type-specific payload |
-| read_at | timestamp | nullable | | null = unread |
-| created_at | timestamp | NOT NULL | now() | |
 
 ---
 

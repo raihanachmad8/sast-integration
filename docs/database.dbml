@@ -121,7 +121,6 @@ Table team_members {
   id uuid [pk, default: `gen_random_uuid()`]
   team_id uuid [not null, ref: > teams.id]
   user_id uuid [not null, ref: > users.id]
-  role varchar(20) [not null] // 'admin' | 'contributor'
   joined_at timestamp [not null, default: `now()`]
 }
 
@@ -383,6 +382,7 @@ Table finding_groups {
   repository_id uuid [null, ref: > repositories.id]
   fingerprint varchar(64) [not null]
   title varchar(500) [null]
+  status varchar(20) [not null, default: `'open'`] // 'open' | 'dismissed' | 'resolved'
   first_seen_at timestamp [not null, default: `now()`]
   last_seen_at timestamp [not null, default: `now()`]
   
@@ -397,7 +397,7 @@ Table findings {
   group_id uuid [null, ref: > finding_groups.id]
   cwe_id varchar(20) [null]
   severity varchar(20) [not null] // 'critical' | 'high' | 'medium' | 'low' | 'info'
-  status varchar(20) [not null, default: 'open'] // 'open' | 'fixed' | 'false_positive' | 'ignored'
+  status varchar(20) [not null, default: `'open'`] // 'open' | 'dismissed' | 'resolved'
   active boolean [not null, default: true]
   file_path varchar(500) [null]
   line_number integer [null]
@@ -449,6 +449,17 @@ Table finding_history {
   new_value text [null]
   created_at timestamp [not null, default: `now()`]
   created_by uuid [null, ref: > users.id]
+}
+
+Table finding_group_scans {
+  scan_id uuid [not null, ref: > scans.id]
+  group_id uuid [not null, ref: > finding_groups.id]
+  is_new boolean [not null]
+  created_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (scan_id, group_id) [pk, name: 'fgs_scan_group_pk']
+  }
 }
 
 // ============================================
@@ -661,4 +672,4 @@ Table notifications {
 
 // Permissions are derived from ROLE_PERMISSIONS in permissions.ts
 // Roles: owner, manager, reviewer, member
-// 35 permissions mapped to roles
+// 39 permissions mapped to roles

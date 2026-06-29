@@ -29,7 +29,7 @@
 | Node.js | 22+ | Local development |
 | pnpm | 10+ | Package manager |
 | Docker | 24+ | Container runtime |
-| PostgreSQL | 15+ | Database (local or cloud) |
+| PostgreSQL | 16 | Database (local or cloud) |
 
 ---
 

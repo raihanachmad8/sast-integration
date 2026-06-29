@@ -5,34 +5,40 @@
 ```text
 src/
 ├── app/            # Next.js App Router — routing & layouts only
-├── features/       # UI feature modules (components, hooks, state)
-├── modules/        # Client-side data modules (API clients, queries)
-├── server/         # Backend logic (services, repositories, schemas)
-├── commons/        # Shared UI components, constants, types, schemas
-│   ├── components/ # Shared UI components (DataTable, FaIcon, etc.)
-│   │   └── layout/ # Layout components (AppShell, SidebarNav, etc.)
+├── commons/        # Shared code (components, constants, providers, schemas, types, utils)
+│   ├── components/ # Shared UI components (LoadingState, ErrorState, DataTable, etc.)
+│   │   └── layout/ # Layout components (AppShell, AuthenticatedShell, SidebarNav)
+│   ├── constants/  # App-wide constants (tokens, routes, permissions, feature-flags)
 │   ├── providers/  # React providers (QueryProvider, AntdProvider)
-│   ├── constants/  # App-wide constants (tokens, routes, etc.)
+│   ├── schemas/    # Zod validation schemas (24 files)
 │   ├── types/      # Shared TypeScript types
-│   └── schemas/    # Zod validation schemas
-├── lib/            # Third-party integrations (drizzle, redis, queue)
-│   └── hooks/      # Custom React hooks (useWorkspace, useDataTable, etc.)
-├── utils/          # Pure helper functions
+│   └── utils/      # Shared utilities (slug)
+├── config/         # App configuration & env validation (antd-theme.ts, client-env.ts)
+├── features/       # UI feature modules (components, hooks, state)
+├── lib/            # Client-side utilities
+│   ├── api/        # Axios client with auto-refresh interceptor
+│   ├── docs/       # MDX rendering for documentation pages
+│   ├── hooks/      # Custom React hooks (useBreakpoint, usePermissions, etc.)
+│   └── utils/      # Helper functions (formatDate, getInitials, roleLabel, export)
+├── modules/        # Client-side data modules (API clients, queries)
+├── server/         # Backend logic (services, repositories, middleware)
+│   ├── http/       # HTTP middleware (auth, validate, response, errors)
+│   └── modules/    # Server business logic (20 modules)
 └── config/         # App configuration & env validation
 ```
 
 | Directory | Responsibility | Rule |
 |-----------|---------------|------|
 | `app/` | Routing, layouts, metadata | No business logic |
-| `features/` | Feature UI & local state | Self-contained per feature |
-| `modules/` | Client data access | Query hooks + API client calls |
-| `server/` | Backend business logic | Never imported from client code |
 | `commons/` | Shared across features | No feature-specific code |
 | `commons/components/` | Shared UI components | Used by all features |
 | `commons/providers/` | React context providers | App-wide providers only |
-| `lib/` | External service wrappers | Thin adapters only |
+| `commons/constants/` | App-wide constants | Single source of truth |
+| `features/` | Feature UI & local state | Self-contained per feature |
+| `modules/` | Client data access | Query hooks + API client calls |
+| `lib/` | Client-side utilities | Thin adapters only |
 | `lib/hooks/` | Custom React hooks | Reusable across features |
-| `utils/` | Stateless helpers | No side effects |
+| `server/` | Backend business logic | Never imported from client code |
 
 ---
 
@@ -244,11 +250,17 @@ interface ApiResponse<T> {
   success: boolean;
   message: string;
   data: T | null;
-  meta?: {
+  meta: {
+    requestId: string;
+    timestamp: string;
     page?: number;
-    limit?: number;
+    perPage?: number;
     total?: number;
-    [key: string]: unknown;
+    lastPage?: number;
+  };
+  error?: {
+    code: string;
+    details: unknown;
   };
 }
 ```
@@ -256,13 +268,13 @@ interface ApiResponse<T> {
 Success example:
 
 ```json
-{ "success": true, "message": "Scans retrieved", "data": [...], "meta": { "page": 1, "limit": 20, "total": 45 } }
+{ "success": true, "message": "Scans retrieved", "data": [...], "meta": { "requestId": "...", "timestamp": "...", "page": 1, "perPage": 20, "total": 45, "lastPage": 3 } }
 ```
 
 Error example:
 
 ```json
-{ "success": false, "message": "Scan not found", "data": null }
+{ "success": false, "message": "Scan not found", "data": null, "meta": { "requestId": "...", "timestamp": "..." }, "error": { "code": "NOT_FOUND", "details": null } }
 ```
 
 ---
@@ -270,35 +282,43 @@ Error example:
 ## Error Handling
 
 ```typescript
-// Base error
+// Base error — AppError(message, statusCode, code)
 class AppError extends Error {
-  constructor(public statusCode: number, message: string, public code?: string) {
+  constructor(message: string, statusCode: number, code: string) {
     super(message);
+    this.statusCode = statusCode;
+    this.code = code;
   }
 }
 
-// Specific errors
+// Specific errors — use HTTP constants for messages and codes
 class NotFoundError extends AppError {
-  constructor(resource: string) {
-    super(404, `${resource} not found`, 'NOT_FOUND');
+  constructor(message = 'Not found') {
+    super(message, 404, 'NOT_FOUND');
   }
 }
 
 class ValidationError extends AppError {
-  constructor(message: string) {
-    super(400, message, 'VALIDATION_ERROR');
+  constructor(message = 'Validation failed') {
+    super(message, 422, 'VALIDATION_ERROR');
   }
 }
 
 class UnauthorizedError extends AppError {
-  constructor() {
-    super(401, 'Unauthorized', 'UNAUTHORIZED');
+  constructor(message = 'Unauthorized') {
+    super(message, 401, 'UNAUTHORIZED');
+  }
+}
+
+class ForbiddenError extends AppError {
+  constructor(message = 'Forbidden') {
+    super(message, 403, 'FORBIDDEN');
   }
 }
 
 class ConflictError extends AppError {
   constructor(message: string) {
-    super(409, message, 'CONFLICT');
+    super(message, 409, 'CONFLICT');
   }
 }
 ```
