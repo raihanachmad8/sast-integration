@@ -1,6 +1,7 @@
 'use client';
 
 import { Tag, theme } from 'antd';
+
 import { getStatusColor, type EntityType } from '@/commons/constants/tokens';
 
 interface StatusTagProps {

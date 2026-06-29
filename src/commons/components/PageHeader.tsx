@@ -66,7 +66,7 @@ export function PageHeader({ title, description, actions, breadcrumbs }: PageHea
             </Text>
           )}
         </Flex>
-        {actions && <Flex wrap="wrap" gap={token.paddingSM}>{actions}</Flex>}
+        {actions && <Flex wrap="wrap" gap={token.paddingSM} justify="flex-end">{actions}</Flex>}
       </Flex>
     </Flex>
   );

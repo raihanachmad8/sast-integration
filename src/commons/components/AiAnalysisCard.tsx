@@ -1,6 +1,7 @@
 'use client';
 
 import { Flex, Typography, theme } from 'antd';
+
 import { FaIcon } from './FaIcon';
 import { StatusTag } from './StatusTag';
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { Spin, theme } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
+import { Spin, theme } from 'antd';
 
 interface LoadingStateProps {
   text?: string;

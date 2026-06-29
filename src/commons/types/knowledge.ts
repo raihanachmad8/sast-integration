@@ -29,7 +29,7 @@ export type KnowledgeSource = {
   workspaceId: string;
   /** Source display name. */
   name: string;
-  /** Source type (nvd, manual, mitre). */
+  /** Source type (cwe, nvd, custom). */
   type: string;
   /** Source URL for sync. */
   url: string | null;
@@ -114,7 +114,7 @@ export type KnowledgeBackfillJob = {
   sourceId: string | null;
   /** Workspace ID. */
   workspaceId?: string | null;
-  /** Source type (nvd, manual, mitre). */
+  /** Source type (cwe, nvd, custom). */
   sourceType: string;
   /** Job status. */
   status: 'queued' | 'running' | 'completed' | 'failed';

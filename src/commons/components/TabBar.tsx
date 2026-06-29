@@ -1,6 +1,7 @@
 'use client';
 
 import { Button, Badge, theme } from 'antd';
+
 import { FaIcon } from './FaIcon';
 
 /** A single tab definition. */

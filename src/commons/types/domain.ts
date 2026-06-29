@@ -1,8 +1,7 @@
 /**
  * Unified domain types for the SAST Integration frontend.
  *
- * Single source of truth for all domain types, status enums, variant maps,
- * and UI constants. Imported by all feature modules.
+ * Single source of truth for all domain types used by feature modules.
  *
  * @module commons-types-domain
  */
@@ -35,33 +34,10 @@ export type RepositoryConnectionType = "scm" | "external";
 /** Scan origin type — used by scan, dashboard */
 export type ScanOrigin = "managed" | "external_upload";
 
-/** Workspace member role — used by members, teams */
-export type MemberRole = "owner" | "manager" | "reviewer" | "member";
-
-/** Report format */
-export type ReportFormat = "pdf" | "xlsx" | "json";
-
-/** Report type */
-export type ReportType =
-  | "ai_verdict_summary"
-  | "detailed_findings"
-  | "executive_summary"
-  | "compliance_export";
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // Finding (Unified)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Unified finding type — replaces both FindingRow (findings module) and Finding (scan module).
- *
- * Used by: findings, scan, reports, dashboard, quality-gates
- *
- * @remarks
- * - `confidence` is `number | null` (0–100 or null for unverified). Display formatting ("94%", "—") is a UI concern.
- * - `status` uses consistent lowercase with underscores: `'open' | 'dismissed' | 'resolved'`
- * - Rich fields (`aiAnalysis`, `sourceCode`, `comments`) are optional — list views don't need them.
- */
 export interface Finding {
   id: string;
   /** Project ID this finding belongs to (via finding_groups). */
@@ -128,10 +104,17 @@ export interface Team {
   name: string;
   slug: string;
   description: string;
-  memberCount: number;
-  projects: string[];
+  memberCount?: number;
+  projects?: string[];
   projectIds?: string[];
+  members?: TeamMember[];
   createdAt: string;
+  workspaceId?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
 }
 
 /** Team member — used by teams, projects (member picker) */
@@ -140,7 +123,7 @@ export interface TeamMember {
   userId: string;
   name: string;
   email: string;
-  role?: MemberRole;
+  avatarUrl?: string;
   joinedAt: string;
 }
 
@@ -169,11 +152,24 @@ export interface Repository {
 // Project
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** Project automation flags */
-export type ProjectAutomation =
-  | "auto_scan"
-  | "gate_enforced"
-  | "notify_critical";
+/** Summary object for a project member. */
+export interface ProjectMemberSummary {
+  id: string;
+  name: string;
+  email?: string;
+}
+
+/** Summary object for a project team. */
+export interface ProjectTeamSummary {
+  id: string;
+  name: string;
+}
+
+/** Summary object for a project repository. */
+export interface ProjectRepositorySummary {
+  id: string;
+  name: string;
+}
 
 /** Project — used by projects, repositories */
 export interface Project {
@@ -181,15 +177,9 @@ export interface Project {
   name: string;
   description: string;
   lead: string;
-  repositories: string[];
-  teams: string[];
-  members: string[];
-  repositoryIds?: string[];
-  teamIds?: string[];
-  memberIds?: string[];
-  memberNames?: string[];
-  teamNames?: string[];
-  automation: string[];
+  repositories: ProjectRepositorySummary[];
+  teams: ProjectTeamSummary[];
+  members: ProjectMemberSummary[];
   /** ISO 8601 timestamp of when the project was created. */
   createdAt?: string;
 }
@@ -295,196 +285,11 @@ export interface ScanRepository {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Member
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/** Workspace member */
-export interface Member {
-  id: string;
-  userId: string;
-  name: string;
-  email: string;
-  role: MemberRole;
-  status: "active" | "invited";
-  joinedAt: string;
-}
-
-/** Pending invitation */
-export interface Invitation {
-  id: string;
-  email: string;
-  role: MemberRole;
-  status: "pending";
-  sentAt: string;
-  expiresAt: string;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Other Modules
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/** Scan policy */
-export interface ScanPolicy {
-  id: string;
-  name: string;
-  profile: "quick" | "standard" | "comprehensive";
-  aiVerification: boolean;
-  severityGate: Severity;
-  scanners: string[];
-}
-
-/** AI model — matches AiModelRow from Drizzle schema */
-export interface AiModel {
-  id: string;
-  workspaceId: string;
-  name: string;
-  provider: string;
-  baseUrl: string;
-  role: "primary" | "fallback";
-  priority: number;
-  promptPreset: string;
-  status: "reachable" | "unreachable";
-  lastTested: string | null;
-  createdAt: string;
-}
-
-/** Knowledge base entry — matches KnowledgeEntryRow from Drizzle schema */
-export interface KnowledgeEntry {
-  id: string;
-  sourceId: string;
-  sourceName?: string;
-  sourceType?: string;
-  cweId: string | null;
-  title: string;
-  severity: string | null;
-  remediation: string | null;
-  content?: string | null;
-  tags?: string[];
-  muted: boolean;
-  usedByAiCount: number;
-  createdAt: string;
-}
-
-/** Scan schedule */
-export interface Schedule {
-  id: string;
-  repo: string;
-  branch: string;
-  frequency: "hourly" | "daily" | "weekly" | "monthly";
-  cron: string;
-  timezone: string;
-  policy: string;
-  nextRun: string;
-  lastRuns: ScheduleRun[];
-  status: "active" | "paused";
-}
-
-export interface ScheduleRun {
-  status: "pass" | "fail";
-  time: string;
-}
-
-/** Scanner engine */
-export interface ScannerEngine {
-  id: string;
-  name: string;
-  capability: string;
-  status: "active" | "inactive" | "error";
-  rules: number;
-  version: string;
-}
-
-/** Webhook — matches WebhookRow from Drizzle schema */
-export interface Webhook {
-  id: string;
-  workspaceId: string;
-  name: string;
-  url: string;
-  events: string[];
-  active: boolean;
-  lastTriggeredAt: string | null;
-  createdAt: string;
-}
-
-/** SCM provider config */
-export interface ScmProviderConfig {
-  id: string;
-  name: string;
-  type: ScmProvider;
-  status: "Connected" | "Disconnected" | "Needs refresh";
-  mode: string;
-  org: string;
-  discovered: number;
-  imported: number;
-  lastSync: string | null;
-}
-
-/** Report — matches ReportRow from Drizzle schema */
-export interface Report {
-  id: string;
-  workspaceId: string;
-  type: string;
-  title: string;
-  status?: string;
-  format: string | null;
-  filters?: unknown;
-  filePath: string | null;
-  fileSize: number | null;
-  createdAt: string;
-  createdBy: string;
-  createdByName: string;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // Status Variant Maps
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** Severity → StatusPill variant (supports both lowercase and TitleCase keys) */
-export const SEVERITY_VARIANT: Record<string, string> = {
-  critical: "red",
-  high: "amber",
-  medium: "blue",
-  low: "slate",
-  info: "slate",
-  Critical: "red",
-  High: "amber",
-  Medium: "blue",
-  Low: "slate",
-  Info: "slate",
-};
-
-/** Finding status → StatusPill variant */
-export const FINDING_STATUS_VARIANT: Record<FindingStatus, string> = {
-  open: "red",
-  dismissed: "teal",
-  resolved: "green",
-};
-
-/** AI verdict → StatusPill variant */
-export const VERDICT_VARIANT: Record<AiVerdict, string> = {
-  TP: "red",
-  FP: "teal",
-  Pending: "amber",
-};
-
-/** Scan status → StatusPill variant (supports both lowercase and TitleCase keys) */
-export const SCAN_STATUS_VARIANT: Record<string, string> = {
-  queued: "slate",
-  running: "blue",
-  processing: "amber",
-  parsing: "blue",
-  completed: "teal",
-  failed: "red",
-  Queued: "slate",
-  Running: "blue",
-  Processing: "amber",
-  Parsing: "blue",
-  Completed: "teal",
-  Failed: "red",
-};
-
 /** Member role → StatusPill variant */
-export const ROLE_VARIANT: Record<MemberRole, string> = {
+export const ROLE_VARIANT: Record<string, string> = {
   owner: "purple",
   manager: "blue",
   reviewer: "teal",
@@ -498,35 +303,3 @@ export const ROLE_PILL_CLASS: Record<string, string> = {
   reviewer: "pill-teal",
   member: "pill-slate",
 };
-
-/** SCM connection status → StatusPill variant */
-export const CONNECTION_STATUS_VARIANT: Record<string, string> = {
-  Connected: "teal",
-  Disconnected: "slate",
-  "Needs refresh": "amber",
-};
-
-/** Repository status → StatusPill variant */
-export const REPO_STATUS_VARIANT: Record<string, string> = {
-  active: "teal",
-  inactive: "slate",
-  error: "red",
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// UI Constants
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/** Avatar size presets */
-export const AVATAR_SIZES = { sm: 20, md: 40, lg: 56 } as const;
-
-/** Standard checkbox size */
-export const CHECKBOX_SIZE = 16;
-
-/** Icon size presets */
-export const ICON_SIZES = { sm: 16, md: 18, lg: 20, xl: 24, xxl: 48 } as const;
-
-/** Default locale for date formatting */
-export const DATE_LOCALE = "en-US";
-/** Default git branch */
-export const DEFAULT_BRANCH = "main";

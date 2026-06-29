@@ -1,6 +1,7 @@
 'use client';
 
 import { Empty, theme } from 'antd';
+
 import { FaIcon } from './FaIcon';
 
 interface EmptyStateProps {

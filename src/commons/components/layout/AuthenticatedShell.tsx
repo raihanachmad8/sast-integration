@@ -1,14 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+
+import { LoadingState } from '@/commons/components/LoadingState';
 import { ROUTES } from '@/commons/constants';
-import { useSessionQuery } from '@/modules/auth/queries';
+import { EmailVerificationBanner } from '@/features/auth/components/EmailVerificationBanner';
 import { getCachedWorkspace } from '@/lib/api/client';
 import type { CachedWorkspace } from '@/lib/api/client';
+import { useSessionQuery } from '@/modules/auth/queries';
+
 import { AppShell } from './AppShell';
-import { EmailVerificationBanner } from '@/features/auth/components/EmailVerificationBanner';
-import { LoadingState } from '@/commons/components/LoadingState';
+
 
 /**
  * Authenticated shell wrapper for protected routes.

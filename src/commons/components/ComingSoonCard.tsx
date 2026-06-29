@@ -1,6 +1,7 @@
 'use client';
 
 import { Card, Typography, theme } from 'antd';
+
 import { FaIcon } from './FaIcon';
 
 interface ComingSoonCardProps {

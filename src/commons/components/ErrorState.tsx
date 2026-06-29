@@ -1,6 +1,7 @@
 'use client';
 
 import { Result, Button, theme } from 'antd';
+
 import { FaIcon } from './FaIcon';
 
 interface ErrorStateProps {

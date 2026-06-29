@@ -1,8 +1,9 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useFeatureFlag, useFeatureFlags } from '@/lib/hooks/useFeatureFlag';
+
 import type { FeatureFlagKey } from '@/commons/constants/feature-flags';
+import { useFeatureFlag, useFeatureFlags } from '@/lib/hooks/useFeatureFlag';
 
 interface FeatureGateProps {
   /** Single feature flag to check */

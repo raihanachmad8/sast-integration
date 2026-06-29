@@ -1,9 +1,11 @@
 import { z } from 'zod';
 
+import { lenientEnum, lenientInt, SORT_ORDERS } from './member.schema';
+
 export const createAiModelSchema = z.object({
   name: z.string().min(1, 'Model name is required').max(100),
   provider: z.string().min(1, 'Provider is required'),
-  baseUrl: z.string().url().optional().or(z.literal('')).default(''),
+  baseUrl: z.url().optional().or(z.literal('')).default(''),
   apiKey: z.string().optional().default(''),
   role: z.enum(['primary', 'fallback'], { message: 'Role is required' }).default('fallback'),
   priority: z.number().int().min(1).max(10).default(1),
@@ -13,5 +15,16 @@ export const createAiModelSchema = z.object({
 
 export const updateAiModelSchema = createAiModelSchema.partial();
 
+export const AI_MODEL_SORT_FIELDS = ['name', 'provider', 'priority', 'createdAt'] as const;
+
+export const aiModelListQuerySchema = z.object({
+  page: lenientInt(1),
+  perPage: lenientInt(10, 100),
+  search: z.string().optional(),
+  sort: lenientEnum(AI_MODEL_SORT_FIELDS),
+  order: lenientEnum(SORT_ORDERS),
+});
+
 export type CreateAiModelInput = z.infer<typeof createAiModelSchema>;
 export type UpdateAiModelInput = z.infer<typeof updateAiModelSchema>;
+export type AiModelListQuery = z.infer<typeof aiModelListQuerySchema>;

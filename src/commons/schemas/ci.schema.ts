@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const ciInitSchema = z.object({
   repoName: z.string().min(1, 'repoName is required'),
-  repoUrl: z.string().url().optional(),
+  repoUrl: z.url().optional(),
   branch: z.string().max(100).optional(),
   commit: z.string().max(40).optional(),
   // PR metadata (SonarQube-like PR analysis)

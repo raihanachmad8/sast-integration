@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
 import { theme } from 'antd';
+import { useMemo } from 'react';
 
 function getStrength(val: string): number {
   if (!val) return 0;

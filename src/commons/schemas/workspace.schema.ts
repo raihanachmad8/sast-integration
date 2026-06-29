@@ -15,3 +15,11 @@ export const workspaceUpdateSchema = z.object({
 
 export type WorkspaceCreateInput = z.infer<typeof workspaceCreateSchema>;
 export type WorkspaceUpdateInput = z.infer<typeof workspaceUpdateSchema>;
+
+// ─── Switch workspace ────────────────────────────────────────────────────────
+
+export const switchWorkspaceSchema = z.object({
+  currentWorkspaceId: z.string().min(1),
+});
+
+export type SwitchWorkspaceInput = z.infer<typeof switchWorkspaceSchema>;

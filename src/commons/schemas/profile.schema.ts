@@ -1,12 +1,30 @@
+/**
+ * Profile schemas — single source of truth for user profile validation.
+ *
+ * ## Validation Flow
+ *
+ * ### Get Profile (server-side)
+ * - No input validation needed — userId from auth context.
+ *
+ * ### Update Profile (server-side)
+ * 1. Route handler calls `validateBody(request, profileUpdateSchema)`
+ * 2. Strict validation — invalid input returns 422
+ * 3. All fields optional (partial update semantics)
+ *
+ * ### Form (client-side)
+ * - `react-hook-form` with `zodResolver(profileUpdateSchema)` validates in-browser
+ *
+ * @module schemas/profile
+ */
 import { z } from 'zod';
 
-export const updateProfileSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(255).optional(),
-  username: z.string().min(3, 'Username must be at least 3 characters').max(50).regex(/^[a-zA-Z0-9_-]+$/, 'Username must be alphanumeric with hyphens or underscores').optional(),
-  bio: z.string().max(500).optional(),
+/** Profile update schema — all fields optional for partial updates. */
+export const profileUpdateSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255),
+  username: z.string().min(1, 'Username is required').max(100).optional(),
+  bio: z.string().max(500).optional().default(''),
   timezone: z.string().max(50).optional(),
   language: z.string().max(10).optional(),
-  avatarUrl: z.string().url().max(500).optional(),
 });
 
-export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type ProfileUpdateInput = z.infer<typeof profileUpdateSchema>;

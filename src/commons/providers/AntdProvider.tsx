@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
 import { App, ConfigProvider } from 'antd';
+import React from 'react';
+
 import { antdTheme } from '@/config/antd-theme';
 
 const isDev = process.env.NODE_ENV === 'development';

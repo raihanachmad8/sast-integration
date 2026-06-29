@@ -1,7 +1,8 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
 import { theme } from 'antd';
+import { useRef, useEffect } from 'react';
+
 import { FaIcon } from '@/commons/components/FaIcon';
 import { getInitials } from '@/lib/utils/getInitials';
 

@@ -13,18 +13,8 @@ export interface ApiResponse<T> {
       page: number;
       perPage: number;
       total: number;
-      totalPages: number;
+      lastPage: number;
     };
     [key: string]: unknown;
-  };
-}
-
-export interface ApiError {
-  success: false;
-  message: string;
-  data: null;
-  errors?: {
-    code: string;
-    detail?: string;
   };
 }

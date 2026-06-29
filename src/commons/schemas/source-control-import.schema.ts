@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 export const importRepoSchema = z.object({
-  project: z.string().min(1, 'Project is required'),
-  autoScan: z.boolean().default(true),
+  sourceRepositoryId: z.string().min(1, 'Source repository ID is required'),
+  projectId: z.string().optional(),
 });
 
 export type ImportRepoInput = z.infer<typeof importRepoSchema>;

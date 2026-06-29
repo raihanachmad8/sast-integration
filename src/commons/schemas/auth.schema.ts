@@ -1,10 +1,10 @@
 import { z } from 'zod';
 
-const assignableRoleValues = ['manager', 'reviewer', 'member'] as [string, ...string[]];
+import { assignableRoles } from './member.schema';
 
 export const inviteSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
-  role: z.enum(assignableRoleValues, { message: 'Role is required' }).default('member'),
+  role: z.enum(assignableRoles, { message: 'Role is required' }).default('member'),
 });
 
 export type InviteInput = z.infer<typeof inviteSchema>;
@@ -52,3 +52,11 @@ export type SigninInput = z.infer<typeof signinSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type AcceptInviteInput = z.infer<typeof acceptInviteSchema>;
+
+// ─── Accept invite (logged-in user) ──────────────────────────────────────────
+
+export const acceptLoggedInSchema = z.object({
+  token: z.string().min(1, 'Token is required'),
+});
+
+export type AcceptLoggedInInput = z.infer<typeof acceptLoggedInSchema>;

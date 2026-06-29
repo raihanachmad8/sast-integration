@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
+import { lenientEnum, lenientInt, SORT_ORDERS } from './member.schema';
+
 export const createWebhookSchema = z.object({
   name: z.string().min(1, 'Webhook name is required').max(100),
-  url: z.string().url('Please enter a valid URL'),
+  url: z.url('Please enter a valid URL'),
   events: z.array(z.string()).min(1, 'Select at least one event'),
   secret: z.string().optional(),
   active: z.boolean().optional().default(true),
@@ -10,5 +12,17 @@ export const createWebhookSchema = z.object({
 
 export const updateWebhookSchema = createWebhookSchema.partial();
 
+export const WEBHOOK_SORT_FIELDS = ['name', 'url', 'active', 'createdAt'] as const;
+
+export const webhookListQuerySchema = z.object({
+  page: lenientInt(1),
+  perPage: lenientInt(10, 100),
+  search: z.string().optional(),
+  active: z.enum(['true', 'false']).optional(),
+  sort: lenientEnum(WEBHOOK_SORT_FIELDS),
+  order: lenientEnum(SORT_ORDERS),
+});
+
 export type CreateWebhookInput = z.infer<typeof createWebhookSchema>;
 export type UpdateWebhookInput = z.infer<typeof updateWebhookSchema>;
+export type WebhookListQuery = z.infer<typeof webhookListQuerySchema>;

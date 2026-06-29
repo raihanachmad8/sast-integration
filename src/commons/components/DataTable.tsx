@@ -1,7 +1,8 @@
 'use client';
 
+import { Table, Card, Input, Select, Dropdown, Button, Tag, Flex, Grid, Spin, theme } from 'antd';
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { Table, Card, Input, Select, Dropdown, Button, Tag, Flex, Grid, theme } from 'antd';
+
 import { FaIcon } from '@/commons/components/FaIcon';
 import { TableFooter } from '@/commons/components/TableFooter';
 
@@ -13,6 +14,10 @@ export interface FilterConfig {
   placeholder?: string;
   options: { value: string; label: string }[];
   searchable?: boolean;
+  onSearch?: (value: string) => void;
+  onScroll?: (event: React.UIEvent<HTMLDivElement>) => void;
+  isFetching?: boolean;
+  hasMore?: boolean;
 }
 
 export interface ActiveFilter {
@@ -300,11 +305,28 @@ export function DataTable<T>({
                 onChange={(value) => onFilterChange?.(filter.key, value ?? '')}
                 options={[{ value: '', label: filter.placeholder ?? `All ${filter.label}` }, ...filter.options]}
                 allowClear
-                {...(filter.searchable ? {
+                loading={filter.isFetching}
+                virtual={false}
+                {...(filter.onSearch ? {
+                  showSearch: true,
+                  onSearch: filter.onSearch,
+                  filterOption: false,
+                  popupRender: (menu) => (
+                    <>
+                      {menu}
+                      {filter.isFetching && (
+                        <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                          <Spin size="small" />
+                        </div>
+                      )}
+                    </>
+                  ),
+                } : filter.searchable ? {
                   showSearch: true,
                   filterOption: (input, option) =>
                     (option?.label as string ?? '').toLowerCase().includes(input.toLowerCase()),
                 } : {})}
+                {...(filter.onScroll ? { onPopupScroll: filter.onScroll } : {})}
               />
             ))}
 

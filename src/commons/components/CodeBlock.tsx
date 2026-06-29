@@ -2,6 +2,7 @@
 
 import { Flex, theme, Typography } from 'antd';
 import type { ReactNode } from 'react';
+
 import { FaIcon } from './FaIcon';
 
 /** Purpose: Layout constants for the code block to avoid inline magic values. */

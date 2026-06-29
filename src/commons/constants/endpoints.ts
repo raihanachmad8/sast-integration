@@ -156,7 +156,6 @@ export const ENDPOINTS = {
   TEAMS: {
     LIST: (workspaceId: string) => `/api/v1/workspaces/${workspaceId}/teams`,
     DETAIL: (workspaceId: string, teamId: string) => `/api/v1/workspaces/${workspaceId}/teams/${teamId}`,
-    MEMBERS: (workspaceId: string, teamId: string) => `/api/v1/workspaces/${workspaceId}/teams/${teamId}/members`,
   },
 
   // ── Quality Gates ─────────────────────────────────────
@@ -191,18 +190,6 @@ export const ENDPOINTS = {
     SCANS: '/api/v1/dashboard/scans',
     FINDINGS: '/api/v1/dashboard/findings',
     HEALTH: '/api/v1/dashboard/health',
-  },
-
-  // ── Notifications ─────────────────────────────────
-  NOTIFICATIONS: {
-    LIST: '/api/v1/notifications',
-    UNREAD_COUNT: '/api/v1/notifications/unread-count',
-  },
-
-  // ── Audit ────────────────────────────────────────
-  AUDIT: {
-    LOGS: '/api/v1/audit-logs',
-    ACTIVITY_LOGS: '/api/v1/activity-logs',
   },
 
   // ── Users ─────────────────────────────────────────────

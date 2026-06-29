@@ -1,17 +1,20 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
 import { theme, Grid } from 'antd';
-import { useWorkspacesQuery, useSwitchWorkspaceMutation } from '@/modules/workspace/queries';
-import { useSessionQuery, useSignoutMutation } from '@/modules/auth/queries';
+import { useRouter, usePathname } from 'next/navigation';
+import { useState } from 'react';
+
 import { ROUTES } from '@/commons/constants';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { PERMISSION } from '@/commons/constants/permissions';
+import { useFeatureFlags } from '@/lib/hooks/useFeatureFlag';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { useSessionQuery, useSignoutMutation } from '@/modules/auth/queries';
+import { useWorkspacesQuery, useSwitchWorkspaceMutation } from '@/modules/workspace/queries';
+
 import { SidebarNav } from './SidebarNav';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
-import { useFeatureFlags } from '@/lib/hooks/useFeatureFlag';
-import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
-import { usePermissions } from '@/lib/hooks/usePermissions';
-import { PERMISSION } from '@/commons/constants/permissions';
+
 
 type NavItem = {
   key: string;
@@ -91,7 +94,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const { flags } = useFeatureFlags([
     FEATURE_FLAG.REPORTS,
-    FEATURE_FLAG.ARENA,
     FEATURE_FLAG.TEAMS,
     FEATURE_FLAG.PROJECTS,
     FEATURE_FLAG.SCHEDULES,
@@ -133,8 +135,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           { key: 'repositories', label: 'Repositories', icon: 'fa-code-branch', href: ROUTES.WORKSPACE.REPOSITORIES(workspaceSlug) },
           { key: 'scan', label: 'Scans', icon: 'fa-list-check', href: ROUTES.WORKSPACE.SCANS(workspaceSlug) },
           { key: 'findings', label: 'Findings', icon: 'fa-bug', href: ROUTES.WORKSPACE.FINDINGS(workspaceSlug) },
-          ...(flags[FEATURE_FLAG.REPORTS] ? [{ key: 'reports', label: 'Reports', icon: 'fa-file-lines', href: ROUTES.WORKSPACE.REPORTS(workspaceSlug) }] : []),
-          ...(flags[FEATURE_FLAG.ARENA] ? [{ key: 'arena', label: 'Arena', icon: 'fa-flask-vial', href: ROUTES.WORKSPACE.ARENA(workspaceSlug) }] : []),
+          ...(flags[FEATURE_FLAG.REPORTS] && has(PERMISSION.REPORT_VIEW) ? [{ key: 'reports', label: 'Reports', icon: 'fa-file-lines', href: ROUTES.WORKSPACE.REPORTS(workspaceSlug) }] : []),
         ],
       }],
     },
@@ -143,9 +144,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       groups: [{
         items: [
           ...(has(PERMISSION.MEMBER_VIEW) ? [{ key: 'members', label: 'Members', icon: 'fa-users', href: ROUTES.WORKSPACE.MEMBERS(workspaceSlug) }] : []),
-          ...(flags[FEATURE_FLAG.TEAMS] ? [{ key: 'teams', label: 'Teams', icon: 'fa-people-group', href: ROUTES.WORKSPACE.TEAMS(workspaceSlug) }] : []),
-          ...(flags[FEATURE_FLAG.PROJECTS] ? [{ key: 'projects', label: 'Projects', icon: 'fa-diagram-project', href: ROUTES.WORKSPACE.PROJECTS(workspaceSlug) }] : []),
-          ...(flags[FEATURE_FLAG.SCHEDULES] ? [{ key: 'schedules', label: 'Schedules', icon: 'fa-calendar-days', href: ROUTES.WORKSPACE.SCHEDULES(workspaceSlug) }] : []),
+          ...(flags[FEATURE_FLAG.TEAMS] && has(PERMISSION.TEAM_VIEW) ? [{ key: 'teams', label: 'Teams', icon: 'fa-people-group', href: ROUTES.WORKSPACE.TEAMS(workspaceSlug) }] : []),
+          ...(flags[FEATURE_FLAG.PROJECTS] && has(PERMISSION.PROJECT_VIEW) ? [{ key: 'projects', label: 'Projects', icon: 'fa-diagram-project', href: ROUTES.WORKSPACE.PROJECTS(workspaceSlug) }] : []),
+          ...(flags[FEATURE_FLAG.SCHEDULES] && has(PERMISSION.SCHEDULE_VIEW) ? [{ key: 'schedules', label: 'Schedules', icon: 'fa-calendar-days', href: ROUTES.WORKSPACE.SCHEDULES(workspaceSlug) }] : []),
         ],
       }],
     },
@@ -154,15 +155,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       groups: [{
         items: [
           { key: 'profile', label: 'Profile', icon: 'fa-user', href: ROUTES.WORKSPACE.PROFILE(workspaceSlug) },
-          ...(hasAnyScm
+          ...(hasAnyScm && has(PERMISSION.INTEGRATION_VIEW)
             ? [{ key: 'source-control', label: 'Source Control', icon: 'fa-plug', href: ROUTES.WORKSPACE.SOURCE_CONTROL(workspaceSlug) }]
             : []),
-          ...(flags[FEATURE_FLAG.WEBHOOKS] ? [{ key: 'webhooks', label: 'Webhooks', icon: 'fa-satellite-dish', href: ROUTES.WORKSPACE.WEBHOOKS(workspaceSlug) }] : []),
-          ...(flags[FEATURE_FLAG.SCANNER_ENGINES] ? [{ key: 'scanner-engines', label: 'Scanner Engines', icon: 'fa-bolt', href: ROUTES.WORKSPACE.SCANNER_ENGINES(workspaceSlug) }] : []),
-          ...(flags[FEATURE_FLAG.AI_MODELS] ? [{ key: 'ai-models', label: 'AI Models', icon: 'fa-brain', href: ROUTES.WORKSPACE.AI_MODELS(workspaceSlug) }] : []),
-          ...(flags[FEATURE_FLAG.QUALITY_GATES] ? [{ key: 'quality-gates', label: 'Quality Gates', icon: 'fa-shield', href: ROUTES.WORKSPACE.QUALITY_GATES(workspaceSlug) }] : []),
-          ...(flags[FEATURE_FLAG.KNOWLEDGE_BASE] ? [{ key: 'knowledge-base', label: 'Knowledge Base', icon: 'fa-database', href: ROUTES.WORKSPACE.KNOWLEDGE_BASE(workspaceSlug) }] : []),
-          { key: 'settings', label: 'Workspace Settings', icon: 'fa-gear', href: ROUTES.WORKSPACE.SETTINGS(workspaceSlug) },
+          ...(flags[FEATURE_FLAG.WEBHOOKS] && has(PERMISSION.WEBHOOK_VIEW) ? [{ key: 'webhooks', label: 'Webhooks', icon: 'fa-satellite-dish', href: ROUTES.WORKSPACE.WEBHOOKS(workspaceSlug) }] : []),
+          ...(flags[FEATURE_FLAG.SCANNER_ENGINES] && has(PERMISSION.SCANNER_VIEW) ? [{ key: 'scanner-engines', label: 'Scanner Engines', icon: 'fa-bolt', href: ROUTES.WORKSPACE.SCANNER_ENGINES(workspaceSlug) }] : []),
+          ...(flags[FEATURE_FLAG.AI_MODELS] && has(PERMISSION.AI_MODEL_VIEW) ? [{ key: 'ai-models', label: 'AI Models', icon: 'fa-brain', href: ROUTES.WORKSPACE.AI_MODELS(workspaceSlug) }] : []),
+          ...(flags[FEATURE_FLAG.QUALITY_GATES] && has(PERMISSION.QUALITY_GATE_VIEW) ? [{ key: 'quality-gates', label: 'Quality Gates', icon: 'fa-shield', href: ROUTES.WORKSPACE.QUALITY_GATES(workspaceSlug) }] : []),
+          ...(flags[FEATURE_FLAG.KNOWLEDGE_BASE] && has(PERMISSION.KNOWLEDGE_VIEW) ? [{ key: 'knowledge-base', label: 'Knowledge Base', icon: 'fa-database', href: ROUTES.WORKSPACE.KNOWLEDGE_BASE(workspaceSlug) }] : []),
+          ...(has(PERMISSION.WORKSPACE_SETTINGS_VIEW) ? [{ key: 'settings', label: 'Workspace Settings', icon: 'fa-gear', href: ROUTES.WORKSPACE.SETTINGS(workspaceSlug) }] : []),
         ],
       }],
     },

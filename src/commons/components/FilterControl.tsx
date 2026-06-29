@@ -1,6 +1,7 @@
 'use client';
 
 import { Input, Select, Flex, theme } from 'antd';
+
 import { StatusPill } from './StatusPill';
 
 /** A single filter item definition. */
@@ -110,7 +111,7 @@ export function FilterControl({
             key={filter.key}
             placeholder={filter.label}
             value={filterValues[filter.key] ?? undefined}
-            onChange={(value) => onFilterChange?.(filter.key, value ?? null)}
+            onChange={(value) => onFilterChange?.(filter.key, value ?? '')}
             style={{ minWidth: 150 }}
             allowClear
             options={filter.options}

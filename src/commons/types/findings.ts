@@ -144,90 +144,6 @@ export type FindingGroup = {
 };
 
 /**
- * Mock finding history — audit trail of field changes on a finding.
- *
- * @example
- * ```ts
- * const history: FindingHistory = {
- *   id: 'fh_01',
- *   findingId: 'f_01',
- *   field: 'status',
- *   oldValue: 'open',
- *   newValue: 'triaged',
- *   createdByName: 'Bob Chen',
- *   createdAt: '2026-06-04T08:00:00Z',
- * };
- * ```
- */
-export type FindingHistory = {
-  /** Unique history entry ID. */
-  id: string;
-  /** Finding ID tracked. */
-  findingId: string;
-  /** Field name that changed. */
-  field: string;
-  /** Previous value. */
-  oldValue: string | null;
-  /** New value. */
-  newValue: string | null;
-  /** Display name of who made the change. */
-  createdByName: string;
-  /** ISO 8601 change timestamp. */
-  createdAt: string;
-};
-
-/**
- * Mock AI verification result — model output for a finding.
- *
- * @example
- * ```ts
- * const verification: AiVerification = {
- *   id: 'av_01',
- *   findingId: 'f_01',
- *   modelId: 'aim_01',
- *   verdict: 'true_positive',
- *   confidence: 0.94,
- *   explanation: 'The query builder uses string interpolation...',
- *   dataFlow: 'request.query.search → queryBuilder.where(search)',
- *   taintSource: 'HTTP request query parameter',
- *   matchDetail: 'SQL query built with unsanitized user input',
- *   likelyCwe: ['CWE-89'],
- *   fixSuggestion: 'Use parameterized queries or prepared statements.',
- *   latencyMs: 1250,
- *   createdAt: '2026-06-04T06:06:00Z',
- * };
- * ```
- */
-export type AiVerification = {
-  /** Unique verification ID. */
-  id: string;
-  /** Finding ID verified. */
-  findingId: string;
-  /** AI model ID used. */
-  modelId: string;
-  /** AI verdict. */
-  verdict: 'true_positive' | 'false_positive' | 'error';
-  /** Confidence score (0–1). */
-  confidence: number | null;
-  /** AI reasoning explanation. */
-  explanation: string | null;
-  /** Data flow path description. */
-  dataFlow: string | null;
-  /** Taint source description. */
-  taintSource: string | null;
-  /** What the scanner found and why it flagged this. */
-  matchDetail: string | null;
-  /** Likely CWE identifiers predicted by the model. */
-  likelyCwe: string[] | null;
-  /** Fix suggestion. */
-  fixSuggestion: string | null;
-  /** Verification latency in milliseconds. */
-  latencyMs: number | null;
-  /** ISO 8601 creation timestamp. */
-  createdAt: string;
-};
-
-/**
  * AI model response — parsed output from LLM verification.
  * Used as return type for callAiModel and parseAiResponse.
  */
@@ -251,5 +167,3 @@ export type AiModelResponse = {
   /** Raw AI response text for debugging. */
   rawResponse?: string;
 };
-
-

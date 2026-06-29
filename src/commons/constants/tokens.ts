@@ -76,7 +76,6 @@ export const ENTITY_COLORS = {
   knowledgeSource: {
     CWE: { color: '#3b82f6', bg: '#eff6ff' },
     NVD: { color: '#7c3aed', bg: '#faf5ff' },
-    MITRE: { color: '#d97706', bg: '#fffbeb' },
     Custom: { color: '#0f766e', bg: '#f0fdfa' },
   },
   provider: {

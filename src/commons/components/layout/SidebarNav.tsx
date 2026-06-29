@@ -1,6 +1,7 @@
 'use client';
 
 import { theme } from 'antd';
+
 import { FaIcon } from '@/commons/components/FaIcon';
 import { LAYOUT } from '@/commons/constants/layout';
 

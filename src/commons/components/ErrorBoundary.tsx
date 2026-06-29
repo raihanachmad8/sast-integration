@@ -1,7 +1,7 @@
 'use client';
 
-import { Component, type ReactNode, type ErrorInfo } from 'react';
 import { Result, Button } from 'antd';
+import { Component, type ReactNode, type ErrorInfo } from 'react';
 
 /** Props for the ErrorBoundary component. */
 interface ErrorBoundaryProps {

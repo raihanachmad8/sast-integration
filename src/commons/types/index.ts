@@ -1,17 +1,14 @@
 export * from './api';
 export * from './domain';
 export * from './auth';
-export * from './teams';
-export * from './projects';
 export * from './repositories';
-export * from './scans';
 export * from './findings';
 export * from './reports';
 export * from './ai-models';
 export * from './webhooks';
 export * from './knowledge';
 export * from './schedules';
-export * from './dashboard';
+export * from './scanner';
 
 export const DATE_LOCALE = 'en-US';
 

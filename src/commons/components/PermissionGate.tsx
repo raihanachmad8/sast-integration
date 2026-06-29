@@ -1,10 +1,11 @@
 'use client';
 
-import type { ReactNode } from 'react';
 import { Alert, Typography, theme } from 'antd';
+import type { ReactNode } from 'react';
+
 import { FaIcon } from '@/commons/components/FaIcon';
-import { usePermissions, type PermissionContext } from '@/lib/hooks/usePermissions';
 import type { PermissionKey, Role } from '@/commons/constants/permissions';
+import { usePermissions, type PermissionContext } from '@/lib/hooks/usePermissions';
 
 /** Props for the PermissionGate component. */
 interface PermissionGateProps {

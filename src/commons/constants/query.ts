@@ -32,10 +32,22 @@ export const STALE = {
    * 30 seconds — for rapidly changing data (scans, dashboard stats, notifications).
    * Data is considered stale quickly, so the UI always shows fresh information.
    */
-  SHORT: 30_000,
+   SHORT: 30_000,
 
-  /**
-   * 5 minutes — default for most list/detail queries (projects, teams, findings, repos).
+   /**
+    * 0 — always refetch for filter queries. Ensures fresh data when filter changes.
+    */
+   FILTER: 0,
+
+   /**
+    * 30 seconds — for filter-sensitive list queries (projects, findings, repos with filters).
+    * Ensures fresh data when users switch between filter combinations.
+    * Prevents stale cache when re-applying the same filter within the window.
+    */
+    FILTERED: 30_000,
+
+   /**
+    * 5 minutes — default for most list/detail queries (projects, teams, findings, repos).
    * Balances freshness with reducing redundant network requests.
    */
   DEFAULT: 5 * 60_000,
