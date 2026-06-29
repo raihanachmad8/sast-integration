@@ -1,48 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Layout, Typography, Flex, theme } from 'antd';
+import { CloseOutlined, FileTextOutlined } from '@ant-design/icons';
+import { Typography, Flex, theme } from 'antd';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  RocketOutlined,
-  ApartmentOutlined,
-  AppstoreOutlined,
-  BookOutlined,
-  ApiOutlined,
-  SettingOutlined,
-  SafetyOutlined,
-  FileTextOutlined,
-  MenuOutlined,
-  CloseOutlined,
-  SearchOutlined,
-} from '@ant-design/icons';
-import { DOCS_CONFIG } from '@/lib/docs/config';
-import { DocToc } from './doc-toc';
-import { DocsSearchModal } from './DocsSearchModal';
+import { useState, useEffect } from 'react';
 
-const { Sider, Content } = Layout;
+import { DOCS_CONFIG } from '@/lib/docs/config';
+import { ICON_MAP } from '@/lib/docs/shared-utils';
+
+import { DocToc } from './doc-toc';
+
+const DocsSearchModal = dynamic(
+  () => import('./DocsSearchModal').then((m) => m.DocsSearchModal),
+  { ssr: false },
+);
+
 const { Text } = Typography;
 
 const NAVBAR_HEIGHT = 56;
-
-const SECTION_ICONS: Record<string, React.ReactNode> = {
-  'Getting Started': <RocketOutlined />,
-  'Architecture':    <ApartmentOutlined />,
-  'Features':        <AppstoreOutlined />,
-  'Guides':          <BookOutlined />,
-  'Integrations':    <ApiOutlined />,
-  'Configuration':   <SettingOutlined />,
-  'Security':        <SafetyOutlined />,
-  'Reference':       <FileTextOutlined />,
-};
-
-const ICON_MAP: Record<string, React.ReactNode> = {};
-DOCS_CONFIG.forEach((section) => {
-  section.items.forEach((item) => {
-    ICON_MAP[item.slug] = SECTION_ICONS[section.label] ?? <FileTextOutlined />;
-  });
-});
 
 function getActiveKey(pathname: string): string {
   if (pathname === '/docs') return 'overview';
@@ -105,6 +82,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
       <>
         {/* Navigation */}
         <nav
+          aria-label="Documentation navigation"
           style={{
             padding: `${token.paddingLG}px ${token.paddingSM}px ${token.paddingXL}px`,
             overflowY: 'auto',
@@ -119,6 +97,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                 {/* Section label with collapse toggle */}
                 <button
                   type="button"
+                  aria-expanded={!isCollapsed}
                   onClick={() => toggleSection(section.label)}
                   style={{
                     display: 'flex',
@@ -166,6 +145,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                     <Link
                       key={item.slug}
                       href={`/docs/${item.slug}`}
+                      aria-current={isActive ? 'page' : undefined}
                       onClick={() => setDrawerOpen(false)}
                       style={{
                         display: 'flex',
@@ -191,7 +171,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
                           transition: `opacity ${token.motionDurationMid} ease`,
                         }}
                       >
-                        {ICON_MAP[item.slug]}
+                        {(() => { const Icon = ICON_MAP[item.slug] ?? FileTextOutlined; return <Icon />; })()}
                       </span>
                       <span style={{ flex: 1, lineHeight: 1.5 }}>{item.title}</span>
                     </Link>
@@ -209,112 +189,66 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <>
-      <Layout
+      <div
         style={{
+          display: 'flex',
           minHeight: '100vh',
           paddingTop: NAVBAR_HEIGHT,
           background: token.colorBgContainer,
         }}
       >
-        <Sider
-          width={268}
-          trigger={null}
+        {/* Left sidebar — sticky */}
+        {!isMobile && (
+          <aside
+            style={{
+              width: 268,
+              flexShrink: 0,
+              background: token.colorBgContainer,
+              borderRight: `1px solid ${token.colorBorderSecondary}`,
+              position: 'sticky',
+              top: NAVBAR_HEIGHT,
+              height: `calc(100vh - ${NAVBAR_HEIGHT}px)`,
+              overflow: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            {/* eslint-disable-next-line react-hooks/static-components -- SidebarNav uses parent state */}
+            <SidebarNav />
+          </aside>
+        )}
+
+        {/* Center content — scrollable */}
+        <main
+          data-docs-content
           style={{
-            background: token.colorBgContainer,
-            borderRight: `1px solid ${token.colorBorderSecondary}`,
-            position: 'sticky',
-            top: NAVBAR_HEIGHT,
-            height: `calc(100vh - ${NAVBAR_HEIGHT}px)`,
-            overflow: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-          breakpoint="lg"
-          collapsedWidth={0}
-          onBreakpoint={(broken) => {
-            setIsMobile(broken);
-            if (!broken) setDrawerOpen(false);
+            flex: '1 1 0',
+            minWidth: 0,
+            padding: isMobile
+              ? `${token.paddingMD}px ${token.paddingMD}px 80px`
+              : `${token.paddingXL * 1.5}px clamp(20px, 4vw, 56px) 80px`,
           }}
         >
-          {/* eslint-disable-next-line react-hooks/static-components -- SidebarNav uses parent state */}
-          <SidebarNav />
-        </Sider>
+          {children}
+        </main>
 
-        <Content style={{ display: 'flex', alignItems: 'flex-start', minWidth: 0 }}>
-          {isMobile && (
-            <div
-              style={{
-                position: 'sticky',
-                top: NAVBAR_HEIGHT,
-                zIndex: 10,
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '8px 16px',
-                background: token.colorBgContainer,
-                borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                minHeight: 44,
-              }}
-            >
-              <button
-                aria-label="Open docs navigation"
-                onClick={() => setDrawerOpen(true)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: token.colorFillTertiary,
-                  border: `1px solid ${token.colorBorderSecondary}`,
-                  borderRadius: token.borderRadiusSM,
-                  padding: '5px 12px',
-                  cursor: 'pointer',
-                  fontSize: token.fontSizeSM,
-                  color: token.colorText,
-                  fontWeight: token.fontWeightStrong,
-                }}
-              >
-                <MenuOutlined style={{ fontSize: token.fontSizeSM }} />
-                Menu
-              </button>
-              <button
-                aria-label="Search documentation"
-                onClick={() => window.dispatchEvent(new CustomEvent('open-docs-search'))}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: token.colorFillTertiary,
-                  border: `1px solid ${token.colorBorderSecondary}`,
-                  borderRadius: token.borderRadiusSM,
-                  padding: '5px 10px',
-                  cursor: 'pointer',
-                  color: token.colorText,
-                }}
-              >
-                <SearchOutlined style={{ fontSize: token.fontSizeSM }} />
-              </button>
-              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                {DOCS_CONFIG.flatMap(s => s.items).find(i => i.slug === activeKey)?.title ?? 'Docs'}
-              </Text>
-            </div>
-          )}
-
-          <Flex align="flex-start" style={{ width: '100%', minWidth: 0 }}>
-            <div
-              data-docs-content
-              style={{
-                flex: '1 1 0',
-                minWidth: 0,
-                padding: `${token.paddingXL * 1.5}px clamp(20px, 4vw, 56px) 80px`,
-              }}
-            >
-              {children}
-            </div>
+        {/* Right TOC — sticky */}
+        {!isMobile && (
+          <aside
+            style={{
+              width: 220,
+              flexShrink: 0,
+              position: 'sticky',
+              top: NAVBAR_HEIGHT,
+              height: `calc(100vh - ${NAVBAR_HEIGHT}px)`,
+              overflowY: 'auto',
+              borderLeft: `1px solid ${token.colorBorderSecondary}`,
+            }}
+          >
             <DocToc />
-          </Flex>
-        </Content>
-      </Layout>
+          </aside>
+        )}
+      </div>
 
       {isMobile && drawerOpen && (
         <div

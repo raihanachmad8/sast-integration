@@ -1,6 +1,7 @@
 'use client';
 
 import { Card, Button, Flex, Form, Input, Row, Col, App, theme } from 'antd';
+
 import { FaIcon } from '@/commons/components/FaIcon';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { useSessionsQuery } from '@/modules/profile';
@@ -19,6 +20,8 @@ export function SecurityTab({ currentSessionId, isPasswordPending, onPasswordCha
 
   return (
     <Flex vertical gap={token.paddingXL}>
+      <PasswordChangeForm isPending={isPasswordPending} onPasswordChange={onPasswordChange} />
+
       <SessionList
         sessionsQuery={sessionsQuery}
         currentSessionId={currentSessionId}
@@ -26,33 +29,7 @@ export function SecurityTab({ currentSessionId, isPasswordPending, onPasswordCha
         onConfirmRevoke={onConfirmRevoke}
       />
 
-      {/* Audit log hidden — API requires workspaceId but query doesn't pass it
-      <Card styles={{ body: { padding: 0 } }}>
-        <div style={{ padding: `${token.paddingMD}px ${token.paddingLG}px`, borderBottom: `1px solid ${token.colorBorderSecondary}`, fontWeight: token.fontWeightStrong }}>Security audit log</div>
-        <Flex vertical>
-          {auditLogQuery.isLoading ? (
-            <div style={{ padding: token.paddingLG, textAlign: 'center', color: token.colorTextSecondary }}>Loading audit log...</div>
-          ) : (auditLogQuery.data?.logs ?? []).length === 0 ? (
-            <div style={{ padding: token.paddingLG, textAlign: 'center', color: token.colorTextSecondary }}>No audit log entries</div>
-          ) : (auditLogQuery.data?.logs ?? []).slice(0, 10).map((entry, i, arr) => (
-            <Flex key={entry.id} justify="space-between" align="center" style={{ padding: `${token.paddingSM}px ${token.paddingLG}px`, borderBottom: i < arr.length - 1 ? `1px solid ${token.colorBorderSecondary}` : undefined }}>
-              <Flex align="center" gap={token.marginSM}>
-                <FaIcon icon="fa-clock-rotate-left" style={{ color: token.colorTextSecondary }} />
-                <div>
-                  <Typography.Text strong style={{ fontSize: token.fontSizeSM }}>{entry.action}</Typography.Text>
-                  {entry.details && <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM, marginLeft: token.marginXS }}>{entry.details}</Typography.Text>}
-                </div>
-              </Flex>
-              <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>{new Date(entry.timestamp).toLocaleString()}</Typography.Text>
-            </Flex>
-          ))}
-        </Flex>
-      </Card>
-      */}
-
       <MfaSection />
-
-      <PasswordChangeForm isPending={isPasswordPending} onPasswordChange={onPasswordChange} />
     </Flex>
   );
 }
@@ -150,6 +127,7 @@ function PasswordChangeForm({ isPending, onPasswordChange }: { isPending: boolea
         <Button type="primary" htmlType="submit" loading={isPending}>
           <FaIcon icon="fa-lock" /> Update password
         </Button>
+        <button type="submit" style={{ display: 'none' }} aria-hidden="true" />
       </Form>
     </Card>
   );

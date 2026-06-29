@@ -1,7 +1,8 @@
 'use client';
 
-import { Input, Result } from 'antd';
 import { useMutation } from '@tanstack/react-query';
+import { Input, Result } from 'antd';
+
 import { API_BASE, ROUTES } from '@/commons/constants';
 import { AuthForm, AuthField } from '@/features/auth';
 

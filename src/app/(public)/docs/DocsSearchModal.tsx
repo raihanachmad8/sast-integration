@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { Typography, Flex, theme } from 'antd';
 import { SearchOutlined, FileTextOutlined } from '@ant-design/icons';
-import { useRouter } from 'next/navigation';
+import { Typography, Flex, theme } from 'antd';
 import Fuse from 'fuse.js';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, useMemo } from 'react';
+
 import { DOCS_CONFIG } from '@/lib/docs/config';
-import { FONT_SIZE } from '@/lib/docs/tokens';
 import { SEARCH_INDEX } from '@/lib/docs/search-index';
+import { FONT_SIZE } from '@/lib/docs/tokens';
 
 const { Text } = Typography;
 
@@ -186,12 +187,7 @@ export function DocsSearchModal() {
     return () => window.removeEventListener('keydown', handler);
   }, [open, results, selectedIndex, router]);
 
-  // Reset selection when query changes
-  const [prevQuery, setPrevQuery] = useState(query);
-  if (prevQuery !== query) {
-    setPrevQuery(query);
-    setSelectedIndex(0);
-  }
+  // Reset selection when query changes — handled in onChange
 
   if (!open) return null;
 
@@ -207,17 +203,30 @@ export function DocsSearchModal() {
         {/* Search input */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
           <SearchOutlined style={{ color: token.colorTextTertiary, fontSize: 16 }} />
-          <input ref={inputRef} type="text" placeholder="Search documentation..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ flex: 1, border: 'none', outline: 'none', fontSize: FONT_SIZE.lg, background: 'transparent', color: token.colorText }} />
+          <input
+            ref={inputRef}
+            id="docs-search-input"
+            type="text"
+            aria-label="Search documentation"
+            aria-activedescendant={results[selectedIndex] ? `search-option-${selectedIndex}` : undefined}
+            placeholder="Search documentation..."
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setSelectedIndex(0); }}
+            style={{ flex: 1, border: 'none', outline: 'none', fontSize: FONT_SIZE.lg, background: 'transparent', color: token.colorText }}
+          />
           <kbd style={{ fontSize: FONT_SIZE.xs, padding: '2px 6px', borderRadius: 4, border: `1px solid ${token.colorBorderSecondary}`, background: token.colorFillQuaternary, color: token.colorTextTertiary, fontFamily: 'monospace' }}>ESC</kbd>
         </div>
 
         {/* Results */}
-        <div style={{ overflowY: 'auto', maxHeight: 'calc(65vh - 52px)' }}>
+        <div role="listbox" aria-label="Search results" style={{ overflowY: 'auto', maxHeight: 'calc(65vh - 52px)' }}>
           {results.length === 0 ? (
             <div style={{ padding: '24px 16px', textAlign: 'center' }}><Text type="secondary">No results found</Text></div>
           ) : (
             results.map((item, i) => (
               <div
+                id={`search-option-${i}`}
+                role="option"
+                aria-selected={i === selectedIndex}
                 key={item.slug}
                 onClick={() => {
                   let url = `/docs/${item.slug}`;

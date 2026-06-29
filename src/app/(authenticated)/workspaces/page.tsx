@@ -1,9 +1,18 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Button, Flex, Typography, Alert, App, theme } from 'antd';
 import { LeftOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
+import { Button, Flex, Typography, Alert, App, theme } from 'antd';
+import { useRouter, useSearchParams } from 'next/navigation';
+
+import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { ROUTES } from '@/commons/constants';
+import { clientEnv } from '@/config/client-env';
+import { WorkspaceCard, InvitationCard, EmptyWorkspaceState } from '@/features/workspace';
+import { setWorkspaceId } from '@/lib/api/client';
+import { authKeys } from '@/modules/auth/keys';
+import { useSessionQuery, useSignoutMutation } from '@/modules/auth/queries';
 import {
   useWorkspacesQuery,
   useCreateWorkspaceMutation,
@@ -12,15 +21,7 @@ import {
   useAcceptInvitationMutation,
   useDeclineInvitationMutation,
 } from '@/modules/workspace/queries';
-import { useSessionQuery, useSignoutMutation } from '@/modules/auth/queries';
-import { authKeys } from '@/modules/auth/keys';
-import { setWorkspaceId } from '@/lib/api/client';
 import { WORKSPACE } from '@/server/modules/workspace/constants';
-import { clientEnv } from '@/config/client-env';
-import { ROUTES } from '@/commons/constants';
-import { FaIcon } from '@/commons/components/FaIcon';
-import { LoadingState } from '@/commons/components/LoadingState';
-import { WorkspaceCard, InvitationCard, EmptyWorkspaceState } from '@/features/workspace';
 
 const { Title, Text } = Typography;
 

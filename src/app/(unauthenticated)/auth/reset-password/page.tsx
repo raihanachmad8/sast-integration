@@ -1,15 +1,16 @@
 'use client';
 
-import { Suspense, useState } from 'react';
-import { PasswordStrength } from '@/commons/components/PasswordStrength';
-import { LoadingState } from '@/commons/components/LoadingState';
-import { Form, Input, Button, Typography, Alert, Result, theme } from 'antd';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'next/navigation';
-import { API_BASE, ROUTES } from '@/commons/constants';
+import { Form, Input, Button, Typography, Alert, Result, theme } from 'antd';
 import Link from 'next/link';
-import { createZodSync } from '@/lib/utils/zod-sync';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
+
+import { LoadingState } from '@/commons/components/LoadingState';
+import { PasswordStrength } from '@/commons/components/PasswordStrength';
+import { API_BASE, ROUTES } from '@/commons/constants';
 import { resetPasswordSchema } from '@/commons/schemas';
+import { createZodSync } from '@/lib/utils/zod-sync';
 
 const { Title, Text } = Typography;
 

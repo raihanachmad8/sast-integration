@@ -1,14 +1,15 @@
 'use client';
 
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Form, Input, Button, Result, Alert, Typography, theme } from 'antd';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+
 import { LoadingState } from '@/commons/components/LoadingState';
 import { PasswordStrength } from '@/commons/components/PasswordStrength';
-import { Suspense, useEffect, useState } from 'react';
-import { Form, Input, Button, Result, Alert, Typography, theme } from 'antd';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { API_BASE, ROUTES } from '@/commons/constants';
-import { useSessionQuery, useSignoutMutation } from '@/modules/auth/queries';
 import { getAccessToken } from '@/lib/api/client';
+import { useSessionQuery, useSignoutMutation } from '@/modules/auth/queries';
 
 const { Title, Text } = Typography;
 

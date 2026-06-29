@@ -1,8 +1,8 @@
 'use client';
 
-import { FindingsPage } from '@/features/findings';
 import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
+import { FindingsPage } from '@/features/findings';
 
 /**
  * Route handler for the Findings list page.

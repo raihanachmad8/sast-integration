@@ -1,17 +1,17 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Button, Typography, theme } from 'antd';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import {
-  GithubOutlined,
   SearchOutlined,
   ArrowRightOutlined,
   HomeOutlined,
 } from '@ant-design/icons';
+import { Button, Typography, theme } from 'antd';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+
+import { ShieldIcon } from '@/commons/components/ShieldIcon';
 import { ROUTES } from '@/commons/constants';
-import { GITHUB_REPO_URL } from '@/commons/constants/landing';
 import '../landing.css';
 
 const { Text } = Typography;
@@ -22,24 +22,6 @@ const NAV_LINKS = [
   { label: 'Metrics',      href: '#metrics'        },
   { label: 'Docs',         href: ROUTES.DOCS.INDEX },
 ] as const;
-
-/** Brand shield SVG. */
-function ShieldIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    </svg>
-  );
-}
 
 /** Animated hamburger / close icon. */
 function HamburgerIcon({
@@ -239,25 +221,6 @@ function DocsNavbar() {
                 </kbd>
               </button>
 
-              {/* GitHub */}
-              <a
-                href={GITHUB_REPO_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '6px 8px',
-                  borderRadius: 8,
-                  color: token.colorTextSecondary,
-                  transition: 'color 0.18s ease, background 0.18s ease',
-                  textDecoration: 'none',
-                }}
-                className="lp-nav-link"
-              >
-                <GithubOutlined style={{ fontSize: 18 }} />
-              </a>
-
               {/* Back to landing */}
               <Link href="/" style={{ textDecoration: 'none' }}>
                 <Button
@@ -337,27 +300,6 @@ function DocsNavbar() {
             }}
           >
             <div style={{ padding: '8px 16px 24px' }}>
-              {/* GitHub */}
-              <a
-                  href={GITHUB_REPO_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={closeMenu}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '12px 4px',
-                    fontSize: 15,
-                    fontWeight: 600,
-                    color: token.colorText,
-                    textDecoration: 'none',
-                    borderBottom: `1px solid ${token.colorBorderSecondary}`,
-                  }}
-                >
-                  <GithubOutlined />
-                  GitHub
-                </a>
               {/* Auth actions */}
               <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
                 <Link href="/" onClick={closeMenu} style={{ flex: 1 }}>
@@ -535,26 +477,6 @@ function LandingNavbar() {
           {/* Desktop actions */}
           {!isMobile && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <a
-                href={GITHUB_REPO_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="lp-nav-link"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 12px',
-                  color: '#64748b',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  textDecoration: 'none',
-                  borderRadius: 8,
-                }}
-              >
-                <GithubOutlined style={{ fontSize: 16 }} />
-                <span>GitHub</span>
-              </a>
               <Link href={ROUTES.AUTH.SIGNIN}>
                 <Button
                   type="text"
@@ -626,21 +548,6 @@ function LandingNavbar() {
                   </a>
                 ))}
               </nav>
-              <a
-                href={GITHUB_REPO_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={closeMenu}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '13px 4px', fontSize: token.fontSizeLG, fontWeight: 600,
-                  color: textColor, textDecoration: 'none',
-                  borderBottom: '1px solid #f1f5f9',
-                }}
-              >
-                <GithubOutlined style={{ fontSize: token.fontSizeLG }} />
-                GitHub
-              </a>
               <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                 <Link href={ROUTES.AUTH.SIGNIN} onClick={closeMenu} style={{ flex: 1 }}>
                   <Button ghost block style={{ borderColor: '#e2e8f0', color: textColor, fontWeight: 600, height: 44, fontSize: token.fontSize, borderRadius: token.borderRadiusLG }}>

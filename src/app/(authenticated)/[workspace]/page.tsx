@@ -2,11 +2,12 @@
 
 import { Flex, Typography, theme } from 'antd';
 import { useRouter } from 'next/navigation';
+
+import { ErrorState } from '@/commons/components/ErrorState';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { DashboardSummaryCards, RecentScansTable, AttentionRequired, WorkspaceHealth } from '@/features/dashboard';
 import { useSessionData } from '@/modules/auth/queries';
 import { useDashboardStatsQuery, useDashboardScansQuery, useDashboardFindingsQuery, useDashboardHealthQuery } from '@/modules/dashboard';
-import { DashboardSummaryCards, RecentScansTable, AttentionRequired, WorkspaceHealth } from '@/features/dashboard';
-import { LoadingState } from '@/commons/components/LoadingState';
-import { ErrorState } from '@/commons/components/ErrorState';
 import type { DashboardScan } from '@/modules/dashboard';
 
 /**

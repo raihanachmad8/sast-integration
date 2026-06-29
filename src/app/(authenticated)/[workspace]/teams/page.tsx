@@ -1,11 +1,14 @@
 'use client';
 
 import { Flex, theme } from 'antd';
-import { TeamsPage } from '@/features/teams';
-import { FeatureGate } from '@/commons/components/FeatureGate';
-import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
-import { PageHeader } from '@/commons/components/PageHeader';
+
 import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { FeatureGate } from '@/commons/components/FeatureGate';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { PERMISSION } from '@/commons/constants/permissions';
+import { TeamsPage } from '@/features/teams';
 
 /**
  * Route handler for the Teams list page.
@@ -31,7 +34,9 @@ export default function Page() {
         </Flex>
       }
     >
-      <TeamsPage />
+      <PermissionGate permission={PERMISSION.TEAM_VIEW} fallback={<PermissionHint permission={PERMISSION.TEAM_VIEW} />}>
+        <TeamsPage />
+      </PermissionGate>
     </FeatureGate>
   );
 }

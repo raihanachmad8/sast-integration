@@ -1,11 +1,14 @@
 'use client';
 
 import { Flex, theme } from 'antd';
-import { ProjectsPage } from '@/features/projects';
-import { FeatureGate } from '@/commons/components/FeatureGate';
-import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
-import { PageHeader } from '@/commons/components/PageHeader';
+
 import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { FeatureGate } from '@/commons/components/FeatureGate';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { PERMISSION } from '@/commons/constants/permissions';
+import { ProjectsPage } from '@/features/projects';
 
 /**
  * Route handler for the Projects list page.
@@ -31,7 +34,9 @@ export default function Page() {
         </Flex>
       }
     >
-      <ProjectsPage />
+      <PermissionGate permission={PERMISSION.PROJECT_VIEW} fallback={<PermissionHint permission={PERMISSION.PROJECT_VIEW} />}>
+        <ProjectsPage />
+      </PermissionGate>
     </FeatureGate>
   );
 }

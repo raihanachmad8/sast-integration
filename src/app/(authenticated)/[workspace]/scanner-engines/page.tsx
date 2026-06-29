@@ -1,21 +1,22 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
 import { Button, App, Flex, Typography, theme } from 'antd';
-import { PageHeader } from '@/commons/components/PageHeader';
-import { FaIcon } from '@/commons/components/FaIcon';
+import { useState, useMemo, useCallback } from 'react';
+
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 import { DataTable, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
+import { ErrorState } from '@/commons/components/ErrorState';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { FeatureGate } from '@/commons/components/FeatureGate';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { SCANNER_STATUS } from '@/commons/constants/layout';
+import { PERMISSION } from '@/commons/constants/permissions';
 import { RulesDrawer } from '@/features/scanner-engines';
 import { useScannerEnginesQuery } from '@/modules/scanner-engines';
-import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
-import { LoadingState } from '@/commons/components/LoadingState';
-import { ErrorState } from '@/commons/components/ErrorState';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { SCANNER_STATUS } from '@/commons/constants/layout';
-import { StatusPill } from '@/commons/components/StatusPill';
-import { FeatureGate } from '@/commons/components/FeatureGate';
-import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
-import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 
 interface ScannerDisplay {
   id: string;

@@ -1,7 +1,11 @@
 'use client';
 
-import React from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import {
+  ArrowLeftOutlined,
+  PlayCircleOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Alert,
   Button,
@@ -12,23 +16,20 @@ import {
   Flex,
   theme,
 } from 'antd';
-import {
-  ArrowLeftOutlined,
-  PlayCircleOutlined,
-  ReloadOutlined,
-} from '@ant-design/icons';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSessionData } from '@/modules/auth/queries';
-import { PageHeader } from '@/commons/components/PageHeader';
-import { LoadingState } from '@/commons/components/LoadingState';
+import { useParams, useRouter } from 'next/navigation';
+import React from 'react';
+
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { DataTable } from '@/commons/components/DataTable';
 import { ErrorBanner } from '@/commons/components/ErrorBanner';
-import { errorMessage } from '@/lib/api/errors';
-import { StatusPill } from '@/commons/components/StatusPill';
-import { DataTable, makeSource } from '@/commons/components/DataTable';
 import { FeatureGate } from '@/commons/components/FeatureGate';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { StatusPill } from '@/commons/components/StatusPill';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
 import { SCAN_ORIGIN } from '@/commons/constants/layout';
-import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { errorMessage } from '@/lib/api/errors';
+import { useSessionData } from '@/modules/auth/queries';
 
 const { Text } = Typography;
 

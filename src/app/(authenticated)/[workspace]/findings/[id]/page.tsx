@@ -1,24 +1,24 @@
 'use client';
 
+import { App, Card, Typography, Row, Col, Flex, theme } from 'antd';
 import { use, useState } from 'react';
 
-import { App, Card, Typography, Row, Col, Flex, theme } from 'antd';
 
 import { AiAnalysisCard } from '@/commons/components/AiAnalysisCard';
 import { CodeBlock } from '@/commons/components/CodeBlock';
-import { MemberSelect } from '@/commons/components/MemberSelect';
-import { StatusTag } from '@/commons/components/StatusTag';
-import { StatusPill } from '@/commons/components/StatusPill';
-import { LoadingState } from '@/commons/components/LoadingState';
 import { ErrorState } from '@/commons/components/ErrorState';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { MemberSelect } from '@/commons/components/MemberSelect';
 import { PageHeader } from '@/commons/components/PageHeader';
+import { StatusPill } from '@/commons/components/StatusPill';
+import { StatusTag } from '@/commons/components/StatusTag';
+import type { Finding } from '@/commons/types';
+import { ScannerOutputSection, FindingActions } from '@/features/findings';
+import { errorMessage } from '@/lib/api/errors';
 import { useSessionData } from '@/modules/auth/queries';
 import { useFindingQuery, useVerifyFindingMutation, useUpdateFindingMutation } from '@/modules/findings';
 import { useMembersQuery } from '@/modules/members';
-import { errorMessage } from '@/lib/api/errors';
-import { ScannerOutputSection, FindingActions } from '@/features/findings';
-import type { Finding } from '@/commons/types';
-import type { Member } from '@/commons/types';
+import type { Member } from '@/modules/members/api';
 
 const { Title, Text } = Typography;
 
@@ -30,7 +30,7 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
   const workspaceSlug = session.data?.workspace?.slug;
 
   const findingQuery = useFindingQuery(id);
-  const membersQuery = useMembersQuery(session.data?.workspace?.id ?? '');
+  const membersQuery = useMembersQuery();
   const verifyMutation = useVerifyFindingMutation();
   const updateFindingMutation = useUpdateFindingMutation();
 
@@ -51,7 +51,7 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
   const [assignee, setAssignee] = useState<string | null>(finding?.assignee ?? null);
 
   if (findingQuery.isLoading) return <LoadingState text="Loading finding..." />;
-  if (findingQuery.isError) return <ErrorState title="Error" description={errorMessage(findingQuery.error)} />;
+  if (findingQuery.isError) return <ErrorState title="Error" description={errorMessage(findingQuery.error)} onRetry={() => findingQuery.refetch()} />;
   if (!finding) return <ErrorState title="Not found" description="The requested finding could not be found." />;
 
   const sectionTitleStyle = {

@@ -1,15 +1,16 @@
 'use client';
 
-import { useState } from 'react';
 import { App, Modal, Select, Form, Flex, theme } from 'antd';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
 import { PageHeader } from '@/commons/components/PageHeader';
+import type { Repository } from '@/commons/types';
 import { RepositoriesTable, RepositoryDetailDrawer } from '@/features/repositories';
+import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { useProjectsQuery } from '@/modules/projects/queries';
 import { useUpdateRepositoryMutation } from '@/modules/repositories';
 import { useTriggerScanMutation } from '@/modules/scan/queries';
-import { useWorkspace } from '@/lib/hooks/useWorkspace';
-import type { Repository } from '@/commons/types';
 
 export default function RepositoriesPage() {
   const { message } = App.useApp();
@@ -24,7 +25,7 @@ export default function RepositoriesPage() {
   const [assignRepo, setAssignRepo] = useState<Repository | null>(null);
   const [form] = Form.useForm();
 
-  const projectsQuery = useProjectsQuery({ page: 1, perPage: 200 });
+  const projectsQuery = useProjectsQuery({ page: 1, perPage: 100 });
   const projectOptions = (projectsQuery.data?.data ?? []).map((p: { id: string; name: string }) => ({ value: p.id, label: p.name }));
 
   const handleRowClick = (row: Repository) => {

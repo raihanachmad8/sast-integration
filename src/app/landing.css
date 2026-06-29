@@ -107,3 +107,63 @@
   background: rgba(255, 255, 255, 0.2);
   border-radius: 2px;
 }
+
+/* ─── Reduced motion preference ────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .lp-card-hover,
+  .lp-step-card,
+  .lp-feature-icon,
+  .lp-nav-link,
+  .lp-link {
+    transition: none !important;
+  }
+
+  .lp-card-hover:hover,
+  .lp-step-card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  .lp-card-hover:hover .lp-feature-icon {
+    transform: none !important;
+  }
+
+  .lp-pulse {
+    animation: none !important;
+  }
+
+  .lp-fade-up {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* ─── Reduced motion preference ────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .lp-card-hover,
+  .lp-step-card,
+  .lp-feature-icon,
+  .lp-nav-link,
+  .lp-link {
+    transition: none !important;
+  }
+
+  .lp-card-hover:hover,
+  .lp-step-card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  .lp-card-hover:hover .lp-feature-icon {
+    transform: none !important;
+  }
+
+  .lp-pulse {
+    animation: none !important;
+  }
+
+  .lp-fade-up {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import { App, Button, Flex, theme } from 'antd';
-import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 
 import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
@@ -11,14 +11,19 @@ import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
 import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
+import type { ScanDetail, TimelineEvent } from '@/commons/types';
+import { ScanTable } from '@/features/scan';
+import type { ScanRow, ScanFinding } from '@/features/scan/types';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useWorkspace } from '@/lib/hooks/useWorkspace';
-import { useScanListQuery, useScanDetailQuery, useScanFindingsQuery, useTriggerScanMutation, scanApi } from '@/modules/scan';
-import { useRepositoriesQuery } from '@/modules/repositories';
 import { useSessionData } from '@/modules/auth/queries';
-import type { ScanDetail, TimelineEvent } from '@/commons/types';
-import { ScanTable, NewScanModal } from '@/features/scan';
-import type { ScanRow, ScanFinding } from '@/features/scan/types';
+import { useRepositoriesQuery } from '@/modules/repositories';
+import { useScanListQuery, useScanDetailQuery, useScanFindingsQuery, useTriggerScanMutation, scanApi } from '@/modules/scan';
+
+const NewScanModal = dynamic(
+  () => import('@/features/scan/NewScanModal').then((m) => m.NewScanModal),
+  { ssr: false },
+);
 
 const ScanDetailDrawer = dynamic(
   () => import('@/features/scan/ScanDetailDrawer').then((m) => m.ScanDetailDrawer),
@@ -60,7 +65,7 @@ export default function ScanPage() {
     repositoryId: repositoryIdFromUrl,
   });
 
-  const reposQuery = useRepositoriesQuery({ page: 1, perPage: 200, imported: true });
+  const reposQuery = useRepositoriesQuery({ page: 1, perPage: 100, imported: true });
   const triggerScanMutation = useTriggerScanMutation();
 
   const scanRows = scansQuery.data?.data ?? [];

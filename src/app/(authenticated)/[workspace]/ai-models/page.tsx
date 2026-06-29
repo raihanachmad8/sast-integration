@@ -1,27 +1,27 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
 import { Button, App, Typography, Flex, theme, Tag } from 'antd';
+import { useState, useMemo, useCallback } from 'react';
 
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { FeatureGate } from '@/commons/components/FeatureGate';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
 import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
-import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '@/commons/components/DataTable';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
-import { PERMISSION } from '@/commons/constants/permissions';
 import { MODEL_ROLE } from '@/commons/constants/layout';
-import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
-import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { PERMISSION } from '@/commons/constants/permissions';
+import type { CreateAiModelInput } from '@/commons/schemas/ai-model.schema';
+import type { AiModelRow } from '@/commons/types/ai-models';
+import { AddModelModal, EditModelModal, FallbackChainCard, VerificationSettingsCard } from '@/features/model';
 import { errorMessage } from '@/lib/api/errors';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useAiModelsQuery, useCreateAiModelMutation, useUpdateAiModelMutation, useDeleteAiModelMutation, useTestAiModelMutation } from '@/modules/ai-models';
-import type { CreateAiModelInput } from '@/commons/schemas/ai-model.schema';
-import type { AiModelRow } from '@/commons/types/ai-models';
-import { FeatureGate } from '@/commons/components/FeatureGate';
-import { AddModelModal, EditModelModal, FallbackChainCard, VerificationSettingsCard } from '@/features/model';
 
 const PROVIDER_ICONS: Record<string, string> = {
   openai: 'fa-brands fa-openai',
@@ -136,7 +136,7 @@ function AiModelsPageContent() {
     let tested = 0;
     models.forEach((model) => {
       testMutation.mutate(model.id, {
-        onSuccess: (data) => {
+        onSuccess: (_data) => {
           tested++;
           if (tested === models.length) {
             message.success(`All ${models.length} models tested`);

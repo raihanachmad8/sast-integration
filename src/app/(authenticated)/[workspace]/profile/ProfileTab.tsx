@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
 import { Card, Avatar, Button, Flex, Form, Input, Row, Col, Select, Typography, Upload, theme } from 'antd';
+import { useEffect } from 'react';
+import { z } from 'zod';
+
 import { FaIcon } from '@/commons/components/FaIcon';
 import { createZodSync } from '@/lib/utils/zod-sync';
-import { z } from 'zod';
+
 
 const profileSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -104,12 +106,13 @@ export function ProfileTab({ name, email, role, initials, avatarUrl, username, b
               </Form.Item>
             </Col>
             <Col xs={24}>
-              <Form.Item label="Bio" name="bio"><Input.TextArea rows={3} /></Form.Item>
+              <Form.Item label="Bio" name="bio"><Input.TextArea rows={3} onKeyDown={(e) => { if (e.key === 'Enter') e.stopPropagation(); }} /></Form.Item>
             </Col>
           </Row>
           <Button type="primary" htmlType="submit" loading={isPending}>
             <FaIcon icon="fa-floppy-disk" /> Save profile
           </Button>
+          <button type="submit" style={{ display: 'none' }} aria-hidden="true" />
         </Form>
       </Card>
     </Flex>

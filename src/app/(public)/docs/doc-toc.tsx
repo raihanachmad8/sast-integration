@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { theme, Typography, Flex } from 'antd';
+import { usePathname } from 'next/navigation';
+import { useEffect, useLayoutEffect, useState, useRef } from 'react';
+
 import { FONT_SIZE } from '@/lib/docs/tokens';
 
 const { Text } = Typography;
@@ -10,6 +12,7 @@ interface TocItem {
   id: string;
   text: string;
   level: number;
+  index: number;
 }
 
 /**
@@ -21,6 +24,7 @@ interface TocItem {
  */
 export function DocToc() {
   const { token } = theme.useToken();
+  const pathname = usePathname();
   const [items,    setItems]    = useState<TocItem[]>([]);
   const [activeId, setActiveId] = useState<string>('');
   const [visible,  setVisible]  = useState(false);
@@ -41,12 +45,12 @@ export function DocToc() {
     // Dynamically read all heading levels: h1, h2, h3
     const headings = root.querySelectorAll('h1, h2, h3');
     const tocItems: TocItem[] = [];
-    headings.forEach((h) => {
+    headings.forEach((h, i) => {
       const fallback = h.textContent?.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '') || '';
       const id = h.id || fallback;
       if (h.id !== id) h.id = id;
       const level = parseInt(h.tagName.charAt(1), 10);
-      tocItems.push({ id, text: h.textContent || '', level });
+      tocItems.push({ id, text: h.textContent || '', level, index: i });
     });
 
     if (JSON.stringify(itemsRef.current) !== JSON.stringify(tocItems)) {
@@ -70,7 +74,7 @@ export function DocToc() {
 
     headings.forEach((h) => observer.observe(h));
     return () => observer.disconnect();
-  }, []);
+  }, [pathname]);
 
   if (!visible || items.length === 0) return null;
 
@@ -83,14 +87,7 @@ export function DocToc() {
     <nav
       aria-label="Table of contents"
       style={{
-        position: 'sticky',
-        top: 56,
-        width: 220,
-        flexShrink: 0,
-        maxHeight: 'calc(100vh - 120px)',
-        overflowY: 'auto',
-        padding: `${token.paddingSM}px 0 ${token.paddingSM}px ${token.paddingLG}px`,
-        borderLeft: `1px solid ${token.colorBorderSecondary}`,
+        padding: `${token.paddingSM}px ${token.paddingLG}px ${token.paddingSM}px ${token.paddingLG}px`,
       }}
     >
       <Text
@@ -115,8 +112,9 @@ export function DocToc() {
           const indent = (item.level - 1) * 8;
           return (
             <button
-              key={item.id}
+              key={`${item.id}-${item.index}`}
               type="button"
+              aria-current={isActive ? 'page' : undefined}
               onClick={() => handleClick(item.id)}
               style={{
                 display: 'block',
@@ -126,7 +124,7 @@ export function DocToc() {
                 border: 'none',
                 borderLeft: isActive ? `2px solid ${token.colorPrimary}` : '2px solid transparent',
                 cursor: 'pointer',
-                padding: `${token.paddingXXS + 1}px 0 ${token.paddingXXS + 1}px ${indent}px`,
+                padding: `${token.paddingXXS + 1}px 0 ${token.paddingXXS + 1}px ${indent + 4}px`,
                 fontSize: item.level === 1 ? FONT_SIZE.sm : FONT_SIZE.xs,
                 fontWeight: isActive ? 600 : 400,
                 color: isActive ? token.colorPrimary : token.colorTextSecondary,

@@ -1,11 +1,12 @@
 'use client';
 
-import { use } from 'react';
 import { Flex, theme } from 'antd';
-import { FeatureGate } from '@/commons/components/FeatureGate';
-import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { use } from 'react';
+
 import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { FeatureGate } from '@/commons/components/FeatureGate';
 import { PageHeader } from '@/commons/components/PageHeader';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
 import { EditTeamPage } from '@/features/teams';
 
 /**

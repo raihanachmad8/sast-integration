@@ -1,22 +1,23 @@
 'use client';
 
-import { useEffect } from 'react';
 import { App, Button, Select, Switch, Card, Typography, Form, Row, Col, Flex, theme } from 'antd';
-import { PageHeader } from '@/commons/components/PageHeader';
-import { FaIcon } from '@/commons/components/FaIcon';
-import { useQualityGateConfigQuery, useUpdateQualityGateMutation } from '@/modules/quality-gates';
-import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
-import { PERMISSION } from '@/commons/constants/permissions';
-import { LoadingState } from '@/commons/components/LoadingState';
+import { useEffect } from 'react';
+
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 import { ErrorState } from '@/commons/components/ErrorState';
+import { FaIcon } from '@/commons/components/FaIcon';
+import { FeatureGate } from '@/commons/components/FeatureGate';
+import { LoadingState } from '@/commons/components/LoadingState';
+import { PageHeader } from '@/commons/components/PageHeader';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
+import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { PERMISSION } from '@/commons/constants/permissions';
 import { qualityGateConfigSchema } from '@/commons/schemas/quality-gate.schema';
 import type { QualityGateConfigInput } from '@/commons/schemas/quality-gate.schema';
-import { createZodSync } from '@/lib/utils/zod-sync';
 import { errorMessage } from '@/lib/api/errors';
-import { FeatureGate } from '@/commons/components/FeatureGate';
-import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
-import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 import { usePermissions } from '@/lib/hooks/usePermissions';
+import { createZodSync } from '@/lib/utils/zod-sync';
+import { useQualityGateConfigQuery, useUpdateQualityGateMutation } from '@/modules/quality-gates';
 
 export default function QualityGatesPage() {
   const { token } = theme.useToken();
@@ -47,7 +48,7 @@ function QualityGatesPageContent() {
   const gatesQuery = useQualityGateConfigQuery();
   const updateMutation = useUpdateQualityGateMutation();
   const { has } = usePermissions();
-  const canManage = has(PERMISSION.POLICY_MANAGE);
+  const canManage = has(PERMISSION.QUALITY_GATE_MANAGE);
   const [form] = Form.useForm();
   const rule = createZodSync(qualityGateConfigSchema);
 
@@ -84,13 +85,13 @@ function QualityGatesPageContent() {
   if (gatesQuery.isError) return <ErrorState title="Failed to load config" description="Could not load quality gate configuration." />;
 
   return (
-    <PermissionGate permission={PERMISSION.POLICY_VIEW} fallback={<PermissionHint permission={PERMISSION.POLICY_VIEW} />}>
+    <PermissionGate permission={PERMISSION.QUALITY_GATE_VIEW} fallback={<PermissionHint permission={PERMISSION.QUALITY_GATE_VIEW} />}>
     <Flex vertical gap={token.paddingXL}>
       <PageHeader
         title="Quality Gates"
         description="Define pass/fail criteria for PRs, releases, and scheduled checks."
         actions={
-          <PermissionGate permission={PERMISSION.POLICY_MANAGE}>
+          <PermissionGate permission={PERMISSION.QUALITY_GATE_MANAGE}>
             <Button type="primary" onClick={handleSave} loading={updateMutation.isPending} icon={<FaIcon icon="fa-check" />}>Save gate</Button>
           </PermissionGate>
         }

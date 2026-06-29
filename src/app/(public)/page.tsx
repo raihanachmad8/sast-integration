@@ -1,29 +1,20 @@
-'use client';
+import type { Metadata } from 'next';
 
-import {
-  LandingHero,
-  LandingFeatures,
-  LandingHowItWorks,
-  LandingTrust,
-  LandingMetrics,
-  LandingCTA,
-  LandingFooter,
-} from '@/features/landing';
+import { LandingPage } from './page.client';
 
-/**
- * Landing page — renders all seven sections in order:
- * Hero → Features → How It Works → Tech Stack → Metrics → CTA → Footer
- */
-export default function LandingPage() {
-  return (
-    <div>
-      <LandingHero />
-      <LandingFeatures />
-      <LandingHowItWorks />
-      <LandingTrust />
-      <LandingMetrics />
-      <LandingCTA />
-      <LandingFooter />
-    </div>
-  );
+export const metadata: Metadata = {
+  title: 'SAST Integration — AI-Powered Security Analysis',
+  description: 'Multi-scanner static application security testing platform with AI-powered false positive verification. Ship secure code faster.',
+  alternates: {
+    canonical: '/',
+  },
+  openGraph: {
+    title: 'SAST Integration — AI-Powered Security Analysis',
+    description: 'Multi-scanner static application security testing platform with AI-powered false positive verification.',
+    type: 'website',
+  },
+};
+
+export default function Page() {
+  return <LandingPage />;
 }

@@ -1,12 +1,16 @@
 import { notFound } from 'next/navigation';
-import { readDocFile, parseFrontmatter } from '@/lib/docs/utils';
+
 import { getDocBySlug, getAllDocSlugs } from '@/lib/docs/config';
 import { MarkdownRenderer } from '@/lib/docs/markdown-renderer';
+import { readDocFile, parseFrontmatter } from '@/lib/docs/utils';
+
 import { DocArticle } from './doc-article';
 
 interface DocPageProps {
   params: Promise<{ slug: string }>;
 }
+
+export const revalidate = 3600; // revalidate every hour
 
 export function generateStaticParams() {
   return getAllDocSlugs().map((slug) => ({ slug }));
@@ -16,7 +20,18 @@ export async function generateMetadata({ params }: DocPageProps) {
   const { slug } = await params;
   const doc = getDocBySlug(slug);
   if (!doc) return {};
-  return { title: `${doc.title} — SAST Integration Docs`, description: doc.description };
+  return {
+    title: `${doc.title} — SAST Integration Docs`,
+    description: doc.description,
+    alternates: {
+      canonical: `/docs/${slug}`,
+    },
+    openGraph: {
+      title: `${doc.title} — SAST Integration Docs`,
+      description: doc.description,
+      type: 'article',
+    },
+  };
 }
 
 export default async function DocPage({ params }: DocPageProps) {

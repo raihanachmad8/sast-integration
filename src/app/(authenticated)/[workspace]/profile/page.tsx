@@ -1,16 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { App, Card, Flex, Tabs, theme } from 'antd';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { App, Flex, Tabs, theme } from 'antd';
+import { useState } from 'react';
+
+import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
+import { errorMessage } from '@/lib/api/errors';
 import { useSessionData } from '@/modules/auth/queries';
 import { useUpdateProfileMutation, useRevokeSessionMutation, useChangePasswordMutation, useUploadAvatarMutation, useRemoveAvatarMutation, useProfileQuery } from '@/modules/profile';
-import { errorMessage } from '@/lib/api/errors';
-import { useConfirm } from '@/commons/components/ConfirmDialog';
-import { LoadingState } from '@/commons/components/LoadingState';
-import { ErrorState } from '@/commons/components/ErrorState';
+
 import { ProfileTab } from './ProfileTab';
 import { SecurityTab } from './SecurityTab';
 
@@ -94,48 +96,50 @@ export default function ProfilePage() {
         description="Personal identity, security, and API tokens."
       />
 
-      <Tabs
-        activeKey={activeTab}
-        onChange={(tab) => { setActiveTab(tab); router.replace(`?tab=${tab}`, { scroll: false }); }}
-        size="large"
-        items={[
-          {
-            key: 'profile',
-            label: <span><FaIcon icon="fa-user" style={{ marginRight: 8 }} /> Profile</span>,
-            children: (
-              <ProfileTab
-                name={name}
-                email={email}
-                role={role}
-                initials={initials}
-                avatarUrl={profile?.avatarUrl}
-                username={profile?.username}
-                bio={profile?.bio}
-                timezone={profile?.timezone}
-                language={profile?.language}
-                isPending={updateProfileMutation.isPending}
-                onSave={handleProfileSave}
-                onAvatarUpload={handleAvatarUpload}
-                onAvatarRemove={handleAvatarRemove}
-                onConfirmRemove={(opts) => confirm(opts)}
-              />
-            ),
-          },
-          {
-            key: 'security',
-            label: <span><FaIcon icon="fa-shield-halved" style={{ marginRight: 8 }} /> Security</span>,
-            children: (
-              <SecurityTab
-                currentSessionId={session.data?.sessionId}
-                isPasswordPending={changePasswordMutation.isPending}
-                onPasswordChange={handlePasswordChange}
-                onRevokeSession={handleRevokeSession}
-                onConfirmRevoke={(opts) => confirm(opts)}
-              />
-            ),
-          },
-        ]}
-      />
+      <Card styles={{ body: { padding: 0 } }}>
+        <Tabs
+          activeKey={activeTab}
+          onChange={(tab) => { setActiveTab(tab); router.replace(`?tab=${tab}`, { scroll: false }); }}
+          tabBarStyle={{ padding: `0 ${token.paddingLG}px` }}
+          items={[
+            {
+              key: 'profile',
+              label: <span><FaIcon icon="fa-user" style={{ marginRight: 8 }} /> Profile</span>,
+              children: (
+                <ProfileTab
+                  name={name}
+                  email={email}
+                  role={role}
+                  initials={initials}
+                  avatarUrl={profile?.avatarUrl}
+                  username={profile?.username}
+                  bio={profile?.bio}
+                  timezone={profile?.timezone}
+                  language={profile?.language}
+                  isPending={updateProfileMutation.isPending}
+                  onSave={handleProfileSave}
+                  onAvatarUpload={handleAvatarUpload}
+                  onAvatarRemove={handleAvatarRemove}
+                  onConfirmRemove={(opts) => confirm(opts)}
+                />
+              ),
+            },
+            {
+              key: 'security',
+              label: <span><FaIcon icon="fa-shield-halved" style={{ marginRight: 8 }} /> Security</span>,
+              children: (
+                <SecurityTab
+                  currentSessionId={session.data?.sessionId}
+                  isPasswordPending={changePasswordMutation.isPending}
+                  onPasswordChange={handlePasswordChange}
+                  onRevokeSession={handleRevokeSession}
+                  onConfirmRevoke={(opts) => confirm(opts)}
+                />
+              ),
+            },
+          ]}
+        />
+      </Card>
     </Flex>
   );
 }

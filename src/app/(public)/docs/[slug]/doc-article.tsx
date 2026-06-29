@@ -3,8 +3,12 @@
 import { Typography, theme, Flex } from 'antd';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { DOCS_CONFIG } from '@/lib/docs/config';
+
 import { ROUTES } from '@/commons/constants';
+import { GITHUB_REPO_URL } from '@/commons/constants/landing';
+import { getBreadcrumb } from '@/lib/docs/shared-utils';
+
+import { DocNav } from '../doc-nav';
 
 const { Title, Text } = Typography;
 
@@ -12,16 +16,6 @@ interface DocArticleProps {
   title?: string;
   description?: string;
   children: React.ReactNode;
-}
-
-function getBreadcrumb(slug: string): { section: string; title: string } | null {
-  for (const section of DOCS_CONFIG) {
-    const item = section.items.find((i) => i.slug === slug);
-    if (item) {
-      return { section: section.label, title: item.title };
-    }
-  }
-  return null;
 }
 
 export function DocArticle({ title, description, children }: DocArticleProps) {
@@ -34,14 +28,14 @@ export function DocArticle({ title, description, children }: DocArticleProps) {
     <article>
       {/* Breadcrumbs */}
       {breadcrumb && (
-        <Flex align="center" gap={8} style={{ marginBottom: token.marginLG, fontSize: token.fontSizeSM }}>
-          <Link href={ROUTES.DOCS.INDEX} style={{ color: token.colorTextSecondary, textDecoration: 'none' }}>
+        <Flex align="center" gap={8} wrap="wrap" style={{ marginBottom: token.marginLG, fontSize: token.fontSizeSM }}>
+          <Link href={ROUTES.DOCS.INDEX} style={{ color: token.colorTextSecondary, textDecoration: 'none', whiteSpace: 'nowrap' }}>
             Docs
           </Link>
           <span style={{ color: token.colorTextQuaternary }}>/</span>
-          <Text type="secondary">{breadcrumb.section}</Text>
+          <Text type="secondary" style={{ whiteSpace: 'nowrap' }}>{breadcrumb.section}</Text>
           <span style={{ color: token.colorTextQuaternary }}>/</span>
-          <Text strong>{breadcrumb.title}</Text>
+          <Text strong style={{ whiteSpace: 'nowrap' }}>{breadcrumb.title}</Text>
         </Flex>
       )}
 
@@ -58,11 +52,11 @@ export function DocArticle({ title, description, children }: DocArticleProps) {
 
       {/* Last updated + Edit on GitHub */}
       <Flex justify="space-between" align="center" style={{ marginBottom: token.paddingXL, paddingBottom: token.paddingMD, borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
-        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+        <Text type="secondary" style={{ fontSize: token.fontSizeSM }} suppressHydrationWarning>
           Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
         </Text>
         <a
-          href={`https://github.com/raihanachmad8/sast-integration/edit/main/docs/content/${slug}.md`}
+          href={`${GITHUB_REPO_URL}/edit/main/docs/content/${slug}.md`}
           target="_blank"
           rel="noopener noreferrer"
           style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary, textDecoration: 'none' }}
@@ -74,6 +68,9 @@ export function DocArticle({ title, description, children }: DocArticleProps) {
       <div style={{ borderTop: '1px solid', borderColor: 'inherit', paddingTop: token.paddingXL }}>
         {children}
       </div>
+
+      {/* Previous / Next navigation */}
+      <DocNav slug={slug} />
     </article>
   );
 }

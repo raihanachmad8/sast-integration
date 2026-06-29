@@ -1,15 +1,16 @@
 'use client';
 
-import { useState } from 'react';
 import { Input, Result } from 'antd';
-import { PasswordStrength } from '@/commons/components/PasswordStrength';
-import { useSignupMutation } from '@/modules/auth/queries';
-import { clientEnv } from '@/config/client-env';
-import { ROUTES } from '@/commons/constants';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
+import { PasswordStrength } from '@/commons/components/PasswordStrength';
+import { ROUTES } from '@/commons/constants';
+import { signupSchema } from '@/commons/schemas';
+import { clientEnv } from '@/config/client-env';
 import { AuthForm, AuthField } from '@/features/auth';
 import { createZodSync } from '@/lib/utils/zod-sync';
-import { signupSchema } from '@/commons/schemas';
+import { useSignupMutation } from '@/modules/auth/queries';
 
 /** Zod-powered form rule — validates name, email, password, confirmPassword from single schema. */
 const rule = createZodSync(signupSchema);

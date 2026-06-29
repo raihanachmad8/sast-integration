@@ -1,27 +1,27 @@
 'use client';
 
-import { useMemo, useState } from 'react';
 import { App, Card, Col, Flex, Row, Space, Tag, Typography, theme } from 'antd';
+import { useMemo, useState } from 'react';
 
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { DataTable, type DataTableColumn } from '@/commons/components/DataTable';
 import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { FeatureGate } from '@/commons/components/FeatureGate';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
 import { PermissionGate } from '@/commons/components/PermissionGate';
 import { StatusTag } from '@/commons/components/StatusTag';
-import { DataTable, type DataTableColumn } from '@/commons/components/DataTable';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
-import { PERMISSION } from '@/commons/constants/permissions';
 import { KB_SOURCE_TYPE } from '@/commons/constants/layout';
-import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { PERMISSION } from '@/commons/constants/permissions';
+import type { KnowledgeEntryRow } from '@/commons/types/knowledge';
+import { EditEntryModal, EntryDetailDrawer } from '@/features/knowledge-base';
 import { errorMessage } from '@/lib/api/errors';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { useTableParams } from '@/lib/hooks/useTableParams';
-import { useKnowledgeBaseQuery, useKnowledgeSourcesQuery, useMuteKnowledgeEntryMutation, useUpdateKnowledgeEntryMutation } from '@/modules/knowledge';
 import { useSessionData } from '@/modules/auth/queries';
-import type { KnowledgeEntryRow } from '@/commons/types/knowledge';
-import { FeatureGate } from '@/commons/components/FeatureGate';
-import { EditEntryModal, EntryDetailDrawer } from '@/features/knowledge-base';
+import { useKnowledgeBaseQuery, useKnowledgeSourcesQuery, useMuteKnowledgeEntryMutation, useUpdateKnowledgeEntryMutation } from '@/modules/knowledge';
 
 interface ModalEntry {
   id: string;

@@ -1,22 +1,23 @@
 'use client';
 
-import { useState } from 'react';
 import { App, Card, Flex, Tabs, Button, theme } from 'antd';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useState } from 'react';
 
+import { useConfirm } from '@/commons/components/ConfirmDialog';
 import { ErrorBanner } from '@/commons/components/ErrorBanner';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
 import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
-import { PERMISSION } from '@/commons/constants/permissions';
 import { TAB_KEY } from '@/commons/constants/layout';
-import { errorMessage } from '@/lib/api/errors';
-import { useConfirm } from '@/commons/components/ConfirmDialog';
-import { useMembersQuery, useInvitationsQuery, useRemoveMemberMutation, useRevokeInvitationMutation, useInviteMemberMutation, useUpdateMemberRoleMutation } from '@/modules/members';
-import { useSessionData } from '@/modules/auth/queries';
+import { PERMISSION } from '@/commons/constants/permissions';
 import type { Member } from '@/features/members';
 import { ChangeRoleModal, InviteMemberModal, InvitationsTable, MemberSummaryCards, MembersTable } from '@/features/members';
+import { errorMessage } from '@/lib/api/errors';
+import { useSessionData } from '@/modules/auth/queries';
+import { useInvitationsQuery, useRevokeInvitationMutation, useInviteMemberMutation } from '@/modules/invitations';
+import { useMembersQuery, useRemoveMemberMutation, useUpdateMemberRoleMutation } from '@/modules/members';
 
 /**
  * Members management page — invite, manage roles, revoke invitations.
@@ -29,13 +30,12 @@ export default function MembersPage() {
   const { token } = theme.useToken();
   const { confirm } = useConfirm();
   const session = useSessionData();
-  const workspaceId = session.data?.workspace?.id ?? '';
-  const membersQuery = useMembersQuery(workspaceId);
-  const invitationsQuery = useInvitationsQuery(workspaceId);
-  const removeMemberMutation = useRemoveMemberMutation(workspaceId);
-  const revokeInvitationMutation = useRevokeInvitationMutation(workspaceId);
-  const inviteMutation = useInviteMemberMutation(workspaceId);
-  const updateRoleMutation = useUpdateMemberRoleMutation(workspaceId);
+  const membersQuery = useMembersQuery();
+  const invitationsQuery = useInvitationsQuery();
+  const removeMemberMutation = useRemoveMemberMutation();
+  const revokeInvitationMutation = useRevokeInvitationMutation();
+  const inviteMutation = useInviteMemberMutation();
+  const updateRoleMutation = useUpdateMemberRoleMutation();
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -131,7 +131,6 @@ export default function MembersPage() {
       label: `Members (${memberCount})`,
       children: (
         <MembersTable
-          workspaceId={workspaceId}
           currentUserId={currentUserId}
           onEdit={(member) => setEditingMember(member)}
           onRemove={handleRemoveMember}
@@ -144,7 +143,6 @@ export default function MembersPage() {
       label: `Pending (${invitations.length})`,
       children: (
         <InvitationsTable
-          workspaceId={workspaceId}
           onRevoke={handleRevokeInvitation}
           tabId="members"
         />

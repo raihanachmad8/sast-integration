@@ -1,28 +1,27 @@
 'use client';
 
-import { useState, useMemo } from 'react';
 import { Button, Card, Typography, App, Flex, Dropdown, Grid, Avatar, theme } from 'antd';
+import { useState, useMemo } from 'react';
 
+import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
+import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { DataTable, makeSource } from '@/commons/components/DataTable';
 import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { FeatureGate } from '@/commons/components/FeatureGate';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { PageHeader } from '@/commons/components/PageHeader';
 import { PermissionGate } from '@/commons/components/PermissionGate';
 import { StatusPill } from '@/commons/components/StatusPill';
-import { DataTable, makeSource } from '@/commons/components/DataTable';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
-import { PERMISSION } from '@/commons/constants/permissions';
 import { SCM_STATUS, WEBHOOK_STATUS } from '@/commons/constants/layout';
-import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
-import { useConfirm } from '@/commons/components/ConfirmDialog';
+import { PERMISSION } from '@/commons/constants/permissions';
+import { ConfigureModal, ImportRepoModal, SyncResultsModal, SetupGuideDrawer } from '@/features/source-control';
 import { errorMessage } from '@/lib/api/errors';
 import { usePermissions } from '@/lib/hooks/usePermissions';
-import { FeatureGate } from '@/commons/components/FeatureGate';
 import { useTableParams } from '@/lib/hooks/useTableParams';
-
-import { useSourceControlProvidersQuery, useSourceControlReposQuery, useDeleteSourceControlMutation, useDisconnectSourceControlMutation, useAddSourceControlProviderMutation, useUpdateSourceControlMutation, useSyncProviderMutation, useImportRepositoryMutation, useUninstallRepositoryMutation, useTestSourceControlMutation } from '@/modules/source-control';
 import { useSessionData } from '@/modules/auth/queries';
-import { ConfigureModal, ImportRepoModal, SyncResultsModal, SetupGuideDrawer } from '@/features/source-control';
+import { useSourceControlProvidersQuery, useSourceControlReposQuery, useDeleteSourceControlMutation, useDisconnectSourceControlMutation, useAddSourceControlProviderMutation, useUpdateSourceControlMutation, useSyncProviderMutation, useImportRepositoryMutation, useUninstallRepositoryMutation, useTestSourceControlMutation } from '@/modules/source-control';
 
 interface ScmProvider {
   id: string;
@@ -440,7 +439,7 @@ function SourceControlPageContent() {
         try {
           let providerId = existing?.id;
           if (existing) {
-            const result = await updateProviderMutation.mutateAsync({ id: existing.id, data: { provider: String(values.provider).toLowerCase(), name: String(values.name), credentials: cleanCreds } });
+            const result = await updateProviderMutation.mutateAsync({ id: existing.id, data: { provider: String(values.provider).toLowerCase() as 'github' | 'gitlab' | 'gitea' | 'bitbucket' | 'azure-devops', name: String(values.name), credentials: cleanCreds } });
             message.success('Provider updated');
             if (result?.redirectUrl) { window.location.href = result.redirectUrl; return; }
           } else {

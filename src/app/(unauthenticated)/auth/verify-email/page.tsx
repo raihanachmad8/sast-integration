@@ -1,11 +1,12 @@
 'use client';
 
-import { Suspense } from 'react';
 import { Alert, Button, Result } from 'antd';
-import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ROUTES } from '@/commons/constants';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+
 import { LoadingState } from '@/commons/components/LoadingState';
+import { ROUTES } from '@/commons/constants';
 import { useVerifyEmailQuery } from '@/modules/auth/queries';
 
 function VerifyEmailContent() {
