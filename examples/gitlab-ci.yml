@@ -36,7 +36,7 @@ init-scan:
       RESP=$(curl -s -X POST "${SAST_API_URL}/api/v1/ci/init" \
         -H "Authorization: Bearer ${SAST_API_KEY}" \
         -H "Content-Type: application/json" \
-        -d "{\"repoName\":\"${CI_PROJECT_PATH}\",\"repoUrl\":\"${CI_SERVER_URL}/${CI_PROJECT_PATH}.git\",\"branch\":\"${CI_COMMIT_REF_NAME}\",\"commit\":\"${CI_COMMIT_SHA}\",${MR_JSON}}")
+        -d "{\"repoName\":\"${CI_PROJECT_PATH}\",\"repoUrl\":\"${CI_SERVER_URL}/${CI_PROJECT_PATH}.git\",\"branch\":\"${CI_COMMIT_REF_NAME}\",\"commit\":\"${CI_COMMIT_SHA}\",\"platform\":\"gitlab\",${MR_JSON}}")
       echo "Init response: ${RESP}"
       SCAN_ID=$(echo "${RESP}" | grep -o '"scanId":"[^"]*"' | cut -d'"' -f4)
       echo "SCAN_ID=${SCAN_ID}" >> build.env

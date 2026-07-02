@@ -37,17 +37,17 @@ jobs:
           # Detect PR metadata
           PR_JSON=""
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-            PR_NUMBER="${GITHUB_PULL_REQUEST_NUMBER}"
+            PR_NUMBER="${{ github.event.pull_request.number }}"
             BASE_BRANCH="${GITHUB_BASE_REF}"
             HEAD_BRANCH="${GITHUB_HEAD_REF}"
             echo "PR #${PR_NUMBER}: ${HEAD_BRANCH} -> ${BASE_BRANCH}"
-            PR_JSON="\"prNumber\":${PR_NUMBER},\"baseBranch\":\"${BASE_BRANCH}\",\"headBranch\":\"${HEAD_BRANCH}\""
+            PR_JSON=",\"prNumber\":${PR_NUMBER},\"baseBranch\":\"${BASE_BRANCH}\",\"headBranch\":\"${HEAD_BRANCH}\""
           fi
 
           RESP=$(curl -s -X POST "${SAST_API_URL}/api/v1/ci/init" \
             -H "Authorization: Bearer ${SAST_API_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"repoName\":\"${GITHUB_REPOSITORY}\",\"repoUrl\":\"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git\",\"branch\":\"${GITHUB_REF_NAME}\",\"commit\":\"${GITHUB_SHA}\",${PR_JSON}}")
+            -d "{\"repoName\":\"${GITHUB_REPOSITORY}\",\"repoUrl\":\"${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git\",\"branch\":\"${GITHUB_REF_NAME}\",\"commit\":\"${GITHUB_SHA}\",\"platform\":\"github\"${PR_JSON}}")
           echo "Init response: ${RESP}"
           SCAN_ID=$(echo "${RESP}" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['scanId'])")
           echo "scan_id=${SCAN_ID}" >> ${GITHUB_OUTPUT}

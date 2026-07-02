@@ -838,6 +838,7 @@ WHERE id = $1;
   "repoUrl": "http://localhost:4000/MeAdmin/net-scanner.git",
   "branch": "main",
   "commit": "abc123",
+  "platform": "gitea",
   "prNumber": 1,
   "baseBranch": "main",
   "headBranch": "feature/test"

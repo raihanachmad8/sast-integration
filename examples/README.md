@@ -65,6 +65,7 @@ Buat scan record baru.
   "repoUrl": "https://github.com/owner/repo.git",
   "branch": "main",
   "commit": "abc12345",
+  "platform": "github",
   "prNumber": 42,
   "baseBranch": "main",
   "headBranch": "feature/my-feature"
@@ -75,6 +76,8 @@ Buat scan record baru.
 > 1. Evaluate quality gate dengan diff findings (new vs fixed)
 > 2. Post PR comment dengan severity breakdown + inline findings
 > 3. Set commit status (`sast-integration/gate`) untuk branch protection
+>
+> **`platform`** (`gitea`, `github`, `gitlab`) — optional. Digunakan untuk menentukan SCM provider jika `repoUrl` tidak mengandung informasi provider yang jelas. Jika tidak dikirim, provider dideteksi dari `repoUrl`.
 
 **Response:**
 ```json

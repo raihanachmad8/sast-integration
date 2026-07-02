@@ -38,7 +38,8 @@ jobs:
             "repoName": "${GITHUB_REPOSITORY}",
             "repoUrl": "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git",
             "branch": "${GITHUB_REF_NAME}",
-            "commit": "${GITHUB_SHA}"
+            "commit": "${GITHUB_SHA}",
+            "platform": "gitea"
           }
           EOF
           

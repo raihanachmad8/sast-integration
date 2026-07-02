@@ -36,7 +36,7 @@ graph LR
 ## Project API Tokens
 
 - Scoped to a specific project
-- Default permission: `["scans:upload"]`
+- Default permission: `scan:upload`
 - Used by CI/CD pipelines for external scan uploads
 - SHA-256 hash for O(1) lookup
 
