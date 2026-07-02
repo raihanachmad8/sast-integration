@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { eq, asc, sql } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import type { Job } from 'pg-boss';
 
 import { db } from '@/server/db/client';
@@ -10,7 +10,6 @@ import { parseScanResult } from '@/server/modules/scan/parsers';
 import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
 import { findingService } from '@/server/modules/scan/services/finding.service';
 import { getStorageDriver } from '@/server/modules/storage/storage.service';
-import { findingGroupScans } from '@drizzle/schema/findings';
 import type { NewFinding } from '@drizzle/schema/findings';
 import { models } from '@drizzle/schema/integrations';
 
@@ -148,37 +147,38 @@ export async function processParseScanResultJob(job: Job<ParseScanResultJobData>
           .limit(1);
 
         if (model) {
-          // Group findings by groupId and skip groups that already have verification
+          // Skip groups that already have high-confidence verification
           const { aiVerificationRepository } = await import('@/server/modules/scan/repositories/ai-verification.repository');
           const groupIds = [...new Set(createdFindings.map((f) => f.groupId).filter(Boolean))] as string[];
 
           const verifiedGroupIds = new Set(await aiVerificationRepository.hasVerificationBatch(groupIds));
 
-          // Get junction data to filter only NEW findings (isNew=true)
-          const junctionData = groupIds.length > 0
-            ? await db.select({
-                groupId: findingGroupScans.groupId,
-                isNew: findingGroupScans.isNew,
-              })
-                .from(findingGroupScans)
-                .where(eq(findingGroupScans.scanId, scanId))
-            : [];
-          const isNewMap = new Map(junctionData.map(j => [j.groupId, j.isNew]));
-
-          // Filter: only NEW findings that don't have verification yet
-          const findingsToVerify = createdFindings.filter((f) => {
+          // Priority 1: NEW findings (isNew=true) that don't have verification yet
+          const newFindingsToVerify = createdFindings.filter((f) => {
             if (!f.id) return false;
             if (!f.groupId) return false;
+            if (!f.isNew) return false;
             if (verifiedGroupIds.has(f.groupId)) return false;
-            // Skip pre-existing findings (isNew=false) — don't waste AI quota on them
-            if (isNewMap.get(f.groupId) === false) return false;
             return true;
           });
+
+          // Priority 2: Pre-existing findings (isNew=false) that don't have verification yet
+          const preExistingToVerify = createdFindings.filter((f) => {
+            if (!f.id) return false;
+            if (!f.groupId) return false;
+            if (f.isNew) return false; // Already handled above
+            if (verifiedGroupIds.has(f.groupId)) return false;
+            return true;
+          });
+
+          // Enqueue NEW first, then pre-existing
+          const findingsToVerify = [...newFindingsToVerify, ...preExistingToVerify];
 
           logger.queue.info('parse-scan-result: enqueuing AI verify', {
             scanId,
             totalFindings: createdFindings.length,
-            toVerify: findingsToVerify.length,
+            newToVerify: newFindingsToVerify.length,
+            preExistingToVerify: preExistingToVerify.length,
             skippedGroups: verifiedGroupIds.size,
             modelId: model.id,
           });
@@ -255,55 +255,24 @@ export async function processParseScanResultJob(job: Job<ParseScanResultJobData>
 }
 
 /**
- * Check if all parse jobs for a scan are done and mark scan completed.
+ * Attempt to complete a scan after a parse job finishes.
  * Runs on BOTH success and failure to prevent scans stuck in "parsing".
- * Uses atomic tryCompleteScan to prevent race conditions between parallel parse jobs.
  *
- * IMPORTANT: currentJobId must be passed so we exclude the running job from the pending count.
- * pg-boss sets state='active' BEFORE calling the handler, and only sets 'completed' AFTER
- * the handler returns. Without excluding the current job, the last parse job would always
- * see itself as "pending" and never complete the scan.
+ * Uses atomic tryCompleteScan (UPDATE ... WHERE status IN ('parsing','processing') RETURNING)
+ * to safely handle parallel parse jobs. Every finishing job attempts completion;
+ * only the last one to finish succeeds — the atomic WHERE clause rejects losers.
+ *
+ * This eliminates the previous race condition where querying pgboss.job for pending
+ * counts was unreliable because pg-boss transitions job state to 'completed' AFTER
+ * the handler returns, creating a window where finishing jobs see each other as 'active'.
  */
 async function checkAndCompleteScan(scanId: string, projectId: string | null, currentJobId: string) {
   try {
-    logger.queue.info('checkAndCompleteScan: starting', { scanId, projectId, currentJobId });
+    logger.queue.info('checkAndCompleteScan: attempting atomic complete', { scanId, projectId, currentJobId });
 
-    // Count pending jobs: created OR active (excluding the current job which is still 'active')
-    const pendingJobs = await db.execute<{ count: number }>(
-      sql`SELECT count(*)::int as count FROM pgboss.job 
-          WHERE name = 'parse-scan-result' 
-          AND data->>'scanId' = ${scanId}
-          AND state IN ('created', 'active')
-          AND id != ${currentJobId}`
-    );
-    const pendingCount = pendingJobs[0]?.count ?? 0;
-
-    // Also get full job state breakdown for diagnostics
-    const jobStates = await db.execute<{ state: string; count: number }>(
-      sql`SELECT state, count(*)::int as count FROM pgboss.job 
-          WHERE name = 'parse-scan-result' 
-          AND data->>'scanId' = ${scanId}
-          GROUP BY state`
-    );
-
-    logger.queue.info('checkAndCompleteScan: pending jobs query result', {
-      scanId,
-      currentJobId,
-      pendingCount,
-      jobStates: jobStates.map((r) => `${r.state}:${r.count}`).join(', '),
-    });
-
-    if (pendingCount > 0) {
-      logger.queue.debug('parse-scan-result: still pending jobs', { scanId, pendingCount, currentJobId });
-      return;
-    }
-
-    logger.queue.info('parse-scan-result: no pending jobs, attempting to complete scan', { scanId, currentJobId });
-
-    // Atomic: only one parse job wins the race to mark completed
     const completedScan = await scanRepository.tryCompleteScan(scanId);
     if (!completedScan) {
-      // Already completed by another parse job, or wrong status
+      logger.queue.debug('checkAndCompleteScan: scan not completed (another job won or wrong status)', { scanId, currentJobId });
       return;
     }
 
@@ -313,10 +282,12 @@ async function checkAndCompleteScan(scanId: string, projectId: string | null, cu
       description: 'All parsing completed successfully',
       timestamp: new Date().toISOString(),
     });
-    logger.queue.info('parse-scan-result: scan marked completed', { scanId });
+    logger.queue.info('checkAndCompleteScan: scan marked completed', { scanId, currentJobId });
 
-    // Evaluate quality gate if projectId exists
-    if (projectId) {
+    // Skip QG evaluation for external uploads — CI/CD scans are completed via
+    // /ci/complete endpoint which handles QG separately. Only evaluate for
+    // managed scans where parse job completion IS the final step.
+    if (projectId && completedScan.origin !== 'external_upload') {
       try {
         if (completedScan.repositoryId) {
           const repo = await scanRepository.getRepositoryById(completedScan.repositoryId);
@@ -324,17 +295,17 @@ async function checkAndCompleteScan(scanId: string, projectId: string | null, cu
           if (repo?.workspaceId) {
             const { qualityGateService } = await import('@/server/modules/scan/services/quality-gate.service');
             await qualityGateService.evaluateScan(repo.workspaceId, scanId, projectId);
-            logger.queue.info('parse-scan-result: quality gate evaluated', { scanId });
+            logger.queue.info('checkAndCompleteScan: quality gate evaluated', { scanId });
           } else {
-            logger.queue.warn('parse-scan-result: workspace not found for repository', { scanId, repositoryId: completedScan.repositoryId });
+            logger.queue.warn('checkAndCompleteScan: workspace not found for repository', { scanId, repositoryId: completedScan.repositoryId });
           }
         }
       } catch (err) {
-        logger.queue.error('parse-scan-result: quality gate evaluation failed', { scanId, error: err instanceof Error ? err.message : String(err) });
+        logger.queue.error('checkAndCompleteScan: quality gate evaluation failed', { scanId, error: err instanceof Error ? err.message : String(err) });
       }
     }
   } catch (err) {
-    logger.queue.error('parse-scan-result: failed to check pending jobs', {
+    logger.queue.error('checkAndCompleteScan: failed', {
       scanId,
       currentJobId,
       error: err instanceof Error ? err.message : String(err),
@@ -363,8 +334,8 @@ async function enrichFindingsWithSourceContext(
     }
     codeContextMap = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
     logger.queue.info('enrichFindingsWithSourceContext: pre-computed code contexts loaded', { count: Object.keys(codeContextMap).length });
-  } catch {
-    // No pre-computed code contexts available
+  } catch (err) {
+    logger.queue.debug('enrichFindingsWithSourceContext: code-contexts.json not available', { scanId, reason: (err as Error).message });
   }
 
   // Try to load raw source context (fallback for 5-line window)
@@ -376,8 +347,8 @@ async function enrichFindingsWithSourceContext(
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     }
     sourceContext = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
-  } catch {
-    // No source context available (CI upload or collection failed)
+  } catch (err) {
+    logger.queue.debug('enrichFindingsWithSourceContext: source-context.json not available', { scanId, reason: (err as Error).message });
   }
 
   if (Object.keys(codeContextMap).length === 0 && Object.keys(sourceContext).length === 0) {

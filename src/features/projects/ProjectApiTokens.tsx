@@ -62,7 +62,7 @@ export function ProjectApiTokens({ projectId, createModalOpen: createModalOpenPr
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<CreateApiTokenInput>({
     resolver: zodResolver(createApiTokenSchema),
-    defaultValues: { name: '', permissions: ['scans:upload'] },
+    defaultValues: { name: '', permissions: [PERMISSION.SCAN_UPLOAD] },
   });
 
   const tokens = tokensQuery.data?.data ?? [];

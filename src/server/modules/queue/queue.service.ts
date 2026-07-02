@@ -1,4 +1,4 @@
-import { PgBoss, type Job as PgBossJob } from 'pg-boss';
+import { PgBoss, type Job as PgBossJob, type WorkOptions } from 'pg-boss';
 
 import { QUEUE_DEFAULT_PRIORITY, QUEUE_DEFAULT_RETRY_LIMIT, QUEUE_DEFAULT_EXPIRE_SECONDS, QUEUE_JOB_EXPIRY, QUEUE_JOBS, QUEUE_MAX_CONNECTIONS, QUEUE_SCHEMA } from '@/commons/constants/queue';
 import { env } from '@/server/env';
@@ -67,10 +67,10 @@ export async function enqueue<T>(name: string, data: T, options?: { priority?: n
  *
  * @throws {Error} When the queue worker cannot be registered.
  */
-export async function registerWorker(name: string, handler: (job: PgBossJob<unknown>) => Promise<void>) {
-  logger.queue.info('registerWorker', { name });
+export async function registerWorker(name: string, handler: (job: PgBossJob<unknown>) => Promise<void>, options?: { concurrency?: number }) {
+  logger.queue.info('registerWorker', { name, concurrency: options?.concurrency ?? 'default(1)' });
   const queue = await getQueue();
-  await queue.work(name, async (jobs: PgBossJob<unknown>[]) => {
+  await queue.work(name, { concurrency: options?.concurrency ?? 1 } as WorkOptions, async (jobs: PgBossJob<unknown>[]) => {
     for (const job of jobs) {
       await handler(job);
     }

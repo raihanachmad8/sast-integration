@@ -28,9 +28,7 @@ function sanitizeCredentials(credentials: Record<string, unknown>): Record<strin
   const sanitized: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(credentials)) {
     if (sensitiveKeys.includes(key)) {
-      sanitized[key] = typeof value === 'string' && value.length > 8
-        ? `${value.substring(0, 4)}****${value.substring(value.length - 4)}`
-        : '****';
+      sanitized[key] = '****';
     } else {
       sanitized[key] = value;
     }
@@ -122,7 +120,7 @@ export const sourceControlService = {
    */
   async update(workspaceId: string, id: string, data: unknown, _userId: string) {
     logger.sourceControl.info('update', { id, workspaceId });
-    const existing = await sourceControlRepository.getById(id, workspaceId);
+    const existing = await sourceControlRepository.getById(workspaceId, id);
     if (!existing) {
       throw new AppError('Source control provider not found', 404, 'NOT_FOUND');
     }
@@ -431,12 +429,27 @@ function buildGitHubAppJwt(appId: string, privateKey: string) {
 async function discoverGitHubRepositories(credentials: CredentialMap, token: string) {
   const apiUrl = normalizeBaseUrl(stringValue(credentials.apiUrl) || 'https://api.github.com');
   const org = stringValue(credentials.org);
-  const path = org
-    ? `/orgs/${encodeURIComponent(org)}/repos?per_page=100&type=all&sort=updated`
-    : '/user/repos?per_page=100&affiliation=owner,collaborator,organization_member&sort=updated';
-  const rows = await fetchJson<Array<Record<string, unknown>>>(new URL(path, apiUrl).toString(), {
+  const headers = {
     Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28',
-  });
+  };
+
+  // If org is specified, try org endpoint first; fall back to user repos on 404
+  if (org) {
+    try {
+      const rows = await fetchJson<Array<Record<string, unknown>>>(new URL(`/orgs/${encodeURIComponent(org)}/repos?per_page=100&type=all&sort=updated`, apiUrl).toString(), headers);
+      return rows.map((row) => ({
+        name: stringValue(row.full_name) || stringValue(row.name),
+        url: stringValue(row.clone_url) || stringValue(row.html_url),
+        defaultBranch: stringValue(row.default_branch) || 'main',
+        externalId: String(row.id || row.full_name || row.name),
+      })).filter(hasRepositoryIdentity);
+    } catch (e) {
+      // If org endpoint fails (e.g. user account entered as org), fall back to user repos
+      logger.sourceControl.warn('discoverGitHubRepositories: org endpoint failed, falling back to user repos', { org, error: (e as Error).message });
+    }
+  }
+
+  const rows = await fetchJson<Array<Record<string, unknown>>>(new URL('/user/repos?per_page=100&affiliation=owner,collaborator,organization_member&sort=updated', apiUrl).toString(), headers);
   return rows.map((row) => ({
     name: stringValue(row.full_name) || stringValue(row.name),
     url: stringValue(row.clone_url) || stringValue(row.html_url),
@@ -595,17 +608,28 @@ async function exchangeOAuthCode(provider: string, credentials: CredentialMap, c
 // ── HTTP Helpers ───────────────────────────────────────────────
 
 async function fetchJson<T>(url: string, headers: Record<string, string>, method = 'GET'): Promise<T> {
-  const response = await fetch(url, { method, headers, cache: 'no-store' });
-  if (!response.ok) {
-    const status = response.status;
-    const body = await response.text().catch(() => '');
-    logger.sourceControl.error('fetchJson failed', { url, status, method, body: body.slice(0, 500), headerKeys: Object.keys(headers) });
-    const detail = status === 401 ? 'authentication failed (token expired or invalid)'
-      : status === 403 ? `permission denied — ${body.slice(0, 200)}`
-      : `provider returned ${status}`;
-    throw new AppError(`Source control sync failed: ${detail}`, status === 401 ? 401 : 502, 'SOURCE_CONTROL_SYNC_FAILED');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const response = await fetch(url, { method, headers, cache: 'no-store', signal: controller.signal });
+    if (!response.ok) {
+      const status = response.status;
+      const body = await response.text().catch(() => '');
+      logger.sourceControl.error('fetchJson failed', { url, status, method, body: body.slice(0, 500), headerKeys: Object.keys(headers) });
+      const detail = status === 401 ? 'authentication failed (token expired or invalid)'
+        : status === 403 ? `permission denied — ${body.slice(0, 200)}`
+        : `provider returned ${status}`;
+      throw new AppError(`Source control sync failed: ${detail}`, status === 401 ? 401 : 502, 'SOURCE_CONTROL_SYNC_FAILED');
+    }
+    return response.json() as Promise<T>;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new AppError('Source control sync failed: request timed out', 504, 'SOURCE_CONTROL_SYNC_FAILED');
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeout);
   }
-  return response.json() as Promise<T>;
 }
 
 /**

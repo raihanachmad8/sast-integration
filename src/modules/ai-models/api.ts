@@ -52,4 +52,9 @@ export const aiModelsApi = {
     const { data } = await _api.Post<ApiResponse<{ status: string }>>(`${ENDPOINTS.AI_MODELS.DETAIL(workspaceId, id)}/test`);
     return data;
   },
+
+  async fetchProviderModels(baseUrl: string): Promise<string[]> {
+    const { data } = await _api.Get<ApiResponse<{ models: string[] }>>('/api/v1/model-providers', { baseUrl });
+    return data?.models ?? [];
+  },
 };

@@ -4,27 +4,18 @@ import type { SetupGuide } from './SetupGuideDrawer';
 
 const cbUrl = (id: string) => `${APP_BASE_URL}/api/v1/source-control/callback/${id}`;
 
-/**
- * Step-by-step setup guide for connecting GitLab via OAuth application or personal access token.
- *
- * @returns {@link SetupGuide} configuration object for the GitLab provider.
- *
- * @example
- * // Used internally by SetupGuideDrawer
- * const guide = GITLAB_GUIDE;
- */
 export const GITLAB_GUIDE: SetupGuide = {
   title: 'GitLab setup',
   docsUrl: 'https://docs.gitlab.com/ee/integration/oauth_provider.html',
   modes: [
     { key: 'oauth', label: 'OAuth Application', desc: 'Recommended — group-level or instance-level app' },
-    { key: 'pat', label: 'Personal Access Token', desc: 'Quick setup — user-scoped token' },
+    { key: 'pat', label: 'Personal Access Token', desc: 'Quick — user-scoped token' },
   ],
   steps: {
     oauth: [
       {
         label: 'Create an OAuth application',
-        detail: 'Go to GitLab → your group → Settings → Applications → Add new application.',
+        detail: 'In your GitLab group settings, add a new application.',
         link: { label: 'Open GitLab Applications →', url: 'https://gitlab.com/-/profile/applications' },
         checks: ['Application name set (e.g. sast-integration)', 'Confidential checkbox checked'],
       },
@@ -36,16 +27,16 @@ export const GITLAB_GUIDE: SetupGuide = {
       },
       {
         label: 'Set required scopes',
-        detail: 'Check the following scopes:',
-        checks: ['api', 'read_repository', 'read_user'],
+        detail: 'Check the following scopes. The `api` scope is required for PR comments and commit statuses:',
+        checks: ['api (required — enables MR notes, discussions, commit statuses)', 'read_repository (optional — enables repo listing)'],
       },
       {
         label: 'Save and copy credentials',
-        detail: 'Click Save application. GitLab will show the Application ID and Secret once — copy them immediately.',
+        detail: 'Click Save application. Copy the Application ID and Secret — they\'re shown only once.',
         checks: ['Application ID copied', 'Secret copied (shown only once)'],
       },
       {
-        label: 'Paste credentials here',
+        label: 'Paste credentials in SAST',
         detail: 'Click Configure on the GitLab card and fill in Application ID and Secret.',
         checks: ['Application ID entered', 'Secret entered'],
       },
@@ -53,14 +44,14 @@ export const GITLAB_GUIDE: SetupGuide = {
     pat: [
       {
         label: 'Create a Personal Access Token',
-        detail: 'Go to GitLab → User Settings → Access Tokens → Add new token.',
+        detail: 'In GitLab user settings, create a new access token.',
         link: { label: 'Open Access Tokens →', url: 'https://gitlab.com/-/user_settings/personal_access_tokens' },
         checks: ['Token name set', 'Expiration date set'],
       },
       {
         label: 'Set required scopes',
-        detail: 'Select the following scopes:',
-        checks: ['api', 'read_repository'],
+        detail: 'Check these scopes. `api` is required for PR comments and commit statuses:',
+        checks: ['api (required — MR notes, discussions, commit statuses)', 'read_repository (list repositories)'],
       },
       {
         label: 'Copy and paste token',

@@ -395,7 +395,14 @@ export const managedScanService = {
       logger.scan.error('processManagedScanJob failed', { error, scanId: data.scanId });
       throw error;
     } finally {
-      await rm(workDir, { recursive: true, force: true });
+      try {
+        await rm(workDir, { recursive: true, force: true });
+      } catch (cleanupErr) {
+        logger.scan.warn('processManagedScanJob: temp dir cleanup failed', {
+          workDir,
+          error: (cleanupErr as Error).message,
+        });
+      }
     }
   },
 

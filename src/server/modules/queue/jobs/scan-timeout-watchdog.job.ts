@@ -13,12 +13,13 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { sql, inArray } from 'drizzle-orm';
+import { sql, inArray, count } from 'drizzle-orm';
 import type { Job } from 'pg-boss';
 
 import { db } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
 import { scanRepository } from '@/server/modules/scan/repositories/scan.repository';
+import { findings } from '@drizzle/schema/findings';
 import { scans } from '@drizzle/schema/scans';
 
 
@@ -53,10 +54,15 @@ export async function processScanTimeoutWatchdog(_job: Job) {
 
     // Batch: get finding counts for all orphaned scans
     const scanIds = orphanedScans.map((s) => s.id);
-    const findingCounts = await db.execute<{ scanId: string; count: number }>(
-      sql`SELECT "scanId" as "scanId", count(*)::int as count FROM findings WHERE "scanId" IN ${sql`(${sql.join(scanIds.map((id) => sql`${id}`), sql`, `)})`} GROUP BY "scanId"`
-    );
-    const findingCountMap = new Map(findingCounts.map((r) => [r.scanId, r.count]));
+    const findingCounts = await db
+      .select({
+        scanId: findings.scanId,
+        count: count(),
+      })
+      .from(findings)
+      .where(inArray(findings.scanId, scanIds))
+      .groupBy(findings.scanId);
+    const findingCountMap = new Map(findingCounts.map((r) => [r.scanId, Number(r.count)]));
 
     // Separate scans into completed (has findings) vs failed (no findings)
     const completedScanIds: string[] = [];

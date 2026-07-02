@@ -13,8 +13,6 @@ import { repositories } from '@drizzle/schema/source-controls';
 const SORT_COLUMNS = { createdAt: findings.createdAt, severity: findings.severity, scanner: findings.scanner } as const;
 type SortKey = keyof typeof SORT_COLUMNS;
 
-const VERDICT_ORDER: Record<string, number> = { true_positive: 0, false_positive: 1, Pending: 2 };
-
 function normalizeVerdictFilter(v: string) { return v === 'TP' ? 'true_positive' : v === 'FP' ? 'false_positive' : v; }
 
 function buildSortOrder(sort?: string, order?: 'ASC' | 'DESC') {
@@ -22,37 +20,7 @@ function buildSortOrder(sort?: string, order?: 'ASC' | 'DESC') {
   return order === 'ASC' ? asc(SORT_COLUMNS[sort as SortKey]) : desc(SORT_COLUMNS[sort as SortKey]);
 }
 
-function buildArrayPositionOrder(ids: string[]) {
-  const arr = sql`ARRAY[${sql.join(ids.map((id) => sql`${id}`), sql`, `)}]::uuid[]`;
-  return sql`array_position(${arr}, ${findings.id})`;
-}
-
-function sortIdsByVerdict(ids: string[], aiVerdicts: Map<string, string>, order?: 'ASC' | 'DESC') {
-  return ids
-    .map((id) => ({ id, verdict: aiVerdicts.get(id) ?? 'Pending' }))
-    .sort((a, b) => {
-      const diff = (VERDICT_ORDER[a.verdict] ?? 3) - (VERDICT_ORDER[b.verdict] ?? 3);
-      return order === 'ASC' ? diff : -diff;
-    })
-    .map((r) => r.id);
-}
-
 // ─── AI enrichment ─────────────────────────────────────────────────────
-
-async function fetchLatestVerdicts(executor: { select: typeof db.select }, findingIds: string[]): Promise<Map<string, string>> {
-  if (findingIds.length === 0) return new Map();
-  const aiRows = await executor.select({ findingId: aiVerifications.findingId, verdict: aiVerifications.verdict, createdAt: aiVerifications.createdAt })
-    .from(aiVerifications).where(inArray(aiVerifications.findingId, findingIds));
-  const latestAi = new Map<string, { verdict: string; ts: Date }>();
-  for (const row of aiRows) {
-    if (!row.findingId) continue;
-    const existing = latestAi.get(row.findingId);
-    if (!existing || (row.createdAt && row.createdAt > existing.ts)) {
-      latestAi.set(row.findingId, { verdict: row.verdict ?? 'Pending', ts: row.createdAt ?? new Date(0) });
-    }
-  }
-  return new Map([...latestAi.entries()].map(([k, v]) => [k, v.verdict]));
-}
 
 export async function fetchAiEnrichmentBatch(
   rows: Array<{ id: string; groupId: string | null }>,
@@ -88,7 +56,7 @@ export async function fetchAiEnrichmentBatch(
   const result = new Map<string, { verdict: string; modelName: string | undefined; confidence: string | null; explanation: string | null; fixSuggestion: string | null; dataFlow: string | null; taintSource: string | null; matchDetail: string | null; likelyCwe: unknown }>();
   for (const [findingId, v] of latestByFinding) {
     result.set(findingId, {
-      verdict: v.verdict === 'true_positive' ? 'TP' : v.verdict === 'false_positive' ? 'FP' : 'Pending',
+      verdict: v.verdict === 'true_positive' ? 'TP' : v.verdict === 'false_positive' ? 'FP' : v.verdict === 'error' ? 'error' : 'Pending',
       modelName: v.modelId ? modelNameMap.get(v.modelId) : undefined,
       confidence: v.confidence ?? null, explanation: v.explanation ?? null, fixSuggestion: v.fixSuggestion ?? null,
       dataFlow: v.dataFlow ?? null, taintSource: v.taintSource ?? null, matchDetail: v.matchDetail ?? null,
@@ -182,44 +150,75 @@ export async function listFindings(config: ListQueryConfig, params: FindingQuery
   let filteredTotal = 0;
 
   if (isVerdictSort || hasVerdictFilter) {
-    // Verdict sort/filter: fetch all matching IDs first, then sort/filter in JS
-    const allMatchingIds = await executor.select({ id: findings.id })
+    // Verdict sort/filter: use subquery to get latest verdict per finding,
+    // then sort and paginate at DB level to avoid fetching ALL IDs.
+    const latestVerdicts = executor
+      .select({
+        findingId: aiVerifications.findingId,
+        verdict: aiVerifications.verdict,
+      })
+      .from(aiVerifications)
+      .innerJoin(
+        executor.select({
+          findingId: aiVerifications.findingId,
+          maxCreatedAt: sql`MAX(${aiVerifications.createdAt})`.as('maxCreatedAt'),
+        }).from(aiVerifications).groupBy(aiVerifications.findingId).as('latest'),
+        and(
+          eq(aiVerifications.findingId, sql`latest.finding_id`),
+          eq(aiVerifications.createdAt, sql`latest.max_created_at`),
+        ),
+      )
+      .as('latestVerdicts');
+
+    const allConditions = [
+      ...conditions,
+      ...(config.workspaceId ? [eq(projects.workspaceId, config.workspaceId)] : []),
+      ...(config.projectId ? [eq(findingGroups.projectId, config.projectId)] : []),
+      ...(config.accessibleProjectIds && config.accessibleProjectIds.length > 0 ? [or(inArray(findingGroups.projectId, config.accessibleProjectIds), isNull(repositories.projectId))!] : []),
+      ...(config.accessibleProjectIds?.length === 0 ? [isNull(repositories.projectId)] : []),
+    ];
+
+    if (hasVerdictFilter) {
+      allConditions.push(eq(latestVerdicts.verdict, normalizedVerdictFilter!));
+    }
+
+    const verdictSortExpr = isVerdictSort
+      ? sql`CASE ${latestVerdicts.verdict}
+          WHEN 'true_positive' THEN 0
+          WHEN 'false_positive' THEN 1
+          ELSE 2
+        END ${params.order === 'ASC' ? sql`ASC` : sql`DESC`}`
+      : desc(findings.createdAt);
+
+    data = await executor.select(selectShape).from(findings)
+      .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+      .innerJoin(scans, eq(findings.scanId, scans.id))
+      .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+      .leftJoin(findingGroupScans, and(eq(findingGroupScans.scanId, findings.scanId), eq(findingGroupScans.groupId, findings.groupId)))
+      .leftJoin(latestVerdicts, eq(findings.id, latestVerdicts.findingId))
+      .where(and(...allConditions))
+      .orderBy(verdictSortExpr)
+      .limit(params.perPage)
+      .offset(offset);
+
+    // Count with same conditions
+    const [{ total: countTotal }] = await executor
+      .select({ total: count(sql`DISTINCT ${findingGroups.id}`) })
       .from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
       .innerJoin(scans, eq(findings.scanId, scans.id))
       .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
-      .where(and(...conditions, ...(config.workspaceId ? [eq(projects.workspaceId, config.workspaceId)] : []),
-        ...(config.projectId ? [eq(findingGroups.projectId, config.projectId)] : []),
-        ...(config.accessibleProjectIds && config.accessibleProjectIds.length > 0 ? [or(inArray(findingGroups.projectId, config.accessibleProjectIds), isNull(repositories.projectId))!] : []),
-        ...(config.accessibleProjectIds?.length === 0 ? [isNull(repositories.projectId)] : []),
-      ))
-      .orderBy(desc(findings.createdAt))
-      .then((rows: Array<{ id: string }>) => rows.map((r) => r.id));
+      .leftJoin(latestVerdicts, eq(findings.id, latestVerdicts.findingId))
+      .where(and(...allConditions));
 
-    if (allMatchingIds.length > 0) {
-      const verdicts = await fetchLatestVerdicts(executor, allMatchingIds);
-      let filteredIds = allMatchingIds;
-      if (hasVerdictFilter) {
-        filteredIds = allMatchingIds.filter((id) => (verdicts.get(id) ?? 'Pending') === normalizedVerdictFilter);
-      }
-      filteredTotal = filteredIds.length;
-      const sortedIds = isVerdictSort ? sortIdsByVerdict(filteredIds, verdicts, params.order) : filteredIds;
-      const paginatedIds = sortedIds.slice(offset, offset + params.perPage);
-      if (paginatedIds.length > 0) {
-        data = await executor.select(selectShape).from(findings)
-          .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-          .innerJoin(scans, eq(findings.scanId, scans.id))
-          .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
-          .where(inArray(findings.id, paginatedIds))
-          .orderBy(buildArrayPositionOrder(paginatedIds));
-      }
-    }
+    filteredTotal = Number(countTotal) || 0;
   } else {
     // Standard sort
     data = await executor.select(selectShape).from(findings)
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
       .innerJoin(scans, eq(findings.scanId, scans.id))
       .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+      .leftJoin(findingGroupScans, and(eq(findingGroupScans.scanId, findings.scanId), eq(findingGroupScans.groupId, findings.groupId)))
       .where(and(...conditions, ...(config.workspaceId ? [eq(projects.workspaceId, config.workspaceId)] : []),
         ...(config.projectId ? [eq(findingGroups.projectId, config.projectId)] : []),
         ...(config.accessibleProjectIds && config.accessibleProjectIds.length > 0 ? [or(inArray(findingGroups.projectId, config.accessibleProjectIds), isNull(repositories.projectId))!] : []),
@@ -246,6 +245,7 @@ export async function listFindings(config: ListQueryConfig, params: FindingQuery
     .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
     .innerJoin(scans, eq(findings.scanId, scans.id))
     .leftJoin(repositories, eq(scans.repositoryId, repositories.id))
+    .leftJoin(findingGroupScans, and(eq(findingGroupScans.scanId, findings.scanId), eq(findingGroupScans.groupId, findings.groupId)))
     .where(and(...countConditions));
 
   const total = hasVerdictFilter ? filteredTotal : (countResult[0]?.total ?? 0);

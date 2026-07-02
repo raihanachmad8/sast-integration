@@ -118,10 +118,9 @@ export const scanService = {
       if (!scan) throw new AppError(SCAN.ERRORS.NOT_FOUND, 404, SCAN.ERRORS.NOT_FOUND_CODE);
 
       // Parallelize independent queries
-      const [repo, findingsStats, , aiVerdictStats, scanResults, findingsPerScanner, newVsExistingStats] = await Promise.all([
+      const [repo, findingsStats, aiVerdictStats, scanResults, findingsPerScanner, newVsExistingStats] = await Promise.all([
         scan.repositoryId ? scanRepository.getRepositoryById(scan.repositoryId!) : Promise.resolve(null),
         scanRepository.getFindingsStats(scanId),
-        scanRepository.getAiStats(scanId),
         scanRepository.getAiVerdictStats(scanId),
         scanRepository.getScanResults(scanId),
         scanId ? scanRepository.getFindingsPerScanner(scanId) : Promise.resolve([]),

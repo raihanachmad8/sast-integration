@@ -22,6 +22,7 @@
 
 import type { NextRequest } from 'next/server';
 
+import { PERMISSION } from '@/commons/constants/permissions';
 import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
 import { projectRepository } from '@/server/modules/project/repositories/project.repository';
@@ -71,10 +72,10 @@ export async function authenticateCiCd(request: NextRequest): Promise<CiCdAuthRe
     }
 
     const permissions = token.permissions as string[] | null;
-    if (!permissions?.includes('scans:upload')) {
+    if (!permissions?.includes(PERMISSION.SCAN_UPLOAD)) {
       return {
         success: false,
-        response: ApiResponse.error('Token does not have scans:upload permission', 'FORBIDDEN', undefined, 403),
+        response: ApiResponse.error(`Token does not have ${PERMISSION.SCAN_UPLOAD} permission`, 'FORBIDDEN', undefined, 403),
       };
     }
 

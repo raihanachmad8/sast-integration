@@ -243,11 +243,11 @@ export function FindingsTable({
     <Flex align="center" gap={token.marginXS} style={{ padding: `${token.paddingXXS}px ${token.paddingMD}px`, borderBottom: `1px solid ${token.colorBorderSecondary}`, background: token.colorBgLayout, minHeight: token.controlHeightSM }}>
       <Text type="secondary" strong style={{ fontSize: token.fontSizeSM }}>{selectedIds.size} selected</Text>
       <PermissionGate permission={PERMISSION.FINDING_TRIAGE}>
-        <Button type="primary" onClick={() => { onDismiss?.([...selectedIds]); setSelectedIds(new Set()); }}>
-          <FaIcon icon="fa-check" /> Dismiss
-        </Button>
-        <Button onClick={() => { onResolve?.([...selectedIds]); setSelectedIds(new Set()); }}>
+        <Button type="primary" onClick={() => { onResolve?.([...selectedIds]); setSelectedIds(new Set()); }}>
           <FaIcon icon="fa-circle-check" /> Resolve
+        </Button>
+        <Button danger onClick={() => { onDismiss?.([...selectedIds]); setSelectedIds(new Set()); }}>
+          <FaIcon icon="fa-xmark" /> Dismiss
         </Button>
       </PermissionGate>
       <PermissionGate permission={PERMISSION.SCAN_RUN}>

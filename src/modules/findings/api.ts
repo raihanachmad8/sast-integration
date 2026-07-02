@@ -34,14 +34,6 @@ export const findingsApi = {
   },
 
   /**
-   * Fetch all findings (legacy — for bulk operations).
-   */
-  async listAll(workspaceId: string): Promise<FindingExtended[]> {
-    const { data } = await _api.Get<ApiResponse<FindingExtended[]>>(ENDPOINTS.FINDINGS.LIST(workspaceId));
-    return data;
-  },
-
-  /**
    * Fetch finding groups (deduplicated) for a specific project.
    * @param workspaceId - The workspace ID.
    * @param projectId - The project ID.
@@ -62,20 +54,11 @@ export const findingsApi = {
     return data;
   },
 
-  async bulkUpdate(workspaceId: string, ids: string[], payload: Record<string, unknown>) {
-    const { data } = await _api.Put<ApiResponse<{ updated: number }>>(ENDPOINTS.FINDINGS.BULK(workspaceId), { ids, payload });
-    return data;
-  },
-
-  async aiVerify(workspaceId: string, findingIds: string[]) {
-    const { data } = await _api.Post<ApiResponse<{ queued: number }>>(ENDPOINTS.FINDINGS.AI_VERIFY(workspaceId), { findingIds });
-    return data;
-  },
-
-  async verify(workspaceId: string, findingId: string, modelId?: string) {
-    return _api.Post<ApiResponse<{ result: unknown }>>(
-      ENDPOINTS.FINDINGS.VERIFY(workspaceId, findingId),
-      modelId ? { modelId } : {},
+  async bulkAction(workspaceId: string, ids: string[], action: string, assignedTo?: string) {
+    const { data } = await _api.Put<ApiResponse<{ processed: number; action: string }>>(
+      ENDPOINTS.FINDINGS.BULK(workspaceId),
+      { ids, action, assignedTo },
     );
+    return data;
   },
 };

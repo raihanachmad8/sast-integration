@@ -50,7 +50,7 @@ export async function register() {
     });
     await registerWorker(QUEUE_JOBS.AI_VERIFY_FINDING, async (job) => {
       await processAiVerifyJob(job as Parameters<typeof processAiVerifyJob>[0]);
-    });
+    }, { concurrency: 1 });
     await registerWorker(QUEUE_JOBS.CLEANUP_OLD_SCAN_FILES, async (job) => {
       await processCleanupOldScanFilesJob(
         job as Parameters<typeof processCleanupOldScanFilesJob>[0]

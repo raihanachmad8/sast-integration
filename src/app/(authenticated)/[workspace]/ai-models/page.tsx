@@ -133,21 +133,22 @@ function AiModelsPageContent() {
       message.warning('No models configured');
       return;
     }
-    let tested = 0;
+    let completed = 0;
+    let failed = 0;
     models.forEach((model) => {
       testMutation.mutate(model.id, {
-        onSuccess: (_data) => {
-          tested++;
-          if (tested === models.length) {
-            message.success(`All ${models.length} models tested`);
-            modelsQuery.refetch();
+        onSuccess: () => {
+          completed++;
+          if (completed + failed === models.length) {
+            message.success(failed > 0
+              ? `Tested ${models.length} models — ${failed} failed`
+              : `All ${models.length} models tested`);
           }
         },
         onError: () => {
-          tested++;
-          if (tested === models.length) {
-            message.warning('Some models failed — check status column');
-            modelsQuery.refetch();
+          failed++;
+          if (completed + failed === models.length) {
+            message.warning(`Tested ${models.length} models — ${failed} failed`);
           }
         },
       });
@@ -159,35 +160,29 @@ function AiModelsPageContent() {
     setEditOpen(true);
   }, []);
 
-  const handleSaveEdit = (values: Record<string, unknown>) => {
-    if (!selectedModel) return;
-    updateMutation.mutate(
-      { id: selectedModel.id, data: values as Partial<CreateAiModelInput> },
-      {
-        onSuccess: () => {
-          setEditOpen(false);
-          setSelectedModel(null);
-          message.success('AI model updated');
-          modelsQuery.refetch();
-        },
-        onError: (err) => {
-          message.error(errorMessage(err));
-        },
-      },
-    );
+  const handleSaveEdit = async (values: Record<string, unknown>): Promise<boolean> => {
+    if (!selectedModel) return false;
+    try {
+      await updateMutation.mutateAsync({ id: selectedModel.id, data: values as Partial<CreateAiModelInput> });
+      message.success('AI model updated');
+      modelsQuery.refetch();
+      return true;
+    } catch (err) {
+      message.error(errorMessage(err));
+      return false;
+    }
   };
 
-  const handleSaveAdd = (values: Record<string, unknown>) => {
-    createMutation.mutate(values as CreateAiModelInput, {
-      onSuccess: () => {
-        setAddOpen(false);
-        message.success('AI model added');
-        modelsQuery.refetch();
-      },
-      onError: (err) => {
-        message.error(errorMessage(err));
-      },
-    });
+  const handleSaveAdd = async (values: Record<string, unknown>): Promise<boolean> => {
+    try {
+      await createMutation.mutateAsync(values as CreateAiModelInput);
+      message.success('AI model added');
+      modelsQuery.refetch();
+      return true;
+    } catch (err) {
+      message.error(errorMessage(err));
+      return false;
+    }
   };
 
   const handleDelete = useCallback((model: AiModelRow) => {
@@ -204,17 +199,14 @@ function AiModelsPageContent() {
     });
   }, [confirm, deleteMutation, message, modelsQuery]);
 
-  const handleTest = useCallback((model: AiModelRow) => {
-    testMutation.mutate(model.id, {
-      onSuccess: (data) => {
-        message.success(`${model.name} is ${data?.status ?? 'unknown'}`);
-        modelsQuery.refetch();
-      },
-      onError: () => {
-        message.error(`${model.name} is unreachable`);
-      },
-    });
-  }, [testMutation, message, modelsQuery]);
+  const handleTest = useCallback(async (model: AiModelRow) => {
+    try {
+      const result = await testMutation.mutateAsync(model.id);
+      message.success(`${model.name} is ${result?.status ?? 'unknown'}`);
+    } catch {
+      message.error(`${model.name} is unreachable`);
+    }
+  }, [testMutation, message]);
 
   const moveUp = (index: number) => {
     if (index === 0) return;
@@ -303,7 +295,7 @@ function AiModelsPageContent() {
         rowKey={(r) => r.id}
         actions={actions}
         emptyText="No models configured."
-        isLoading={modelsQuery.isLoading}
+        isLoading={modelsQuery.isFetching}
         searchable
         searchPlaceholder="Search models"
         searchValue={params.search}

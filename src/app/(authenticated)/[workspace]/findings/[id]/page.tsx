@@ -13,10 +13,11 @@ import { PageHeader } from '@/commons/components/PageHeader';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { StatusTag } from '@/commons/components/StatusTag';
 import type { Finding } from '@/commons/types';
+import { normalizeFinding } from '@/commons/types/findings';
 import { ScannerOutputSection, FindingActions } from '@/features/findings';
 import { errorMessage } from '@/lib/api/errors';
 import { useSessionData } from '@/modules/auth/queries';
-import { useFindingQuery, useVerifyFindingMutation, useUpdateFindingMutation } from '@/modules/findings';
+import { useFindingQuery, useBulkFindingsMutation, useUpdateFindingMutation } from '@/modules/findings';
 import { useMembersQuery } from '@/modules/members';
 import type { Member } from '@/modules/members/api';
 
@@ -31,20 +32,12 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
 
   const findingQuery = useFindingQuery(id);
   const membersQuery = useMembersQuery();
-  const verifyMutation = useVerifyFindingMutation();
+  const bulkMutation = useBulkFindingsMutation();
   const updateFindingMutation = useUpdateFindingMutation();
 
   const rawFinding = (findingQuery.data ?? null) as Finding | null;
 
-  // Normalize field names: API returns `cweId`, `assignedTo`, `repositoryName`, `filePath`
-  // but Finding type expects `cwe`, `assignee`, `repo`, `file`
-  const finding: Finding | null = rawFinding ? {
-    ...rawFinding,
-    cwe: rawFinding.cwe || (rawFinding as unknown as Record<string, unknown>).cweId as string || '',
-    assignee: rawFinding.assignee ?? (rawFinding as unknown as Record<string, unknown>).assignedTo as string | null ?? null,
-    repo: rawFinding.repo || (rawFinding as unknown as Record<string, unknown>).repositoryName as string || '',
-    file: rawFinding.file || rawFinding.filePath || '',
-  } : null;
+  const finding: Finding | null = rawFinding ? normalizeFinding(rawFinding as unknown as Record<string, unknown>) : null;
 
   const members = (membersQuery.data?.data ?? []) as Member[];
 
@@ -66,18 +59,15 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
     updateFindingMutation.mutate(
       { id: findingId, payload: { status: 'resolved' } },
       {
-        onSuccess: () => { message.success('Finding resolved'); findingQuery.refetch(); },
+        onSuccess: () => message.success('Finding resolved'),
         onError: () => message.error('Failed to resolve finding'),
       }
     );
   };
 
-  const handleReverify = (findingId: string, modelId: string) => {
-    verifyMutation.mutate({ findingId, modelId }, {
-      onSuccess: () => {
-        message.success('Re-verification completed');
-        findingQuery.refetch();
-      },
+  const handleReverify = (findingId: string) => {
+    bulkMutation.mutate({ ids: [findingId], action: 'reverify' }, {
+      onSuccess: () => message.success('Re-verification queued'),
       onError: () => message.error('Re-verification failed'),
     });
   };
@@ -86,7 +76,7 @@ export default function FindingDetailPage({ params }: { params: Promise<{ id: st
     updateFindingMutation.mutate(
       { id: findingId, payload: { status: 'dismissed' } },
       {
-        onSuccess: () => { message.success('Finding dismissed'); findingQuery.refetch(); },
+        onSuccess: () => message.success('Finding dismissed'),
         onError: () => message.error('Failed to dismiss finding'),
       }
     );

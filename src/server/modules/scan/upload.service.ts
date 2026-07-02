@@ -100,6 +100,29 @@ function extractScannerFromFileName(fileName: string): string {
   return 'unknown';
 }
 
+/**
+ * Detect actual scanner name from SARIF content.
+ * Falls back to provided scanner name if detection fails.
+ * Purpose: Normalize 'sarif' scanner names to actual scanner for idempotency.
+ */
+function detectScannerFromSarif(content: string | Buffer, fallback: string): string {
+  try {
+    const text = typeof content === 'string' ? content : content.toString('utf-8');
+    const parsed = JSON.parse(text.trimStart());
+    const toolName = parsed?.runs?.[0]?.tool?.driver?.name;
+    if (typeof toolName === 'string') {
+      const lower = toolName.toLowerCase();
+      if (lower.includes('semgrep')) return 'semgrep';
+      if (lower.includes('gitleaks')) return 'gitleaks';
+      if (lower.includes('cppcheck')) return 'cppcheck';
+      if (lower.includes('flawfinder')) return 'flawfinder';
+      if (lower.includes('clang-tidy') || lower.includes('clang tidy')) return 'clang-tidy';
+      if (lower.includes('gcc') || lower.includes('fanalyzer')) return 'gcc-fanalyzer';
+    }
+  } catch { /* ignore parse errors */ }
+  return fallback;
+}
+
 export const scanUploadService = {
   /**
    * Handles CI/CD result uploads. Validates total size, creates a scan record,
@@ -179,7 +202,8 @@ export const scanUploadService = {
           : Buffer.from(file.content, 'utf-8');
         await storage.upload(contentBuffer, fileKey, { contentType: 'application/octet-stream' });
 
-        const scanner = extractScannerFromFileName(file.name);
+        const rawScanner = extractScannerFromFileName(file.name);
+        const scanner = rawScanner === 'sarif' ? detectScannerFromSarif(file.content, rawScanner) : rawScanner;
 
         if (useAsyncParsing) {
           await enqueue(SCAN_PARSE_JOB_NAME, {
@@ -215,6 +239,31 @@ export const scanUploadService = {
     // Only mark completed for synchronous parsing; async jobs will complete the scan
     if (!useAsyncParsing) {
       await scanRepository.updateStatus(scan.id, 'completed');
+
+      // Trigger AI verification for synchronous uploads
+      if (totalFindings > 0) {
+        try {
+          const { enqueue } = await import('@/server/modules/queue/queue.service');
+          const { aiVerificationRepository } = await import('@/server/modules/scan/repositories/ai-verification.repository');
+          const model = await aiVerificationRepository.getPrimaryModel();
+          if (model) {
+            const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
+            const scanFindings = await findingRepository.listByScan(scan.id, { page: 1, perPage: 1000, status: 'open' });
+            for (const finding of scanFindings.data) {
+              if (!finding.id) continue;
+              await enqueue('ai-verify-finding', {
+                findingId: finding.id,
+                scanId: scan.id,
+                modelId: model.id,
+                workspaceId: input.workspaceId,
+              }, { retryLimit: 5, retryDelay: 30 });
+            }
+            logger.scan.info('uploadScanResults: AI verification enqueued', { scanId: scan.id, count: scanFindings.data.length });
+          }
+        } catch (err) {
+          logger.scan.warn('uploadScanResults: AI verification enqueue failed', { scanId: scan.id, error: (err as Error).message });
+        }
+      }
     }
 
     logger.scan.info('uploadScanResults completed', { scanId: scan.id, findingsCount: totalFindings });

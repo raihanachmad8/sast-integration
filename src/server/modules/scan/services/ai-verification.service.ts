@@ -103,6 +103,12 @@ function classifyError(error: Error): ErrorClass {
   if (msg.includes('econnrefused') || msg.includes('enotfound')) return ErrorClass.RETRYABLE;
   if (msg.includes('500') || msg.includes('502') || msg.includes('503')) return ErrorClass.RETRYABLE;
 
+  // DB insert/constraint errors are NOT model failures — don't waste retries on different models
+  if (msg.includes('failed query') || msg.includes('foreign key') || msg.includes('unique constraint') || msg.includes('violates')) return ErrorClass.NON_RETRYABLE;
+
+  // Truncated/unparseable output — retrying might produce shorter response
+  if (msg.includes('failed to parse ai response')) return ErrorClass.RETRYABLE;
+
   return ErrorClass.RETRYABLE;
 }
 
@@ -457,6 +463,22 @@ export const aiVerificationService = {
       findingId, totalAttempts: attempts.length, totalLatencyMs, errorSummary,
     });
 
+    // Persist error state so UI shows "AI Error" instead of stuck on "Pending"
+    try {
+      await aiVerificationRepository.create({
+        findingId: finding.id,
+        groupId: finding.groupId ?? undefined,
+        modelId: healthyModels[healthyModels.length - 1].id,
+        verdict: 'error',
+        confidence: '0',
+        explanation: `All models failed: ${errorSummary}`,
+        latencyMs: totalLatencyMs,
+        rawResponse: JSON.stringify(attempts),
+      });
+    } catch (persistErr) {
+      logger.scan.error('verifyFinding: failed to persist error state', { findingId, error: (persistErr as Error).message });
+    }
+
     throw new AppError(
       `AI verification failed after ${attempts.length} attempt(s) (${totalLatencyMs}ms). ${errorSummary}`,
       500,
@@ -520,6 +542,11 @@ export const aiVerificationService = {
           findingId, modelUsed: model.name, provider: model.provider,
           verdict: aiResponse.verdict, confidence: aiResponse.confidence,
           explanation: aiResponse.explanation?.slice(0, 200),
+          dataFlow: aiResponse.dataFlow?.slice(0, 150),
+          taintSource: aiResponse.taintSource,
+          matchDetail: aiResponse.matchDetail?.slice(0, 150),
+          likelyCwe: aiResponse.likelyCwe,
+          fixSuggestion: aiResponse.fixSuggestion?.slice(0, 150),
           attemptNumber: attempts.length, totalLatencyMs: Date.now() - attemptStart,
         });
 
@@ -563,21 +590,35 @@ export const aiVerificationService = {
     latencyMs: number,
   ) {
     return db.transaction(async (tx) => {
-      const v = await aiVerificationRepository.create({
-        findingId: finding.id,
-        groupId: finding.groupId ?? undefined,
-        modelId: model.id,
-        verdict: aiResponse.verdict,
-        confidence: String(aiResponse.confidence),
-        explanation: aiResponse.explanation,
-        dataFlow: aiResponse.dataFlow,
-        taintSource: aiResponse.taintSource,
-        matchDetail: aiResponse.matchDetail,
-        likelyCwe: aiResponse.likelyCwe,
-        fixSuggestion: aiResponse.fixSuggestion,
-        latencyMs,
-        rawResponse: aiResponse.rawResponse,
-      }, tx);
+      let v;
+      try {
+        v = await aiVerificationRepository.create({
+          findingId: finding.id,
+          groupId: finding.groupId ?? undefined,
+          modelId: model.id,
+          verdict: aiResponse.verdict,
+          confidence: String(aiResponse.confidence),
+          explanation: aiResponse.explanation,
+          dataFlow: aiResponse.dataFlow,
+          taintSource: aiResponse.taintSource,
+          matchDetail: aiResponse.matchDetail,
+          likelyCwe: aiResponse.likelyCwe,
+          fixSuggestion: aiResponse.fixSuggestion,
+          latencyMs,
+          rawResponse: aiResponse.rawResponse,
+        }, tx);
+      } catch (err) {
+        const pgErr = err as { code?: string; constraint?: string; detail?: string };
+        logger.scan.error('persistVerification: DB insert failed', {
+          findingId: finding.id,
+          groupId: finding.groupId,
+          modelId: model.id,
+          pgCode: pgErr.code,
+          constraint: pgErr.constraint,
+          detail: pgErr.detail,
+        });
+        throw err;
+      }
 
       if (finding.groupId) {
         const newStatus = aiResponse.verdict === 'false_positive' ? 'resolved' : 'open';
@@ -609,19 +650,16 @@ export const aiVerificationService = {
         status: 'open',
       });
 
-      const BATCH_SIZE = env.AI_VERIFY_BATCH_SIZE;
       let verified = 0;
       let failed = 0;
 
-      // Process findings in parallel batches
-      for (let i = 0; i < findingsToVerify.data.length; i += BATCH_SIZE) {
-        const batch = findingsToVerify.data.slice(i, i + BATCH_SIZE);
-        const results = await Promise.allSettled(
-          batch.map((finding) => this.verifyFinding(finding.id, modelId, workspaceId))
-        );
-        for (const r of results) {
-          if (r.status === 'fulfilled') verified++;
-          else failed++;
+      // Process findings sequentially to avoid overloading the AI provider
+      for (const finding of findingsToVerify.data) {
+        try {
+          await this.verifyFinding(finding.id, modelId, workspaceId);
+          verified++;
+        } catch {
+          failed++;
         }
       }
 
@@ -761,6 +799,7 @@ export const aiVerificationService = {
           ],
           format: 'json',
           stream: false,
+          options: { num_predict: 4096 },
         }),
         signal,
       });
@@ -823,7 +862,8 @@ export const aiVerificationService = {
             { role: 'user', content: userPrompt },
           ],
           temperature: 0.1,
-          max_tokens: 512,
+          max_tokens: 4096,
+          stream: false,
         }),
         signal,
       });
@@ -858,30 +898,122 @@ export const aiVerificationService = {
       cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
     }
 
+    // Try direct parse first
     try {
-      const parsed = JSON.parse(cleaned);
-      const verdict = parsed.verdict === 'true_positive' ? 'true_positive' : 'false_positive';
-      const confidence = typeof parsed.confidence === 'number'
-        ? (parsed.confidence > 1 ? parsed.confidence / 100 : Math.min(1, Math.max(0, parsed.confidence)))
-        : 0.5;
-      const explanation = typeof parsed.explanation === 'string'
-        ? parsed.explanation
-        : typeof parsed.reasoning === 'string'
-          ? parsed.reasoning
-          : 'No explanation provided';
+      return this.extractVerdict(JSON.parse(cleaned));
+    } catch { /* continue to repair attempts */ }
 
-      return {
-        verdict,
-        confidence,
-        explanation,
-        dataFlow: typeof parsed.dataFlow === 'string' ? parsed.dataFlow : typeof parsed.data_flow === 'string' ? parsed.data_flow : undefined,
-        taintSource: typeof parsed.taintSource === 'string' ? parsed.taintSource : typeof parsed.taint_source === 'string' ? parsed.taint_source : undefined,
-        matchDetail: typeof parsed.matchDetail === 'string' ? parsed.matchDetail : typeof parsed.match_detail === 'string' ? parsed.match_detail : undefined,
-        likelyCwe: Array.isArray(parsed.likelyCwe) ? parsed.likelyCwe : Array.isArray(parsed.likely_cwe) ? parsed.likely_cwe : undefined,
-        fixSuggestion: typeof parsed.fixSuggestion === 'string' ? parsed.fixSuggestion : typeof parsed.fix_suggestion === 'string' ? parsed.fix_suggestion : undefined,
-      };
-    } catch {
-      throw new AppError(`Failed to parse AI response as JSON: ${content.slice(0, 200)}`, 500, SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED);
+    // Try repairing truncated JSON (common when model hits max_tokens)
+    const repaired = this.repairTruncatedJson(cleaned);
+    if (repaired) {
+      try {
+        return this.extractVerdict(JSON.parse(repaired));
+      } catch { /* repair didn't help */ }
     }
+
+    // Try extracting verdict from partial response via regex
+    const partial = this.extractPartialVerdict(cleaned);
+    if (partial) return partial;
+
+    throw new AppError(`Failed to parse AI response as JSON: ${content.slice(0, 200)}`, 500, SCAN.ERRORS.AI_MODEL_NOT_CONFIGURED);
+  },
+
+  /**
+   * Extract structured verdict from a parsed JSON object.
+   */
+  extractVerdict(parsed: Record<string, unknown>): AiModelResponse {
+    const verdict = parsed.verdict === 'true_positive' ? 'true_positive' : 'false_positive';
+    const confidence = typeof parsed.confidence === 'number'
+      ? (parsed.confidence > 1 && parsed.confidence === Math.floor(parsed.confidence) ? parsed.confidence / 100 : Math.min(1, Math.max(0, parsed.confidence)))
+      : 0.5;
+    const explanation = typeof parsed.explanation === 'string'
+      ? parsed.explanation
+      : typeof parsed.reasoning === 'string'
+        ? parsed.reasoning
+        : 'No explanation provided';
+
+    return {
+      verdict,
+      confidence,
+      explanation,
+      dataFlow: typeof parsed.dataFlow === 'string' ? parsed.dataFlow : typeof parsed.data_flow === 'string' ? parsed.data_flow : undefined,
+      taintSource: typeof parsed.taintSource === 'string' ? parsed.taintSource : typeof parsed.taint_source === 'string' ? parsed.taint_source : undefined,
+      matchDetail: typeof parsed.matchDetail === 'string' ? parsed.matchDetail : typeof parsed.match_detail === 'string' ? parsed.match_detail : undefined,
+      likelyCwe: Array.isArray(parsed.likelyCwe) ? parsed.likelyCwe : Array.isArray(parsed.likely_cwe) ? parsed.likely_cwe : undefined,
+      fixSuggestion: typeof parsed.fixSuggestion === 'string' ? parsed.fixSuggestion : typeof parsed.fix_suggestion === 'string' ? parsed.fix_suggestion : undefined,
+    };
+  },
+
+  /**
+   * Attempt to repair truncated JSON by closing open braces/brackets.
+   * Returns repaired string or null if not salvageable.
+   */
+  repairTruncatedJson(text: string): string | null {
+    // Find the last complete key-value pair
+    const lastColon = text.lastIndexOf(':');
+    if (lastColon === -1) return null;
+
+    // Count unclosed braces and brackets
+    let braces = 0;
+    let brackets = 0;
+    let inString = false;
+    let escape = false;
+    for (const ch of text) {
+      if (escape) { escape = false; continue; }
+      if (ch === '\\') { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === '{') braces++;
+      if (ch === '}') braces--;
+      if (ch === '[') brackets++;
+      if (ch === ']') brackets--;
+    }
+
+    // If we're inside a string, close it first
+    let suffix = '';
+    if (inString) suffix = '"';
+
+    // Close any open structures
+    while (brackets > 0) { suffix += ']'; brackets--; }
+    while (braces > 0) { suffix += '}'; braces--; }
+
+    if (!suffix) return null;
+
+    const repaired = text + suffix;
+    // Validate it's parseable
+    try {
+      JSON.parse(repaired);
+      return repaired;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * Extract verdict from truncated JSON using regex.
+   * Last resort when JSON repair fails — tries to salvage as many fields as possible.
+   */
+  extractPartialVerdict(text: string): AiModelResponse | null {
+    const verdictMatch = text.match(/"verdict"\s*:\s*"(true_positive|false_positive)"/);
+    if (!verdictMatch) return null;
+
+    const confidenceMatch = text.match(/"confidence"\s*:\s*([\d.]+)/);
+    const explanationMatch = text.match(/"explanation"\s*:\s*"((?:[^"\\]|\\.)*)/);
+    const dataFlowMatch = text.match(/"dataFlow"\s*:\s*"((?:[^"\\]|\\.)*)/);
+    const taintSourceMatch = text.match(/"taintSource"\s*:\s*"((?:[^"\\]|\\.)*)/);
+    const matchDetailMatch = text.match(/"matchDetail"\s*:\s*"((?:[^"\\]|\\.)*)/);
+    const fixSuggestionMatch = text.match(/"fixSuggestion"\s*:\s*"((?:[^"\\]|\\.)*)/);
+    const likelyCweMatch = text.match(/"likelyCwe"\s*:\s*\[((?:[^"\]])*)\]/);
+
+    return {
+      verdict: verdictMatch[1] as 'true_positive' | 'false_positive',
+      confidence: confidenceMatch ? Math.min(1, Math.max(0, parseFloat(confidenceMatch[1]))) : 0.5,
+      explanation: explanationMatch ? explanationMatch[1] : 'Response truncated — partial extraction',
+      dataFlow: dataFlowMatch ? dataFlowMatch[1] : undefined,
+      taintSource: taintSourceMatch ? taintSourceMatch[1] : undefined,
+      matchDetail: matchDetailMatch ? matchDetailMatch[1] : undefined,
+      fixSuggestion: fixSuggestionMatch ? fixSuggestionMatch[1] : undefined,
+      likelyCwe: likelyCweMatch ? likelyCweMatch[1].split(',').map(s => s.trim().replace(/"/g, '')) : undefined,
+    };
   },
 };

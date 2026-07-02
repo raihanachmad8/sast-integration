@@ -1,3 +1,4 @@
+import { PERMISSION } from '@/commons/constants/permissions';
 import type { CreateApiTokenInput } from '@/commons/schemas/api-token.schema';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
@@ -28,7 +29,7 @@ export const projectApiTokenService = {
     userId: string,
   ) {
     logger.project.info('apiToken.create', { projectId, name: input.name });
-    const permissions = input.permissions ?? ['scans:upload'];
+    const permissions = input.permissions ?? [PERMISSION.SCAN_UPLOAD];
 
     const expiresAt = input.expiresInDays
       ? new Date(Date.now() + input.expiresInDays * MS_PER_DAY)

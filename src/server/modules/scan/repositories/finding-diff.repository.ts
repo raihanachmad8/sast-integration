@@ -363,10 +363,9 @@ export const findingDiffRepository = {
     const executor = tx ?? db;
 
     if (changedFiles.length === 0) {
-      await executor
-        .update(findingGroupScans)
-        .set({ isNew: false })
-        .where(eq(findingGroupScans.scanId, scanId));
+      // No git diff available — preserve existing isNew flags.
+      // findOrCreateFindingGroups already set isNew=true for new fingerprints.
+      // Don't overwrite with false just because SCM diff failed.
       return;
     }
 

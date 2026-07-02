@@ -1,12 +1,13 @@
 'use client';
 
 import { LoadingOutlined } from '@ant-design/icons';
-import { Modal, Input, Select, Form, App, theme, Flex, Typography, Tooltip } from 'antd';
+import { Modal, Input, Select, Form, App, theme, Flex, Typography, Tooltip, AutoComplete } from 'antd';
 import { useState, useMemo, useCallback } from 'react';
 
 import { FaIcon } from '@/commons/components/FaIcon';
 import { MODAL_WIDTH, MODEL_ROLE } from '@/commons/constants/layout';
 import { createAiModelSchema } from '@/commons/schemas/ai-model.schema';
+import { aiModelsApi } from '@/modules/ai-models/api';
 import { createZodSync } from '@/lib/utils/zod-sync';
 
 import { PROVIDERS, ROLE_OPTIONS, PROFILE_TYPE_OPTIONS, PROVIDER } from './providers';
@@ -14,7 +15,7 @@ import { PROVIDERS, ROLE_OPTIONS, PROFILE_TYPE_OPTIONS, PROVIDER } from './provi
 interface AddModelModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (values: Record<string, unknown>) => void;
+  onSave: (values: Record<string, unknown>) => Promise<boolean>;
 }
 
 /**
@@ -38,6 +39,7 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
   const [form] = Form.useForm();
   const [selectedProvider, setSelectedProvider] = useState<string>('openai-compatible');
   const [fetchingModels, setFetchingModels] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
   const rule = createZodSync(createAiModelSchema);
 
@@ -50,21 +52,14 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
   }, [providerConfig, fetchedModels]);
 
   const handleFetchModels = useCallback(async (url?: string) => {
-    let baseUrl = url ?? form.getFieldValue('baseUrl');
+    const baseUrl = url ?? form.getFieldValue('baseUrl');
     if (!baseUrl) {
       message.warning('Enter a Base URL first');
       return;
     }
-    if (!/^https?:\/\//i.test(baseUrl)) {
-      baseUrl = `http://${baseUrl}`;
-    }
-    const modelsUrl = baseUrl.endsWith('/v1') ? `${baseUrl}/models` : `${baseUrl}/v1/models`;
     setFetchingModels(true);
     try {
-      const res = await fetch(modelsUrl, { method: 'GET' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const models: string[] = (json.data ?? json.models ?? []).map((m: { id?: string; name?: string }) => m.id ?? m.name).filter(Boolean);
+      const models = await aiModelsApi.fetchProviderModels(baseUrl);
       if (models.length === 0) {
         message.info('No models found — type a custom name below');
       } else {
@@ -88,8 +83,9 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
     }
   };
 
-  const handleSave = () => {
-    form.validateFields().then((values) => {
+  const handleSave = async () => {
+    try {
+      const values = await form.validateFields();
       // Ensure baseUrl is populated from provider default if empty
       if (!values.baseUrl) {
         const config = PROVIDERS.find(p => p.value === values.provider);
@@ -99,25 +95,34 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
       if (values.baseUrl && !/^https?:\/\//i.test(values.baseUrl)) {
         values.baseUrl = `http://${values.baseUrl}`;
       }
-      onSave(values);
-      onClose();
-      form.resetFields();
-      setSelectedProvider('openai-compatible');
-      setFetchedModels([]);
-    });
+      setSaving(true);
+      const success = await onSave(values);
+      if (success) {
+        form.resetFields();
+        setSelectedProvider('openai-compatible');
+        setFetchedModels([]);
+        onClose();
+      }
+    } catch {
+      // validation error — antd shows inline errors
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <Modal
       title="Add model"
       open={open}
-      onOk={handleSave}
+      destroyOnHidden
+      onOk={() => form.submit()}
       onCancel={onClose}
       okText="Add"
+      confirmLoading={saving}
       width={MODAL_WIDTH.MD}
       afterOpenChange={(visible) => { if (visible && selectedProvider === PROVIDER.OPENAI_COMPATIBLE) { const url = form.getFieldValue('baseUrl'); if (url) handleFetchModels(url); } }}
     >
-      <Form form={form} layout="vertical" initialValues={{ name: '', provider: 'openai-compatible', baseUrl: '', role: MODEL_ROLE.FALLBACK }}>
+      <Form form={form} layout="vertical" initialValues={{ name: '', provider: 'openai-compatible', baseUrl: '', role: MODEL_ROLE.FALLBACK }} onFinish={handleSave}>
         <Flex vertical gap={token.paddingMD} style={{ padding: `${token.paddingSM} 0` }}>
 
           {/* Provider */}
@@ -149,6 +154,11 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
           >
             <Input
               placeholder={providerConfig?.defaultBaseUrl || 'https://api.example.com/v1'}
+              onPressEnter={(e) => {
+                e.preventDefault();
+                const val = (e.target as HTMLInputElement).value;
+                if (val) handleFetchModels(val);
+              }}
               onBlur={(e) => {
                 const val = e.target.value;
                 if (val && val.startsWith('http')) handleFetchModels(val);
@@ -193,20 +203,12 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
             rules={[rule]}
             extra={fetchingModels ? <Flex align="center" gap={token.marginXS}><LoadingOutlined /><Typography.Text type="secondary">Fetching models from endpoint...</Typography.Text></Flex> : undefined}
           >
-            <Select
-              showSearch
+            <AutoComplete
               placeholder="Search or type a model name"
-              allowClear
               filterOption={(input, option) =>
                 (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
               options={modelOptions}
-              notFoundContent={
-                <Flex align="center" gap={token.marginSM} style={{ padding: token.paddingXS }}>
-                  <FaIcon icon="fa-keyboard" style={{ color: token.colorTextSecondary }} />
-                  <Typography.Text type="secondary">Type a custom model name</Typography.Text>
-                </Flex>
-              }
             />
           </Form.Item>
 
@@ -219,6 +221,9 @@ export function AddModelModal({ open, onClose, onSave }: AddModelModalProps) {
           <Form.Item label="Profile type" name="promptPreset" initialValue="strict" rules={[rule]}>
             <Select options={PROFILE_TYPE_OPTIONS} />
           </Form.Item>
+
+          {/* Hidden submit button enables Enter-to-submit in the form */}
+          <button type="submit" style={{ display: 'none' }} aria-hidden="true" />
 
         </Flex>
       </Form>

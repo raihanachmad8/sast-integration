@@ -14,6 +14,7 @@ export interface CreateRepositoryInput {
   connectionType?: string[];
   autoScan?: boolean;
   createdBy?: string;
+  provider?: string;
 }
 
 export interface UpdateRepositoryInput {
@@ -26,6 +27,7 @@ export interface UpdateRepositoryInput {
   autoScan?: boolean;
   webhookId?: string;
   webhookSecret?: string;
+  provider?: string;
 }
 
 export interface RepositoryListParams {
@@ -83,6 +85,7 @@ export const repositoriesRepository = {
           defaultBranch: data.defaultBranch ?? 'main',
           connectionType: data.connectionType ?? ['scm'],
           autoScan: data.autoScan ?? false,
+          provider: data.provider,
           ...(data.createdBy && { createdBy: data.createdBy, updatedBy: data.createdBy }),
         })
         .returning();
@@ -174,6 +177,7 @@ export const repositoriesRepository = {
           defaultBranch: data.defaultBranch ?? 'main',
           connectionType: data.connectionType ?? ['scm'],
           autoScan: data.autoScan ?? false,
+          provider: data.provider,
           ...(data.createdBy && { createdBy: data.createdBy, updatedBy: data.createdBy }),
         })
         .onConflictDoNothing()
@@ -204,6 +208,8 @@ export const repositoriesRepository = {
           if (merged.length !== current.length) updates.connectionType = merged;
         }
 
+        if (data.provider) updates.provider = data.provider;
+
         if (Object.keys(updates).length > 1) {
           await executor.update(repositories).set(updates).where(eq(repositories.id, existing.id));
           logger.repository.info('findOrCreate completed (updated existing)', { repoId: existing.id, name: data.name });
@@ -233,6 +239,7 @@ export const repositoriesRepository = {
             projectId: data.projectId,
             defaultBranch: data.defaultBranch ?? 'main',
             connectionType: data.connectionType ?? ['scm'],
+            provider: data.provider,
             updatedAt: new Date(),
           })
           .where(eq(repositories.id, softDeleted.id))

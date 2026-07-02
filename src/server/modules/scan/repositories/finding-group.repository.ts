@@ -120,6 +120,22 @@ export const findingGroupRepository = {
         .update(findingGroups)
         .set({ status: 'open', lastSeenAt: new Date() })
         .where(inArray(findingGroups.id, groupsToReopen));
+
+      // Audit trail: record reopen for each group's first finding
+      for (const groupId of groupsToReopen) {
+        const [firstFinding] = await executor.select({ id: findings.id })
+          .from(findings).where(eq(findings.groupId, groupId)).limit(1);
+
+        if (firstFinding) {
+          await executor.insert(findingHistory).values({
+            findingId: firstFinding.id,
+            field: 'group_status',
+            oldValue: 'resolved',
+            newValue: 'open',
+            createdBy: null,
+          });
+        }
+      }
     }
 
     if (groups.length > 0) {

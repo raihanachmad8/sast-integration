@@ -1,13 +1,11 @@
 'use client';
 
-import { Modal, Select, Button, Typography, Row, Col, Flex, theme } from 'antd';
-import { useState, useMemo } from 'react';
+import { Modal, Button, Typography, Row, Col, Flex, theme } from 'antd';
+import { useState } from 'react';
 
 import { PermissionGate } from '@/commons/components/PermissionGate';
 import { PERMISSION } from '@/commons/constants/permissions';
 import type { Finding } from '@/commons/types';
-import type { AiModelRow } from '@/commons/types/ai-models';
-import { useAiModelsQuery } from '@/modules/ai-models';
 
 const { Text } = Typography;
 
@@ -15,7 +13,7 @@ interface FindingActionsProps {
   finding: Finding;
   onDismiss?: (id: string) => void;
   onResolve?: (id: string) => void;
-  onReverify?: (id: string, modelId: string) => void;
+  onReverify?: (id: string) => void;
   onOpenFullPage?: (id: string) => void;
 }
 
@@ -32,26 +30,13 @@ interface FindingActionsProps {
  *   finding={finding}
  *   onDismiss={(id) => dismissFinding(id)}
  *   onResolve={(id) => resolveFinding(id)}
- *   onReverify={(id, modelId) => reverifyFinding(id, modelId)}
+ *   onReverify={(id) => reverifyFinding(id)}
  *   onOpenFullPage={(id) => navigateTo(id)}
  * />
  */
 export function FindingActions({ finding, onDismiss, onResolve, onReverify, onOpenFullPage }: FindingActionsProps) {
   const { token } = theme.useToken();
   const [resolveOpen, setResolveOpen] = useState(false);
-  const [reverifyOpen, setReverifyOpen] = useState(false);
-  const [reverifyModel, setReverifyModel] = useState<string>('');
-
-  const { data: modelsData } = useAiModelsQuery({ page: 1, perPage: 100 });
-  const modelOptions = useMemo(() => {
-    const models = modelsData?.data ?? [];
-    return models.map((m: AiModelRow) => ({
-      value: m.id,
-      label: m.name || m.id,
-    }));
-  }, [modelsData]);
-
-  const effectiveReverifyModel = reverifyModel || modelOptions[0]?.value || '';
 
   const sectionTitleStyle = {
     fontSize: token.fontSizeSM,
@@ -64,13 +49,6 @@ export function FindingActions({ finding, onDismiss, onResolve, onReverify, onOp
   const handleResolve = () => {
     onResolve?.(finding.id);
     setResolveOpen(false);
-  };
-
-  const handleReverify = () => {
-    const modelId = effectiveReverifyModel;
-    if (!modelId) return;
-    onReverify?.(finding.id, modelId);
-    setReverifyOpen(false);
   };
 
   return (
@@ -90,7 +68,7 @@ export function FindingActions({ finding, onDismiss, onResolve, onReverify, onOp
           </Col>
           <Col span={12}>
             <PermissionGate permission={PERMISSION.FINDING_OVERRIDE_AI}>
-              <Button block onClick={() => setReverifyOpen(true)}>Re-verify with AI</Button>
+              <Button block onClick={() => onReverify?.(finding.id)}>Re-verify with AI</Button>
             </PermissionGate>
           </Col>
           {onOpenFullPage && (
@@ -113,20 +91,6 @@ export function FindingActions({ finding, onDismiss, onResolve, onReverify, onOp
         <Flex vertical gap={token.marginSM} style={{ marginTop: token.marginMD }}>
           <Text>Resolve <strong>{finding.rule}</strong> as not an issue?</Text>
           <Text type="secondary">This marks the finding as resolved. It will not block the quality gate.</Text>
-        </Flex>
-      </Modal>
-
-      <Modal title="Re-verify with AI" open={reverifyOpen} destroyOnHidden onOk={handleReverify} onCancel={() => setReverifyOpen(false)} okText="Start">
-        <Flex vertical gap={token.marginSM} style={{ marginTop: token.marginMD }}>
-          <Text>Select a model to re-verify <strong>{finding.rule}</strong>.</Text>
-          <Select
-            value={effectiveReverifyModel}
-            onChange={setReverifyModel}
-            style={{ width: '100%' }}
-            options={modelOptions}
-            placeholder="Select a model"
-            notFoundContent="No models configured"
-          />
         </Flex>
       </Modal>
     </>

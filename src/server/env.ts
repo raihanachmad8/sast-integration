@@ -75,7 +75,6 @@ const envSchema = z
     LOG_DESTINATION: z.enum(["console", "file", "both"]).default("console"),
     LOG_DIR: z.string().default("logs"),
     LOG_ROTATION: z.enum(["daily", "none"]).default("daily"),
-    AI_VERIFY_BATCH_SIZE: z.coerce.number().int().min(1).max(20).default(5),
     ALLOW_LOCAL_AI_MODELS: z
       .string()
       .default("true")

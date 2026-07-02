@@ -48,7 +48,7 @@ describe('GET /api/v1/workspaces/:wid/source-controls', () => {
   });
 
   /**
-   * Purpose: Verify that sensitive credential fields (token, clientSecret, refreshToken) are masked in responses.
+   * Purpose: Verify that sensitive credential fields (token, clientSecret, refreshToken) are fully masked in responses.
    */
   it('should sanitize credentials in response', async () => {
     const result = await getSourceControls(token, WORKSPACE_ID);
@@ -57,27 +57,27 @@ describe('GET /api/v1/workspaces/:wid/source-controls', () => {
     const sc = result.data[0];
     expect(sc.credentials).toBeDefined();
 
-    // Token should be masked
+    // Token should be fully masked (no partial values exposed)
     if (sc.credentials.token) {
-      expect(sc.credentials.token).toMatch(/\*{4}/);
+      expect(sc.credentials.token).toBe('****');
     }
 
-    // ClientSecret should be masked
+    // ClientSecret should be fully masked
     if (sc.credentials.clientSecret) {
-      expect(sc.credentials.clientSecret).toMatch(/\*{4}/);
+      expect(sc.credentials.clientSecret).toBe('****');
     }
 
-    // RefreshToken should be masked
+    // RefreshToken should be fully masked
     if (sc.credentials.refreshToken) {
-      expect(sc.credentials.refreshToken).toMatch(/\*{4}/);
+      expect(sc.credentials.refreshToken).toBe('****');
     }
 
     // Non-sensitive fields should NOT be masked
     if (sc.credentials.baseUrl) {
-      expect(sc.credentials.baseUrl).not.toMatch(/\*{4}/);
+      expect(sc.credentials.baseUrl).not.toBe('****');
     }
     if (sc.credentials.clientId) {
-      expect(sc.credentials.clientId).not.toMatch(/\*{4}/);
+      expect(sc.credentials.clientId).not.toBe('****');
     }
   });
 });
@@ -108,9 +108,9 @@ describe('GET /api/v1/workspaces/:wid/source-controls/:id', () => {
     expect(result.data.id).toBe(scId);
     expect(result.data.credentials).toBeDefined();
 
-    // Verify credential sanitization
+    // Verify credential sanitization — token should be fully masked
     if (result.data.credentials.token) {
-      expect(result.data.credentials.token).toMatch(/\*{4}/);
+      expect(result.data.credentials.token).toBe('****');
     }
   });
 

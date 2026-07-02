@@ -1,12 +1,13 @@
 'use client';
 
 import { LoadingOutlined } from '@ant-design/icons';
-import { Modal, Input, Select, Form, App, theme, Flex, Typography, Tooltip } from 'antd';
+import { Modal, Input, Select, Form, App, theme, Flex, Typography, Tooltip, AutoComplete } from 'antd';
 import { useState, useMemo, useCallback } from 'react';
 
 import { FaIcon } from '@/commons/components/FaIcon';
 import { MODAL_WIDTH, MODEL_ROLE } from '@/commons/constants/layout';
 import { updateAiModelSchema } from '@/commons/schemas/ai-model.schema';
+import { aiModelsApi } from '@/modules/ai-models/api';
 import { createZodSync } from '@/lib/utils/zod-sync';
 
 import { PROVIDERS, ROLE_OPTIONS, PROFILE_TYPE_OPTIONS, PROVIDER } from './providers';
@@ -27,7 +28,7 @@ interface EditModelModalProps {
   open: boolean;
   model: Model | null;
   onClose: () => void;
-  onSave: (values: Record<string, unknown>) => void;
+  onSave: (values: Record<string, unknown>) => Promise<boolean>;
 }
 
 /**
@@ -52,6 +53,7 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
   const [form] = Form.useForm();
   const selectedProvider = Form.useWatch('provider', form) ?? model?.provider ?? 'openai-compatible';
   const [fetchingModels, setFetchingModels] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
   const rule = createZodSync(updateAiModelSchema);
 
@@ -68,25 +70,19 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
     const config = PROVIDERS.find(p => p.value === value);
     if (config) {
       form.setFieldsValue({ baseUrl: config.defaultBaseUrl });
+      if (config.defaultBaseUrl) handleFetchModels();
     }
   };
 
   const handleFetchModels = useCallback(async () => {
-    let baseUrl = form.getFieldValue('baseUrl');
+    const baseUrl = form.getFieldValue('baseUrl');
     if (!baseUrl) {
       message.warning('Enter a Base URL first');
       return;
     }
-    if (!/^https?:\/\//i.test(baseUrl)) {
-      baseUrl = `http://${baseUrl}`;
-    }
-    const modelsUrl = baseUrl.endsWith('/v1') ? `${baseUrl}/models` : `${baseUrl}/v1/models`;
     setFetchingModels(true);
     try {
-      const res = await fetch(modelsUrl, { method: 'GET' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const models: string[] = (json.data ?? json.models ?? []).map((m: { id?: string; name?: string }) => m.id ?? m.name).filter(Boolean);
+      const models = await aiModelsApi.fetchProviderModels(baseUrl);
       if (models.length === 0) {
         message.info('No models found — type a custom name below');
       } else {
@@ -98,17 +94,25 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
     } finally {
       setFetchingModels(false);
     }
-  }, [form, message]);
+  }, [form, message, aiModelsApi]);
 
-  const handleSave = () => {
-    form.validateFields().then((values) => {
+  const handleSave = async () => {
+    try {
+      const values = await form.validateFields();
       // Ensure baseUrl has a protocol prefix
       if (values.baseUrl && !/^https?:\/\//i.test(values.baseUrl)) {
         values.baseUrl = `http://${values.baseUrl}`;
       }
-      onSave(values);
-      onClose();
-    });
+      setSaving(true);
+      const success = await onSave(values);
+      if (success) {
+        onClose();
+      }
+    } catch {
+      // validation error — antd shows inline errors
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -116,12 +120,13 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
       title="Edit model"
       open={open}
       destroyOnHidden
-      onOk={handleSave}
+      onOk={() => form.submit()}
       onCancel={onClose}
       okText="Save"
+      confirmLoading={saving}
       width={MODAL_WIDTH.MD}
     >
-      <Form form={form} layout="vertical" initialValues={{ name: model?.name ?? '', provider: model?.provider ?? 'openai-compatible', baseUrl: model?.baseUrl ?? '', role: model?.role ?? 'fallback', promptPreset: model?.promptPreset ?? 'strict' }}>
+      <Form form={form} layout="vertical" initialValues={{ name: model?.name ?? '', provider: model?.provider ?? 'openai-compatible', baseUrl: model?.baseUrl ?? '', role: model?.role ?? 'fallback', promptPreset: model?.promptPreset ?? 'strict' }} onFinish={handleSave}>
         <Flex vertical gap={token.paddingMD} style={{ padding: `${token.paddingSM} 0` }}>
 
           {/* Provider */}
@@ -153,6 +158,7 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
           >
             <Input
               placeholder={providerConfig?.defaultBaseUrl || 'https://api.example.com/v1'}
+              onPressEnter={(e) => { e.preventDefault(); handleFetchModels(); }}
               suffix={
                 <Tooltip
                   title="Fetch available models from this endpoint"
@@ -219,6 +225,9 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
           <Form.Item label="Profile type" name="promptPreset" rules={[rule]}>
             <Select options={PROFILE_TYPE_OPTIONS} />
           </Form.Item>
+
+          {/* Hidden submit button enables Enter-to-submit in the form */}
+          <button type="submit" style={{ display: 'none' }} aria-hidden="true" />
 
         </Flex>
       </Form>

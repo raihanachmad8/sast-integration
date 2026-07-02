@@ -10,6 +10,7 @@ import { EmptyState } from '@/commons/components/EmptyState';
 import { MemberSelect } from '@/commons/components/MemberSelect';
 import { StatusTag } from '@/commons/components/StatusTag';
 import type { Finding } from '@/commons/types';
+import { normalizeFinding } from '@/commons/types/findings';
 
 import { FindingActions } from './FindingActions';
 import { ScannerOutputSection } from './ScannerOutputSection';
@@ -23,7 +24,7 @@ interface FindingDetailDrawerProps {
   members?: Array<{ userId: string; name: string; email: string; initials: string; color: string }>;
   onDismiss?: (id: string) => void;
   onResolve?: (id: string) => void;
-  onReverify?: (id: string, model: string) => void;
+  onReverify?: (id: string) => void;
   onOpenFullPage?: (id: string) => void;
   onAssign?: (findingId: string, assignee: string | null) => void;
 }
@@ -44,7 +45,7 @@ interface FindingDetailDrawerProps {
  *   onClose={() => setOpen(false)}
  *   onDismiss={(id) => dismissFinding(id)}
  *   onResolve={(id) => resolveFinding(id)}
- *   onReverify={(id, model) => reverifyFinding(id, model)}
+ *   onReverify={(id) => reverifyFinding(id)}
  *   onAssign={(findingId, assignee) => assignFinding(findingId, assignee)}
  * />
  */
@@ -68,13 +69,7 @@ export const FindingDetailDrawer = React.memo(function FindingDetailDrawer({
       </Drawer>
     );
   }
-
-  const normalizedFinding: Finding = {
-    ...finding,
-    repo: finding.repo || (finding as unknown as Record<string, unknown>).repositoryName as string || (finding as unknown as Record<string, unknown>).repository as string || '',
-    cwe: finding.cwe || (finding as unknown as Record<string, unknown>).cweId as string || '',
-    assignee: finding.assignee ?? (finding as unknown as Record<string, unknown>).assignedTo as string | null ?? null,
-  };
+  const normalizedFinding: Finding = normalizeFinding(finding as unknown as Record<string, unknown>);
 
   const sectionTitleStyle = {
     fontSize: token.fontSizeSM,

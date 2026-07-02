@@ -294,7 +294,7 @@ export const projectRepository = {
         importMode: repositories.importMode,
         projectId: repositories.projectId,
         projectName: projects.name,
-        provider: sourceControls.provider,
+        provider: sql<string | null>`COALESCE(${repositories.provider}, ${sourceControls.provider})`,
         providerName: sourceControls.name,
         createdAt: repositories.createdAt,
         lastSyncedAt: repositories.lastSyncedAt,

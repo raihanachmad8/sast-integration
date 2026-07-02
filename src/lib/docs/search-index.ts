@@ -354,14 +354,14 @@ export const SEARCH_INDEX: Record<string, SearchEntry> = {
       "Roles",
       "Permission Matrix",
       "Permission Format",
-      "Resources (19)",
-      "Actions (10)",
+      "Resources (18)",
+      "Actions (9)",
       "Component Guards",
       "PermissionGate (UI)",
       "requirePermission (API)",
       "Role Summary"
     ],
-    "content": "SAST Integration implements granular RBAC with 4 roles and 39 permissions. dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, quality_gate, scanner, ai_model, knowledge, workspace, audit view, manage, run, upload, triage, override_ai, export, invite, settings, read"
+    "content": "SAST Integration implements granular RBAC with 4 roles and 36 permissions. dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, scanner, ai_model, knowledge, workspace, audit view, manage, run, triage, override_ai, export, invite, settings, read"
   },
   "reports": {
     "headings": [
@@ -604,12 +604,12 @@ export const SEARCH_INDEX: Record<string, SearchEntry> = {
       "Multi-Workspace",
       "Permission System",
       "Format",
-      "Resources (19)",
-      "Actions (10)",
-      "Total Permissions: 39",
+      "Resources (18)",
+      "Actions (9)",
+      "Total Permissions: 36",
       "Feature Flags"
     ],
-    "content": "SAST Integration uses a workspace-based multi-tenant architecture. Workspaces isolate data, members, and configurations. Users can belong to multiple workspaces: dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, quality_gate, scanner, ai_model, knowledge, workspace, audit view, manage, run, upload, triage, override_ai, export, invite, settings, read Each workspace can have different features enabled:"
+    "content": "SAST Integration uses a workspace-based multi-tenant architecture. Workspaces isolate data, members, and configurations. Users can belong to multiple workspaces: dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, scanner, ai_model, knowledge, workspace, audit view, manage, run, triage, override_ai, export, invite, settings, read Each workspace can have different features enabled:"
   },
   "workspace-permissions": {
     "headings": [

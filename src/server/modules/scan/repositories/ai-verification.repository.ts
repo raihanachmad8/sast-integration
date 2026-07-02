@@ -118,8 +118,9 @@ export const aiVerificationRepository = {
   },
 
   /**
-   * Batch check which groups have AI verification.
-   * Returns array of group IDs that have at least one verification.
+   * Batch check which groups have ANY AI verification attempt.
+   * Returns array of group IDs that have at least one verification record.
+   * This prevents re-enqueuing findings that already succeeded OR failed.
    */
   async hasVerificationBatch(groupIds: string[], tx?: Tx): Promise<string[]> {
     if (groupIds.length === 0) return [];

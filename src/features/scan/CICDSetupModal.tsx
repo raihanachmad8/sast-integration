@@ -58,64 +58,15 @@ export const CICDSetupModal = React.memo(function CICDSetupModal({ open, onClose
     message.success(`${label} copied!`);
   };
 
-  const copyYamlContent = () => {
-    const yamlExample = `name: SAST Security Scan
-
-on:
-  push:
-    branches: [main, develop, master]
-  pull_request:
-    branches: [main, develop]
-    types: [opened, synchronize, reopened]
-  workflow_dispatch:
-
-env:
-  SAST_API_URL: "\${{ secrets.SAST_API_URL }}"
-  SAST_API_KEY: "\${{ secrets.SAST_API_KEY }}"
-
-jobs:
-  init:
-    runs-on: ubuntu-latest
-    outputs:
-      scan_id: \${{ steps.create.outputs.scan_id }}
-    steps:
-      - name: Create scan
-        id: create
-        run: |
-          RESP=$(curl -s -X POST "\${SAST_API_URL}/api/v1/ci/init" \\
-            -H "Authorization: Bearer \${SAST_API_KEY}" \\
-            -H "Content-Type: application/json" \\
-            -d '{"repoName":"${repository?.name ?? 'owner/repo'}","repoUrl":"\${GITHUB_SERVER_URL}/${repository?.name ?? 'owner/repo'}.git","branch":"\${GITHUB_REF_NAME}","commit":"\${GITHUB_SHA}"}')
-          SCAN_ID=$(echo "\${RESP}" | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['scanId'])")
-          echo "scan_id=\${SCAN_ID}" >> \${GITHUB_OUTPUT}
-
-  semgrep:
-    needs: [init]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: pip install semgrep --break-system-packages
-      - run: semgrep scan --config p/default --json --output results.json --metrics off . || true
-      - if: always()
-        run: |
-          curl -X POST -H "Authorization: Bearer \$SAST_API_KEY" \\
-            -F "scanId=\${{ needs.init.outputs.scan_id }}" \\
-            -F "tool=semgrep" \\
-            -F "sarif=@results.json" \\
-            -F "repoName=${repository?.name ?? 'owner/repo'}" \\
-            "\${SAST_API_URL}/api/v1/ci/upload"
-
-  finalize:
-    needs: [init, semgrep]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          curl -X POST "\${SAST_API_URL}/api/v1/ci/complete" \\
-            -H "Authorization: Bearer \$SAST_API_KEY" \\
-            -H "Content-Type: application/json" \\
-            -d '{"scanId":"\${{ needs.init.outputs.scan_id }}","status":"completed","tools":["semgrep"],"platform":"github","trigger":"ci"}'`;
-    copyToClipboard(yamlExample, 'YAML template');
+  const copyYamlContent = async () => {
+    try {
+      const res = await fetch(`/api/v1/ci/examples?platform=${selectedPlatform}`);
+      if (!res.ok) throw new Error('Failed to load example');
+      const { content } = await res.json();
+      copyToClipboard(content, 'YAML template');
+    } catch {
+      message.error('Failed to load YAML template');
+    }
   };
 
   return (
@@ -209,7 +160,7 @@ jobs:
                       </Flex>
                     ))}
                     <Alert
-                      message="Token needs 'scans:upload' permission"
+                      message="Token needs 'scan:upload' permission"
                       type="warning"
                       showIcon
                       icon={<FaIcon icon="fa-triangle-exclamation" />}

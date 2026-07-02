@@ -21,7 +21,7 @@ import { errorMessage } from '@/lib/api/errors';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useSessionData } from '@/modules/auth/queries';
-import { useSourceControlProvidersQuery, useSourceControlReposQuery, useDeleteSourceControlMutation, useDisconnectSourceControlMutation, useAddSourceControlProviderMutation, useUpdateSourceControlMutation, useSyncProviderMutation, useImportRepositoryMutation, useUninstallRepositoryMutation, useTestSourceControlMutation } from '@/modules/source-control';
+import { useSourceControlProvidersQuery, useSourceControlReposQuery, useDeleteSourceControlMutation, useAddSourceControlProviderMutation, useUpdateSourceControlMutation, useSyncProviderMutation, useImportRepositoryMutation, useUninstallRepositoryMutation, useTestSourceControlMutation } from '@/modules/source-control';
 
 interface ScmProvider {
   id: string;
@@ -122,7 +122,6 @@ function SourceControlPageContent() {
 
   const sourceControlsQuery = useSourceControlProvidersQuery();
   const deleteSourceControlMutation = useDeleteSourceControlMutation();
-  const disconnectSourceControlMutation = useDisconnectSourceControlMutation();
   const addProviderMutation = useAddSourceControlProviderMutation();
   const updateProviderMutation = useUpdateSourceControlMutation();
   const syncProviderMutation = useSyncProviderMutation();
@@ -242,18 +241,6 @@ function SourceControlPageContent() {
     });
   };
 
-  const handleDisconnect = (providerId: string) => {
-    confirm({
-      title: 'Disconnect?',
-      content: 'Disconnect this provider? You can reconnect later.',
-      okText: 'Disconnect',
-      onOk: () => disconnectSourceControlMutation.mutate(providerId, {
-        onSuccess: () => { message.success('Provider disconnected'); refetchAll(); },
-        onError: (err) => message.error(errorMessage(err)),
-      }),
-    });
-  };
-
   const handleDelete = (providerId: string) => {
     confirm({
       title: 'Delete provider?',
@@ -361,7 +348,6 @@ function SourceControlPageContent() {
               { label: 'Configure', icon: <FaIcon icon="fa-gear" />, onClick: (row) => handleConfigure(row.name), show: () => canManage },
               { label: 'Test', icon: <FaIcon icon="fa-flask-vial" />, onClick: (row) => handleTest(row.id), disabled: (row) => row.status === SCM_STATUS.DISCONNECTED, show: () => canManage },
               { label: 'Sync', icon: <FaIcon icon="fa-arrows-rotate" />, onClick: (row) => handleSync(row.id), disabled: (row) => row.status !== SCM_STATUS.CONNECTED, show: () => canManage },
-              { label: 'Disconnect', icon: <FaIcon icon="fa-link-slash" />, onClick: (row) => handleDisconnect(row.id), show: (row) => row.status === SCM_STATUS.CONNECTED && canManage },
               { label: 'Delete', icon: <FaIcon icon="fa-trash" />, variant: 'danger' as const, onClick: (row) => handleDelete(row.id), show: () => canManage },
             ]}
           />

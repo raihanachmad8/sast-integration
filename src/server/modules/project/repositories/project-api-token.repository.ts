@@ -2,6 +2,7 @@ import crypto from 'crypto';
 
 import { eq, and, isNull, or, gt, count } from 'drizzle-orm';
 
+import { PERMISSION } from '@/commons/constants/permissions';
 import { db, type Tx } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
 import { buildPaginationMeta, buildSearch, buildSort } from '@/server/lib/query';
@@ -45,7 +46,7 @@ export const projectApiTokenRepository = {
           name: data.name.trim(),
           tokenSha256: tokenSha256Val,
           tokenPrefix: prefix,
-          permissions: data.permissions ?? ['scans:upload'],
+          permissions: data.permissions ?? [PERMISSION.SCAN_UPLOAD],
           expiresAt: data.expiresAt ?? undefined,
         } as NewProjectApiToken)
         .returning();

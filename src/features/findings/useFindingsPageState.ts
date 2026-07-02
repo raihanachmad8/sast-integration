@@ -7,11 +7,12 @@ import { useState, useMemo, useCallback } from 'react';
 
 import type { MemberListQuery as _MemberListQuery } from '@/commons/schemas/member.schema';
 import type { Finding } from '@/commons/types';
+import { normalizeFinding } from '@/commons/types/findings';
 import { useLazySelect } from '@/lib/hooks/useLazySelect';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { useSessionData } from '@/modules/auth/queries';
-import { useFindingsQuery, useUpdateFindingMutation, useRunAiVerificationMutation, useBulkUpdateFindingsMutation, findingsApi } from '@/modules/findings';
+import { useFindingsQuery, useUpdateFindingMutation, useBulkFindingsMutation, findingsApi } from '@/modules/findings';
 import type { FindingListParams } from '@/modules/findings/types';
 import { membersApi } from '@/modules/members/api';
 import { memberKeys } from '@/modules/members/keys';
@@ -78,8 +79,7 @@ export function useFindingsPageState() {
   });
 
   const updateStatusMutation = useUpdateFindingMutation();
-  const verifyMutation = useRunAiVerificationMutation();
-  const bulkUpdateMutation = useBulkUpdateFindingsMutation();
+  const bulkMutation = useBulkFindingsMutation();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selected, setSelected] = useState<Finding | null>(null);
@@ -91,42 +91,9 @@ export function useFindingsPageState() {
     ? { key: params.sortKey, dir: params.sortDir }
     : null;
 
-  const findings = useMemo(() => {
-    const raw = (findingsQuery.data?.data ?? []) as unknown as Array<{
-      id: string; scanId: string; groupId: string; projectId: string; cweId: string | null;
-      severity: string; groupStatus: string; filePath: string | null; lineNumber: number | null;
-      description: string | null; rule: string; scanner: string; message: string | null;
-      assignedTo: string | null; createdAt: string;
-      repositoryName: string | null; verdict: string | null; model: string | null; confidence: number | null;
-      explanation: string | null; fixSuggestion: string | null; codeSnippet: string | null;
-      matchDetail: string | null; likelyCwe: string[] | null;
-      dataFlow: string | null; taintSource: string | null;
-    }>;
-    return raw.map((f) => ({
-      id: f.id,
-      projectId: f.projectId ?? undefined,
-      rule: f.rule ?? '',
-      repo: f.repositoryName ?? '',
-      file: f.filePath ?? '',
-      filePath: f.filePath ?? undefined,
-      severity: f.severity as Finding['severity'],
-      scanner: f.scanner ?? '',
-      verdict: (f.verdict ?? 'Pending') as Finding['verdict'],
-      confidence: f.confidence ?? null,
-      model: f.model ?? '',
-      assignee: f.assignedTo ?? null,
-      status: (f.groupStatus ?? 'open') as Finding['status'],
-      cwe: f.cweId ?? '',
-      lineNumber: f.lineNumber ?? undefined,
-      message: f.message ?? undefined,
-      codeSnippet: f.codeSnippet ?? undefined,
-      explanation: f.explanation ?? undefined,
-      fixSuggestion: f.fixSuggestion ?? undefined,
-      matchDetail: f.matchDetail ?? undefined,
-      likelyCwe: f.likelyCwe ?? undefined,
-      dataFlow: f.dataFlow ?? undefined,
-      taintSource: f.taintSource ?? undefined,
-    }));
+  const findings: Finding[] = useMemo(() => {
+    const raw = (findingsQuery.data?.data ?? []) as unknown as Record<string, unknown>[];
+    return raw.map(normalizeFinding);
   }, [findingsQuery.data]);
   const totalCount = findingsQuery.data?.meta?.total ?? 0;
 
@@ -136,13 +103,10 @@ export function useFindingsPageState() {
       message.info('No pending findings on this page');
       return;
     }
-    verifyMutation.mutate(pending.map((f) => f.id), {
-      onSuccess: () => {
-        message.success(`AI verification queued for ${pending.length} finding(s)`);
-        findingsQuery.refetch();
-      },
+    bulkMutation.mutate({ ids: pending.map((f) => f.id), action: 'reverify' }, {
+      onSuccess: () => message.success(`AI verification queued for ${pending.length} finding(s)`),
     });
-  }, [findings, verifyMutation, message, findingsQuery]);
+  }, [findings, bulkMutation, message]);
 
   const assignMutation = useMutation({
     mutationFn: async ({ id, assignedTo }: { id: string; assignedTo: string | null }) => {
@@ -164,30 +128,27 @@ export function useFindingsPageState() {
       onSuccess: () => {
         setSelected((prev) => prev && prev.id === id ? { ...prev, status: 'dismissed' as const } : prev);
         message.success('Finding dismissed');
-        findingsQuery.refetch();
       },
     });
-  }, [updateStatusMutation, message, findingsQuery]);
+  }, [updateStatusMutation, message]);
 
   const handleResolve = useCallback((id: string) => {
     updateStatusMutation.mutate({ id, payload: { status: 'resolved' } }, {
       onSuccess: () => {
         setSelected((prev) => prev && prev.id === id ? { ...prev, status: 'resolved' as const } : prev);
         message.success('Finding resolved');
-        findingsQuery.refetch();
       },
     });
-  }, [updateStatusMutation, message, findingsQuery]);
+  }, [updateStatusMutation, message]);
 
-  const handleReverify = useCallback((id: string, model: string) => {
-    verifyMutation.mutate([id], {
+  const handleReverify = useCallback((id: string) => {
+    bulkMutation.mutate({ ids: [id], action: 'reverify' }, {
       onSuccess: () => {
-        setSelected((prev) => prev && prev.id === id ? { ...prev, verdict: 'Pending' as const, model, confidence: null } : prev);
-        message.info(`Re-verification queued with ${model}`);
-        findingsQuery.refetch();
+        setSelected((prev) => prev && prev.id === id ? { ...prev, verdict: 'Pending' as const, confidence: null } : prev);
+        message.info('Re-verification queued');
       },
     });
-  }, [verifyMutation, message, findingsQuery]);
+  }, [bulkMutation, message]);
 
   const handleOpenFullPage = useCallback((id: string) => {
     setDrawerOpen(false);
@@ -201,37 +162,27 @@ export function useFindingsPageState() {
       onSuccess: () => {
         setSelected((prev) => prev && prev.id === id ? { ...prev, assignee } : prev);
         message.success(assignee ? 'Finding assigned' : 'Finding unassigned');
-        findingsQuery.refetch();
       },
     });
-  }, [assignMutation, message, findingsQuery]);
+  }, [assignMutation, message]);
 
   const handleBulkDismiss = useCallback((ids: string[]) => {
-    bulkUpdateMutation.mutate({ ids, payload: { status: 'dismissed' } }, {
-      onSuccess: () => {
-        message.success(`${ids.length} finding(s) dismissed`);
-        findingsQuery.refetch();
-      },
+    bulkMutation.mutate({ ids, action: 'dismiss' }, {
+      onSuccess: () => message.success(`${ids.length} finding(s) dismissed`),
     });
-  }, [bulkUpdateMutation, message, findingsQuery]);
+  }, [bulkMutation, message]);
 
   const handleBulkResolve = useCallback((ids: string[]) => {
-    bulkUpdateMutation.mutate({ ids, payload: { status: 'resolved' } }, {
-      onSuccess: () => {
-        message.success(`${ids.length} finding(s) resolved`);
-        findingsQuery.refetch();
-      },
+    bulkMutation.mutate({ ids, action: 'resolve' }, {
+      onSuccess: () => message.success(`${ids.length} finding(s) resolved`),
     });
-  }, [bulkUpdateMutation, message, findingsQuery]);
+  }, [bulkMutation, message]);
 
   const handleBulkReverify = useCallback((ids: string[]) => {
-    verifyMutation.mutate(ids, {
-      onSuccess: () => {
-        message.info(`${ids.length} finding(s) queued for re-verification`);
-        findingsQuery.refetch();
-      },
+    bulkMutation.mutate({ ids, action: 'reverify' }, {
+      onSuccess: () => message.info(`${ids.length} finding(s) queued for re-verification`),
     });
-  }, [verifyMutation, message, findingsQuery]);
+  }, [bulkMutation, message]);
 
   const handleBulkAssign = useCallback((ids: string[]) => {
     setBulkAssignIds(ids);
@@ -241,21 +192,17 @@ export function useFindingsPageState() {
 
   const handleBulkAssignConfirm = useCallback(() => {
     if (!bulkAssignee) return;
-    let completed = 0;
-    bulkAssignIds.forEach((id) => {
-      assignMutation.mutate({ id, assignedTo: bulkAssignee }, {
+    bulkMutation.mutate(
+      { ids: bulkAssignIds, action: 'assign', assignedTo: bulkAssignee },
+      {
         onSuccess: () => {
-          completed++;
-          if (completed === bulkAssignIds.length) {
-            const member = members.data.find((m) => m.userId === bulkAssignee);
-            message.success(`${bulkAssignIds.length} finding(s) assigned to ${member?.name ?? bulkAssignee}`);
-            findingsQuery.refetch();
-          }
+          const member = members.data.find((m) => m.userId === bulkAssignee);
+          message.success(`${bulkAssignIds.length} finding(s) assigned to ${member?.name ?? bulkAssignee}`);
         },
-      });
-    });
+      }
+    );
     setBulkAssignOpen(false);
-  }, [bulkAssignIds, bulkAssignee, assignMutation, members, message, findingsQuery]);
+  }, [bulkAssignIds, bulkAssignee, bulkMutation, members, message]);
 
   const handleTableChange = useCallback((page: number, perPage: number) => {
     setPagination(page, perPage);

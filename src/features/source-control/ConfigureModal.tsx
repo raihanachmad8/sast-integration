@@ -82,7 +82,7 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
     const org = (creds.org as string) || existing?.org || '';
 
     const modeValue = existing?.modeDetail
-      ? CONNECTION_MODES[p]?.find((m) => m.label.toLowerCase().includes(existing.modeDetail.toLowerCase()))?.value ?? CONNECTION_MODES[p]?.[0]?.value ?? ''
+      ? CONNECTION_MODES[p]?.find((m) => m.value === existing.modeDetail)?.value ?? CONNECTION_MODES[p]?.[0]?.value ?? ''
       : CONNECTION_MODES[p]?.[0]?.value ?? '';
 
     return {
@@ -98,8 +98,7 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
       clientSecret: '',
       token: '',
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- provider is read via Form.useWatch and affects default URLs
-  }, [providerName, existingProvider, provider]);
+  }, [providerName, existingProvider]);
 
   const handleTestConnection = useCallback(async () => {
     if (!workspaceId) return;
@@ -108,7 +107,6 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
     setTestError('');
 
     try {
-      // Save first so we have a provider ID to test
       const values = form.getFieldsValue();
       const providerId = existingProvider ? (existingProvider as unknown as { id: string }).id : null;
 
@@ -123,7 +121,7 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
           setTestError('No credentials configured. Please fill in the required fields.');
         }
       } else {
-        // For new connections, try to save and test
+        // For new connections, validate form fields only — don't persist
         const hasRequiredFields = isPat
           ? !!values.token
           : isGithubApp
@@ -136,28 +134,8 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
           setTestResult('error');
           setTestError('Please fill in all required credentials before testing.');
         } else {
-          // Try to create the provider first, then test it
-          try {
-            const newProvider = await sourceControlApi.addProvider(workspaceId, {
-              provider: provider.toLowerCase(),
-              name: provider,
-              credentials: values,
-            });
-            const providerId = newProvider?.sourceControl?.id;
-            if (providerId) {
-              const testRes = await sourceControlApi.testProvider(workspaceId, providerId);
-              if (testRes.configured) {
-                setTestResult('success');
-                message.success('Connection test passed');
-              } else {
-                setTestResult('error');
-                setTestError('No credentials configured. Please fill in the required fields.');
-              }
-            }
-          } catch {
-            setTestResult('error');
-            setTestError('Failed to create connection. Please check your credentials.');
-          }
+          setTestResult('success');
+          message.success('Credentials validated — save to persist and test connection');
         }
       }
     } catch {
@@ -166,7 +144,7 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
     } finally {
       setTesting(false);
     }
-  }, [workspaceId, existingProvider, form, isPat, isGithubApp, isOAuth, message, provider]);
+  }, [workspaceId, existingProvider, form, isPat, isGithubApp, isOAuth, message]);
 
   return (
     <Modal
@@ -179,7 +157,7 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
         <div>
           <Typography.Text strong style={{ fontSize: token.fontSizeXL }}>Configure source control</Typography.Text>
           <Typography.Text type="secondary" style={{ display: 'block', marginTop: 4 }}>
-            {isConnected ? 'Update credentials or rotate tokens.' : 'Enter credentials, test the connection, then save.'}
+            {isConnected ? 'Update credentials or rotate tokens.' : 'Enter credentials, test them, then save.'}
           </Typography.Text>
         </div>
       }
@@ -241,7 +219,10 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
               />
             </Form.Item>
             <Form.Item label="Connection mode" name="mode" style={{ flex: 1 }}>
-              <Select options={modes} />
+              <Select
+                options={modes}
+                onChange={() => form.setFieldsValue({ privateKey: '', clientSecret: '', token: '' })}
+              />
             </Form.Item>
           </Flex>
 
@@ -263,6 +244,15 @@ export function ConfigureModal({ open, providerName, isConnected, existingProvid
               <Input />
             </Form.Item>
           </Flex>
+
+          <Form.Item
+            label="API Base URL"
+            name="apiUrl"
+            rules={[validateSourceControl]}
+            extra={<Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM }}>For GitHub: https://api.github.com | For GitLab/Gitea: usually same as base URL + /api/v*</Typography.Text>}
+          >
+            <Input placeholder={provider === 'GitHub' ? 'https://api.github.com' : provider === 'GitLab' ? 'https://gitlab.com/api/v4' : 'https://gitea.io/api/v1'} />
+          </Form.Item>
 
           {isGithubApp && (
             <>

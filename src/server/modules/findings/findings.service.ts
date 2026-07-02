@@ -1,6 +1,7 @@
 import type { FindingListQuery } from '@/commons/schemas/findings.schema';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
+import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 
 import { FINDING } from './constants';
 import { findingsRepository } from './findings.repository';
@@ -16,11 +17,22 @@ export const findingsService = {
    *
    * @param workspaceId - Workspace UUID
    * @param params - Query parameters (validated by Zod)
+   * @param userId - Optional user ID for membership validation. When provided
+   *                 (route handler context), membership is enforced. When omitted
+   *                 (background job context), validation is skipped.
    * @returns Paginated findings list
-   * @throws {AppError} 403 if requester is not a workspace member
+   * @throws {AppError} 403 if userId is provided and requester is not a workspace member
    */
-  async list(workspaceId: string, params?: FindingListQuery) {
+  async list(workspaceId: string, params?: FindingListQuery, userId?: string) {
     logger.finding.info('list', { workspaceId });
+
+    if (userId) {
+      const role = await workspaceRepository.getMemberRole(workspaceId, userId);
+      if (!role) {
+        throw new AppError(FINDING.ERRORS.NOT_MEMBER, 403, FINDING.ERROR_CODE);
+      }
+    }
+
     const result = await findingsRepository.listByWorkspace(workspaceId, params);
     logger.finding.info('list completed', { total: result.total });
     return result;
@@ -109,6 +121,46 @@ export const findingsService = {
 
     const updated = await findingsRepository.assign(id, assigneeId);
     logger.finding.info('assign completed', { id, assigneeId });
+    return updated;
+  },
+
+  /**
+   * Update a finding's AI verdict.
+   * Maps verdict to group status: true_positive → open, false_positive → resolved.
+   *
+   * @param workspaceId - Workspace UUID
+   * @param id - Finding UUID
+   * @param verdict - AI verdict value (true_positive | false_positive)
+   * @param userId - Actor's user UUID
+   * @returns Updated finding record
+   */
+  async updateVerdict(
+    workspaceId: string,
+    id: string,
+    verdict: string,
+    userId: string,
+  ) {
+    logger.finding.info('updateVerdict', { id, verdict, workspaceId });
+
+    const validVerdicts = ['true_positive', 'false_positive'];
+    if (!validVerdicts.includes(verdict)) {
+      throw new AppError(`Invalid verdict: ${verdict}. Must be one of: ${validVerdicts.join(', ')}`, 400, FINDING.ERROR_CODE);
+    }
+
+    const role = await findingsRepository.getMemberRole(workspaceId, userId);
+    if (!role) {
+      throw new AppError(FINDING.ERRORS.NOT_MEMBER, 403, FINDING.ERROR_CODE);
+    }
+
+    const existing = await findingsRepository.getById(workspaceId, id);
+    if (!existing) {
+      throw new AppError(FINDING.ERRORS.FINDING_NOT_FOUND, 404, FINDING.ERROR_CODE);
+    }
+
+    // Map verdict → status
+    const status = verdict === 'true_positive' ? 'open' : 'resolved';
+    const updated = await findingsRepository.updateStatus(id, status);
+    logger.finding.info('updateVerdict completed', { id, verdict, status });
     return updated;
   },
 
