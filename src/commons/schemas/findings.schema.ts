@@ -3,8 +3,10 @@
  *
  * Covers:
  * - List query (search, filters, sort, pagination)
- * - Bulk status update
- * - Bulk assign
+ * - Single finding update
+ * - Unified bulk action
+ * - AI verify
+ * - Verify single finding
  */
 
 import { z } from 'zod';
@@ -23,11 +25,6 @@ const findingSeverityValues = ['critical', 'high', 'medium', 'low', 'info'] as c
 
 // ─── List query ───────────────────────────────────────────────────────────────
 
-/**
- * Query parameters for GET /workspaces/:workspaceId/findings
- *
- * Lenient: invalid values coerce to safe defaults.
- */
 export const findingListQuerySchema = z.object({
   search: z.string().optional().catch(undefined),
   scanId: z.string().uuid().optional().catch(undefined),
@@ -47,24 +44,6 @@ export const findingListQuerySchema = z.object({
 
 export type FindingListQuery = z.infer<typeof findingListQuerySchema>;
 
-// ─── Bulk status update ───────────────────────────────────────────────────────
-
-export const bulkUpdateStatusSchema = z.object({
-  findingIds: z.array(z.string().uuid()).min(1, 'No finding IDs provided'),
-  status: z.enum(findingStatusValues),
-});
-
-export type BulkUpdateStatusInput = z.infer<typeof bulkUpdateStatusSchema>;
-
-// ─── Bulk assign ──────────────────────────────────────────────────────────────
-
-export const bulkAssignSchema = z.object({
-  findingIds: z.array(z.string().uuid()).min(1, 'No finding IDs provided'),
-  userId: z.string().uuid().nullable(),
-});
-
-export type BulkAssignInput = z.infer<typeof bulkAssignSchema>;
-
 // ─── Single finding update ───────────────────────────────────────────────────
 
 export const updateFindingSchema = z.object({
@@ -73,14 +52,12 @@ export const updateFindingSchema = z.object({
   assignedTo: z.string().optional(),
 });
 
-// ─── Bulk update (route-level) ───────────────────────────────────────────────
+// ─── Bulk action (unified) ───────────────────────────────────────────────
 
-export const bulkUpdateFindingsSchema = z.object({
+export const bulkActionFindingsSchema = z.object({
   ids: z.array(z.string()).min(1, 'At least one finding ID is required'),
-  payload: z.object({
-    status: z.enum(['open', 'dismissed', 'resolved']).optional(),
-    assignedTo: z.string().optional(),
-  }),
+  action: z.enum(['dismiss', 'resolve', 'reverify', 'assign']),
+  assignedTo: z.string().optional(),
 });
 
 // ─── AI verify ───────────────────────────────────────────────────────────────
@@ -96,8 +73,3 @@ export const aiVerifySchema = z.object({
 export const verifyFindingSchema = z.object({
   modelId: z.string().optional(),
 });
-
-export type UpdateFindingInput = z.infer<typeof updateFindingSchema>;
-export type BulkUpdateFindingsInput = z.infer<typeof bulkUpdateFindingsSchema>;
-export type AiVerifyInput = z.infer<typeof aiVerifySchema>;
-export type VerifyFindingInput = z.infer<typeof verifyFindingSchema>;

@@ -7,14 +7,14 @@ import { AppError } from '@/server/http/errors';
 import { ApiResponse } from '@/server/http/response';
 import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
-import { aiVerificationService } from '@/server/modules/scan/services/ai-verification.service';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 type RouteContext = { params: Promise<{ workspaceId: string }> };
 
 /**
  * POST /api/v1/workspaces/:workspaceId/findings/ai-verify
- * Batch AI verification for findings in a scan.
+ * Batch AI verification for findings.
+ * Enqueues individual jobs to the queue (async) — returns immediately.
  */
 export async function POST(request: NextRequest, { params }: RouteContext) {
   logger.finding.info('post request');
@@ -30,29 +30,49 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     if (!validation.success) return validation.response;
     const { scanId, modelId, findingIds } = validation.data;
 
-    // If scanId is provided, batch verify all findings in that scan
-    if (scanId) {
-      const result = await aiVerificationService.verifyFindingsBatch(scanId, modelId ?? '', workspaceId);
-      return ApiResponse.success('Batch verification completed', result);
+    // Enqueue individual jobs to the queue (async processing)
+    const { enqueue } = await import('@/server/modules/queue/queue.service');
+    const { aiVerificationRepository } = await import('@/server/modules/scan/repositories/ai-verification.repository');
+    const { findingRepository } = await import('@/server/modules/scan/repositories/finding.repository');
+
+    const model = modelId ? await aiVerificationRepository.getModelById(modelId) : await aiVerificationRepository.getPrimaryModel();
+    if (!model) {
+      return ApiResponse.error('No AI model configured', 'VALIDATION_ERROR', undefined, 400);
     }
 
-    // If findingIds are provided, verify each one
+    // Determine which findings to enqueue
+    let idsToVerify: string[] = [];
+
     if (findingIds && findingIds.length > 0) {
-      const results = [];
-      for (const findingId of findingIds) {
-        try {
-          const result = await aiVerificationService.verifyFinding(findingId, modelId ?? '', workspaceId);
-          results.push(result);
-        } catch (e) {
-          results.push({ findingId, error: e instanceof Error ? e.message : 'Unknown error' });
-        }
-      }
-      return ApiResponse.success('Verification completed', results);
+      idsToVerify = findingIds;
+    } else if (scanId) {
+      // Get all open findings for the scan
+      const scanFindings = await findingRepository.listByScan(scanId, { page: 1, perPage: 1000, status: 'open' });
+      idsToVerify = scanFindings.data.map((f) => f.id);
     }
 
-    return ApiResponse.error('Either scanId or findingIds is required', 'VALIDATION_ERROR', undefined, 400);
+    if (idsToVerify.length === 0) {
+      return ApiResponse.error('No findings to verify', 'VALIDATION_ERROR', undefined, 400);
+    }
+
+    let queued = 0;
+    for (const findingId of idsToVerify) {
+      try {
+        await enqueue('ai-verify-finding', {
+          findingId,
+          modelId: model.id,
+          workspaceId,
+        }, { retryLimit: 5, retryDelay: 30 });
+        queued++;
+      } catch (err) {
+        logger.finding.warn('Failed to enqueue AI verification', { findingId, error: (err as Error).message });
+      }
+    }
+
+    logger.finding.info('AI verification enqueued', { queued, total: idsToVerify.length, scanId });
+    return ApiResponse.success(`${queued} finding(s) queued for verification`, { queued, total: idsToVerify.length });
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
-    return ApiResponse.error('Failed to verify findings', 'INTERNAL_ERROR', undefined, 500);
+    return ApiResponse.error('Failed to queue verification', 'INTERNAL_ERROR', undefined, 500);
   }
 }

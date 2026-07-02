@@ -10,6 +10,8 @@ export const ciInitSchema = z.object({
   baseBranch: z.string().max(100).optional(),
   headBranch: z.string().max(100).optional(),
   prAuthor: z.string().max(255).optional(),
+  // SCM platform hint (e.g. "gitea", "github", "gitlab")
+  platform: z.string().max(20).optional(),
 });
 
 export const ciCompleteSchema = z.object({

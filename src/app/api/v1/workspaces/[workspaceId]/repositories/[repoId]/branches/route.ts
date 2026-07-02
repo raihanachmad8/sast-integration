@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    const branches = await sourceControlService.listBranches(repoId, workspaceId);
+    const branches = await sourceControlService.listBranches(workspaceId, repoId);
     return ApiResponse.success('Branches retrieved', branches);
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

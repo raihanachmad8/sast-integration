@@ -69,7 +69,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
               severity: f.severity,
               rule: f.rule,
               groupId: f.groupId,
-            }, result.verdict === 'false_positive' ? 'false_positive' : 'true_positive');
+            }, result.verdict === 'false_positive' ? 'false_positive' : 'true_positive',
+            result.confidence ? String(result.confidence) : null);
 
           }
         } catch (_err) {

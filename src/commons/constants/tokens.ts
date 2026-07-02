@@ -26,8 +26,11 @@ export const ENTITY_COLORS = {
   },
   verdict: {
     TP: { color: '#dc2626', bg: '#fef2f2' },
+    true_positive: { color: '#dc2626', bg: '#fef2f2' },
     FP: { color: '#16a34a', bg: '#f0fdf4' },
+    false_positive: { color: '#16a34a', bg: '#f0fdf4' },
     Pending: { color: '#d97706', bg: '#fffbeb' },
+    error: { color: '#6b7280', bg: '#f9fafb' },
   },
   findingStatus: {
     open: { color: '#dc2626', bg: '#fef2f2' },

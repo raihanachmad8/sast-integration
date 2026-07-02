@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   try {
     const validation = await validateBody(request, ciInitSchema);
     if (!validation.success) return validation.response;
-    const { repoName, repoUrl, branch, commit, prNumber, baseBranch, headBranch, prAuthor } = validation.data;
+    const { repoName, repoUrl, branch, commit, prNumber, baseBranch, headBranch, prAuthor, platform } = validation.data;
 
     logger.scan.info('CI/CD init received', {
       repoName,
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       prNumber,
       baseBranch,
       headBranch,
+      platform,
       workspaceId,
       projectId,
     });
@@ -62,6 +63,7 @@ export async function POST(request: NextRequest) {
       baseBranch,
       headBranch,
       prAuthor,
+      platform,
     });
 
     return ApiResponse.success('Scan initialized', result);

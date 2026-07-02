@@ -24,7 +24,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    const result = await sourceControlService.sync(providerId, workspaceId);
+    const result = await sourceControlService.sync(workspaceId, providerId);
     return ApiResponse.success('Repositories synced', result);
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

@@ -24,7 +24,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    const result = await sourceControlService.testConnection(providerId, workspaceId);
+    const result = await sourceControlService.testConnection(workspaceId, providerId);
     if (!result.configured) {
       return ApiResponse.error('Source control is not configured. Please add credentials first.', 'SOURCE_CONTROL_NOT_CONFIGURED', result, 400);
     }

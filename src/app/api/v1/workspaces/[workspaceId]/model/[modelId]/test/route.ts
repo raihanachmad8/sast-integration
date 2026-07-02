@@ -41,10 +41,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }
 
     // SSRF protection: block external private/internal URLs
-    // Allow localhost for local Ollama instances
-    const isLocalOllama = /^(localhost|127\.0\.0\.1|::1)$/i.test(urlObj.hostname) && urlObj.port === '11434';
-    if (!isLocalOllama && isPrivateOrInternal(urlObj.hostname)) {
-      return ApiResponse.error('Testing internal/private URLs is not allowed', 'SSRF_BLOCKED', undefined, 400);
+    // Allow localhost for local Ollama instances when ALLOW_LOCAL_AI_MODELS=true
+    const allowLocal = process.env.ALLOW_LOCAL_AI_MODELS === 'true';
+    if (!allowLocal && isPrivateOrInternal(urlObj.hostname)) {
+      return ApiResponse.error('Testing internal/private URLs is not allowed. Set ALLOW_LOCAL_AI_MODELS=true in .env for local Ollama.', 'SSRF_BLOCKED', undefined, 400);
     }
 
     const controller = new AbortController();
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         }
       }
 
-      await aiModelsRepository.update(modelId, workspaceId, { status, lastTestedAt: new Date() });
+      await aiModelsRepository.update(workspaceId, modelId, { status, lastTestedAt: new Date() });
 
       logger.model.info('testAiModel completed', { modelId, status, modelExists });
       return ApiResponse.success(`Model is ${status}`, {
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     } catch (fetchErr) {
       clearTimeout(timeout);
 
-      await aiModelsRepository.update(modelId, workspaceId, { status: 'unreachable', lastTestedAt: new Date() });
+      await aiModelsRepository.update(workspaceId, modelId, { status: 'unreachable', lastTestedAt: new Date() });
 
       logger.model.info('testAiModel completed', { modelId, status: 'unreachable' });
       return ApiResponse.success('Model is unreachable', {

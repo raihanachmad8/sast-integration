@@ -1,10 +1,9 @@
 import { NextRequest } from 'next/server';
 
 import { PERMISSION } from '@/commons/constants/permissions';
-import { findingListQuerySchema, bulkUpdateStatusSchema, bulkAssignSchema } from '@/commons/schemas';
+import { findingListQuerySchema } from '@/commons/schemas';
 import { authenticate } from '@/server/http/authenticate';
 import { ApiResponse } from '@/server/http/response';
-import { validateBody } from '@/server/http/validate';
 import { logger } from '@/server/lib/logger';
 import { findingsService, FINDING } from '@/server/modules/findings';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
@@ -49,7 +48,7 @@ export async function GET(
       sort: query.sort,
       order: query.order,
       onlyNew: query.onlyNew,
-    });
+    }, auth.context.userId);
 
     logger.finding.info('list completed', { count: result.data.length, total: result.total });
 
@@ -67,93 +66,5 @@ export async function GET(
     }
 
     return ApiResponse.error('Failed to list findings', 'INTERNAL_ERROR', undefined, 500);
-  }
-}
-
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ workspaceId: string }> },
-) {
-  try {
-    const { workspaceId } = await params;
-
-    logger.finding.info('bulk update status', { workspaceId });
-    const auth = await authenticate(request);
-    if (!auth.success) {
-      logger.finding.warn('bulk update status unauthorized');
-      return auth.response;
-    }
-
-    const workspace = await requirePermission(
-      withWorkspaceId(request, workspaceId),
-      auth.context,
-      PERMISSION.FINDING_TRIAGE,
-    );
-    if (!workspace.success) {
-      logger.finding.warn('bulk update status forbidden', { workspaceId, userId: auth.context.userId });
-      return workspace.response;
-    }
-
-    const bodyResult = await validateBody(request, bulkUpdateStatusSchema);
-    if (bodyResult.success === false) return bodyResult.response;
-
-    const result = await findingsService.bulkUpdate(
-      workspaceId,
-      bodyResult.data.findingIds,
-      { status: bodyResult.data.status },
-      auth.context.userId,
-    );
-
-    logger.finding.info('bulk update status completed', { count: result.length });
-
-    return ApiResponse.success(FINDING.MESSAGES.BULK_STATUS_UPDATED, result);
-  } catch (error) {
-    logger.finding.error('bulk update status failed', { error: error instanceof Error ? error.message : String(error) });
-
-    return ApiResponse.error('Failed to update findings status', 'INTERNAL_ERROR', undefined, 500);
-  }
-}
-
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ workspaceId: string }> },
-) {
-  try {
-    const { workspaceId } = await params;
-
-    logger.finding.info('bulk assign', { workspaceId });
-    const auth = await authenticate(request);
-    if (!auth.success) {
-      logger.finding.warn('bulk assign unauthorized');
-      return auth.response;
-    }
-
-    const workspace = await requirePermission(
-      withWorkspaceId(request, workspaceId),
-      auth.context,
-      PERMISSION.FINDING_TRIAGE,
-    );
-    if (!workspace.success) {
-      logger.finding.warn('bulk assign forbidden', { workspaceId, userId: auth.context.userId });
-      return workspace.response;
-    }
-
-    const bodyResult = await validateBody(request, bulkAssignSchema);
-    if (bodyResult.success === false) return bodyResult.response;
-
-    const result = await findingsService.bulkUpdate(
-      workspaceId,
-      bodyResult.data.findingIds,
-      { assignedTo: bodyResult.data.userId },
-      auth.context.userId,
-    );
-
-    logger.finding.info('bulk assign completed', { count: result.length });
-
-    return ApiResponse.success(FINDING.MESSAGES.BULK_ASSIGNED, result);
-  } catch (error) {
-    logger.finding.error('bulk assign failed', { error: error instanceof Error ? error.message : String(error) });
-
-    return ApiResponse.error('Failed to assign findings', 'INTERNAL_ERROR', undefined, 500);
   }
 }

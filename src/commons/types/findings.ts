@@ -4,6 +4,8 @@
  * @module commons-types-findings
  */
 
+import type { Finding } from './domain';
+
 /**
  * Mock finding — mirrors the `findings` table.
  *
@@ -167,3 +169,45 @@ export type AiModelResponse = {
   /** Raw AI response text for debugging. */
   rawResponse?: string;
 };
+
+/**
+ * Normalize raw API finding fields to the frontend `Finding` display shape.
+ *
+ * The server returns `repositoryName`, `cweId`, `assignedTo`, `filePath`.
+ * The `Finding` type expects `repo`, `cwe`, `assignee`, `file`.
+ *
+ * Centralized here so all consumers (list, detail page, drawer) share
+ * a single source of truth for field mapping.
+ *
+ * @param raw - Raw finding from API response
+ * @returns Normalized finding with short field names
+ */
+export function normalizeFinding(raw: Record<string, unknown>): Finding {
+  return {
+    id: raw.id as string,
+    scanId: raw.scanId as string,
+    groupId: raw.groupId as string,
+    projectId: (raw.projectId as string) ?? undefined,
+    rule: (raw.rule as string) ?? '',
+    repo: (raw.repositoryName as string) ?? (raw.repo as string) ?? '',
+    file: (raw.filePath as string) ?? (raw.file as string) ?? '',
+    filePath: (raw.filePath as string) ?? undefined,
+    severity: (raw.severity as Finding['severity']) ?? 'low',
+    scanner: (raw.scanner as string) ?? '',
+    verdict: ((raw.verdict as string) ?? 'Pending') as Finding['verdict'],
+    confidence: (raw.confidence as number) ?? null,
+    model: (raw.model as string) ?? '',
+    assignee: (raw.assignedTo as string | null) ?? (raw.assignee as string | null) ?? null,
+    status: ((raw.groupStatus as string) ?? (raw.status as string) ?? 'open') as Finding['status'],
+    cwe: (raw.cweId as string) ?? (raw.cwe as string) ?? '',
+    lineNumber: (raw.lineNumber as number) ?? undefined,
+    message: (raw.message as string) ?? undefined,
+    codeSnippet: (raw.codeSnippet as string) ?? undefined,
+    explanation: (raw.explanation as string) ?? undefined,
+    fixSuggestion: (raw.fixSuggestion as string) ?? undefined,
+    matchDetail: (raw.matchDetail as string) ?? undefined,
+    likelyCwe: (raw.likelyCwe as string[]) ?? undefined,
+    dataFlow: (raw.dataFlow as string) ?? undefined,
+    taintSource: (raw.taintSource as string) ?? undefined,
+  } as Finding;
+}
