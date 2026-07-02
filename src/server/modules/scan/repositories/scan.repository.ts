@@ -275,22 +275,43 @@ export const scanRepository = {
    * @param id - Scan UUID
    * @param status - New status value
    * @param tx - Optional transaction context
-   * @returns Updated scan record
+   * @returns Updated scan record, or null if transition is invalid
    */
   async updateStatus(id: string, status: string, tx?: Tx) {
     const executor = tx ?? db;
+
+    const VALID_TRANSITIONS: Record<string, string[]> = {
+      queued: ['running', 'processing', 'failed'],
+      running: ['processing', 'completed', 'failed'],
+      processing: ['parsing', 'completed', 'failed'],
+      parsing: ['completed', 'failed'],
+    };
+
+    // Find which current states can transition TO the target status
+    const allowedFrom = Object.entries(VALID_TRANSITIONS)
+      .filter(([, targets]) => targets.includes(status))
+      .map(([source]) => source);
+
+    if (allowedFrom.length === 0) {
+      logger.scan.warn('updateStatus: invalid target status', { id, status });
+      return null;
+    }
+
     const updates: Record<string, unknown> = { status };
     if (status === 'running') updates.startedAt = new Date();
     if (status === 'completed' || status === 'failed') updates.completedAt = new Date();
+
     const [scan] = await executor.update(scans).set(updates)
-      .where(and(eq(scans.id, id), or(
-        eq(scans.status, 'queued'),
-        eq(scans.status, 'processing'),
-        eq(scans.status, 'running'),
-        eq(scans.status, 'parsing'),
-      )))
+      .where(and(
+        eq(scans.id, id),
+        or(...allowedFrom.map((s) => eq(scans.status, s))),
+      ))
       .returning();
-    return scan;
+
+    if (!scan) {
+      logger.scan.warn('updateStatus: transition rejected', { id, status });
+    }
+    return scan ?? null;
   },
 
   /**

@@ -1,17 +1,54 @@
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 import { db } from '@/server/db/client';
 import { env } from '@/server/env';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
 import { createScmApiService, parseRepoName, buildPrComment } from '@/server/modules/source-control/scm-api.service';
-import type { ChangedFile } from '@/server/modules/source-control/scm-api.service';
+import type { ChangedFile, ScmCredentials } from '@/server/modules/source-control/scm-api.service';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 import { repositories } from '@drizzle/schema/source-controls';
 import { sourceControls } from '@drizzle/schema/source-controls';
 import { workspaces } from '@drizzle/schema/workspaces';
 
+/** Get source control credentials with provider info for PR operations. */
+async function getCredentialsWithProvider(
+  workspaceId: string,
+  preferredProvider?: string
+): Promise<(ScmCredentials & { provider: string; sourceControlId: string }) | null> {
+  if (!preferredProvider) {
+    logger.scan.warn('getCredentialsWithProvider: no preferredProvider specified, skipping');
+    return null;
+  }
 
+  const [sourceControl] = await db
+    .select()
+    .from(sourceControls)
+    .where(and(eq(sourceControls.workspaceId, workspaceId), eq(sourceControls.provider, preferredProvider)))
+    .limit(1);
+
+  if (!sourceControl?.credentials) return null;
+
+  const credentials = sourceControl.credentials as {
+    baseUrl?: string;
+    token?: string;
+    clientId?: string;
+    clientSecret?: string;
+    refreshToken?: string;
+  };
+
+  if (!credentials.baseUrl || !credentials.token) return null;
+
+  return {
+    baseUrl: credentials.baseUrl,
+    token: credentials.token,
+    provider: sourceControl.provider,
+    clientId: credentials.clientId,
+    clientSecret: credentials.clientSecret,
+    refreshToken: credentials.refreshToken,
+    sourceControlId: sourceControl.id,
+  };
+}
 
 import { SCAN } from '../constants';
 import { findingRepository } from '../repositories/finding.repository';
@@ -121,8 +158,14 @@ export const qualityGateService = {
       });
 
       const blockingFindings = countBlockingFindings(findings.data, gate);
-      const openFindings = findings.data.filter((f) => (f.groupStatus ?? 'open') === 'open');
-      const tpFindings = findings.data.filter((f) => f.verdict === 'TP');
+      const openFindings = findings.data.filter((f) => {
+        const status = f.groupStatus ?? 'open';
+        return ['open', 'pending'].includes(status);
+      });
+      const tpFindings = findings.data.filter((f) => {
+        const status = f.groupStatus ?? 'open';
+        return ['open', 'pending'].includes(status) && f.verdict === 'TP';
+      });
 
       let status: 'passed' | 'failed' | 'warning' = 'passed';
 
@@ -221,18 +264,14 @@ export const qualityGateService = {
       let changedFiles: ChangedFile[] = [];
       if (scan?.prNumber && scan?.repositoryId) {
         try {
-          const [[repo], [sc]] = await Promise.all([
-            db.select().from(repositories).where(eq(repositories.id, scan.repositoryId)).limit(1),
-            db.select().from(sourceControls).where(eq(sourceControls.workspaceId, workspaceId)).limit(1),
-          ]);
+          const [repo] = await db.select().from(repositories).where(eq(repositories.id, scan.repositoryId)).limit(1);
 
-          if (repo && sc?.credentials) {
-            const creds = sc.credentials as { baseUrl?: string; token?: string };
-            if (creds.baseUrl && creds.token) {
-              const scm = createScmApiService(sc.provider || 'gitea', {
-                baseUrl: creds.baseUrl, token: creds.token,
-                sourceControlId: sc.id,
-              });
+          if (repo) {
+            const detectedProvider = repo.provider ?? undefined;
+            const scmCreds = await getCredentialsWithProvider(workspaceId, detectedProvider);
+            if (scmCreds) {
+              const scmProvider = detectedProvider ?? scmCreds.provider;
+              const scm = createScmApiService(scmProvider, scmCreds);
               const [owner, repoName] = parseRepoName(repo.name);
               changedFiles = await scm.getPrChangedFiles(owner, repoName, scan.prNumber);
             }
@@ -281,8 +320,14 @@ export const qualityGateService = {
       const resolvedFindings = statusCounts.resolved;
 
       const blockingFindings = countBlockingFindings(newFindings.data, gate);
-      const openFindings = newFindings.data.filter((f) => (f.groupStatus ?? 'open') === 'open');
-      const tpFindings = newFindings.data.filter((f) => f.aiVerdict === 'true_positive');
+      const openFindings = newFindings.data.filter((f) => {
+        const status = f.groupStatus ?? 'open';
+        return ['open', 'pending'].includes(status);
+      });
+      const tpFindings = newFindings.data.filter((f) => {
+        const status = f.groupStatus ?? 'open';
+        return ['open', 'pending'].includes(status) && f.aiVerdict === 'true_positive';
+      });
 
       let status: 'passed' | 'failed' | 'warning' = 'passed';
 
@@ -416,21 +461,15 @@ export const qualityGateService = {
       const scan = await scanRepository.getById(scanId);
       if (!scan?.prNumber || !scan?.headBranch || !scan?.baseBranch || !scan?.repositoryId) return;
 
-      const [[repo], [sc]] = await Promise.all([
-        db.select().from(repositories).where(eq(repositories.id, scan.repositoryId)).limit(1),
-        db.select().from(sourceControls).where(eq(sourceControls.workspaceId, workspaceId)).limit(1),
-      ]);
+      const [repo] = await db.select().from(repositories).where(eq(repositories.id, scan.repositoryId)).limit(1);
       if (!repo) return;
-      if (!sc?.credentials) return;
 
-      const creds = sc.credentials as { baseUrl?: string; token?: string; clientId?: string; clientSecret?: string; refreshToken?: string };
-      if (!creds.baseUrl || !creds.token) return;
+      const detectedProvider = repo.provider ?? undefined;
+      const scmCreds = await getCredentialsWithProvider(workspaceId, detectedProvider);
+      if (!scmCreds) return;
 
-      const scm = createScmApiService(sc.provider || 'gitea', {
-        baseUrl: creds.baseUrl, token: creds.token,
-        clientId: creds.clientId, clientSecret: creds.clientSecret, refreshToken: creds.refreshToken,
-        sourceControlId: sc.id,
-      });
+      const scmProvider = detectedProvider ?? scmCreds.provider;
+      const scm = createScmApiService(scmProvider, scmCreds);
       const [owner, repoName] = parseRepoName(repo.name);
 
       const [ws] = await db.select({ slug: workspaces.slug }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
@@ -486,17 +525,23 @@ export const qualityGateService = {
 
 /**
  * Count findings that block the gate based on severity threshold.
+ * Only counts findings with status 'open' or 'pending' as blocking.
+ * Excludes 'resolved', 'dismissed', 'false_positive', 'true_positive'.
  *
- * @param findings - Array of finding records with severity
+ * @param findings - Array of finding records with severity and groupStatus
  * @param gate - Quality gate config with threshold setting
  * @counts by severity (critical, high, medium, low)
  */
 function countBlockingFindings(
-  findings: Array<{ severity: string }>,
+  findings: Array<{ severity: string; groupStatus?: string | null }>,
   _gate: { threshold: string },
 ) {
   const counts = { critical: 0, high: 0, medium: 0, low: 0 };
   for (const f of findings) {
+    const status = f.groupStatus ?? 'open';
+    if (!['open', 'pending'].includes(status)) {
+      continue;
+    }
     if (f.severity in counts) {
       counts[f.severity as keyof typeof counts]++;
     }

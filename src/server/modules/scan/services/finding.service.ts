@@ -1,25 +1,43 @@
-import { eq, and, inArray, isNotNull } from 'drizzle-orm';
+import { eq, and, inArray, isNotNull, sql } from 'drizzle-orm';
 
 import { db } from '@/server/db/client';
 import { env } from '@/server/env';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
-import { createScmApiService, buildInlineReviewComment, parseRepoName } from '@/server/modules/source-control/scm-api.service';
+import {
+  createScmApiService,
+  buildInlineReviewComment,
+  parseRepoName,
+} from '@/server/modules/source-control/scm-api.service';
 import type { ScmCredentials } from '@/server/modules/source-control/scm-api.service';
-import { type NewFinding, findings, findingGroups, findingGroupScans } from '@drizzle/schema/findings';
+import {
+  type NewFinding,
+  findings,
+  findingGroups,
+  findingGroupScans,
+} from '@drizzle/schema/findings';
 import { models } from '@drizzle/schema/integrations';
 import { scans } from '@drizzle/schema/scans';
 import { repositories, sourceControls } from '@drizzle/schema/source-controls';
 import { workspaces } from '@drizzle/schema/workspaces';
 
-import { FINDING_TITLE_MESSAGE_MAX_LENGTH, FINDING_TITLE_FINGERPRINT_MAX_LENGTH, SCAN } from '../constants';
+import {
+  FINDING_TITLE_MESSAGE_MAX_LENGTH,
+  FINDING_TITLE_FINGERPRINT_MAX_LENGTH,
+  SCAN,
+} from '../constants';
 import { findingRepository } from '../repositories/finding.repository';
 
 import { generateFindingFingerprint } from './finding.fingerprint';
 
 type NewFindingInput = Omit<NewFinding, 'id' | 'createdAt' | 'updatedAt'>;
 
-type FindingResult = { new: number; persistent: number; resolved: number; findings: Array<{ id: string; groupId: string | null; isNew: boolean }> };
+type FindingResult = {
+  new: number;
+  persistent: number;
+  resolved: number;
+  findings: Array<{ id: string; groupId: string | null; isNew: boolean }>;
+};
 
 export const findingService = {
   /**
@@ -34,8 +52,18 @@ export const findingService = {
    *
    * @returns Object with counts: new, persistent, resolved, and findings array
    */
-  async replaceFindingsForScanJob(projectId: string | null, scanId: string, inputs: NewFindingInput[], repositoryId?: string | null): Promise<FindingResult> {
-    logger.scan.info('replaceFindingsForScanJob', { projectId, repositoryId, scanId, count: inputs.length });
+  async replaceFindingsForScanJob(
+    projectId: string | null,
+    scanId: string,
+    inputs: NewFindingInput[],
+    repositoryId?: string | null
+  ): Promise<FindingResult> {
+    logger.scan.info('replaceFindingsForScanJob', {
+      projectId,
+      repositoryId,
+      scanId,
+      count: inputs.length,
+    });
 
     return db.transaction(async (tx) => {
       if (inputs.length === 0) return EMPTY_FINDING_RESULT;
@@ -48,22 +76,36 @@ export const findingService = {
       // Compute fingerprints (intra-batch dedup)
       const fingerprints = computeFingerprints(inputs);
 
-      // Detect groups from previous scan that are not in current batch (resolved)
-      const existingGroupsForScan = await this.getExistingGroupsForScan(tx, scanId, fingerprints);
+      // Detect groups from PREVIOUS scan that are not in current batch (resolved).
+      // We query ALL open groups from the last completed scan for this repository,
+      // not just those matching current fingerprints, so groups that disappeared
+      // entirely (e.g. F3 was fixed) are also detected.
+      const existingGroupsForRepo = repositoryId
+        ? await this.getExistingGroupsForRepo(tx, repositoryId, scanId)
+        : [];
       const incomingFingerprints = new Set(fingerprints.keys());
 
       // Find-or-create groups (reopens resolved groups)
       const fingerprintEntries = Array.from(fingerprints.entries()).map(([fp, input]) => ({
         fingerprint: fp,
-        title: input.rule || input.message?.slice(0, FINDING_TITLE_MESSAGE_MAX_LENGTH) || fp.substring(0, FINDING_TITLE_FINGERPRINT_MAX_LENGTH),
+        title:
+          input.rule ||
+          input.message?.slice(0, FINDING_TITLE_MESSAGE_MAX_LENGTH) ||
+          fp.substring(0, FINDING_TITLE_FINGERPRINT_MAX_LENGTH),
       }));
-      const groupMap = await findingRepository.findOrCreateFindingGroups(projectId, repositoryId ?? null, fingerprintEntries, scanId, tx);
+      const groupMap = await findingRepository.findOrCreateFindingGroups(
+        projectId,
+        repositoryId ?? null,
+        fingerprintEntries,
+        scanId,
+        tx
+      );
 
       // Insert finding records
       const created = await this.insertFindings(tx, scanId, fingerprints, groupMap);
 
       // Mark groups that were in previous scan but NOT in current batch → resolved
-      const groupsToResolve = existingGroupsForScan
+      const groupsToResolve = existingGroupsForRepo
         .filter((g) => !incomingFingerprints.has(g.fingerprint))
         .map((g) => g.id);
       if (groupsToResolve.length > 0) {
@@ -79,20 +121,26 @@ export const findingService = {
   /**
    * List findings for a project with optional filters.
    */
-  async list(projectId: string | undefined, workspaceId: string, filters: {
-    scanId?: string;
-    status?: string;
-    severity?: string;
-    scanner?: string;
-    assignedTo?: string;
-    verdict?: string;
-    search?: string;
-    repositoryId?: string;
-    onlyNew?: boolean;
-    accessibleProjectIds?: string[];
-    sort?: string;
-    order?: 'ASC' | 'DESC';
-  } = {}, limit = 50, page = 1) {
+  async list(
+    projectId: string | undefined,
+    workspaceId: string,
+    filters: {
+      scanId?: string;
+      status?: string;
+      severity?: string;
+      scanner?: string;
+      assignedTo?: string;
+      verdict?: string;
+      search?: string;
+      repositoryId?: string;
+      onlyNew?: boolean;
+      accessibleProjectIds?: string[];
+      sort?: string;
+      order?: 'ASC' | 'DESC';
+    } = {},
+    limit = 50,
+    page = 1
+  ) {
     logger.scan.debug('list', { projectId, workspaceId, filters, limit, page });
 
     if (filters.scanId) {
@@ -125,19 +173,27 @@ export const findingService = {
     }
 
     if (filters.accessibleProjectIds) {
-      const result = await findingRepository.listAccessible(workspaceId, filters.accessibleProjectIds, {
-        page,
-        perPage: limit,
-        severity: filters.severity,
-        status: filters.status,
-        scanner: filters.scanner,
-        search: filters.search,
-        repositoryId: filters.repositoryId,
-        verdict: filters.verdict,
-        sort: filters.sort,
-        order: filters.order,
+      const result = await findingRepository.listAccessible(
+        workspaceId,
+        filters.accessibleProjectIds,
+        {
+          page,
+          perPage: limit,
+          severity: filters.severity,
+          status: filters.status,
+          scanner: filters.scanner,
+          search: filters.search,
+          repositoryId: filters.repositoryId,
+          verdict: filters.verdict,
+          sort: filters.sort,
+          order: filters.order,
+        }
+      );
+      logger.scan.debug('list completed', {
+        workspaceId,
+        accessibleProjectIds: filters.accessibleProjectIds.length,
+        total: result.total,
       });
-      logger.scan.debug('list completed', { workspaceId, accessibleProjectIds: filters.accessibleProjectIds.length, total: result.total });
       return result;
     }
 
@@ -177,7 +233,9 @@ export const findingService = {
 
     // Parallel: model name + repo name (independent after finding/verifications are loaded)
     const [model, repo] = await Promise.all([
-      latestVerification?.modelId ? this.getModelName(latestVerification.modelId) : Promise.resolve(''),
+      latestVerification?.modelId
+        ? this.getModelName(latestVerification.modelId)
+        : Promise.resolve(''),
       this.getRepositoryName(finding.scanId),
     ]);
 
@@ -198,7 +256,12 @@ export const findingService = {
       assignedTo: finding.assignedTo,
       createdAt: finding.createdAt,
       updatedAt: finding.updatedAt,
-      verdict: latestVerification?.verdict === 'true_positive' ? 'TP' : latestVerification?.verdict === 'false_positive' ? 'FP' : 'Pending',
+      verdict:
+        latestVerification?.verdict === 'true_positive'
+          ? 'TP'
+          : latestVerification?.verdict === 'false_positive'
+            ? 'FP'
+            : 'Pending',
       confidence: latestVerification?.confidence ? Number(latestVerification.confidence) : null,
       model,
       explanation: latestVerification?.explanation ?? null,
@@ -230,7 +293,11 @@ export const findingService = {
     try {
       const validStatuses = ['open', 'dismissed', 'resolved'];
       if (!validStatuses.includes(status)) {
-        throw new AppError(`Invalid status: ${status}. Must be one of: ${validStatuses.join(', ')}`, 400, SCAN.ERRORS.VALIDATION_ERROR);
+        throw new AppError(
+          `Invalid status: ${status}. Must be one of: ${validStatuses.join(', ')}`,
+          400,
+          SCAN.ERRORS.VALIDATION_ERROR
+        );
       }
 
       // Get finding → get groupId
@@ -266,7 +333,11 @@ export const findingService = {
     try {
       const validVerdicts = ['true_positive', 'false_positive'];
       if (!validVerdicts.includes(verdict)) {
-        throw new AppError(`Invalid verdict: ${verdict}. Must be one of: ${validVerdicts.join(', ')}`, 400, SCAN.ERRORS.VALIDATION_ERROR);
+        throw new AppError(
+          `Invalid verdict: ${verdict}. Must be one of: ${validVerdicts.join(', ')}`,
+          400,
+          SCAN.ERRORS.VALIDATION_ERROR
+        );
       }
 
       const finding = await findingRepository.findById(findingId);
@@ -285,29 +356,41 @@ export const findingService = {
       }
 
       // Get group fingerprint for inline comment update
-      const [group] = await db.select({ fingerprint: findingGroups.fingerprint })
+      const [group] = await db
+        .select({ fingerprint: findingGroups.fingerprint })
         .from(findingGroups)
         .where(eq(findingGroups.id, finding.groupId))
         .limit(1);
 
       // Update inline comments on open PRs (non-blocking, best effort)
       if (group?.fingerprint) {
-        this.updateInlineCommentsForVerdict({
-          fingerprint: group.fingerprint,
-          findingId: findingId,
-          filePath: finding.filePath,
-          lineNumber: finding.lineNumber,
-          scanner: finding.scanner,
-          message: finding.message,
-          severity: finding.severity,
-          rule: finding.rule,
-          groupId: finding.groupId,
-        }, verdict).catch((err) => {
-          logger.scan.warn('updateVerdict: inline comment update failed (non-critical)', { findingId, error: (err as Error).message });
+        this.updateInlineCommentsForVerdict(
+          {
+            fingerprint: group.fingerprint,
+            findingId: findingId,
+            filePath: finding.filePath,
+            lineNumber: finding.lineNumber,
+            scanner: finding.scanner,
+            message: finding.message,
+            severity: finding.severity,
+            rule: finding.rule,
+            groupId: finding.groupId,
+          },
+          verdict
+        ).catch((err) => {
+          logger.scan.warn('updateVerdict: inline comment update failed (non-critical)', {
+            findingId,
+            error: (err as Error).message,
+          });
         });
       }
 
-      logger.scan.info('updateVerdict completed', { findingId, groupId: finding.groupId, verdict, status });
+      logger.scan.info('updateVerdict completed', {
+        findingId,
+        groupId: finding.groupId,
+        verdict,
+        status,
+      });
       return result;
     } catch (error) {
       logger.scan.error('updateVerdict failed', { error, findingId, verdict });
@@ -321,92 +404,144 @@ export const findingService = {
    * and calls SCM updateInlineReviewComments.
    */
   async updateInlineCommentsForVerdict(
-    finding: { fingerprint: string; findingId?: string; filePath?: string | null; lineNumber?: number | null; scanner?: string | null; message?: string | null; severity?: string | null; rule?: string | null; groupId?: string | null },
+    finding: {
+      fingerprint: string;
+      findingId?: string;
+      filePath?: string | null;
+      lineNumber?: number | null;
+      scanner?: string | null;
+      message?: string | null;
+      severity?: string | null;
+      rule?: string | null;
+      groupId?: string | null;
+    },
     verdict: string,
+    confidence?: string | null
   ) {
     if (!finding.fingerprint) return;
 
     const verdictDisplay = verdict === 'true_positive' ? 'TP' : 'FP';
 
     // Find open PRs with this fingerprint via junction table + scans
-    const openPrs = await db.select({
-      repoName: repositories.name,
-      prNumber: scans.prNumber,
-      provider: sourceControls.provider,
-      credentials: sourceControls.credentials,
-      workspaceId: repositories.workspaceId,
-    })
-    .from(scans)
-    .innerJoin(repositories, eq(scans.repositoryId, repositories.id))
-    .innerJoin(sourceControls, eq(repositories.workspaceId, sourceControls.workspaceId))
-    .innerJoin(findingGroupScans, eq(findingGroupScans.scanId, scans.id))
-    .innerJoin(findingGroups, eq(findingGroups.id, findingGroupScans.groupId))
-    .where(
-      and(
-        eq(findingGroups.fingerprint, finding.fingerprint),
-        inArray(scans.status, ['running', 'completed']),
-        isNotNull(scans.prNumber),
+    const openPrs = await db
+      .select({
+        repoName: repositories.name,
+        repositoryId: repositories.id,
+        repoProvider: repositories.provider,
+        prNumber: scans.prNumber,
+        provider: sourceControls.provider,
+        scmId: sourceControls.id,
+        credentials: sourceControls.credentials,
+        workspaceId: repositories.workspaceId,
+      })
+      .from(scans)
+      .innerJoin(repositories, eq(scans.repositoryId, repositories.id))
+      .innerJoin(sourceControls, and(
+        eq(repositories.workspaceId, sourceControls.workspaceId),
+        eq(repositories.provider, sourceControls.provider),
+      ))
+      .innerJoin(findingGroupScans, eq(findingGroupScans.scanId, scans.id))
+      .innerJoin(findingGroups, eq(findingGroups.id, findingGroupScans.groupId))
+      .where(
+        and(
+          eq(findingGroups.fingerprint, finding.fingerprint),
+          inArray(scans.status, ['running', 'completed']),
+          isNotNull(scans.prNumber)
+        )
       )
-    )
-    .groupBy(
-      scans.prNumber,
-      repositories.name,
-      repositories.workspaceId,
-      sourceControls.provider,
-      sourceControls.credentials,
-    );
+      .groupBy(
+        scans.prNumber,
+        repositories.name,
+        repositories.id,
+        repositories.provider,
+        repositories.workspaceId,
+        sourceControls.id,
+        sourceControls.provider,
+        sourceControls.credentials
+      );
 
     if (openPrs.length === 0) return;
 
     // Look up workspace slug for link
-    const wsIds = [...new Set(openPrs.map(p => p.workspaceId))];
-    const wsRows = await db.select({ id: workspaces.id, slug: workspaces.slug })
+    const wsIds = [...new Set(openPrs.map((p) => p.workspaceId))];
+    const wsRows = await db
+      .select({ id: workspaces.id, slug: workspaces.slug })
       .from(workspaces)
       .where(inArray(workspaces.id, wsIds));
-    const slugMap = new Map(wsRows.map(r => [r.id, r.slug]));
+    const slugMap = new Map(wsRows.map((r) => [r.id, r.slug]));
 
     logger.scan.info('updateInlineCommentsForVerdict: found open PRs', {
       fingerprint: finding.fingerprint,
       prCount: openPrs.length,
+      prs: openPrs.map((p) => ({ pr: p.prNumber, repoProvider: p.repoProvider, scmProvider: p.provider, scmId: p.scmId, repoName: p.repoName })),
     });
 
     const appBaseUrl = env.APP_URL;
 
-    await Promise.all(openPrs.map(async (pr) => {
+    // Process PRs sequentially with small delay to avoid SCM rate limiting
+    for (const pr of openPrs) {
       try {
-        if (!pr.credentials || !pr.provider || !pr.prNumber) return;
+        if (!pr.credentials || !pr.provider || !pr.prNumber) continue;
+
+        // Fetch latest AI verification details for this group
+        let aiDetails: { explanation?: string | null; dataFlow?: string | null; fixSuggestion?: string | null; confidence?: string | null } = {};
+        if (finding.groupId) {
+          try {
+            const { aiVerificationRepository } = await import('@/server/modules/scan/repositories/ai-verification.repository');
+            const latestVerdict = await aiVerificationRepository.getLatestByGroup(finding.groupId);
+            if (latestVerdict) {
+              aiDetails = {
+                explanation: latestVerdict.explanation,
+                dataFlow: latestVerdict.dataFlow,
+                fixSuggestion: latestVerdict.fixSuggestion,
+                confidence: latestVerdict.confidence,
+              };
+            }
+          } catch {
+            // Skip if fetch fails
+          }
+        }
 
         const [owner, repo] = parseRepoName(pr.repoName);
         const scm = createScmApiService(pr.provider, pr.credentials as ScmCredentials);
         const wsSlug = slugMap.get(pr.workspaceId) ?? 'workspace';
-        const newBody = buildInlineReviewComment({
-          severity: (finding.severity ?? 'medium') as string,
-          filePath: finding.filePath ?? null,
-          lineNumber: finding.lineNumber ?? 0,
-          rule: finding.rule ?? null,
-          message: finding.message ?? null,
-          scanner: finding.scanner ?? null,
-          codeSnippet: null,
-          aiVerdict: verdictDisplay,
-          confidence: '',
-          findingId: finding.findingId ?? '',
-          fingerprint: finding.fingerprint,
-        }, appBaseUrl, wsSlug);
+        const newBody = buildInlineReviewComment(
+          {
+            severity: (finding.severity ?? 'medium') as string,
+            filePath: finding.filePath ?? null,
+            lineNumber: finding.lineNumber ?? 0,
+            rule: finding.rule ?? null,
+            message: finding.message ?? null,
+            scanner: finding.scanner ?? null,
+            codeSnippet: null,
+            aiVerdict: verdictDisplay,
+            confidence: aiDetails.confidence ?? confidence ?? null,
+            explanation: aiDetails.explanation,
+            dataFlow: aiDetails.dataFlow,
+            fixSuggestion: aiDetails.fixSuggestion,
+            findingId: finding.findingId ?? '',
+            fingerprint: finding.fingerprint,
+          },
+          appBaseUrl,
+          wsSlug
+        );
 
-        await scm.updateInlineReviewComments(owner, repo, pr.prNumber, [{
-          fingerprint: finding.fingerprint,
-          filePath: finding.filePath ?? '',
-          lineNumber: finding.lineNumber ?? 0,
-          body: newBody,
-          scanner: finding.scanner ?? 'unknown',
-        }]);
+        await scm.updateInlineReviewComments(owner, repo, pr.prNumber, [
+          {
+            fingerprint: finding.fingerprint,
+            filePath: finding.filePath ?? '',
+            lineNumber: finding.lineNumber ?? 0,
+            body: newBody,
+            scanner: finding.scanner ?? 'unknown',
+          },
+        ]);
       } catch (err) {
         logger.scan.warn('updateInlineCommentsForVerdict: failed for PR', {
           prNumber: pr.prNumber,
           error: (err as Error).message,
         });
       }
-    }));
+    }
   },
 
   /**
@@ -430,7 +565,11 @@ export const findingService = {
    */
   async getModelName(modelId: string): Promise<string> {
     try {
-      const [model] = await db.select({ name: models.name }).from(models).where(eq(models.id, modelId)).limit(1);
+      const [model] = await db
+        .select({ name: models.name })
+        .from(models)
+        .where(eq(models.id, modelId))
+        .limit(1);
       return model?.name ?? '';
     } catch {
       return '';
@@ -442,7 +581,8 @@ export const findingService = {
    */
   async getRepositoryName(scanId: string): Promise<string> {
     try {
-      const [result] = await db.select({ name: repositories.name })
+      const [result] = await db
+        .select({ name: repositories.name })
         .from(scans)
         .innerJoin(repositories, eq(scans.repositoryId, repositories.id))
         .where(eq(scans.id, scanId))
@@ -462,24 +602,40 @@ export const findingService = {
   async getIdempotentResult(
     tx: Tx,
     scanId: string,
-    inputScanners: string[],
+    inputScanners: string[]
   ): Promise<FindingResult | null> {
     if (inputScanners.length === 0) return null;
 
     const existingFindings = await tx
-      .select({ id: findings.id, groupId: findings.groupId, rule: findings.rule, filePath: findings.filePath, message: findings.message })
+      .select({
+        id: findings.id,
+        groupId: findings.groupId,
+        rule: findings.rule,
+        filePath: findings.filePath,
+        message: findings.message,
+      })
       .from(findings)
       .where(and(eq(findings.scanId, scanId), inArray(findings.scanner, inputScanners)));
 
     if (existingFindings.length === 0) return null;
 
-    const groupIds = existingFindings.map((f) => f.groupId).filter((id): id is string => id !== null);
-    const groupStatuses = groupIds.length > 0
-      ? await tx.select({ id: findingGroups.id, isNew: findingGroupScans.isNew })
-        .from(findingGroups)
-        .leftJoin(findingGroupScans, and(eq(findingGroupScans.groupId, findingGroups.id), eq(findingGroupScans.scanId, scanId)))
-        .where(inArray(findingGroups.id, groupIds))
-      : [];
+    const groupIds = existingFindings
+      .map((f) => f.groupId)
+      .filter((id): id is string => id !== null);
+    const groupStatuses =
+      groupIds.length > 0
+        ? await tx
+            .select({ id: findingGroups.id, isNew: findingGroupScans.isNew })
+            .from(findingGroups)
+            .leftJoin(
+              findingGroupScans,
+              and(
+                eq(findingGroupScans.groupId, findingGroups.id),
+                eq(findingGroupScans.scanId, scanId)
+              )
+            )
+            .where(inArray(findingGroups.id, groupIds))
+        : [];
     const groupMap = new Map(groupStatuses.map((g) => [g.id, g.isNew ?? true]));
 
     const findingsWithIsNew = existingFindings.map((f) => ({
@@ -488,29 +644,44 @@ export const findingService = {
       isNew: f.groupId ? (groupMap.get(f.groupId) ?? true) : true,
     }));
     const newCount = findingsWithIsNew.filter((f) => f.isNew).length;
-    return { new: newCount, persistent: findingsWithIsNew.length - newCount, resolved: 0, findings: findingsWithIsNew };
+    return {
+      new: newCount,
+      persistent: findingsWithIsNew.length - newCount,
+      resolved: 0,
+      findings: findingsWithIsNew,
+    };
   },
 
   /**
-   * Get existing groups for this scan to detect resolved findings later.
+   * Get ALL open groups from the PREVIOUS scan for this repository.
    * Purpose: Groups present in previous scan but absent from current batch → resolved.
+   *
+   * Returns ALL groups from the last completed scan (not just those matching
+   * current fingerprints), so we can detect groups that disappeared entirely.
    */
-  async getExistingGroupsForScan(
-    tx: Tx,
-    scanId: string,
-    fingerprints: Map<string, NewFindingInput>,
-  ) {
-    const fps = Array.from(fingerprints.keys());
-    if (fps.length === 0) return [];
+  async getExistingGroupsForRepo(tx: Tx, repositoryId: string, currentScanId: string) {
+    // Find the last completed scan for this repository (excluding current)
+    const [previousScan] = await tx
+      .select({ id: scans.id })
+      .from(scans)
+      .where(
+        and(
+          eq(scans.repositoryId, repositoryId),
+          eq(scans.status, 'completed'),
+          sql`${scans.id} != ${currentScanId}`
+        )
+      )
+      .orderBy(sql`${scans.createdAt} DESC`)
+      .limit(1);
 
+    if (!previousScan) return [];
+
+    // Get ALL open groups from that previous scan
     return tx
       .select({ id: findingGroups.id, fingerprint: findingGroups.fingerprint })
       .from(findingGroups)
       .innerJoin(findingGroupScans, eq(findingGroupScans.groupId, findingGroups.id))
-      .where(and(
-        eq(findingGroupScans.scanId, scanId),
-        inArray(findingGroups.fingerprint, fps),
-      ));
+      .where(and(eq(findingGroupScans.scanId, previousScan.id), eq(findingGroups.status, 'open')));
   },
 
   /**
@@ -521,7 +692,7 @@ export const findingService = {
     tx: Tx,
     scanId: string,
     fingerprints: Map<string, NewFindingInput>,
-    groupMap: Map<string, { id: string; isNew: boolean }>,
+    groupMap: Map<string, { id: string; isNew: boolean }>
   ) {
     const findingsToInsert = Array.from(fingerprints.entries()).map(([fingerprint, input]) => ({
       scanId,
@@ -575,7 +746,7 @@ function computeFingerprints(inputs: NewFindingInput[]): Map<string, NewFindingI
 function buildFindingResult(
   created: Array<{ id: string; groupId: string | null }>,
   groupMap: Map<string, { id: string; isNew: boolean }>,
-  resolvedCount: number,
+  resolvedCount: number
 ): FindingResult {
   // Build reverse lookup: groupId → isNew
   const groupIsNewMap = new Map<string, boolean>();

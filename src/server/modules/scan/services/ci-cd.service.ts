@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 import { normalizeRepoName } from '@/app/api/v1/ci/normalize-repo';
 import { db } from '@/server/db/client';
@@ -10,6 +10,7 @@ import { repositoriesRepository } from '@/server/modules/repositories/repositori
 import { createScmApiService, parseRepoName, buildPrComment, buildInlineReviewComment } from '@/server/modules/source-control/scm-api.service';
 import type { InlineReviewComment } from '@/server/modules/source-control/scm-api.service';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import { findings, findingGroupScans } from '@drizzle/schema/findings';
 import { sourceControls } from '@drizzle/schema/source-controls';
 
 import { aiVerificationRepository } from '../repositories/ai-verification.repository';
@@ -36,6 +37,7 @@ interface CiInitInput {
   baseBranch?: string;
   headBranch?: string;
   prAuthor?: string;
+  platform?: string;
 }
 
 interface CiUploadInput {
@@ -68,13 +70,19 @@ export const ciCdService = {
    * Centralizes the duplicated credential lookup across CI endpoints.
    *
    * @param workspaceId - Workspace UUID
+   * @param preferredProvider - Optional provider filter ('github', 'gitea', 'gitlab'). If omitted, returns first available.
    * @returns Credentials with provider or null if not configured
    */
-  async getCredentialsWithProvider(workspaceId: string): Promise<ScmCredentialsWithProvider | null> {
+  async getCredentialsWithProvider(workspaceId: string, preferredProvider?: string): Promise<ScmCredentialsWithProvider | null> {
+    if (!preferredProvider) {
+      logger.scan.warn('getCredentialsWithProvider: no preferredProvider specified, skipping');
+      return null;
+    }
+
     const [sourceControl] = await db
       .select()
       .from(sourceControls)
-      .where(eq(sourceControls.workspaceId, workspaceId))
+      .where(and(eq(sourceControls.workspaceId, workspaceId), eq(sourceControls.provider, preferredProvider)))
       .limit(1);
 
     if (!sourceControl?.credentials) return null;
@@ -93,7 +101,7 @@ export const ciCdService = {
     return {
       baseUrl: credentials.baseUrl,
       token: credentials.token,
-      provider: sourceControl.provider || 'gitea',
+      provider: sourceControl.provider,
       clientId: credentials.clientId,
       clientSecret: credentials.clientSecret,
       refreshToken: credentials.refreshToken,
@@ -118,14 +126,18 @@ export const ciCdService = {
     name: string,
     url: string,
     branch: string,
+    platform?: string,
   ) {
+    const repoUrl = url || `external://${name}`;
+    const provider = platform;
     return repositoriesRepository.findOrCreate({
       workspaceId,
       projectId,
       name: normalizeRepoName(name, url),
-      url: url || `external://${name}`,
+      url: repoUrl,
       defaultBranch: branch,
       connectionType: ['external'],
+      provider,
     });
   },
 
@@ -139,12 +151,16 @@ export const ciCdService = {
    * @returns Object with scanId
    */
   async initScan(workspaceId: string, projectId: string, input: CiInitInput) {
-    const { repoName, repoUrl, branch, commit, prNumber, baseBranch, headBranch, prAuthor } = input;
+    const { repoName, repoUrl, branch, commit, prNumber, baseBranch, headBranch, prAuthor, platform } = input;
     const resolvedBranch = branch || 'main';
     const resolvedCommit = commit || '';
 
+    // Use explicit platform from CI workflow
+    const scmCreds = platform ? await this.getCredentialsWithProvider(workspaceId, platform) : null;
+    logger.scan.info('CI/CD init: provider', { platform, repoUrl, hasScmConnection: !!scmCreds });
+
     // Find or auto-create repository (atomic)
-    const repository = await this.findOrCreateForCi(workspaceId, projectId, repoName, repoUrl || '', resolvedBranch);
+    const repository = await this.findOrCreateForCi(workspaceId, projectId, repoName, repoUrl || '', resolvedBranch, platform);
 
     logger.scan.info('CI/CD init: repository resolved', { repositoryId: repository.id, name: repoName });
 
@@ -361,9 +377,9 @@ export const ciCdService = {
       gateResult = await qualityGateService.evaluateScan(workspaceId, scanId, projectId);
     }
 
-    // 4b. Queue AI verification for NEW findings
-    if (scan.prNumber && scan.repositoryId && gateResult) {
-      await this.enqueueAiVerification(scanId, workspaceId, scan.prNumber, scan.repositoryId, gateResult);
+    // 4b. Queue AI verification for NEW findings first, then pre-existing if not yet verified
+    if (scan.repositoryId) {
+      await this.enqueueAiVerification(scanId, workspaceId, scan.prNumber ?? 0, scan.repositoryId, gateResult);
     }
 
     // 5. Post inline comments
@@ -372,7 +388,7 @@ export const ciCdService = {
       try {
         inlineCommentsResult = await this.postInlineComments(scanId, workspaceId, scan, gateResult);
       } catch (err) {
-        logger.scan.error('CI/CD inline comments failed (non-critical)', { scanId, error: (err as Error).message });
+        logger.scan.error('CI/CD inline comments failed (non-critical)', { scanId, error: this.sanitizeError(err as Error) });
       }
     }
 
@@ -385,7 +401,7 @@ export const ciCdService = {
         prCommentResult = scmResult.prComment;
         commitStatusResult = scmResult.commitStatus;
       } catch (err) {
-        logger.scan.error('CI/CD SCM actions failed (non-critical)', { scanId, error: (err as Error).message });
+        logger.scan.error('CI/CD SCM actions failed (non-critical)', { scanId, error: this.sanitizeError(err as Error) });
       }
     }
 
@@ -423,46 +439,73 @@ export const ciCdService = {
   async enqueueAiVerification(
     scanId: string,
     workspaceId: string,
-    prNumber: number,
-    repositoryId: string,
-    gateResult: { newFindingsData?: Array<{ id?: string; groupId?: string | null }> },
+    _prNumber: number,
+    _repositoryId: string,
+    _gateResult: { newFindingsData?: Array<{ id?: string; groupId?: string | null }> } | null,
   ) {
     try {
       const { enqueue } = await import('@/server/modules/queue/queue.service');
-      const newFindingsData = gateResult.newFindingsData ?? [];
+
       const model = await aiVerificationRepository.getPrimaryModel();
+      if (!model) return;
 
-      if (model && newFindingsData.length > 0) {
-        const groupIds = [...new Set(newFindingsData.map((f) => f.groupId).filter(Boolean))] as string[];
-        const verifiedGroupIds = new Set<string>();
-        if (groupIds.length > 0) {
-          const verifiedGroups = await aiVerificationRepository.hasVerificationBatch(groupIds);
-          verifiedGroups.forEach((id) => verifiedGroupIds.add(id));
-        }
+      // Get ALL findings for this scan with their isNew status from junction table.
+      // Join on groupId only — findings.scanId may differ from findingGroupScans.scanId
+      // for pre-existing findings (created in a previous scan).
+      const allFindings = await db.select({
+        findingId: findings.id,
+        groupId: findingGroupScans.groupId,
+        isNew: findingGroupScans.isNew,
+      })
+        .from(findingGroupScans)
+        .innerJoin(findings, eq(findings.groupId, findingGroupScans.groupId))
+        .where(eq(findingGroupScans.scanId, scanId));
 
-        const toVerify = newFindingsData.filter((f) => {
-          if (!f.id) return false;
-          if (!f.groupId) return true;
-          return !verifiedGroupIds.has(f.groupId);
-        });
+      if (allFindings.length === 0) return;
 
-        for (const finding of toVerify) {
-          if (!finding.id) continue;
-          await enqueue('ai-verify-finding', {
-            findingId: finding.id,
-            scanId,
-            modelId: model.id,
-            workspaceId,
-          }, { retryLimit: 5, retryDelay: 30 });
-        }
-
-        logger.scan.info('CI/CD complete: AI verification enqueued', {
-          scanId,
-          totalNew: newFindingsData.length,
-          toVerify: toVerify.length,
-          skippedGroups: verifiedGroupIds.size,
-        });
+      // Dedup: skip groups already verified (confidence > 80)
+      const groupIds = [...new Set(allFindings.map((f) => f.groupId).filter(Boolean))] as string[];
+      const verifiedGroupIds = new Set<string>();
+      if (groupIds.length > 0) {
+        const verifiedGroups = await aiVerificationRepository.hasVerificationBatch(groupIds);
+        verifiedGroups.forEach((id) => verifiedGroupIds.add(id));
       }
+
+      // Priority 1: NEW findings (isNew=true) — in PR diff, always verify even if previously verified
+      const newFindingsToVerify = allFindings.filter((f) => {
+        if (!f.findingId) return false;
+        if (!f.isNew) return false;
+        return true;
+      });
+
+      // Priority 2: Pre-existing findings (isNew=false) that don't have verification yet
+      const preExistingToVerify = allFindings.filter((f) => {
+        if (!f.findingId) return false;
+        if (f.isNew) return false; // Already handled above
+        if (f.groupId && verifiedGroupIds.has(f.groupId)) return false;
+        return true;
+      });
+
+      // Enqueue NEW findings first, then pre-existing
+      const toVerify = [...newFindingsToVerify, ...preExistingToVerify];
+
+      for (const finding of toVerify) {
+        if (!finding.findingId) continue;
+        await enqueue('ai-verify-finding', {
+          findingId: finding.findingId,
+          scanId,
+          modelId: model.id,
+          workspaceId,
+        }, { retryLimit: 5, retryDelay: 30 });
+      }
+
+      logger.scan.info('CI/CD complete: AI verification enqueued', {
+        scanId,
+        totalFindings: allFindings.length,
+        newToVerify: newFindingsToVerify.length,
+        preExistingToVerify: preExistingToVerify.length,
+        skippedGroups: verifiedGroupIds.size,
+      });
     } catch (err) {
       logger.scan.error('CI/CD complete: AI verification enqueue failed (non-critical)', { scanId, error: (err as Error).message });
     }
@@ -482,7 +525,7 @@ export const ciCdService = {
     const repository = await repositoriesRepository.getById(workspaceId, scan.repositoryId);
     if (!repository) return null;
 
-    const scmCreds = await this.getCredentialsWithProvider(workspaceId);
+    const scmCreds = await this.getCredentialsWithProvider(workspaceId, repository.provider ?? undefined);
     if (!scmCreds) return null;
 
     const scm = this.createScmClient(scmCreds);
@@ -558,7 +601,7 @@ export const ciCdService = {
     const repository = await repositoriesRepository.getById(workspaceId, scan.repositoryId);
     if (!repository) return { prComment: null, commitStatus: null };
 
-    const scmCreds = await this.getCredentialsWithProvider(workspaceId);
+    const scmCreds = await this.getCredentialsWithProvider(workspaceId, repository.provider ?? undefined);
     if (!scmCreds) return { prComment: null, commitStatus: null };
 
     const scm = this.createScmClient(scmCreds);
@@ -591,7 +634,7 @@ export const ciCdService = {
       const action = await scm.postOrUpdatePrComment(owner, repo, scan.prNumber, scanId, commentBody);
       prCommentResult = { action, prNumber: scan.prNumber };
     } catch (err) {
-      logger.scan.error('PR comment failed', { scanId, error: (err as Error).message });
+      logger.scan.error('PR comment failed', { scanId, error: this.sanitizeError(err as Error) });
     }
 
     // Set commit status
@@ -612,7 +655,7 @@ export const ciCdService = {
         });
         commitStatusResult = { status: commitStatus, context: COMMIT_STATUS_CONTEXT };
       } catch (err) {
-        logger.scan.error('Commit status failed', { scanId, error: (err as Error).message });
+        logger.scan.error('Commit status failed', { scanId, error: this.sanitizeError(err as Error) });
       }
     }
 
@@ -620,6 +663,19 @@ export const ciCdService = {
   },
 
   // ─── Shared helpers ─────────────────────────────────────────────────────
+
+  /**
+   * Sanitize error message to prevent credential leakage in logs.
+   * Strips token, clientSecret, refreshToken from error messages.
+   */
+  sanitizeError(err: Error): string {
+    let msg = err.message;
+    const sensitivePatterns = [/token[=:]\s*\S+/gi, /secret[=:]\s*\S+/gi, /password[=:]\s*\S+/gi];
+    for (const pattern of sensitivePatterns) {
+      msg = msg.replace(pattern, '[REDACTED]');
+    }
+    return msg;
+  },
 
   /**
    * Create an SCM API client from credentials.

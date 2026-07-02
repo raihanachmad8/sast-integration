@@ -5,7 +5,8 @@ import { db, type Tx } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
 import { buildSearch, buildFilters, buildSort, buildPaginationMeta } from '@/server/lib/query';
 import { workspaces, workspaceMembers } from '@drizzle/schema';
-import { findings, findingGroups, findingGroupScans } from '@drizzle/schema/findings';
+import { findings, findingGroups, findingGroupScans, aiVerifications } from '@drizzle/schema/findings';
+import { models } from '@drizzle/schema/integrations';
 import { projects } from '@drizzle/schema/projects';
 import { scans } from '@drizzle/schema/scans';
 import { repositories } from '@drizzle/schema/source-controls';
@@ -72,10 +73,6 @@ export const findingsRepository = {
       },
     ));
 
-    if (params?.onlyNew !== undefined) {
-      conditions.push(eq(findingGroupScans.isNew, params.onlyNew));
-    }
-
     const where = and(...conditions);
 
     const sortExpr = buildSort(
@@ -110,9 +107,9 @@ export const findingsRepository = {
       groupStatus: findingGroups.status,
     };
 
-    // Subquery: get the max id per group_id to deduplicate
+    // Subquery: get the latest finding (by created_at desc) per group_id to deduplicate
     const latestPerGroup = exec
-      .select({ maxId: sql<string>`max(${findings.id})` })
+      .select({ maxId: sql<string>`(ARRAY_AGG(${findings.id} ORDER BY ${findings.createdAt} DESC))[1]`.as('maxId') })
       .from(findings)
       .innerJoin(scans, eq(findings.scanId, scans.id))
       .innerJoin(repositories, eq(scans.repositoryId, repositories.id))
@@ -127,23 +124,70 @@ export const findingsRepository = {
       .from(findings)
       .innerJoin(latestPerGroup, eq(findings.id, latestPerGroup.maxId))
       .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
-      .leftJoin(findingGroupScans, eq(findingGroupScans.groupId, findingGroups.id))
+      .innerJoin(scans, eq(findings.scanId, scans.id))
+      .innerJoin(repositories, eq(scans.repositoryId, repositories.id))
       .orderBy(sortExpr);
 
     // Count distinct groups
     const [data, countResult] = await Promise.all([
       baseQuery.limit(perPage).offset(offset),
       exec
-        .select({ total: count() })
+        .select({ total: count(sql`DISTINCT ${findingGroups.id}`) })
         .from(findings)
         .innerJoin(scans, eq(findings.scanId, scans.id))
         .innerJoin(repositories, eq(scans.repositoryId, repositories.id))
         .innerJoin(projects, eq(repositories.projectId, projects.id))
-        .leftJoin(findingGroups, eq(findings.groupId, findingGroups.id))
+        .innerJoin(findingGroups, eq(findings.groupId, findingGroups.id))
         .where(where),
     ]);
 
     const total = Number(countResult[0]?.total ?? 0);
+
+    // Enrich with latest AI verification per finding
+    if (data.length > 0) {
+      const findingIds = data.map((r) => r.id);
+      const latestVerifications = await exec
+        .select({
+          findingId: aiVerifications.findingId,
+          verdict: aiVerifications.verdict,
+          explanation: aiVerifications.explanation,
+          confidence: aiVerifications.confidence,
+          dataFlow: aiVerifications.dataFlow,
+          taintSource: aiVerifications.taintSource,
+          matchDetail: aiVerifications.matchDetail,
+          likelyCwe: aiVerifications.likelyCwe,
+          fixSuggestion: aiVerifications.fixSuggestion,
+          modelId: aiVerifications.modelId,
+          modelName: models.name,
+        })
+        .from(aiVerifications)
+        .innerJoin(models, eq(aiVerifications.modelId, models.id))
+        .where(inArray(aiVerifications.findingId, findingIds))
+        .orderBy(sql`${aiVerifications.createdAt} DESC`);
+
+      const verificationMap = new Map<string, typeof latestVerifications[0]>();
+      for (const v of latestVerifications) {
+        if (!verificationMap.has(v.findingId!)) {
+          verificationMap.set(v.findingId!, v);
+        }
+      }
+
+      for (const row of data) {
+        const v = verificationMap.get(row.id);
+        if (v) {
+          (row as Record<string, unknown>).verdict = v.verdict;
+          (row as Record<string, unknown>).explanation = v.explanation;
+          (row as Record<string, unknown>).confidence = v.confidence;
+          (row as Record<string, unknown>).dataFlow = v.dataFlow;
+          (row as Record<string, unknown>).taintSource = v.taintSource;
+          (row as Record<string, unknown>).matchDetail = v.matchDetail;
+          (row as Record<string, unknown>).likelyCwe = v.likelyCwe;
+          (row as Record<string, unknown>).fixSuggestion = v.fixSuggestion;
+          (row as Record<string, unknown>).model = v.modelName;
+        }
+      }
+    }
+
     logger.finding.info('listByWorkspace completed', { workspaceId, count: data.length, total });
     return {
       data,
@@ -178,8 +222,41 @@ export const findingsRepository = {
 
     if (!result) {
       logger.finding.warn('getById: finding not found', { id, workspaceId });
+      return null;
     }
-    return result ?? null;
+
+    // Enrich with latest AI verification
+    const [verification] = await exec
+      .select({
+        verdict: aiVerifications.verdict,
+        explanation: aiVerifications.explanation,
+        confidence: aiVerifications.confidence,
+        dataFlow: aiVerifications.dataFlow,
+        taintSource: aiVerifications.taintSource,
+        matchDetail: aiVerifications.matchDetail,
+        likelyCwe: aiVerifications.likelyCwe,
+        fixSuggestion: aiVerifications.fixSuggestion,
+        modelName: models.name,
+      })
+      .from(aiVerifications)
+      .innerJoin(models, eq(aiVerifications.modelId, models.id))
+      .where(eq(aiVerifications.findingId, id))
+      .orderBy(sql`${aiVerifications.createdAt} DESC`)
+      .limit(1);
+
+    if (verification) {
+      (result as Record<string, unknown>).verdict = verification.verdict;
+      (result as Record<string, unknown>).explanation = verification.explanation;
+      (result as Record<string, unknown>).confidence = verification.confidence;
+      (result as Record<string, unknown>).dataFlow = verification.dataFlow;
+      (result as Record<string, unknown>).taintSource = verification.taintSource;
+      (result as Record<string, unknown>).matchDetail = verification.matchDetail;
+      (result as Record<string, unknown>).likelyCwe = verification.likelyCwe;
+      (result as Record<string, unknown>).fixSuggestion = verification.fixSuggestion;
+      (result as Record<string, unknown>).model = verification.modelName;
+    }
+
+    return result;
   },
 
   /**
@@ -201,6 +278,12 @@ export const findingsRepository = {
       if (!updated) {
         logger.finding.warn('updateStatus: finding not found', { id });
       }
+
+      // When resolved or dismissed, mark group scans as not-new
+      if (updated && (status === 'resolved' || status === 'dismissed')) {
+        await findingsRepository.markGroupScansNotNew([id], tx);
+      }
+
       return updated ?? null;
     } catch (error) {
       logger.finding.error('updateStatus failed', { id, status, error: error instanceof Error ? error.message : error });
@@ -266,11 +349,43 @@ export const findingsRepository = {
         .where(inArray(findings.id, ids))
         .returning();
 
+      // When resolved or dismissed, mark group scans as not-new
+      if (payload.status && (payload.status === 'resolved' || payload.status === 'dismissed')) {
+        await findingsRepository.markGroupScansNotNew(ids, tx);
+      }
+
       logger.finding.info('bulkUpdate completed', { requested: ids.length, updated: updated.length });
       return updated;
     } catch (error) {
       logger.finding.error('bulkUpdate failed', { count: ids.length, error: error instanceof Error ? error.message : error });
       throw error;
     }
+  },
+
+  /**
+   * Mark finding_group_scans.isNew = false for all groups whose findings
+   * are being resolved or dismissed. This prevents resolved findings from
+   * appearing as "new" in subsequent scans.
+   *
+   * Called internally by updateStatus and bulkUpdate when status is terminal.
+   */
+  async markGroupScansNotNew(findingIds: string[], tx?: Tx) {
+    const exec = tx ?? db;
+    logger.finding.info('markGroupScansNotNew', { count: findingIds.length });
+    if (findingIds.length === 0) return;
+
+    // Get groupIds from the findings being updated
+    const rows = await exec
+      .select({ groupId: findings.groupId })
+      .from(findings)
+      .where(inArray(findings.id, findingIds));
+
+    const groupIds = rows.map((r) => r.groupId).filter((id): id is string => id !== null);
+    if (groupIds.length === 0) return;
+
+    await exec
+      .update(findingGroupScans)
+      .set({ isNew: false })
+      .where(inArray(findingGroupScans.groupId, groupIds));
   },
 };

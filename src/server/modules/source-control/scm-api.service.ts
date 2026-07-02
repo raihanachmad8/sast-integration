@@ -20,6 +20,16 @@ import { GiteaApiService } from './gitea-api.service';
 import { GitHubScmService } from './github-api.service';
 import { GitLabScmService } from './gitlab-api.service';
 
+/** Detect SCM provider from a repository URL. */
+export function detectProviderFromUrl(url?: string): ScmProvider | undefined {
+  if (!url) return undefined;
+  const lower = url.toLowerCase();
+  if (lower.includes('github.com')) return 'github';
+  if (lower.includes('gitlab')) return 'gitlab';
+  if (lower.includes('gitea')) return 'gitea';
+  return undefined;
+}
+
 
 // ─── Credentials ─────────────────────────────────────────────
 
@@ -91,6 +101,9 @@ export interface PrCommentFinding {
   codeSnippet: string | null;
   aiVerdict: string | null;
   confidence: string | null;
+  explanation?: string | null;
+  dataFlow?: string | null;
+  fixSuggestion?: string | null;
   findingId: string;
   fingerprint: string;
 }
@@ -247,61 +260,36 @@ export function buildPrComment(
   appBaseUrl: string = 'http://localhost:3000',
   persistentFindings: number = 0,
   workspaceSlug: string = 'workspace',
-  dismissedFindings: number = 0,
-  resolvedFindings: number = 0,
+  _dismissedFindings: number = 0,
+  _resolvedFindings: number = 0,
 ): string {
-  // Gate status icon
   const gateIcon = gateStatus === 'passed' ? '✅' : gateStatus === 'failed' ? '❌' : '⚠️';
-  const gateLabel = gateStatus.toUpperCase();
+  const total = newFindings + persistentFindings;
 
-  // Count by severity
-  const critical = findings.filter((f) => f.severity === 'critical');
-  const high = findings.filter((f) => f.severity === 'high');
-  const medium = findings.filter((f) => f.severity === 'medium');
-  const low = findings.filter((f) => f.severity === 'low');
+  // Count by severity (only include rows that have count > 0)
+  const sevCounts = [
+    { icon: '🔴', label: 'Critical', count: findings.filter((f) => f.severity === 'critical').length },
+    { icon: '🟠', label: 'High', count: findings.filter((f) => f.severity === 'high').length },
+    { icon: '🟡', label: 'Medium', count: findings.filter((f) => f.severity === 'medium').length },
+    { icon: '⚪', label: 'Low', count: findings.filter((f) => f.severity === 'low').length },
+  ];
 
-  // Count AI verification status
-  const verified = findings.filter((f) => f.aiVerdict === 'true_positive').length;
-  const falsePos = findings.filter((f) => f.aiVerdict === 'false_positive').length;
-  const pending = findings.filter((f) => !f.aiVerdict || f.aiVerdict === 'pending').length;
+  let comment = `## ${gateIcon} SAST: ${gateStatus.toUpperCase()} | ${total} findings\n\n`;
 
-  let comment = `## 🔒 SAST Security Analysis\n\n`;
-  comment += `### Quality Gate: ${gateIcon} ${gateLabel}\n\n`;
-  comment += `| Severity | Count | Status |\n`;
-  comment += `|----------|-------|--------|\n`;
-  comment += `| 🔴 Critical | ${critical.length} | ${critical.length > 0 ? '❌ Blocking' : '✅ Pass'} |\n`;
-  comment += `| 🟠 High | ${high.length} | ${high.length > 0 ? '❌ Blocking' : '✅ Pass'} |\n`;
-  comment += `| 🟡 Medium | ${medium.length} | ${medium.length > 0 ? '⚠️ Warning' : '✅ Pass'} |\n`;
-  comment += `| ⚪ Low | ${low.length} | ✅ Pass |\n`;
-  comment += `\n| Summary | Count |\n`;
-  comment += `|---------|-------|\n`;
-  comment += `| 📦 Total | ${newFindings + persistentFindings} |\n`;
-  comment += `| 🆕 New | ${newFindings} |\n`;
-  comment += `| 📂 Pre-existing | ${persistentFindings} |\n`;
-  comment += `| 📌 Fixed | ${fixedFindings} |\n`;
-  comment += `| 🙈 Dismissed | ${dismissedFindings} |\n`;
-  comment += `| ✅ Resolved (FP) | ${resolvedFindings} |\n`;
-  comment += `\n| 🤖 AI Verification | Count |\n`;
-  comment += `|--------------------|-------|\n`;
-  comment += `| ✅ Verified TP | ${verified} |\n`;
-  comment += `| ❌ Verified FP | ${falsePos} |\n`;
-  comment += `| ⏳ Pending | ${pending} |\n`;
+  // Severity breakdown — compact single row
+  const sevParts = sevCounts.filter((s) => s.count > 0).map((s) => `${s.icon} ${s.count} ${s.label}`);
+  comment += sevParts.length > 0 ? `**Severity:** ${sevParts.join(' · ')}\n\n` : '**Severity:** None\n\n';
 
-  // Actions
-  comment += `\n---\n\n### 🎯 Actions\n\n`;
-  comment += `- 📊 [View Full Report](${appBaseUrl}/${workspaceSlug}/findings?scanId=${scanId})\n`;
-  comment += `\n---\n*🔧 Powered by SAST Integration • \`${scanId.substring(0, 8)}\` • ${new Date().toISOString().split('T')[0]}*\n`;
+  // Summary table — minimal
+  comment += `| New | Fixed | Persistent | Blocked |\n`;
+  comment += `|-----|-------|------------|----------|\n`;
+  comment += `| ${newFindings} | ${fixedFindings} | ${persistentFindings} | ${blockingFindings} |\n`;
+
+  // Link
+  comment += `\n[View report](${appBaseUrl}/${workspaceSlug}/findings?scanId=${scanId})`;
+  comment += ` · Scan: \`${scanId.substring(0, 8)}\`\n`;
 
   return comment;
-}
-
-/**
- * Strips Docker workspace prefix from absolute file paths.
- * /workspace/Owner/repo/file.c → file.c
- */
-function normalizeDisplayPath(filePath: string): string {
-  const match = filePath.match(/^\/workspace\/[^/]+\/[^/]+\/(.+)$/);
-  return match ? match[1] : filePath;
 }
 
 /**
@@ -315,51 +303,35 @@ export function buildInlineReviewComment(
   workspaceSlug: string = 'workspace',
 ): string {
   const link = `${appBaseUrl}/${workspaceSlug}/findings/${finding.findingId}`;
-  const displayPath = normalizeDisplayPath(finding.filePath || '');
-
-  const sevEmoji: Record<string, string> = {
-    critical: '🔴',
-    high: '🟠',
-    medium: '🟡',
-    low: '⚪',
-  };
-  const sevEmojiIcon = sevEmoji[finding.severity] ?? '⚪';
-
-  const verdictEmoji: Record<string, string> = {
-    true_positive: '✅',
-    TP: '✅',
-    false_positive: '❌',
-    FP: '❌',
-    pending: '⏳',
-    Pending: '⏳',
-  };
-  const verdictLabel: Record<string, string> = {
-    true_positive: 'True Positive',
-    TP: 'True Positive',
-    false_positive: 'False Positive',
-    FP: 'False Positive',
-    pending: 'Pending',
-    Pending: 'Pending',
-  };
-  const vEmoji = verdictEmoji[finding.aiVerdict ?? ''] ?? '⏳';
-  const vLabel = verdictLabel[finding.aiVerdict ?? ''] ?? 'Pending verification';
+  const sevEmoji: Record<string, string> = { critical: '🔴', high: '🟠', medium: '🟡', low: '⚪' };
+  const sev = sevEmoji[finding.severity] ?? '⚪';
+  const vEmoji = { true_positive: '✅', TP: '✅', false_positive: '❌', FP: '❌' }[finding.aiVerdict ?? ''] ?? '⏳';
 
   let comment = `<!-- sast-integration:inline-review:${finding.fingerprint} -->\n`;
-  comment += `${sevEmojiIcon} **${finding.severity.toUpperCase()}** · \`${finding.scanner}\`\n\n`;
-  comment += `**📋 ${finding.rule || 'Unknown rule'}**\n\n`;
+  comment += `${sev} **${finding.severity.toUpperCase()}** \`${finding.scanner}\` — ${finding.rule || 'Unknown'}\n\n`;
   comment += `> ${(finding.message || 'No description').split('\n')[0]}\n\n`;
 
-  if (finding.codeSnippet) {
-    const snippet = finding.codeSnippet.split('\n').slice(0, 3).join('\n');
-    comment += `**🔍 Code:**\n`;
-    comment += `\`\`\`${displayPath.split('.').pop() || ''}\n${snippet}\n\`\`\`\n\n`;
+  // Enrich with AI verification details
+  if (finding.aiVerdict && finding.aiVerdict !== 'pending') {
+    const confidenceStr = finding.confidence ? ` · Confidence: ${finding.confidence}` : '';
+    comment += `${vEmoji} **AI Verdict:** ${finding.aiVerdict}${confidenceStr}\n`;
+
+    if (finding.explanation) {
+      comment += `> ${finding.explanation}\n\n`;
+    }
+
+    if (finding.dataFlow) {
+      comment += `**Data Flow:** ${finding.dataFlow}\n\n`;
+    }
+
+    if (finding.fixSuggestion) {
+      comment += `**Fix:** ${finding.fixSuggestion}\n\n`;
+    }
+
+    comment += `[View Full Report](${link})\n`;
+  } else {
+    comment += `${vEmoji} AI: pending · [Details](${link})\n`;
   }
-
-  comment += `| AI Review | Confidence |\n`;
-  comment += `|-----------|------------|\n`;
-  comment += `| ${vEmoji} ${vLabel} | ${finding.confidence ?? '—'} |\n\n`;
-
-  comment += `👉 [View full finding](${link})`;
 
   return comment;
 }

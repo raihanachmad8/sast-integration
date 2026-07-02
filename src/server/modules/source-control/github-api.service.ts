@@ -32,15 +32,24 @@ export class GitHubScmService implements ScmApiService {
   private token: string;
   private graphqlUrl: string;
 
-  constructor(credentials: ScmBaseCredentials) {
-    // GitHub API: https://api.github.com or custom Enterprise URL
-    this.baseUrl = credentials.baseUrl.replace(/\/+$/, '');
+  constructor(credentials: ScmBaseCredentials & { apiUrl?: string }) {
+    // Prefer explicit apiUrl from credentials, else normalize baseUrl
+    if (credentials.apiUrl) {
+      this.baseUrl = credentials.apiUrl.replace(/\/+$/, '');
+    } else {
+      const raw = credentials.baseUrl.replace(/\/+$/, '');
+      if (/^https?:\/\/github\.com$/i.test(raw)) {
+        this.baseUrl = 'https://api.github.com';
+      } else {
+        this.baseUrl = `${raw}/api/v3`;
+      }
+    }
     this.token = credentials.token;
-    // Derive GraphQL URL from base URL
-    // github.com → api.github.com/graphql, enterprise → {host}/api/graphql
+    // GraphQL URL: github.com → api.github.com/graphql, enterprise → {host}/api/graphql
+    const rawBase = credentials.baseUrl.replace(/\/+$/, '');
     this.graphqlUrl = this.baseUrl.includes('api.github.com')
       ? 'https://api.github.com/graphql'
-      : `${this.baseUrl}/api/graphql`;
+      : `${rawBase}/api/graphql`;
   }
 
   /**
@@ -50,7 +59,11 @@ export class GitHubScmService implements ScmApiService {
   async postPrComment(owner: string, repo: string, prNumber: number, body: string): Promise<void> {
     const url = `${this.baseUrl}/repos/${owner}/${repo}/issues/${prNumber}/comments`;
 
-    logger.scan.info('GitHub: posting PR comment', { owner, repo, prNumber, bodyLength: body.length });
+    // GitHub API limit: 65,536 characters per comment
+    const maxBodyLength = 65000;
+    const trimmedBody = body.length > maxBodyLength ? body.substring(0, maxBodyLength) + '\n\n---\n*Comment truncated due to GitHub size limit.*' : body;
+
+    logger.scan.info('GitHub: posting PR comment', { owner, repo, prNumber, bodyLength: trimmedBody.length });
 
     const response = await fetch(url, {
       method: 'POST',
@@ -59,13 +72,18 @@ export class GitHubScmService implements ScmApiService {
         'Authorization': `Bearer ${this.token}`,
         'Accept': 'application/vnd.github.v3+json',
       },
-      body: JSON.stringify({ body }),
+      body: JSON.stringify({ body: trimmedBody }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.scan.error('GitHub: PR comment failed', { status: response.status, error: errorText });
-      throw new AppError(`GitHub PR comment failed: ${response.status} ${errorText}`, 502, HTTP.ERROR_CODES.SCM_ERROR);
+      // 422 = validation failed (PR closed/locked/too long) — non-fatal
+      if (response.status === 422) {
+        logger.scan.warn('GitHub: PR comment rejected (PR may be closed/locked)', { status: response.status, error: errorText.slice(0, 200) });
+        return;
+      }
+      logger.scan.error('GitHub: PR comment failed', { status: response.status, error: errorText.slice(0, 500) });
+      throw new AppError(`GitHub PR comment failed: ${response.status}`, 502, HTTP.ERROR_CODES.SCM_ERROR);
     }
 
     logger.scan.info('GitHub: PR comment posted', { owner, repo, prNumber });
@@ -88,7 +106,8 @@ export class GitHubScmService implements ScmApiService {
     });
 
     if (!response.ok) {
-      logger.scan.warn('GitHub: failed to list PR comments', { status: response.status });
+      const errorText = await response.text();
+      logger.scan.warn('GitHub: failed to list PR comments', { status: response.status, error: errorText.slice(0, 300) });
       return null;
     }
 
@@ -113,7 +132,10 @@ export class GitHubScmService implements ScmApiService {
   async updatePrComment(owner: string, repo: string, _prNumber: number, commentId: number, body: string): Promise<void> {
     const url = `${this.baseUrl}/repos/${owner}/${repo}/issues/comments/${commentId}`;
 
-    logger.scan.info('GitHub: updating PR comment', { owner, repo, commentId, bodyLength: body.length });
+    const maxBodyLength = 65000;
+    const trimmedBody = body.length > maxBodyLength ? body.substring(0, maxBodyLength) + '\n\n---\n*Comment truncated due to GitHub size limit.*' : body;
+
+    logger.scan.info('GitHub: updating PR comment', { owner, repo, commentId, bodyLength: trimmedBody.length });
 
     const response = await fetch(url, {
       method: 'PATCH',
@@ -122,7 +144,7 @@ export class GitHubScmService implements ScmApiService {
         'Authorization': `Bearer ${this.token}`,
         'Accept': 'application/vnd.github.v3+json',
       },
-      body: JSON.stringify({ body }),
+      body: JSON.stringify({ body: trimmedBody }),
     });
 
     if (!response.ok) {
@@ -190,8 +212,13 @@ export class GitHubScmService implements ScmApiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.scan.error('GitHub: commit status failed', { status: response.status, error: errorText });
-      throw new AppError(`GitHub commit status failed: ${response.status} ${errorText}`, 502, HTTP.ERROR_CODES.SCM_ERROR);
+      // 422 = commit SHA not found or PR closed — non-fatal, don't spam full HTML in logs
+      if (response.status === 422) {
+        logger.scan.warn('GitHub: commit status rejected (commit may not exist or PR closed)', { status: response.status, sha });
+        return;
+      }
+      logger.scan.error('GitHub: commit status failed', { status: response.status, error: errorText.slice(0, 200) });
+      throw new AppError(`GitHub commit status failed: ${response.status}`, 502, HTTP.ERROR_CODES.SCM_ERROR);
     }
 
     logger.scan.info('GitHub: commit status created', { owner, repo, sha, status: status.status });
@@ -433,6 +460,8 @@ export class GitHubScmService implements ScmApiService {
             updated++;
           } else {
             failed++;
+            const errorText = await postResponse.text().catch(() => '');
+            logger.scan.warn('GitHub: failed to POST inline comment', { fingerprint: c.fingerprint, status: postResponse.status, error: errorText, filePath: c.filePath, line: c.lineNumber });
           }
         }
       } catch (err) {
