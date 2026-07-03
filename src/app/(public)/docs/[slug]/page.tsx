@@ -43,7 +43,7 @@ export default async function DocPage({ params }: DocPageProps) {
   const { frontmatter, body } = parseFrontmatter(raw);
 
   return (
-    <DocArticle title={frontmatter.title} description={frontmatter.description}>
+    <DocArticle title={frontmatter.title} description={frontmatter.description} updated={frontmatter.updated}>
       <MarkdownRenderer content={body} />
     </DocArticle>
   );

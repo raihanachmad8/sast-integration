@@ -1,90 +1,106 @@
 ---
 title: Repositories
-description: Connect and manage code repositories for security scanning
+description: Import and manage code repositories
+updated: 2026-07-03
 ---
 
 # Repositories
 
 ## Overview
 
-Repositories connect your code to the scanning platform. Import from GitHub, GitLab, or Gitea for automated security analysis.
+Repository adalah kode sumber yang akan dipindai oleh platform. kamu bisa mengimpor dari GitHub, GitLab, atau Gitea, atau menambahkan secara manual.
 
-## Supported Providers
+## Siapa yang Butuh Ini?
 
-| Provider | OAuth | Webhooks | PR Comments | Commit Status |
-|----------|:-----:|:--------:|:-----------:|:-------------:|
-| GitHub | ✅ | ✅ | ✅ | ✅ |
-| GitLab | ✅ | ✅ | ✅ | ✅ |
-| Gitea | ✅ | ✅ | ✅ | ✅ |
+- **Developer** — ingin memindai kode yang baru ditulis
+- **Tim Keamanan** — ingin memantau keamanan semua repositori
+- **Manager** — ingin mengetahui repositori mana yang sudah dipindai
 
-## Repository Management
+## Dua Cara Menambah Repository
+
+| Metode | Kapan Digunakan |
+|--------|----------------|
+| **SCM Import** | Hubungkan GitHub/GitLab/Gitea dulu, lalu impor repo |
+| **Manual Add** | Masukkan URL repo langsung (untuk CI/CD upload) |
+
+## Tambah Repository (Manual)
 
 ```mermaid
 flowchart TD
-    A["Repository"] --> B{"Connection Type?"}
-    B -->|"SCM"| C["Connected via GitHub/GitLab/Gitea"]
-    B -->|"External"| D["Manual URL entry"]
+    A["Buka Repositories"] --> B["Klik Add Repository"]
+    B --> C["Isi Nama & URL"]
+    C --> D["Pilih Default Branch"]
+    D --> E["Klik Create"]
+    E --> F["Repository Siap"]
 
-    C --> E["Auto-sync repos"]
-    C --> F["Webhook for auto-scan"]
-    C --> G["PR analysis"]
-
-    D --> H["CI/CD upload"]
-    D --> I["Manual scan trigger"]
-
-    style C fill:#4a9eff,color:#fff
-    style D fill:#f59e0b,color:#fff
+    style A fill:#4a9eff,color:#fff
+    style F fill:#22c55e,color:#fff
 ```
 
-## Import Flow
+1. Buka **Repositories** di sidebar
+2. Klik **Add Repository**
+3. Isi:
+   - **Name** — nama repositori kamu
+   - **URL** — URL repositori
+   - **Default Branch** — branch utama (biasanya `main` atau `master`)
+4. Klik **Create**
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant UI
-    participant API
-    participant SCM as SCM Provider
-    participant DB[(Database)]
+## Impor dari SCM
 
-    User->>UI: Click "Import Repository"
-    UI->>API: POST /api/v1/repositories/import
-    API->>DB: INSERT repository
-    API->>SCM: Setup webhook (if auto-scan enabled)
-    SCM-->>API: Webhook ID
-    API->>DB: Store webhook_external_id
-    API-->>UI: 201 { repository }
-```
-
-## Connection Types
-
-| Type | Description | Scanning Method |
-|------|-------------|-----------------|
-| `scm` | Connected via GitHub/GitLab/Gitea | Managed scan (git clone) |
-| `external` | Manual URL entry | CI/CD upload |
+1. Buka **Source Control** di sidebar
+2. Hubungkan provider kamu (GitHub / GitLab / Gitea)
+3. Buka **Repositories** → klik **Import**
+4. Pilih repositori yang ingin diimpor
+5. Tentukan proyek untuk setiap repo
 
 ## Auto-Scan
 
-When `auto_scan` is enabled, webhooks trigger scans automatically:
+Jika terhubung via SCM, kamu bisa mengaktifkan auto-scan. Setiap push akan memicu scan secara otomatis.
 
 ```mermaid
 flowchart LR
     A["Git push"] --> B["Webhook fires"]
-    B --> C["SAST receives event"]
-    C --> D["Enqueue managed scan"]
-    D --> E["Scan executes"]
+    B --> C["SAST menerima event"]
+    C --> D["Scan dimulai"]
+    D --> E["Temuan muncul"]
 
     style A fill:#22c55e,color:#fff
     style E fill:#4a9eff,color:#fff
 ```
 
-## Repository Fields
+## Setelah Menambah Repository
 
-| Field | Description |
-|-------|-------------|
-| `name` | Repository name |
-| `url` | Repository URL |
-| `default_branch` | Default branch (usually `main`) |
-| `connection_type` | `scm` or `external` |
-| `auto_scan` | Enable auto-scan on push |
-| `project_id` | Associated project |
-| `external_id` | SCM provider ID |
+Setelah repo ditambahkan, kamu bisa:
+1. **Jalankan scan** — Buka Scans → New Scan
+2. **Atur CI/CD** — Buka Scans → CI/CD Setup
+3. **Lihat temuan** — Buka Findings setelah scan selesai
+
+## Tips
+
+- **Pilih branch yang benar** — pastikan branch yang dipilih adalah branch utama yang berisi kode production
+- **Gunakan nama yang jelas** — beri nama repository sesuai dengan nama di GitHub/GitLab agar mudah dikenali
+- **Aktifkan auto-scan** — untuk repositori kritis, aktifkan auto-scan agar setiap perubahan terpantau
+
+## Kesalahan Umum
+
+| Masalah | Solusi |
+|---------|--------|
+| Repository tidak muncul setelah import | Tunggu beberapa menit untuk sinkronisasi, atau klik Sync |
+| URL salah | Pastikan URL benar dan bisa diakses dari server |
+| Branch tidak ditemukan | Periksa nama branch di repository kamu |
+| Auto-scan tidak jalan | Pastikan webhook sudah terpasang dengan benar |
+
+## Permissions
+
+| Aksi | Owner | Manager | Reviewer | Member |
+|------|:-----:|:-------:|:--------:|:------:|
+| Lihat repository | ✅ | ✅ | ✅ | ✅ |
+| Tambah repository | ✅ | ✅ | ❌ | ❌ |
+| Hapus repository | ✅ | ✅ | ❌ | ❌ |
+| Aktifkan auto-scan | ✅ | ✅ | ❌ | ❌ |
+
+## Langkah Selanjutnya
+
+- [Jalankan Scan](scans.md) pada repository yang baru ditambahkan
+- [Hubungkan Source Control](source-control.md) untuk auto-sync dan PR analysis
+- [Buat Proyek](projects.md) untuk mengelompokkan repository

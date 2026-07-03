@@ -1,8 +1,8 @@
 /**
  * Auto-generated search index from markdown files.
  * Run: node scripts/generate-search-index.js
- * 
- * Last generated: 2026-06-27T02:40:10.797Z
+ *
+ * Last generated: 2026-07-03T11:07:08.077Z
  */
 
 export interface SearchEntry {
@@ -11,617 +11,290 @@ export interface SearchEntry {
 }
 
 export const SEARCH_INDEX: Record<string, SearchEntry> = {
-  "ai-models": {
+  "features/ai-models": {
     "headings": [
       "AI Models",
       "Overview",
-      "Supported Providers",
-      "Configuration",
-      "Adding a Model",
-      "Model Settings",
-      "Prompt Variants",
-      "Strict",
-      "Balanced",
-      "Model Testing",
-      "Model Presets",
-      "API Endpoints",
-      "Feature Flag"
-    ],
-    "content": "Configure LLM providers for AI-powered finding verification. Each workspace can have its own model configuration. 1. Go to **AI Models** page 2. Click **Add Model** 3. Select provider 4. Enter API key and model settings 5. Click **Test Connection** 6. Click **Save** Detailed analysis with: Brief analysis with: Test model configuration: Returns sample verification result. AI models require FEATURE_FLAG_AI_MODELS=true."
-  },
-  "ai-verification": {
-    "headings": [
-      "AI Verification",
-      "Overview",
-      "Pipeline Flow",
-      "CWE Context Enrichment",
-      "Prompt Templates",
-      "System Rules",
-      "Response Format",
-      "AI Model Management",
-      "Model Configuration",
-      "Model Presets",
-      "Database Schema",
-      "`ai_verifications`",
-      "Quality Metrics"
-    ],
-    "content": "The AI verification pipeline uses LLM to reduce false positives in security findings. Each finding is analyzed with CWE context and classified as true positive or false positive. Knowledge base entries provide context to the LLM: Two prompt variants (same JSON response format): Both prompts enforce strict rules: 1. Default assumption: scanner is CORRECT (true_positive) 2. Only classify as false_positive with PROOF of safety 3. If unsure → true_positive Each workspace can configure: Pre-configured model setups:"
-  },
-  "api-overview": {
-    "headings": [
-      "API Overview",
-      "Base URL",
-      "Authentication",
-      "Getting a Token",
-      "Response Envelope",
-      "Endpoint Groups",
-      "Authentication",
-      "Workspaces",
-      "Repositories",
-      "Scans",
-      "Findings",
-      "Reports",
-      "Members",
-      "Teams",
-      "Projects",
-      "Source Controls",
-      "Webhooks",
-      "Schedules",
-      "Scanner Engines",
-      "Quality Gates",
-      "Knowledge Base",
-      "AI Models",
-      "Dashboard",
-      "Error Responses",
-      "Pagination",
-      "Rate Limiting",
-      "Webhooks"
-    ],
-    "content": "All endpoints are prefixed with /api/v1. The full URL is: All authenticated endpoints require a Bearer token in the Authorization header: The refresh token is stored in an HTTP-only cookie and automatically rotates on each use. All responses follow a standard envelope: Most list endpoints support pagination: Rate limit headers are included in responses: Webhooks send POST requests to your configured URL when events occur:"
-  },
-  "api-tokens": {
-    "headings": [
-      "API Tokens",
-      "Overview",
-      "Token Types",
-      "Personal Access Tokens",
-      "Creating a Token",
-      "Using the Token",
-      "Project API Tokens",
-      "Creating a Project Token",
-      "CI/CD Usage",
-      "Initialize scan",
-      "Upload results",
-      "Token Security",
-      "Token Fields"
-    ],
-    "content": "API tokens authenticate external services (CI/CD pipelines, scripts) against the platform. 1. Go to **Profile** page 2. Click **Generate Token** 3. Enter token name 4. Select expiration 5. Copy token (shown once) 1. Go to **Projects** → Select project 2. Click **API Tokens** 3. Click **Generate Token** 4. Enter token name 5. Copy token"
-  },
-  "arena": {
-    "headings": [
-      "Arena",
-      "Overview",
-      "How It Works",
-      "Use Cases",
-      "Comparison Metrics",
-      "API Endpoints",
-      "Feature Flag"
-    ],
-    "content": "Arena provides A/B comparison of AI model configurations. Test different models, prompts, and settings to find the optimal verification setup. 1. Create a comparison run 2. Select findings to verify 3. Configure model variants 4. Run comparison 5. Review results and pick the best model Arena requires FEATURE_FLAG_ARENA=true (disabled by default)."
-  },
-  "audit-logs": {
-    "headings": [
-      "Audit Logs",
-      "Overview",
-      "Logged Events",
-      "Audit Log Fields",
-      "Querying Audit Logs",
-      "Via UI",
-      "Via API",
-      "Response",
-      "Activity Logs",
-      "API Endpoints",
-      "Retention"
-    ],
-    "content": "Audit logs track all significant actions in the workspace for compliance and security monitoring. 1. Go to **Audit Logs** page 2. Filter by: - Date range - Action type - Resource type 3. Export as CSV Lighter-weight logging for UI activity:"
-  },
-  "authentication": {
-    "headings": [
-      "Authentication",
-      "Overview",
-      "Auth Flow",
-      "Sign Up",
-      "Sign In",
-      "Session Management",
-      "Refresh Token Rotation",
-      "Password Requirements",
-      "Protected Routes"
-    ],
-    "content": "SAST Integration uses session-based authentication with secure HTTP-only cookies. Passwords are hashed with bcrypt. The platform implements refresh token rotation with reuse detection: 1. On each authenticated request, a new refresh token is issued 2. The old refresh token is invalidated 3. If a reused (already-invalidated) token is detected, all sessions for that user are revoked 4. The refresh endpoint requires the x-refresh-request: 1 header All routes under /(authenticated)/ require a valid session. The AuthenticatedShell component handles: 1. Session validation on mount 2. Workspace slug verification 3. Redirect to /auth/signin on session expiry 4. Redirect to /workspaces on workspace mismatch"
-  },
-  "best-practices": {
-    "headings": [
-      "Best Practices",
-      "Scanner Selection",
-      "Scan Frequency",
-      "Quality Gates",
-      "Finding Triage",
-      "AI Model Selection",
-      "Knowledge Base",
-      "Team Organization"
-    ],
-    "content": "Configure quality gates to block merges: 1. **Review AI verdicts** — Trust but verify 2. **Focus on critical/high** — Address immediately 3. **Bulk triage** — Use bulk actions for efficiency 4. **Assign ownership** — Assign to responsible developers 5. **Track metrics** — Monitor false positive rate over time"
-  },
-  "cpp-security": {
-    "headings": [
-      "C/C++ Security Guide",
-      "Overview",
-      "Common Vulnerabilities",
-      "Buffer Overflows",
-      "Memory Leaks",
-      "Format String Vulnerabilities",
-      "Recommended Scanner Configuration",
-      "All C/C++ scanners",
-      "Semgrep Rules for C",
-      "Clang-Tidy Checks",
-      "Cppcheck Configuration",
-      "GCC Fanalyzer"
-    ],
-    "content": "C/C++ code requires special attention due to memory safety issues. This guide covers common vulnerabilities and how the scanner engines detect them. For comprehensive C/C++ analysis: The platform includes 100+ C-specific rules: Enabled checks for security: CWE mapping for GCC fanalyzer:"
-  },
-  "custom-rules": {
-    "headings": [
-      "Custom Semgrep Rules",
-      "Overview",
-      "Rule Directory Structure",
-      "Rule Format",
-      "Rule Severity Levels",
-      "Testing Rules",
-      "Run semgrep with custom rules",
-      "Language Packs"
-    ],
-    "content": "The platform supports custom Semgrep rules via the SEMGREP_RULES_DIR environment variable."
-  },
-  "cwe-mapping": {
-    "headings": [
-      "CWE Mapping",
-      "Overview",
-      "CWE Severity Mapping",
-      "Scanner → CWE Mapping",
-      "Semgrep",
-      "GCC Fanalyzer",
-      "Other Scanners",
-      "Knowledge Base Integration",
-      "API Usage",
-      "Get CWE Details",
-      "Response"
-    ],
-    "content": "The platform maps scanner findings to CWE (Common Weakness Enumeration) identifiers for standardized vulnerability classification. Extracts CWE from rule metadata: Parses CWE from output: CWE assigned based on rule patterns and severity mapping. CWE entries are enriched from:"
-  },
-  "environment-variables": {
-    "headings": [
-      "Environment Variables",
-      "Server-Side Variables",
-      "Core",
-      "Feature Flags (Server)",
-      "Scanner",
-      "Storage",
-      "Client-Side Variables",
-      "CI/CD Variables"
-    ],
-    "content": "All client-side feature flags use the NEXT_PUBLIC_ prefix:"
-  },
-  "findings": {
-    "headings": [
-      "Findings",
-      "Overview",
-      "Finding Lifecycle",
-      "Severity Levels",
-      "AI Verdicts",
-      "Finding Fields",
-      "Deduplication",
-      "Bulk Operations",
-      "Comments",
-      "API Endpoints"
-    ],
-    "content": "Findings are security issues detected by scanners. Each finding includes AI verification, CWE classification, and remediation guidance. Findings are deduplicated using SHA-256 fingerprints: Same vulnerability across multiple scans creates: Findings support threaded comments:"
-  },
-  "first-scan": {
-    "headings": [
-      "First Scan",
-      "Prerequisites",
-      "Step 1: Connect a Repository",
-      "Step 2: Trigger a Scan",
-      "Step 3: Monitor Progress",
-      "Step 4: Review Findings",
-      "Step 5: Triage Findings",
-      "CI/CD Integration",
-      "Initialize scan",
-      "Upload results",
-      "Complete scan"
-    ],
-    "content": "Before running your first scan, ensure you have: 1. A user account with access to a workspace 2. A source control provider connected (GitHub, GitLab, or Gitea) 3. At least one repository imported 1. Navigate to **Source Control** in the sidebar 2. Click **Connect Provider** and authorize your SCM 3. Click **Import Repositories** and select a repository 4. Wait for the initial sync to complete 1. Go to **Scans** in the sidebar 2. Click **New Scan** 3. Select the repository and branch 4. Choose scanner engines: - **semgrep** — Multi-language (recommended) - **gitleaks** — Secrets detection (recommended) - **flawfinder** — C/C++ buffer overflows - **cppcheck** — C/C++ static analysis - **clang-tidy** — C/C++ linter - **gcc-fanalyzer** — C/C++ analysis 5. Click **Start Scan** The scan progresses through these stages: 1. Go to **Findings** in the sidebar 2. Filter by severity, scanner, or status 3. Click a finding to view details: - Source code snippet - AI verdict (true positive / false positive) - Confidence score - CWE classification - Fix suggestion For automated scanning in CI/CD pipelines:"
-  },
-  "installation": {
-    "headings": [
-      "Installation",
-      "Prerequisites",
-      "Scanner Dependencies",
-      "Semgrep (multi-language, 30+ languages)",
-      "Gitleaks (secrets detection)",
-      "Download from: https://github.com/gitleaks/gitleaks/releases",
-      "Flawfinder (C/C++ buffer overflows)",
-      "Cppcheck (C/C++ static analysis)",
-      "Ubuntu: sudo apt install cppcheck",
-      "macOS: brew install cppcheck",
-      "Clang-Tidy (C/C++ linter)",
-      "Ubuntu: sudo apt install clang-tidy",
-      "macOS: brew install llvm",
-      "GCC Fanalyzer (C/C++ static analysis)",
-      "Requires GCC 10+ with --enable analyzer",
-      "Environment Setup",
-      "Copy environment template",
-      "Required variables",
-      "Feature flags (enable/disable features)",
-      "Database Setup",
-      "Generate Drizzle schema",
-      "Run migrations",
-      "Seed initial data (optional)",
-      "Start Development",
-      "Production Build",
-      "Docker (Alternative)"
-    ],
-    "content": "Install the scanners you need (all are optional): The application runs at http://localhost:3000. This starts PostgreSQL and the application server."
-  },
-  "knowledge-base": {
-    "headings": [
-      "Knowledge Base",
-      "Overview",
-      "Knowledge Sources",
-      "How Knowledge Enrichment Works",
-      "Example",
-      "Knowledge Base Entries",
-      "API Endpoints",
-      "Feature Flag"
-    ],
-    "content": "The knowledge base provides CWE and NVD context to enrich findings and improve AI verification accuracy. 1. Finding has cwe_id from scanner 2. System queries knowledge base for matching entries 3. Context is injected into AI verification prompt 4. AI uses enriched context for better classification Knowledge base requires FEATURE_FLAG_KNOWLEDGE_BASE=true."
-  },
-  "overview": {
-    "headings": [
-      "Architecture Overview",
-      "System Architecture",
-      "Data Flow",
-      "Directory Structure",
-      "Key Design Decisions",
-      "1. Server/Client Separation",
-      "2. Feature Module Pattern",
-      "3. Permission-First UI",
-      "4. Queue-Based Scan Processing",
-      "Database Schema"
-    ],
-    "content": "Server modules (server/) are never imported from client code. Client data access goes through API routes via modules/api.ts. Each feature is self-contained: Every page uses a layered guard system: Scans are processed asynchronously via pg-boss: 44 tables organized by domain:"
-  },
-  "project-access-control": {
-    "headings": [
-      "Project Access Control",
-      "Overview",
-      "Project Structure",
-      "Project Members",
-      "Access Control Rules",
-      "API Token Scope",
-      "API Endpoints",
-      "Feature Flag"
-    ],
-    "content": "Projects provide an additional layer of access control within workspaces. Each project can have its own members, repositories, and API tokens. 1. **Workspace scope**: Projects belong to a workspace 2. **Member scope**: Users must be workspace members 3. **Project membership**: Optional project-level membership 4. **Repository scope**: Repositories can be assigned to projects Project API tokens are scoped to a single project: Projects require FEATURE_FLAG_PROJECTS=true."
-  },
-  "quality-gates": {
-    "headings": [
-      "Quality Gates",
-      "Overview",
-      "Gate Configuration",
-      "Gate Evaluation",
-      "Evaluation Flow",
-      "PR Integration",
-      "PR Comment Example",
-      "Configuration",
-      "Via UI",
-      "Via API",
-      "API Endpoints",
-      "Feature Flag"
-    ],
-    "content": "Quality gates evaluate scan results against configurable thresholds and block merges when criteria are not met. Quality gates evaluate after scan completion: 1. Count findings by severity and AI verdict 2. Compare against thresholds 3. Return pass/fail status 4. Block PR merge if gate fails When a quality gate fails: 1. Commit status set to **failed** 2. PR comment posted with details 3. Merge blocked until gate passes 1. Go to **Quality Gates** page 2. Configure thresholds 3. Set blocking behavior 4. Click **Save** Quality gates require FEATURE_FLAG_QUALITY_GATES=true."
-  },
-  "quick-reference": {
-    "headings": [
-      "Quick Reference",
-      "API Endpoints",
-      "Authentication",
-      "Workspaces",
-      "Scans",
-      "Findings",
-      "Reports",
+      "Siapa yang Butuh Ini?",
+      "Cara Kerja AI Verification",
+      "Provider yang Didukung",
+      "Tambah Model",
+      "Test Model",
+      "Fallback Chain",
+      "Prompt Presets",
+      "Tips",
+      "Kesalahan Umum",
       "Permissions",
-      "Role Hierarchy",
-      "Scanner IDs"
+      "Langkah Selanjutnya"
     ],
-    "content": ""
+    "content": "title: AI Models description: Configure LLM providers for AI verification updated: 2026-07-03 AI Models memungkinkan kamu mengkonfigurasi model AI yang digunakan untuk memverifikasi temuan keamanan. AI menentukan apakah temuan adalah True Positive (masalah nyata) atau False Positive (salah deteksi). 1. Buka **AI Models** di sidebar 2. Klik **Add Model** - **Name** — nama deskriptif - **Provider** — Ollama, OpenAI, dll - **Base URL** — endpoint API - **API Key** — kunci API kamu - **Model** — nama model (contoh: gpt-4, llama3) 4. Klik **Create** 1. Buka **AI Models** 2. Klik **Test** pada model 3. Tunggu respons 4. Lihat status (berhasil/gagal) dan waktu respons Jika model utama gagal, sistem mencoba model berikutnya:"
   },
-  "rbac": {
+  "features/dashboard": {
     "headings": [
-      "Role-Based Access Control (RBAC)",
+      "Dashboard",
       "Overview",
-      "Role Hierarchy",
-      "Roles",
-      "Permission Matrix",
-      "Permission Format",
-      "Resources (18)",
-      "Actions (9)",
-      "Component Guards",
-      "PermissionGate (UI)",
-      "requirePermission (API)",
-      "Role Summary"
+      "Siapa yang Butuh Ini?",
+      "Yang Ditampilkan",
+      "Cara Membaca Metrik",
+      "Tips",
+      "Langkah Selanjutnya"
     ],
-    "content": "SAST Integration implements granular RBAC with 4 roles and 36 permissions. dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, scanner, ai_model, knowledge, workspace, audit view, manage, run, triage, override_ai, export, invite, settings, read"
+    "content": "title: Dashboard description: Workspace overview and key metrics updated: 2026-07-03 Dashboard adalah halaman utama yang memberikan ringkasan kesehatan keamanan workspace kamu. Dari sini, kamu bisa melihat tren temuan, scan terakhir, dan status proyek — tanpa harus membuka menu satu per satu. Semua peran bisa melihat dashboard. Ini adalah titik awal sebelum melakukan aktivitas lain: Dari dashboard, kamu bisa:"
   },
-  "reports": {
+  "features/findings": {
+    "headings": [
+      "Findings",
+      "Overview",
+      "Siapa yang Butuh Ini?",
+      "Lifecycle Temuan",
+      "Tinjau Temuan",
+      "Detail Temuan",
+      "Triage",
+      "AI Verdicts",
+      "Severity",
+      "Bulk Actions",
+      "Tips",
+      "Kesalahan Umum",
+      "Permissions",
+      "Langkah Selanjutnya"
+    ],
+    "content": "title: Findings description: Review and triage security findings updated: 2026-07-03 Findings adalah masalah keamanan yang terdeteksi oleh scanner. Setiap finding dilengkapi dengan verifikasi AI, klasifikasi CWE, dan saran perbaikan. 1. Buka **Findings** di sidebar 2. Filter berdasarkan: - **Severity** — Critical / High / Medium / Low / Info - **Status** — Open / Dismissed / Resolved - **Scanner** — Semgrep / Gitleaks / dll - **Repository** — Filter per repo 3. Klik temuan untuk melihat detail Pilih beberapa temuan sekaligus: 1. Centang checkbox di samping temuan 2. Klik **Bulk Actions** 3. Pilih: **Dismiss All** / **Resolve All** / **Assign All**"
+  },
+  "features/knowledge-base": {
+    "headings": [
+      "Knowledge Base",
+      "Overview",
+      "Siapa yang Butuh Ini?",
+      "Apa Isinya?",
+      "Cara Kerja",
+      "Field Knowledge Entry",
+      "Melihat Entri",
+      "Mute Entri",
+      "Tips",
+      "Kesalahan Umum",
+      "Permissions",
+      "Langkah Selanjutnya"
+    ],
+    "content": "title: Knowledge Base description: CWE & NVD reference for security findings updated: 2026-07-03 Knowledge Base menyediakan konteks keamanan dari NVD (National Vulnerability Database) dan CWE (Common Weakness Enumeration) untuk membantu AI memverifikasi temuan dengan lebih akurat. Saat temuan terdeteksi, sistem mencari entri CWE yang relevan dan menyertakannya dalam prompt verifikasi AI. Ini memberikan AI konteks yang lebih baik untuk menentukan apakah temuan tersebut nyata. 1. Buka **Knowledge Base** di sidebar 2. Jelajahi atau cari berdasarkan CWE ID atau kata kunci 3. Klik entri untuk melihat detail lengkap Kamu bisa mengecualikan entri dari konteks AI: 1. Buka entri knowledge 2. Klik **Mute** 3. Entri tersebut tidak lagi digunakan dalam verifikasi AI"
+  },
+  "features/members": {
+    "headings": [
+      "Members",
+      "Overview",
+      "Siapa yang Butuh Ini?",
+      "Halaman Members",
+      "Tab Members",
+      "Tab Invitations",
+      "Undang Anggota",
+      "Ubah Role Anggota",
+      "Hapus Anggota",
+      "Batalkan Undangan",
+      "Tips",
+      "Kesalahan Umum",
+      "Permissions",
+      "Langkah Selanjutnya"
+    ],
+    "content": "title: Members description: Invite and manage team members updated: 2026-07-03 Members adalah pengelolaan siapa yang memiliki akses ke workspace. kamu bisa mengundang anggota baru, mengubah role, atau menghapus anggota. Halaman ini memiliki dua tab: **Members** dan **Invitations**. Menampilkan semua anggota workspace saat ini. Menampilkan undangan yang belum diterima. 1. Buka **Members** di sidebar 2. Klik **Invite Member** 3. Masukkan **email** orang tersebut 4. Pilih **role** (Owner / Manager / Reviewer / Member) 5. Klik **Send Invitation** Orang tersebut akan menerima email dengan link untuk bergabung. 1. Buka **Members** 2. Cari anggota 3. Klik **Change Role** 4. Pilih role baru 5. Konfirmasi 1. Buka **Members** 2. Cari anggota 3. Klik **Remove** 4. Konfirmasi Anggota akan kehilangan akses secara langsung. 1. Buka **Members** → tab **Invitations** 2. Cari undangan yang pending 3. Klik **Revoke** Link undangan akan berhenti berfungsi."
+  },
+  "features/profile": {
+    "headings": [
+      "Profile",
+      "Overview",
+      "Siapa yang Butuh Ini?",
+      "Tab Profile",
+      "Ubah Avatar",
+      "Ubah Info",
+      "Tab Security",
+      "Ganti Password",
+      "Revoke Sesi",
+      "Tips",
+      "Kesalahan Umum",
+      "Permissions",
+      "Langkah Selanjutnya"
+    ],
+    "content": "title: Profile description: Manage your account settings updated: 2026-07-03 Profile adalah halaman pengaturan akun pribadi. Di sini kamu bisa mengubah informasi profil, mengganti password, dan mengelola sesi login. Semua pengguna. Ini adalah halaman yang harus dikunjungi setelah pertama kali login. 1. Buka **Profile** di sidebar 2. Klik area avatar 3. Unggah gambar baru, atau hapus yang sekarang 1. Buka **Profile** 2. Edit field yang diinginkan 3. Klik **Save** Kelola password dan sesi aktif. 1. Klik tab **Security** 2. Masukkan **password saat ini** 3. Masukkan **password baru** 4. Konfirmasi password baru 5. Klik **Save** Semua sesi lain akan logout saat kamu mengganti password. Kamu bisa melihat semua sesi aktif dan revoke yang tidak dikenal. 1. Klik tab **Security** 2. Cari sesi di daftar 3. Klik **Revoke**"
+  },
+  "features/projects": {
+    "headings": [
+      "Projects",
+      "Overview",
+      "Siapa yang Butuh Ini?",
+      "Buat Proyek",
+      "Detail Proyek",
+      "Tambah Repository ke Proyek",
+      "Tambah Anggota ke Proyek",
+      "Tambah Tim ke Proyek",
+      "API Tokens (untuk CI/CD)",
+      "Buat Token",
+      "Revoke Token",
+      "Hapus Proyek",
+      "Cara Kerja Projects",
+      "Tips",
+      "Kesalahan Umum",
+      "Permissions",
+      "Langkah Selanjutnya"
+    ],
+    "content": "title: Projects description: Group repositories and manage access updated: 2026-07-03 Projects mengelompokkan repositori bersamaan dan mengontrol siapa yang bisa mengaksesnya. Setiap proyek bisa memiliki anggota, tim, dan API token tersendiri. 1. Buka **Projects** di sidebar 2. Klik **New Project** 3. Isi **nama** dan **deskripsi** 4. Klik **Create` Setiap proyek memiliki tab untuk mengelola berbagai aspek: 1. Buka proyek 2. Buka bagian **Repositories** 3. Klik **Add Repository** 4. Pilih repository 5. Klik **Save** 1. Buka proyek 2. Buka bagian **Members** 3. Klik **Add Member** 4. Pilih anggota dan role 5. Klik **Save** 1. Buka proyek 2. Buka bagian **Teams** 3. Klik **Add Team** 4. Pilih tim dan role 5. Klik **Save** Setiap proyek bisa memiliki API token sendiri untuk pipeline CI/CD. 1. Buka proyek 2. Klik tab **API Tokens** 3. Klik **Create Token** 4. Beri nama (contoh: \"CI Pipeline — main branch\") 5. Klik **Create** 6. **Copy token segera** — token tidak akan ditampilkan lagi 1. Buka proyek → tab **API Tokens** 2. Cari token 3. Klik **Revoke** 1. Buka proyek 2. Buka tab **General** 3. Klik **Delete Project** 4. Konfirmasi Repository tidak dihapus — hanya pengelompokan proyek yang dihapus."
+  },
+  "features/reports": {
     "headings": [
       "Reports",
       "Overview",
-      "Report Types",
-      "Generating Reports",
-      "Via UI",
-      "Via API",
-      "Report Contents",
-      "Report Lifecycle",
-      "API Endpoints",
-      "Feature Flag"
+      "Siapa yang Butuh Ini?",
+      "Format Laporan",
+      "Buat Laporan",
+      "Isi Laporan",
+      "Tips",
+      "Kesalahan Umum",
+      "Permissions",
+      "Langkah Selanjutnya"
     ],
-    "content": "Reports provide exportable security summaries in PDF and XLSX formats for compliance and stakeholder communication. 1. Go to **Reports** page 2. Click **Generate Report** 3. Select scope (workspace, project, or scan) 4. Choose format (PDF/XLSX) 5. Click **Generate** Reports require FEATURE_FLAG_REPORTS=true."
+    "content": "title: Reports description: Generate and export security reports updated: 2026-07-03 Reports memungkinkan kamu mengekspor hasil pemindaian keamanan dalam format PDF, XLSX, atau CSV. Laporan ini berguna untuk komunikasi dengan stakeholder, audit, atau analisis data. 1. Buka **Reports** di sidebar 2. Klik **Generate Report** 3. Pilih filter: - **Project** — proyek tertentu atau semua - **Date Range** — rentang waktu - **Severity** — filter berdasarkan tingkat keparahan 4. Pilih format (PDF / XLSX / CSV) 5. Klik **Generate** 6. Tunggu beberapa detik 7. Klik **Download**"
   },
-  "repositories": {
+  "features/repositories": {
     "headings": [
       "Repositories",
       "Overview",
-      "Supported Providers",
-      "Repository States",
-      "Import Flow",
-      "API Endpoints",
-      "List Repositories",
-      "Update Repository",
-      "List Branches",
-      "Repository Fields",
-      "External Uploads"
+      "Siapa yang Butuh Ini?",
+      "Dua Cara Menambah Repository",
+      "Tambah Repository (Manual)",
+      "Impor dari SCM",
+      "Auto-Scan",
+      "Setelah Menambah Repository",
+      "Tips",
+      "Kesalahan Umum",
+      "Permissions",
+      "Langkah Selanjutnya"
     ],
-    "content": "Repositories connect your code to the scanning platform. Import repositories from GitHub, GitLab, or Gitea for automated security analysis. 1. Connect SCM provider (OAuth/Token) 2. List available repositories 3. Select repositories to import 4. System creates repository records 5. Initial branch sync For repositories not connected via SCM: The system auto-creates external repository records."
+    "content": "title: Repositories description: Import and manage code repositories updated: 2026-07-03 Repository adalah kode sumber yang akan dipindai oleh platform. kamu bisa mengimpor dari GitHub, GitLab, atau Gitea, atau menambahkan secara manual. 1. Buka **Repositories** di sidebar 2. Klik **Add Repository** - **Name** — nama repositori kamu - **URL** — URL repositori - **Default Branch** — branch utama (biasanya main atau master) 4. Klik **Create** 1. Buka **Source Control** di sidebar 2. Hubungkan provider kamu (GitHub / GitLab / Gitea) 3. Buka **Repositories** → klik **Import** 4. Pilih repositori yang ingin diimpor 5. Tentukan proyek untuk setiap repo Jika terhubung via SCM, kamu bisa mengaktifkan auto-scan. Setiap push akan memicu scan secara otomatis. Setelah repo ditambahkan, kamu bisa: 1. **Jalankan scan** — Buka Scans → New Scan 2. **Atur CI/CD** — Buka Scans → CI/CD Setup 3. **Lihat temuan** — Buka Findings setelah scan selesai"
   },
-  "scan-pipeline": {
-    "headings": [
-      "Scan Pipeline",
-      "Overview",
-      "Pipeline Architecture",
-      "Scan Lifecycle",
-      "Status Flow",
-      "Timeline Events",
-      "Managed Scan Execution",
-      "`triggerManualScan(input)`",
-      "`processManagedScanJob(data)`",
-      "CI/CD Upload Flow",
-      "Scanner Output Parsers",
-      "Queue Jobs"
-    ],
-    "content": "The scan pipeline handles the complete lifecycle from scan trigger to finding storage. Each scan generates a timeline with these event types: 1. Set status to processing 2. git clone --depth 1 --branch {branch} {url} 3. For each scanner: - Check availability - Run scanner CLI - Upload output to storage - Create scan_result record - Enqueue parse-scan-result job 4. If ALL scanners failed → throw error 5. Set status to completed 6. Cleanup temp directory For external CI/CD pipelines:"
-  },
-  "scan-policies": {
-    "headings": [
-      "Scan Policies",
-      "Overview",
-      "Policy Structure",
-      "Default Scanners",
-      "Scanner Selection",
-      "Policy Configuration",
-      "Via UI",
-      "Via API",
-      "Feature Flag"
-    ],
-    "content": "Scan policies define which scanners to run and how to handle results. Configure policies per project or workspace-wide. When no policy is specified: 1. Go to **Scan Policies** page 2. Click **Add Policy** 3. Enter policy name 4. Select scanners 5. Configure thresholds 6. Click **Save** Scan policies require FEATURE_FLAG_SCAN_PROFILES=true."
-  },
-  "scanner-engines": {
-    "headings": [
-      "Scanner Engines",
-      "Overview",
-      "Scanner Overview",
-      "Scanner Configuration",
-      "Semgrep",
-      "Gitleaks",
-      "Flawfinder",
-      "Cppcheck",
-      "Availability Check",
-      "Response",
-      "Limits",
-      "Feature Flag"
-    ],
-    "content": "Configure and manage the 6 scanner engines available in the platform. Scanner engines configuration requires FEATURE_FLAG_SCANNER_ENGINES=true."
-  },
-  "scanner-installation": {
-    "headings": [
-      "Scanner Installation",
-      "Supported Scanners",
-      "Semgrep",
-      "Verify",
-      "Gitleaks",
-      "Linux",
-      "macOS",
-      "Flawfinder",
-      "Verify",
-      "Cppcheck",
-      "Ubuntu/Debian",
-      "macOS",
-      "Verify",
-      "Clang-Tidy",
-      "Ubuntu/Debian",
-      "macOS",
-      "GCC Fanalyzer",
-      "Verify GCC version",
-      "Test analyzer support",
-      "Availability Check",
-      "API endpoint",
-      "Response"
-    ],
-    "content": "Requires GCC 10+ with the analyzer feature: The platform checks scanner availability before each scan: Unavailable scanners are skipped gracefully. Scans continue even if some scanners fail."
-  },
-  "scans": {
+  "features/scans": {
     "headings": [
       "Scans",
       "Overview",
-      "Scan Types",
-      "Scan Lifecycle",
-      "Creating a Scan",
-      "Via UI",
-      "Via API",
-      "Response",
-      "Scanner Selection",
-      "Scan Detail",
-      "API Endpoints"
+      "Siapa yang Butuh Ini?",
+      "Dua Cara Scan",
+      "Jalankan Scan Manual",
+      "Monitor Progress",
+      "Jenis Scan",
+      "CI/CD Setup",
+      "Tips",
+      "Kesalahan Umum",
+      "Permissions",
+      "Langkah Selanjutnya"
     ],
-    "content": "Scans are the core analysis unit. Each scan runs multiple security scanners against a repository branch and produces findings. 1. Go to **Scans** page 2. Click **New Scan** 3. Select repository and branch 4. Choose scanner engines 5. Click **Start Scan** Each scan provides:"
+    "content": "title: Scans description: Run and monitor security scans updated: 2026-07-03 Scan adalah proses memindai kode sumber untuk menemukan celah keamanan. kamu bisa menjalankan scan secara manual dari UI atau mengotomasikannya melalui CI/CD. 1. Buka **Scans** di sidebar 2. Klik **New Scan** 3. Pilih **repository** dan **branch** 4. Pilih scanner: 5. Klik **Start Scan` Klik scan di daftar untuk melihat timeline: Untuk otomatisasi scan setiap push: 1. Buka **Scans** → klik **CI/CD Setup** 2. Pilih platform (GitHub / GitLab / Gitea) 3. Klik **Copy YAML** 4. Paste file workflow ke repo kamu 5. Tambahkan secrets (SAST_API_URL, SAST_API_KEY) di pengaturan repo 6. Push kode — scan berjalan otomatis Setelah scan selesai:"
   },
-  "schedules": {
+  "features/source-control": {
     "headings": [
-      "Schedules",
+      "Source Control",
       "Overview",
-      "Schedule Structure",
-      "Creating a Schedule",
-      "Via UI",
-      "Via API",
-      "Cron Expressions",
-      "Timezone",
-      "Schedule Management",
-      "Feature Flag"
+      "Siapa yang Butuh Ini?",
+      "Provider yang Didukung",
+      "Hubungkan Provider",
+      "GitHub Setup",
+      "GitHub App (Direkomendasikan)",
+      "OAuth App",
+      "Personal Access Token",
+      "GitLab Setup",
+      "OAuth Application (Direkomendasikan)",
+      "Personal Access Token",
+      "Gitea Setup",
+      "OAuth Application (Direkomendasikan)",
+      "Access Token",
+      "Setelah Terhubung",
+      "Putuskan Koneksi",
+      "Tips",
+      "Kesalahan Umum",
+      "Permissions",
+      "Langkah Selanjutnya"
     ],
-    "content": "Schedules automate recurring scans using cron expressions. Configure scans to run daily, weekly, or on custom schedules. 1. Go to **Schedules** page 2. Click **Add Schedule** 3. Select repository and branch 4. Enter cron expression 5. Set timezone 6. Click **Create** Schedules support timezone-aware cron expressions: Schedules require FEATURE_FLAG_SCHEDULES=true (disabled by default)."
+    "content": "title: Source Control description: Connect GitHub, GitLab, and Gitea updated: 2026-07-03 Source control integration memungkinkan kamu mengimpor repositori dan mengaktifkan pemindaian otomatis. Setelah terhubung, setiap push akan memicu scan secara otomatis. 1. Buka **Source Control** di sidebar 2. Klik **Connect** pada provider 3. Panduan setup akan muncul dengan langkah-langkah 4. Pilih mode koneksi 5. Ikuti langkah-langkah dan centang setiap langkah selesai 6. Klik **Connect** saat semua langkah selesai GitHub memiliki 3 mode koneksi: 1. Buka **Source Control** 2. Klik **Disconnect** pada provider 3. Repository terputus (data tetap tersimpan)"
   },
-  "source-control": {
+  "features/teams": {
     "headings": [
-      "Source Control Integration",
-      "Supported Providers",
-      "Connecting a Provider",
-      "GitHub",
-      "GitLab",
-      "Gitea",
-      "Repository Import",
-      "Branch Sync",
-      "Webhook Events",
-      "API Endpoints",
-      "Feature Flags"
-    ],
-    "content": "1. Go to **Source Control** page 2. Click **Connect GitHub** 3. Authorize the OAuth app 4. Select organization/personal account 1. Go to **Source Control** page 2. Click **Connect GitLab** 3. Enter GitLab URL and access token 4. Authorize 1. Go to **Source Control** page 2. Click **Connect Gitea** 3. Enter Gitea URL and personal access token 4. Test connection After connecting a provider: 1. Click **Import Repositories** 2. Browse available repositories 3. Select repositories to import 4. Click **Import** 5. System creates repository records and syncs branches"
-  },
-  "storage": {
-    "headings": [
-      "Storage",
+      "Teams",
       "Overview",
-      "Storage Structure",
-      "Storage Configuration",
-      "Environment Variables",
-      "Local Storage",
-      "S3 Storage",
-      "Retention",
-      "Cleanup Job",
-      "Automatic cleanup via queue job",
-      "File Size Limits"
+      "Siapa yang Butuh Ini?",
+      "Buat Tim",
+      "Tambah Anggota ke Tim",
+      "Tugaskan Tim ke Proyek",
+      "Cara Kerja Teams",
+      "Edit Tim",
+      "Hapus Tim",
+      "Tips",
+      "Kesalahan Umum",
+      "Permissions",
+      "Langkah Selanjutnya"
     ],
-    "content": "Scan results and reports are stored in object storage (S3-compatible or local filesystem)."
+    "content": "title: Teams description: Organize members into teams for access control updated: 2026-07-03 Teams memungkinkan kamu mengelompokkan anggota untuk pengelolaan akses yang lebih mudah. Daripada menambahkan anggota satu per satu ke proyek, kamu bisa menugaskan seluruh tim sekaligus. 1. Buka **Teams** di sidebar 2. Klik **New Team** 3. Isi **nama** dan **deskripsi** 4. Klik **Create** 1. Buka tim 2. Klik **Add Members** 3. Pilih anggota dari daftar 4. Klik **Save** 1. Buka **Projects** → buka proyek 2. Klik tab **Teams** 3. Klik **Add Team** 4. Pilih tim 5. Pilih role (Admin / Member) 6. Klik **Save** Semua anggota tim sekarang memiliki akses ke proyek tersebut. 1. Buka **Teams** 2. Klik **Edit** pada tim 3. Ubah nama atau deskripsi 4. Klik **Save** 1. Buka **Teams** 2. Klik **Delete** pada tim 3. Konfirmasi Anggota tidak dihapus dari workspace — hanya pengelompokan tim yang dihapus."
   },
-  "troubleshooting": {
+  "getting-started/authentication": {
+    "headings": [
+      "Authentication",
+      "Overview",
+      "Siapa yang Butuh Ini?",
+      "Cara Kerja Autentikasi",
+      "Sign In",
+      "Sign Up",
+      "Forgot Password",
+      "Security Features",
+      "Tips",
+      "Kesalahan Umum",
+      "Langkah Selanjutnya"
+    ],
+    "content": "title: Authentication description: Sign in, sign up, and manage your account updated: 2026-07-03 Sistem autentikasi mengelola login, registrasi, dan keamanan akun kamu. Setelah login, kamu akan diarahkan ke workspace yang sesuai dengan peran kamu. Semua pengguna harus memahami halaman ini. Khususnya: 1. Buka halaman login 2. Masukkan **email** dan **password** kamu 3. Klik **Sign In** Kamu tetap login selama 7 hari. Sistem memperbarui sesi secara otomatis. 1. Klik **Sign Up** di halaman login 2. Isi **nama**, **email**, dan **password** 3. Klik **Create Account** 4. Buka email dan klik **link verifikasi** 5. Setelah terverifikasi, kamu bisa login 1. Di halaman login, klik **Forgot Password** 2. Masukkan email kamu 3. Buka email dan klik **link reset** 4. Masukkan password baru 5. Login dengan password baru > **Catatan:** Semua sesi lain akan logout saat kamu reset password. Setelah berhasil login, kamu akan melihat Dashboard. Dari sana, mulai dengan:"
+  },
+  "reference/glossary": {
+    "headings": [
+      "Glossary",
+      "General",
+      "Scanning",
+      "Findings",
+      "AI Verification",
+      "Access Control",
+      "Source Control",
+      "Reports",
+      "Infrastructure",
+      "Langkah Selanjutnya"
+    ],
+    "content": "title: Glossary description: Terms and definitions used in the platform updated: 2026-07-03"
+  },
+  "reference/troubleshooting": {
     "headings": [
       "Troubleshooting",
-      "Common Issues",
-      "Scanner Not Found",
-      "Check if scanner is installed",
-      "Install missing scanner",
-      "Scan Stuck in \"Processing\"",
-      "No Findings After Scan",
-      "AI Verification Not Running",
-      "Permission Denied on Actions",
-      "Database Connection Errors",
-      "Debug Mode",
-      "Log Locations",
-      "Getting Help"
-    ],
-    "content": "1. Check worker logs for errors 2. The scan-timeout-watchdog job auto-fails scans > 30 minutes 3. Trigger a new scan if needed 1. Check scanner output in scan results 2. Verify scanner is installed and available 3. Check parser logs for errors 1. FEATURE_FLAG_AI_VERIFICATION=true 2. AI model configured in workspace settings 3. LLM provider API key is valid 1. Verify DATABASE_URL is correct 2. Check PostgreSQL is running 3. Run migrations: npm run db:migrate Enable verbose logging: 1. Check this troubleshooting guide 2. Review API error messages 3. Check database for data consistency 4. Review worker job logs"
-  },
-  "user-interaction-scenarios": {
-    "headings": [
-      "User Interaction Scenarios",
-      "Scenario 1: Developer — First-Time Setup",
-      "Scenario 2: Security Lead — Full Workflow",
-      "Scenario 3: Developer — Finding Triage",
-      "Scenario 4: Manager — Team Organization",
-      "Scenario 5: CI/CD Integration",
-      "Scenario 6: Audit Review"
-    ],
-    "content": "1. Receive workspace invitation via email 2. Create account and set password 3. Accept invitation 4. View workspace dashboard (limited view) 1. Connect GitHub organization 2. Import 10 repositories 3. Configure AI model (GPT-4) 4. Create quality gates (fail on critical) 5. Run first scans on all repos 6. Review AI-verified findings 7. Assign critical findings to developers 8. Generate compliance report (PDF) 9. Share report with stakeholders 1. Receive notification for new findings 2. Open Finding detail 3. Review code snippet and AI verdict 4. Confirm true positive 5. Add comment with remediation plan 6. Mark as \"verified\" 7. Assign to team member 1. Create teams (Frontend, Backend, DevOps) 2. Assign members to teams 3. Create projects with team assignments 4. Configure project-specific scan policies 5. Review team activity in audit logs 1. Create project API token 2. Add scanner to CI pipeline 3. Configure CI workflow: 4. Review findings in web UI 5. Quality gate blocks merge if critical findings 1. Open audit logs page 2. Filter by date range and action type 3. Review member changes 4. Export audit trail for compliance 5. Generate security report"
-  },
-  "webhooks": {
-    "headings": [
-      "Webhooks",
       "Overview",
-      "Supported Events",
-      "Configuration",
-      "Creating a Webhook",
-      "Webhook Payload",
-      "Authentication",
-      "Delivery",
-      "Delivery History",
-      "API Endpoints",
-      "Feature Flag"
+      "Tidak Bisa Login",
+      "Scan Tidak Mulai",
+      "Findings Terlihat Salah",
+      "CI/CD Tidak Berfungsi",
+      "Laporan Tidak Bisa Dibuat",
+      "Masalah Source Control",
+      "Tips Umum",
+      "Langkah Selanjutnya"
     ],
-    "content": "Webhooks send real-time notifications to external services when events occur in your workspace. 1. Go to **Webhooks** page 2. Click **Add Webhook** 3. Enter URL and secret 4. Select events to subscribe 5. Click **Create** Webhooks include a signature header: Verify with: View delivery status for each webhook: Webhooks require FEATURE_FLAG_WEBHOOKS=true (disabled by default)."
+    "content": "title: Troubleshooting description: Common issues and solutions updated: 2026-07-03 Halaman ini membantu kamu mengatasi masalah umum yang sering terjadi saat menggunakan aplikasi. 1. **Refresh halaman** — banyak masalah teratasi dengan memuat ulang 2. **Periksa role kamu** — beberapa aksi memerlukan role Manager atau Owner 3. **Hubungi admin** — jika masalah berlanjut, minta bantuan workspace owner"
   },
   "welcome": {
     "headings": [
       "Welcome to SAST Integration",
-      "Key Capabilities",
-      "Quick Links",
-      "How It Works",
-      "Tech Stack",
-      "Getting Started",
-      "Clone the repository",
-      "Install dependencies",
-      "Set up environment",
-      "Run database migrations",
-      "Start development server"
+      "Apa Ini Aplikasi?",
+      "Masalah yang Dipecahkan",
+      "Alur Lengkap Penggunaan",
+      "Langkah 1: Masuk ke Aplikasi",
+      "Pemahaman Role",
+      "Langkah 2: Hubungkan Source Control (Disarankan Duluan)",
+      "Langkah 3: Tambah Anggota (Members)",
+      "Langkah 4: Buat Tim (Teams)",
+      "Langkah 5: Buat Proyek (Projects)",
+      "Langkah 6: Impor Repository",
+      "Langkah 7: Jalankan Scan Pertama",
+      "Langkah 8: Tinjau Temuan (Findings)",
+      "Langkah 9: Buat Laporan (Reports)",
+      "Langkah 10: Konfigurasi AI Models",
+      "Ringkasan Fitur",
+      "Istilah Penting"
     ],
-    "content": "> Multi-scanner static application security testing platform with AI-powered false positive reduction. SAST Integration is a comprehensive security scanning platform that combines 6 scanner engines with LLM-based verification to deliver actionable security findings with minimal false positives. 1. **Connect** — Import repositories from GitHub, GitLab, or Gitea 2. **Scan** — Run multi-engine static analysis with 6 scanners 3. **Verify** — AI verifies findings and reduces false positives 4. **Report** — Generate PDF/XLSX security reports See the Installation Guide for detailed setup instructions."
-  },
-  "workspace-model": {
-    "headings": [
-      "Workspace Model",
-      "Overview",
-      "Hierarchy",
-      "Workspace Structure",
-      "Role Hierarchy",
-      "Multi-Workspace",
-      "Permission System",
-      "Format",
-      "Resources (18)",
-      "Actions (9)",
-      "Total Permissions: 36",
-      "Feature Flags"
-    ],
-    "content": "SAST Integration uses a workspace-based multi-tenant architecture. Workspaces isolate data, members, and configurations. Users can belong to multiple workspaces: dashboard, repository, scan, finding, report, arena, member, team, project, integration, webhook, schedule, policy, scanner, ai_model, knowledge, workspace, audit view, manage, run, triage, override_ai, export, invite, settings, read Each workspace can have different features enabled:"
-  },
-  "workspace-permissions": {
-    "headings": [
-      "Workspace Permissions",
-      "Overview",
-      "Permission Architecture",
-      "Page Guards",
-      "Non-Feature-Flagged Pages",
-      "Feature-Flagged Pages",
-      "Sidebar Navigation",
-      "API Route Permissions"
-    ],
-    "content": "Permissions are workspace-scoped. Each workspace member has a role that determines their access level. Every page uses layered guards: Every API route enforces permission checks:"
+    "content": "title: Welcome description: Complete guide from first login to daily usage updated: 2026-07-03 SAST Integration adalah platform keamanan kode yang membantu tim development menemukan celah keamanan di kode sumber sebelum aplikasi dipublikasikan. Platform ini memindai kode menggunakan 6 pemindai keamanan sekaligus, lalu memverifikasi setiap temuan menggunakan AI untuk menentukan apakah itu masalah nyata atau salah deteksi. Di dunia nyata, banyak tim development menghadapi: 1. **Terlalu banyak false positive** — Pemindai konvensional sering salah menandai kode aman sebagai berbahaya. Developer jadi mengabaikan semua alert. 2. **Belum terintegrasi** — Tim menjalankan banyak pemindai secara terpisah, hasilnya tersebar. 3. **Sulit berkolaborasi** — Tidak ada cara terstruktur untuk meninjau, menugaskan, dan melacak temuan keamanan. 4. **Laporan manual** — Butuh waktu lama membuat laporan untuk stakeholder atau audit. Platform ini mengatasi semua masalah tersebut dalam satu tempat. > **Catatan:** Proyek ini dikembangkan sebagai skripsi sarjana. Fokus thesis mencakup 9 fitur utama dengan 32 tabel database. Berikut panduan lengkap dari awal hingga penggunaan sehari-hari. Ada dua cara masuk ke aplikasi, tergantung peran kamu: 1. Klik **Sign Up** 2. Isi **nama lengkap**, **email**, dan **password** 3. Klik **Create Account** 4. Buka email, klik **link verifikasi** 5. Login → kamu otomatis menjadi **Owner** dari workspace baru > **Penting:** Hanya user pertama yang membuat workspace yang mendapat role **Owner**. User lain diundang oleh Owner/Manager. 1. Klik link di email → masuk ke halaman /invite 2. Isi **nama lengkap** dan **password** 3. Klik **Accept & Join** 4. Redirect ke halaman **Login** 5. Login → otomatis masuk workspace 1. Klik link di email → masuk ke halaman /invite 2. Jika sudah login → otomatis diterima → pilih workspace 3. Jika belum login → klik **Sign in** → login → otomatis diterima → pilih workspace > **Role ditentukan oleh yang mengundang.** Kamu tidak memilih role sendiri. Owner/Manager menentukan role saat mengirim undangan. > **Baru pakai?** Jika kamu Owner atau Manager, mulai dari Langkah 2 (Source Control). Jika kamu Reviewer atau Member, langsung ke Scans untuk melihat scan yang sudah ada dan Findings untuk mulai analisa temuan. 1. Buka **Source Control** di sidebar 2. Klik **Connect Provider** 3. Pilih provider (GitHub / GitLab / Gitea) 4. Ikuti panduan setup yang muncul (setiap provider berbeda) 5. Paste credentials 6. Koneksi berhasil 1. Buka **Members** di sidebar 2. Klik **Invite Member** 3. Masukkan **email** anggota 4. Pilih **role** (Owner / Manager / Reviewer / Member) 5. Klik **Send Invitation** → email terkirim > **Apa yang terjadi setelah email terkirim?** Lihat Langkah 1: Masuk ke Aplikasi — bagian \"Jika Kamu Diundang\". 1. Buka **Teams** di sidebar 2. Klik **New Team** 3. Isi **Team Name** (wajib) 4. Tambah **Member** (opsional, bisa ditambah nanti) 5. Klik **Create** 1. Buka **Projects** di sidebar 2. Klik **New Project** 3. Isi **nama** dan **deskripsi** 4. Klik **Create** 5. Buka proyek yang baru dibuat 1. Buka proyek 2. Di bagian **Repositories** → klik **Add Repository** 3. Di bagian **Teams** → klik **Add Team** 4. Di bagian **Members** → klik **Add Member** 1. Buka proyek → tab **API Tokens** 2. Klik **Create Token** 3. Beri nama (contoh: \"CI Pipeline — main branch\") 4. Klik **Create** 5. **Copy token segera** — hanya ditampilkan sekali 1. Buka **Repositories** di sidebar 2. Klik **Import** pada repo yang ingin diimpor 3. Pilih proyek tujuan 4. Klik **Import** 1. Buka **Repositories** di sidebar 2. Klik **Add Repository** 3. Isi nama, URL, dan default branch 4. Klik **Create** 1. Buka **Scans** di sidebar 2. Klik **New Scan` 3. Pilih **repository** dan **branch** 4. Pilih scanner: 5. Klik **Start Scan** 1. Buka **Findings** di sidebar 2. Filter berdasarkan **Severity** (Critical/High/Medium/Low) atau **Status** 3. Klik temuan untuk melihat detail 4. Perhatikan **AI Verdict**: - **True Positive** — masalah nyata, perlu diperbaiki - **False Positive** — salah deteksi, bisa di-dismiss 5. Ambil tindakan: **Resolve**, **Dismiss**, atau **Assign** 1. Buka **Reports** di sidebar 2. Klik **Generate Report** 3. Pilih filter (proyek, rentang waktu, severity) 4. Pilih format (PDF / XLSX / CSV) 5. Klik **Generate` 6. **Download** setelah selesai 1. Buka **AI Models** di sidebar 2. Klik **Add Model` 3. Pilih provider (Ollama / OpenAI / Anthropic / Groq / Custom) 4. Isi Base URL, API Key, dan nama model 5. Klik **Create` 6. Klik **Test** untuk memverifikasi"
   }
 };

@@ -1,15 +1,16 @@
 /**
  * Docs content utility.
- * Reads doc content from the docs/content/ directory at runtime.
+ * Reads doc content from the docs/site/content/ directory at runtime.
  */
 
 import fs from 'fs';
 import path from 'path';
 
-const CONTENT_DIR = path.join(process.cwd(), 'docs', 'content');
+const CONTENT_DIR = path.join(process.cwd(), 'docs', 'site', 'content');
 
 /**
  * Read doc content for a given filename from disk.
+ * Supports subdirectories: slug "features/dashboard" → features/dashboard.md
  * Falls back to a placeholder if the file is missing.
  */
 export function readDocFile(filename: string): string {

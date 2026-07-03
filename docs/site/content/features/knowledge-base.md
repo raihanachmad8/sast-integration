@@ -1,109 +1,89 @@
 ---
 title: Knowledge Base
-description: CWE/NVD knowledge management for AI verification context
+description: CWE & NVD reference for security findings
+updated: 2026-07-03
 ---
 
 # Knowledge Base
 
 ## Overview
 
-The knowledge base provides NVD context to enrich findings and improve AI verification accuracy.
+Knowledge Base menyediakan konteks keamanan dari NVD (National Vulnerability Database) dan CWE (Common Weakness Enumeration) untuk membantu AI memverifikasi temuan dengan lebih akurat.
 
-## Knowledge Sources
+## Siapa yang Butuh Ini?
 
-```mermaid
-graph LR
-    subgraph "Sources"
-        NVD["NVD Feed"]
-        CWE["CWE Catalog"]
-        Custom["Custom Rules"]
-    end
+- **Tim Keamanan** — memahami jenis kelemahan yang ditemukan
+- **Developer** — belajar tentang CWE dan cara memperbaikinya
+- **AI System** — menggunakan konteks untuk verifikasi yang lebih baik
 
-    subgraph "Sync"
-        Sync["sync-knowledge-base<br/>worker (every 6h)"]
-        Backfill["nvd-knowledge-backfill<br/>worker (manual)"]
-    end
+## Apa Isinya?
 
-    subgraph "Store"
-        Entries["knowledge_entries"]
-    end
+| Sumber | Konten |
+|--------|--------|
+| **NVD** | National Vulnerability Database (CVE) |
+| **CWE** | Common Weakness Enumeration (jenis kelemahan) |
 
-    subgraph "AI"
-        AI["AI Verification"]
-    end
-
-    NVD --> Sync
-    CWE --> Sync
-    Sync --> Entries
-    Backfill --> Entries
-    Entries --> AI
-
-    style Entries fill:#336791,color:#fff
-    style AI fill:#f59e0b,color:#fff
-```
-
-| Source | Content |
-|--------|---------|
-| **NVD** | National Vulnerability Database feed |
-| **CWE** | Common Weakness Enumeration catalog |
-| **Custom** | User-defined knowledge entries |
-
-## Sync Flow
-
-```mermaid
-sequenceDiagram
-    participant Cron
-    participant Worker
-    participant NVD as NVD API
-    participant DB[(Database)]
-
-    Cron->>Worker: Every 6 hours
-    Worker->>DB: SELECT knowledge_sources
-    Worker->>NVD: Fetch recent CVEs
-    NVD-->>Worker: CVE data
-    Worker->>DB: UPSERT knowledge_entries
-    Worker->>DB: UPDATE lastSyncedAt
-```
-
-## AI Enrichment
-
-During AI verification, the system enriches prompts with relevant knowledge:
+## Cara Kerja
 
 ```mermaid
 flowchart LR
-    A["Finding with CWE-89"] --> B["Query knowledge_entries<br/>WHERE cwe_id = 'CWE-89'"]
-    B --> C["Include in AI prompt:<br/>- CWE title & description<br/>- Remediation steps<br/>- Related weaknesses"]
-    C --> D["AI verifies with<br/>better context"]
+    A["Temuan dengan CWE-89"] --> B["Cari di knowledge base"]
+    B --> C["Sertakan deskripsi CWE + remediasi"]
+    C --> D["AI verifikasi dengan konteks lebih baik"]
 
     style B fill:#336791,color:#fff
     style D fill:#22c55e,color:#fff
 ```
 
-## Entry Fields
+Saat temuan terdeteksi, sistem mencari entri CWE yang relevan dan menyertakannya dalam prompt verifikasi AI. Ini memberikan AI konteks yang lebih baik untuk menentukan apakah temuan tersebut nyata.
 
-| Field | Description |
-|-------|-------------|
-| `cwe_id` | CWE identifier (e.g., CWE-89) |
-| `title` | Weakness title |
-| `content` | Detailed description |
-| `severity` | Critical, High, Medium, Low |
-| `remediation` | Fix guidance |
-| `tags` | Category tags (JSONB) |
-| `muted` | Exclude from AI context |
+## Field Knowledge Entry
 
-## Mute Entry
+| Field | Penjelasan |
+|-------|-----------|
+| **CWE ID** | Identifier kelemahan (contoh: CWE-89) |
+| **Title** | Nama kelemahan |
+| **Description** | Penjelasan detail |
+| **Severity** | Critical / High / Medium / Low |
+| **Remediation** | Cara memperbaiki |
 
-Muted entries are excluded from AI verification context:
+## Melihat Entri
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant UI
-    participant API
-    participant DB[(Database)]
+1. Buka **Knowledge Base** di sidebar
+2. Jelajahi atau cari berdasarkan CWE ID atau kata kunci
+3. Klik entri untuk melihat detail lengkap
 
-    User->>UI: Click "Mute" on knowledge entry
-    UI->>API: PATCH /api/v1/knowledge/entries/:id
-    API->>DB: UPDATE knowledge_entries SET muted = true
-    API-->>UI: 200
-```
+## Mute Entri
+
+Kamu bisa mengecualikan entri dari konteks AI:
+
+1. Buka entri knowledge
+2. Klik **Mute**
+3. Entri tersebut tidak lagi digunakan dalam verifikasi AI
+
+## Tips
+
+- **Gunakan Knowledge Base untuk belajar** — jika tidak yakin tentang suatu CWE, baca deskripsinya
+- **Mute entri yang tidak relevan** — jika suatu CWE sering salah di-trigger
+- **Perbarui secara berkala** — NVD di-sync setiap 6 jam
+
+## Kesalahan Umum
+
+| Masalah | Solusi |
+|---------|--------|
+| Entri tidak muncul | Tunggu sync berikutnya (setiap 6 jam) |
+| CWE tidak relevan | Mute entri tersebut agar tidak mempengaruhi AI |
+| Sinkronisasi gagal | Periksa koneksi jaringan ke NVD API |
+
+## Permissions
+
+| Aksi | Owner | Manager | Reviewer | Member |
+|------|:-----:|:-------:|:--------:|:------:|
+| Lihat entri | ✅ | ✅ | ✅ | ✅ |
+| Mute entri | ✅ | ✅ | ❌ | ❌ |
+
+## Langkah Selanjutnya
+
+- Lihat [Temuan](findings.md) untuk melihat CWE yang terkait dengan temuan
+- [Konfigurasi AI Models](ai-models.md) untuk mengatur verifikasi
+- [Glossary](../reference/glossary.md) untuk istilah keamanan

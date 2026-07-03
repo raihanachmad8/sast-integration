@@ -1,116 +1,136 @@
 ---
 title: Scans
-description: Trigger, monitor, and manage security scans
+description: Run and monitor security scans
+updated: 2026-07-03
 ---
 
 # Scans
 
 ## Overview
 
-Scans analyze your code using multiple scanner engines and produce security findings.
+Scan adalah proses memindai kode sumber untuk menemukan celah keamanan. kamu bisa menjalankan scan secara manual dari UI atau mengotomasikannya melalui CI/CD.
 
-## Scan Types
+## Siapa yang Butuh Ini?
 
-| Type | Trigger | Description |
-|------|---------|-------------|
-| **Managed** | User action | Triggered from the web UI |
-| **External** | CI/CD pipeline | Results uploaded via API |
-| **Scheduled** | Cron schedule | Automated recurring scans |
+- **Developer** — ingin memastikan kode baru sudah aman sebelum merge
+- **Tim Keamanan** — ingin memantau keamanan secara berkala
+- **Reviewer** — ingin meninjau hasil scan sebelum approve PR
 
-## Scan Lifecycle
+## Dua Cara Scan
 
-```mermaid
-stateDiagram-v2
-    [*] --> pending: Created
-    pending --> queued: Enqueued
-    queued --> cloning: Worker starts
-    cloning --> scanning: Repo cloned
-    scanning --> parsing: Scanners done
-    parsing --> ai_verifying: Results parsed
-    ai_verifying --> completed: AI done
-    ai_verifying --> failed: Error
-    completed --> [*]
-    failed --> [*]
-```
+| Metode | Kapan Digunakan |
+|--------|----------------|
+| **Manual Scan** | Jalankan scan langsung dari UI |
+| **CI/CD Scan** | Otomasi scan setiap push/PR |
 
-## Trigger Scan
+## Jalankan Scan Manual
 
 ```mermaid
-sequenceDiagram
-    actor User
-    participant UI
-    participant API
-    participant Worker
-    participant DB[(Database)]
+flowchart TD
+    A["Buka Scans"] --> B["Klik New Scan"]
+    B --> C["Pilih Repository"]
+    C --> D["Pilih Branch"]
+    D --> E["Pilih Scanner"]
+    E --> F["Klik Start Scan"]
+    F --> G["Monitor Progress"]
 
-    User->>UI: Click "New Scan"
-    UI->>API: POST /api/v1/scans
-    API->>DB: INSERT scan (status: pending)
-    API->>Worker: Enqueue run-managed-scan
-    API-->>UI: 201 { scanId }
-    Worker->>DB: UPDATE scan status → queued
+    style A fill:#4a9eff,color:#fff
+    style G fill:#22c55e,color:#fff
 ```
 
-## Progress Events
+1. Buka **Scans** di sidebar
+2. Klik **New Scan**
+3. Pilih **repository** dan **branch**
+4. Pilih scanner:
 
-Each scan has a timeline of progress events:
+| Scanner | Bahasa | Kapan Digunakan |
+|---------|--------|----------------|
+| **Semgrep** | 30+ bahasa | Selalu direkomendasikan |
+| **Gitleaks** | Semua | Deteksi secret (API key, password) |
+| **Flawfinder** | C/C++ | Codebase C/C++ |
+| **Cppcheck** | C/C++ | Codebase C/C++ |
+| **Clang-Tidy** | C/C++ | C/C++ dengan build system |
+| **GCC FanAnalyzer** | C/C++ | C/C++ yang di-compile dengan GCC |
 
-| Event | Description |
-|-------|-------------|
-| `triggered` | Scan initiated |
-| `queued` | Added to queue |
-| `cloning` | Git clone started |
-| `scanning` | Scanners running |
-| `parsing` | Parsing results |
-| `ai_verifying` | AI verification started |
-| `completed` | Scan finished |
-| `failed` | Scan failed |
+5. Klik **Start Scan`
 
-## Scan Detail View
+## Monitor Progress
+
+Klik scan di daftar untuk melihat timeline:
 
 ```mermaid
-graph TB
-    subgraph "Scan Detail"
-        Header["Header: repo, branch, status"]
-        Timeline["Timeline: stages + duration"]
-        Results["Results: findings by severity"]
-        Actions["Actions: view findings, re-run"]
-    end
+flowchart LR
+    A["queued"] --> B["cloning"]
+    B --> C["scanning"]
+    C --> D["parsing"]
+    D --> E["ai_verifying"]
+    E --> F["completed"]
 
-    Header --> Timeline --> Results --> Actions
+    style A fill:#94a3b8,color:#fff
+    style B fill:#f59e0b,color:#fff
+    style C fill:#f59e0b,color:#fff
+    style D fill:#a855f7,color:#fff
+    style E fill:#a855f7,color:#fff
+    style F fill:#22c55e,color:#fff
 ```
 
-## PR Analysis
+| Tahap | Apa yang Terjadi | Durasi |
+|-------|-----------------|--------|
+| `queued` | Menunggu worker | Beberapa detik |
+| `cloning` | Git clone sedang berlangsung | 10-30 detik |
+| `scanning` | Scanner sedang berjalan | 30 detik - 5 menit |
+| `parsing` | Output diurai menjadi temuan | 5-15 detik |
+| `ai_verifying` | AI memeriksa setiap temuan | 1-10 menit |
+| `completed` | Scan selesai | — |
 
-When scanning a PR, the system tracks:
+## Jenis Scan
 
-| Metric | Description |
-|--------|-------------|
-| `new_findings` | Findings new in this PR |
-| `fixed_findings` | Findings fixed in this PR |
-| `persistent_findings` | Pre-existing findings |
+| Jenis | Cara Mulai |
+|-------|-----------|
+| **Managed** | Kamu klik "New Scan" di UI |
+| **External** | CI/CD mengunggah hasil via API |
+| **Scheduled** | Berjalan otomatis sesuai jadwal |
 
-These metrics are displayed in the scan detail and quality gate evaluation.
+## CI/CD Setup
 
-## CI/CD Integration
+Untuk otomatisasi scan setiap push:
 
-```bash
-# Initialize scan
-POST /api/v1/scans/upload/init
-{
-  "repositoryName": "my-repo",
-  "branch": "main",
-  "commitSha": "abc123"
-}
+1. Buka **Scans** → klik **CI/CD Setup**
+2. Pilih platform (GitHub / GitLab / Gitea)
+3. Klik **Copy YAML**
+4. Paste file workflow ke repo kamu
+5. Tambahkan secrets (`SAST_API_URL`, `SAST_API_KEY`) di pengaturan repo
+6. Push kode — scan berjalan otomatis
 
-# Upload scanner results
-POST /api/v1/scans/upload
-FormData: scanId, scanner, file
+## Tips
 
-# Complete scan
-POST /api/v1/scans/upload/complete
-{
-  "scanId": "uuid",
-  "status": "completed"
-}
-```
+- **Gunakan Semgrep untuk semua bahasa** — ini scanner paling komprehensif
+- **Pilih branch yang tepat** — pastikan scan di branch utama (main/master)
+- **Jangan scan branch feature yang belum selesai** — tunggu sampai kode stabil
+- **Perhatikan durasi** — scan dengan banyak file bisa memakan waktu lama
+
+## Kesalahan Umum
+
+| Masalah | Solusi |
+|---------|--------|
+| Scan gagal | Periksa apakah repository bisa diakses dari server |
+| Scanner tidak ditemukan | Pastikan scanner sudah terinstal di server |
+| Scan stuck di cloning | Periksa koneksi jaringan ke repository |
+| AI verifikasi lambat | Normal untuk codebase besar, tunggu atau kurangi jumlah file |
+
+## Permissions
+
+| Aksi | Owner | Manager | Reviewer | Member |
+|------|:-----:|:-------:|:--------:|:------:|
+| Lihat scan | ✅ | ✅ | ✅ | ✅ |
+| Jalankan scan | ✅ | ✅ | ✅ | ❌ |
+| Batalkan scan | ✅ | ✅ | ✅ | ❌ |
+| Hapus scan | ✅ | ✅ | ❌ | ❌ |
+| Setup CI/CD | ✅ | ✅ | ❌ | ❌ |
+
+## Langkah Selanjutnya
+
+Setelah scan selesai:
+- Lihat [Temuan](findings.md) untuk meninjau hasil
+- Buat [Laporan](reports.md) untuk stakeholder
+- [Konfigurasi AI Models](ai-models.md) untuk mengatur verifikasi

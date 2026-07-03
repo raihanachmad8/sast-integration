@@ -1,78 +1,69 @@
 /**
  * Build-time search index generator.
- * Run this script to generate a full-text search index from markdown files.
+ * Run: node scripts/generate-search-index.js
  *
- * Usage: node scripts/generate-search-index.js
- *
- * This generates src/lib/docs/search-index.ts with all headings and content
- * extracted from docs/content/*.md files.
+ * Generates src/lib/docs/search-index.ts with all headings and content
+ * extracted from markdown files under docs/site/content/.
  */
 
-const CONTENT_DIR = path.join(__dirname, '../docs/content');
+const fs = require('fs');
+const path = require('path');
+
+const CONTENT_DIR = path.join(__dirname, '../docs/site/content');
 const OUTPUT_FILE = path.join(__dirname, '../src/lib/docs/search-index.ts');
 
-/** Extract headings (h1, h2, h3) from markdown content */
 function extractHeadings(content) {
   const headings = [];
-  const lines = content.split('\n');
-  for (const line of lines) {
+  for (const line of content.split('\n')) {
     const match = line.match(/^#{1,3}\s+(.+)/);
-    if (match) {
-      headings.push(match[1].trim());
-    }
+    if (match) headings.push(match[1].trim());
   }
   return headings;
 }
 
-/** Extract paragraphs (non-heading, non-code, non-empty lines) */
 function extractParagraphs(content) {
   const paragraphs = [];
-  const lines = content.split('\n');
   let inCodeBlock = false;
 
-  for (const line of lines) {
-    if (line.startsWith('```')) {
-      inCodeBlock = !inCodeBlock;
-      continue;
-    }
-    if (inCodeBlock) continue;
-    if (line.startsWith('#')) continue;
-    if (line.startsWith('|')) continue; // table rows
-    if (line.startsWith('-') || line.startsWith('*')) continue; // list items
-    if (line.trim() === '') continue;
+  for (const line of content.split('\n')) {
+    if (line.startsWith('```')) { inCodeBlock = !inCodeBlock; continue; }
+    if (inCodeBlock || line.startsWith('#') || line.startsWith('|') || line.startsWith('-') || line.startsWith('*') || line.trim() === '') continue;
 
     const cleaned = line.replace(/`([^`]+)`/g, '$1').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim();
-    if (cleaned.length > 10) {
-      paragraphs.push(cleaned);
-    }
+    if (cleaned.length > 10) paragraphs.push(cleaned);
   }
   return paragraphs;
 }
 
-/** Generate search index from all markdown files */
-function generateSearchIndex(fs, path) {
+function walkDir(dir) {
+  const files = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...walkDir(fullPath));
+    else if (entry.name.endsWith('.md')) files.push(fullPath);
+  }
+  return files;
+}
+
+function main() {
   const index = {};
+  const mdFiles = walkDir(CONTENT_DIR);
 
-  // Read all markdown files
-  const files = fs.readdirSync(CONTENT_DIR).filter(f => f.endsWith('.md'));
-
-  for (const file of files) {
-    const slug = file.replace('.md', '');
-    const content = fs.readFileSync(path.join(CONTENT_DIR, file), 'utf-8');
-    const headings = extractHeadings(content);
-    const paragraphs = extractParagraphs(content);
+  for (const filePath of mdFiles) {
+    const rel = path.relative(CONTENT_DIR, filePath).replace(/\\/g, '/');
+    const slug = rel.replace(/\.md$/, '');
+    const content = fs.readFileSync(filePath, 'utf-8');
 
     index[slug] = {
-      headings,
-      content: paragraphs.join(' '),
+      headings: extractHeadings(content),
+      content: extractParagraphs(content).join(' '),
     };
   }
 
-  // Generate TypeScript file
   const tsContent = `/**
  * Auto-generated search index from markdown files.
  * Run: node scripts/generate-search-index.js
- * 
+ *
  * Last generated: ${new Date().toISOString()}
  */
 
@@ -85,16 +76,7 @@ export const SEARCH_INDEX: Record<string, SearchEntry> = ${JSON.stringify(index,
 `;
 
   fs.writeFileSync(OUTPUT_FILE, tsContent, 'utf-8');
-  console.log(`Generated search index with ${Object.keys(index).length} pages`);
+  console.log(`Generated search index: ${Object.keys(index).length} pages`);
 }
 
-async function main() {
-  const fs = (await import('fs')).default;
-  const path = (await import('path')).default;
-  generateSearchIndex(fs, path);
-}
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main();

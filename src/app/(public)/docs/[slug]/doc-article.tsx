@@ -15,10 +15,11 @@ const { Title, Text } = Typography;
 interface DocArticleProps {
   title?: string;
   description?: string;
+  updated?: string;
   children: React.ReactNode;
 }
 
-export function DocArticle({ title, description, children }: DocArticleProps) {
+export function DocArticle({ title, description, updated, children }: DocArticleProps) {
   const { token } = theme.useToken();
   const pathname = usePathname();
   const slug = pathname.split('/docs/')[1] || '';
@@ -45,18 +46,18 @@ export function DocArticle({ title, description, children }: DocArticleProps) {
         </Title>
       )}
       {description && (
-        <Text type="secondary" style={{ fontSize: token.fontSizeLG, lineHeight: 1.7, display: 'block', marginBottom: token.marginXL }}>
+        <Text style={{ fontSize: token.fontSizeLG, lineHeight: 1.7, display: 'block', marginBottom: token.marginXL, color: '#475569' }}>
           {description}
         </Text>
       )}
 
       {/* Last updated + Edit on GitHub */}
       <Flex justify="space-between" align="center" style={{ marginBottom: token.paddingXL, paddingBottom: token.paddingMD, borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
-        <Text type="secondary" style={{ fontSize: token.fontSizeSM }} suppressHydrationWarning>
-          Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+        <Text style={{ fontSize: token.fontSizeSM, color: '#64748b' }}>
+          Last updated: {updated || 'June 2026'}
         </Text>
         <a
-          href={`${GITHUB_REPO_URL}/edit/main/docs/content/${slug}.md`}
+          href={`${GITHUB_REPO_URL}/edit/main/docs/site/content/${slug.replace(/-/g, '/')}.md`}
           target="_blank"
           rel="noopener noreferrer"
           style={{ fontSize: token.fontSizeSM, color: token.colorTextSecondary, textDecoration: 'none' }}

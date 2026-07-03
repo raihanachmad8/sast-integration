@@ -1,9 +1,10 @@
 # SAST Integration
 
-![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
+![Next.js](https://img.shields.io/badge/Next.js-16.2.9-black?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
-![Ant Design](https://img.shields.io/badge/Ant%20Design-6-0170FE?logo=antdesign)
-![Drizzle](https://img.shields.io/badge/Drizzle-ORM-C5F74F?logo=drizzle)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
+![Ant Design](https://img.shields.io/badge/Ant%20Design-6.4.5-0170FE?logo=antdesign)
+![Drizzle](https://img.shields.io/badge/Drizzle%20ORM-0.45.2-C5F74F?logo=drizzle)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql)
 
 ---
@@ -25,7 +26,7 @@ This project was developed as a thesis.
 - **Multi-Workspace Architecture** — Isolated workspaces with granular RBAC (39 permissions across 19 resources, 4 roles: Owner, Manager, Reviewer, Member).
 - **Self-Service & Invitation Workflows** — Personal workspace creation in multiple mode; email-based invitations with role assignment.
 - **Production-Ready Hardening** — Strict environment validation, rejection of development secrets in production, and secure defaults.
-- **SCM & CI Integration** — GitHub, GitLab, Gitea support with planned quality gates for PR blocking.
+- **SCM & CI Integration** — GitHub, GitLab, Gitea support with quality gates for PR blocking.
 - **Reporting & Knowledge Base** — Exportable reports (PDF/XLSX) and integrated CWE/NVD knowledge base.
 - **Operational Features** — Scheduled scans, webhooks, and audit-friendly member management.
 
@@ -33,7 +34,7 @@ This project was developed as a thesis.
 
 ## Workspace Operating Modes
 
-The platform supports two distinct operating models, controlled by the `WORKSPACE_MODE` environment variable. This allows the same codebase to serve both single-organization and multi-tenant / open-registration scenarios.
+The platform supports two distinct operating models, controlled by the `NEXT_PUBLIC_WORKSPACE_MODE` environment variable.
 
 | Mode       | Purpose                              | Key Behaviors |
 |------------|--------------------------------------|---------------|
@@ -44,40 +45,22 @@ The platform supports two distinct operating models, controlled by the `WORKSPAC
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 (App Router) |
-| Language | TypeScript 5 |
-| UI | Ant Design 6 |
-| ORM | Drizzle ORM |
-| Database | PostgreSQL 16 |
-| Auth | JWT (jose + bcryptjs) |
-| Validation | Zod |
-| Queue | pg-boss |
-| AI | QLoRA fine-tuned models (Ollama / OpenAI-compatible) |
-| Testing | Vitest + Playwright |
-| Package Mgr | pnpm |
-
----
-
-## Current Status
-
-The platform has completed milestones M1 through M9, covering project setup, database schema, authentication, workspace management, SCM integration, scanning pipeline, AI verification, reporting, and advanced RBAC. M10 (Deployment, UAT & Thesis Defense) is in progress.
-
-| Milestone | Version | Status |
-|-----------|---------|--------|
-| M1: Project Setup | v0.1.0 | ✅ Complete |
-| M2: Database & Schema (41 tables, 32 thesis-relevant) | v0.2.0 | ✅ Complete |
-| M3: Authentication & Sessions | v0.3.0 | ✅ Complete |
-| M4: Workspace Management & Collaboration | v0.4.0 | ✅ Complete |
-| M5: Projects, Repositories & SCM | v0.5.0 | ✅ Complete |
-| M6: Scanning Pipeline & Queue Processing | v0.6.0 | ✅ Complete |
-| M7: Findings Management & AI Verification | v0.7.0 | ✅ Complete |
-| M8: Reporting, Dashboard & Notifications | v0.8.0 | ✅ Complete |
-| M9: Advanced RBAC, Teams & Audit | v0.9.0 | ✅ Complete |
-| M10: Deployment, UAT & Thesis Defense | v1.0.0 | In Progress |
-
-For the detailed milestone breakdown and remaining scope, see [docs/ROADMAP.md](docs/ROADMAP.md).
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Framework | Next.js (App Router) | 16.2.9 |
+| Language | TypeScript (strict) | 5 |
+| UI | React | 19.2.7 |
+| Component Library | Ant Design | 6.4.5 |
+| ORM | Drizzle ORM | 0.45.2 |
+| Database | PostgreSQL | 16 |
+| Auth | JWT (jose) + bcryptjs | — |
+| Validation | Zod | 4.4.3 |
+| Queue | pg-boss | 12.23.0 |
+| AI | QLoRA fine-tuned models (Ollama / OpenAI-compatible) | — |
+| Testing | Vitest + Playwright | — |
+| Container | Docker (Alpine Linux) | — |
+| Package Mgr | pnpm | 10+ |
+| Node.js | — | 22+ |
 
 ---
 
@@ -120,8 +103,7 @@ cp .env.example .env
 docker compose up -d
 
 # 4. Initialize database
-docker compose exec app pnpm db:push
-docker compose exec app pnpm db:seed
+docker compose exec app pnpm db:reset
 
 # 5. Access
 #    App: http://localhost:3000
@@ -131,7 +113,7 @@ docker compose exec app pnpm db:seed
 ### Build with Scanners (for managed scans)
 
 ```bash
-# Include Semgrep, Flawfinder, Cppcheck in Docker image
+# Include Semgrep, Flawfinder, Cppcheck, Clang-Tidy, GCC, Gitleaks in Docker image
 docker build --build-arg INCLUDE_SCANNERS=true -t sast-integration .
 ```
 
@@ -140,9 +122,8 @@ docker build --build-arg INCLUDE_SCANNERS=true -t sast-integration .
 ```bash
 pnpm install
 cp .env.example .env
-pnpm db:push
-pnpm db:seed
-pnpm dev           # http://localhost:3000
+pnpm db:reset       # Drop → push schema → seed data
+pnpm dev            # http://localhost:3000
 ```
 
 ### Default Credentials
@@ -154,19 +135,48 @@ Password: ChangeMe123!
 
 ⚠️ **Production**: Override `OWNER_EMAIL` / `OWNER_PASSWORD` / `JWT_SECRET`. App rejects defaults in production.
 
-### Testing
+### Available Scripts
 
 ```bash
-pnpm test          # Unit tests (Vitest)
-pnpm test:ui       # E2E tests (Playwright)
-pnpm lint          # ESLint
-pnpm build         # Production build
+# Development
+pnpm dev                    # Start dev server (http://localhost:3000)
+pnpm build                  # Production build
+pnpm build:prod             # CSS compile + production build
+pnpm start                  # Start production server
+pnpm lint                   # ESLint check
+
+# Testing
+pnpm test                   # Unit tests (Vitest)
+pnpm test:e2e               # API end-to-end tests
+pnpm test:ui                # Playwright UI tests (headless)
+pnpm test:ui:headed         # Playwright UI tests (headed)
+pnpm test:watch             # Watch mode
+pnpm test:coverage          # Coverage report
+pnpm test:all               # Unit + E2E
+
+# Database
+pnpm db:generate            # Generate migration from schema changes
+pnpm db:migrate             # Run pending migrations
+pnpm db:push                # Push schema directly (dev only)
+pnpm db:reset               # Drop → push → seed
+pnpm db:seed                # Seed default data only
+pnpm db:studio              # Open Drizzle Studio GUI
+
+# Utilities
+pnpm backfill:nvd           # Backfill NVD knowledge base
+pnpm docs:index             # Generate search index for docs
 ```
 
 ---
 
 ## Documentation
 
+### User Guide
+| Doc | Description |
+|-----|-------------|
+| [User Guide](docs/site/) | Enterprise user documentation — login, roles, features, workflows |
+
+### Developer Docs
 | Doc | Description |
 |-----|-------------|
 | [DATABASE.md](docs/DATABASE.md) | Schema reference (41 tables, 32 thesis-relevant) |
@@ -174,7 +184,12 @@ pnpm build         # Production build
 | [ROADMAP.md](docs/ROADMAP.md) | Version plan & milestones |
 | [CONVENTIONS.md](docs/CONVENTIONS.md) | Coding standards |
 | [PROJECT_STANDARDS.md](docs/PROJECT_STANDARDS.md) | Architecture & patterns |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Docker deployment |
+| [INSTALLATION.md](docs/INSTALLATION.md) | Environment setup & installation |
+| [SCANNER_INSTALLATION.md](docs/SCANNER_INSTALLATION.md) | Scanner engine setup |
+| [ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md) | Environment variable reference |
+| [API_OVERVIEW.md](docs/API_OVERVIEW.md) | REST API documentation |
 | [STORAGE.md](docs/STORAGE.md) | Storage system (local, S3, Cloudinary) |
 | [SCANNER.md](docs/SCANNER.md) | Scanner engine configuration |
 | [TESTING.md](docs/TESTING.md) | Testing standards & patterns |

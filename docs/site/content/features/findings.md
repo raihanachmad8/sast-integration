@@ -1,95 +1,121 @@
 ---
 title: Findings
-description: View, triage, and manage security findings
+description: Review and triage security findings
+updated: 2026-07-03
 ---
 
 # Findings
 
 ## Overview
 
-Findings are security issues detected by scanners. Each finding includes AI verification, CWE classification, and remediation guidance.
+Findings adalah masalah keamanan yang terdeteksi oleh scanner. Setiap finding dilengkapi dengan verifikasi AI, klasifikasi CWE, dan saran perbaikan.
 
-## Finding Lifecycle
+## Siapa yang Butuh Ini?
+
+- **Tim Keamanan** — meninjau semua temuan keamanan
+- **Developer** — memahami masalah di kode yang ditulis
+- **Reviewer** — memutuskan temuan mana yang perlu diperbaiki
+
+## Lifecycle Temuan
 
 ```mermaid
 stateDiagram-v2
-    [*] --> open: Scan detects issue
-    open --> dismissed: User dismisses
-    open --> resolved: User resolves
-    open --> in_progress: User starts triage
-    in_progress --> open: Back to triage
-    dismissed --> open: Reopens finding
-    resolved --> open: Reopens finding
+    [*] --> open: Scan mendeteksi masalah
+    open --> dismissed: Tandai false positive
+    open --> resolved: Tandai sudah diperbaiki
+    open --> in_progress: Mulai tinjauan
+    in_progress --> open: Kembali ke review
+    dismissed --> open: Buka kembali
+    resolved --> open: Buka kembali
 
-    note right of open: Default state\nAI verdict: pending
-    note right of dismissed: Not a real issue
-    note right of resolved: Fixed in code
+    note right of open: Perlu ditinjau
+    note right of dismissed: Bukan masalah
+    note right of resolved: Sudah diperbaiki
 ```
 
-## Finding List
+## Tinjau Temuan
 
-```mermaid
-flowchart TD
-    A["Findings Page"] --> B["Filter by: severity, status, scanner, repo"]
-    B --> C["Findings Table"]
-    C --> D["Click finding → Detail"]
-    C --> E["Bulk actions: dismiss, resolve, assign"]
+1. Buka **Findings** di sidebar
+2. Filter berdasarkan:
+   - **Severity** — Critical / High / Medium / Low / Info
+   - **Status** — Open / Dismissed / Resolved
+   - **Scanner** — Semgrep / Gitleaks / dll
+   - **Repository** — Filter per repo
+3. Klik temuan untuk melihat detail
 
-    style A fill:#4a9eff,color:#fff
-```
+## Detail Temuan
 
-## Finding Detail
+| Bagian | Penjelasan |
+|--------|-----------|
+| **Code Snippet** | Potongan kode sumber dengan highlight baris |
+| **AI Verdict** | True Positive / False Positive / Pending |
+| **Confidence Score** | Skor keyakinan AI (0-100%) |
+| **CWE Classification** | Jenis kelemahan (contoh: CWE-89 SQL Injection) |
+| **Remediation** | Saran perbaikan untuk masalah tersebut |
+| **History** | Perubahan status dari waktu ke waktu |
 
-```mermaid
-graph TB
-    subgraph "Finding Detail View"
-        Code["Code Snippet<br/>with line highlighting"]
-        AI["AI Verdict<br/>TP/FP/Pending<br/>+ confidence score"]
-        CWE["CWE Classification<br/>+ description"]
-        Remediation["Remediation<br/>fix suggestion"]
-        History["Finding History<br/>changes over time"]
-        Actions["Actions<br/>resolve, dismiss, re-verify, assign"]
-    end
+## Triage
 
-    Code --> AI --> CWE --> Remediation --> History --> Actions
-```
-
-## Finding Statuses
-
-| Status | Description |
-|--------|-------------|
-| `open` | Default state, needs review |
-| `in_progress` | Being triaged |
-| `dismissed` | False positive |
-| `resolved` | Fixed in code |
+| Aksi | Penjelasan |
+|------|-----------|
+| **Resolve** | Tandai sudah diperbaiki di kode |
+| **Dismiss** | Tandai bukan masalah (false positive) |
+| **Assign** | Tugaskan ke anggota tim untuk ditindaklanjuti |
+| **Re-verify** | Minta AI memeriksa ulang |
 
 ## AI Verdicts
 
-| Verdict | Description |
-|---------|-------------|
-| `true_positive` | Confirmed security issue |
-| `false_positive` | Not a real issue |
-| `inconclusive` | AI uncertain |
-| `pending` | Awaiting verification |
+| Verdict | Arti |
+|---------|------|
+| **True Positive** | Masalah keamanan yang benar — perlu diperbaiki |
+| **False Positive** | Salah deteksi — aman untuk di-dismiss |
+| **Pending** | Menunggu verifikasi AI atau review manual |
 
-## Deduplication
+## Severity
 
-Each finding generates a **fingerprint** (SHA-256 hash of rule + file + line + code). If a matching fingerprint exists in `finding_groups` for the same repository, it's an existing finding.
+| Level | Prioritas Tindakan |
+|-------|-------------------|
+| **Critical** | Perlu diperbaiki segera |
+| **High** | Perlu diperbaiki dalam sprint ini |
+| **Medium** | Jadwalkan perbaikan |
+| **Low** | Perbaiki jika ada waktu |
+| **Info** | Tidak perlu tindakan |
 
-## Bulk Operations
+## Bulk Actions
 
-| Action | Description |
-|--------|-------------|
-| **Dismiss** | Mark as false positive |
-| **Resolve** | Mark as fixed |
-| **Assign** | Assign to team member |
-| **Re-verify** | Request AI re-verification |
+Pilih beberapa temuan sekaligus:
+1. Centang checkbox di samping temuan
+2. Klik **Bulk Actions**
+3. Pilih: **Dismiss All** / **Resolve All** / **Assign All**
 
-## Finding Groups
+## Tips
 
-Findings are grouped by fingerprint across scans. A finding group tracks:
-- First seen scan
-- Last seen scan
-- Total occurrences
-- Current status
-- AI verdict
+- **Mulai dari Critical/High** — prioritaskan temuan paling berbahaya
+- **Perhatikan AI verdict** — jika AI yakin ini True Positive, kemungkinan besar memang masalah
+- **Jangan abaikan Low** — meskipun severity rendah, beberapa bisa menjadi pintu masuk serangan
+- **Gunakan bulk actions** — untuk menangani banyak temuan sekaligus
+
+## Kesalahan Umum
+
+| Masalah | Solusi |
+|---------|--------|
+| Terlalu banyak temuan | Filter berdasarkan severity, fokus ke Critical/High dulu |
+| AI verdict pending | Tunggu beberapa menit, atau re-verify manual |
+| Temuan tidak muncul | Pastikan scan sudah selesai dengan status completed |
+| Salah dismiss temuan | Buka kembali temuan dan ubah status |
+
+## Permissions
+
+| Aksi | Owner | Manager | Reviewer | Member |
+|------|:-----:|:-------:|:--------:|:------:|
+| Lihat temuan | ✅ | ✅ | ✅ | ✅ |
+| Triage temuan | ✅ | ✅ | ✅ | ❌ |
+| Override AI verdict | ✅ | ✅ | ✅ | ❌ |
+| Assign temuan | ✅ | ✅ | ✅ | ❌ |
+| Dismiss temuan | ✅ | ✅ | ✅ | ❌ |
+
+## Langkah Selanjutnya
+
+- Buat [Laporan](reports.md) dari temuan yang sudah ditinjau
+- [Konfigurasi AI Models](ai-models.md) untuk meningkatkan akurasi verifikasi
+- Lihat [Knowledge Base](knowledge-base.md) untuk memahami CWE lebih dalam
