@@ -29,6 +29,9 @@ pnpm-debug.log*
 *.swp
 *.swo
 
+# mimocode
+mimocode.json
+
 # OS
 .DS_Store
 Thumbs.db
