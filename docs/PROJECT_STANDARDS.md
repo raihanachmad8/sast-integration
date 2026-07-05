@@ -10,7 +10,7 @@ src/
 │   │   └── layout/ # Layout components (AppShell, AuthenticatedShell, SidebarNav)
 │   ├── constants/  # App-wide constants (tokens, routes, permissions, feature-flags)
 │   ├── providers/  # React providers (QueryProvider, AntdProvider)
-│   ├── schemas/    # Zod validation schemas (24 files)
+│   ├── schemas/    # Zod validation schemas (25 files, incl. lenient-helpers)
 │   ├── types/      # Shared TypeScript types
 │   └── utils/      # Shared utilities (slug)
 ├── config/         # App configuration & env validation (antd-theme.ts, client-env.ts)
@@ -84,6 +84,77 @@ Rules:
 - Prefer `FindingRow`/`FindingExtended` from commons for most use cases
 - Use `ScanFinding` only for scan detail/parsing components
 
+### Backend Type Rules
+
+| Pattern | Example | Correct |
+|---------|---------|---------|
+| DB row type | `Team`, `Project`, `User` | Import from `@drizzle/schema` directly |
+| Repository return | `Paginated<TeamView>` | Use `Paginated<T>` from shared contracts |
+| Zod inferred type | `ProjectFormInput`, `TeamListQuery` | Import from `commons/schemas` |
+| Composite view | `TeamWithSummary`, `MemberView` | Define in repository file |
+| Permission constant | `PERMISSION.TEAM_MANAGE` | Import from `commons/constants/permissions` |
+
+---
+
+## Schema Conventions
+
+All Zod schema files in `commons/schemas/` follow the same structure.
+
+### Module Header
+
+Every schema file must start with a JSDoc block:
+
+```typescript
+/**
+ * {Entity} schemas — single source of truth for {entity} validation.
+ *
+ * @module schemas/{entity}
+ */
+```
+
+### Section Dividers
+
+Use Unicode box drawing characters for section dividers:
+
+```typescript
+// ─── Section name ─────────────────────────────────────────────────────────────
+```
+
+### Required Sections (in order)
+
+1. Module header JSDoc
+2. Imports
+3. Constants (sort fields, enums)
+4. Form schemas (strict — body/mutation validation)
+5. List query schema (lenient — search params coercion)
+6. Inferred types
+
+### Sort Fields Ownership
+
+Sort field constants live in their **own module's schema file**, not in a shared file:
+
+| Constant | Location |
+|----------|----------|
+| `MEMBER_SORT_FIELDS` | `member.schema.ts` |
+| `INVITATION_SORT_FIELDS` | `member.schema.ts` |
+| `TEAM_SORT_FIELDS` | `team.schema.ts` |
+| `PROJECT_SORT_FIELDS` | `project.schema.ts` |
+| `REPOSITORY_SORT_FIELDS` | `repository.schema.ts` |
+| `WEBHOOK_SORT_FIELDS` | `webhook.schema.ts` |
+| `SOURCE_CONTROL_SORT_FIELDS` | `source-control.schema.ts` |
+| `REPORT_SORT_FIELDS` | `report.schema.ts` |
+| `AI_MODEL_SORT_FIELDS` | `ai-model.schema.ts` |
+| `SCHEDULE_SORT_FIELDS` | `schedule.schema.ts` |
+
+`SORT_ORDERS`, `lenientEnum`, `lenientInt` live in `commons/schemas/lenient-helpers.ts` (shared).
+
+### Lenient vs Strict
+
+| Schema Type | Validation | Example |
+|-------------|-----------|---------|
+| List query | Lenient — invalid values coerce to defaults | `memberListQuerySchema` |
+| Body / mutation | Strict — invalid input returns 422 | `inviteMemberSchema`, `teamFormSchema` |
+
 ---
 
 ## Data Flow
@@ -125,6 +196,58 @@ Rules:
 - Repositories are the only layer that touches the database
 - Schemas define Zod validation for input/output
 - Never call a repository directly from an API route
+
+---
+
+## Backend Type Architecture
+
+Four type layers serve different concerns. Never mix them.
+
+| Layer | Source | Concern | Used By |
+|-------|--------|---------|---------|
+| **DB Row** | `drizzle/schema/*.ts` (`$inferSelect`) | Full DB columns (id, FK, timestamps) | Repository return types |
+| **API Contract** | `commons/schemas/*.ts` (`z.infer`) | Input validation + transforms | Route validation, service params |
+| **Domain** | `commons/types/*.ts` (manual) | Frontend-facing shape (string dates, computed fields) | API response, React components |
+| **Composite View** | `repositories/*.ts` (hand-crafted) | Join results + aggregations | Repository-to-service only |
+
+Rules:
+- Never redefine `$inferSelect` in repositories — import directly from `@drizzle/schema`
+- Zod types are for input only — never use for DB query results
+- Domain types are for API response only — never import in repository layer
+- Composite types stay in repository unless consumed by API response
+
+---
+
+## Repository Pattern
+
+Every repository must:
+1. Have an `export interface XxxRepository` with explicit return types on all methods
+2. Implement the interface with `export const xxxRepository: XxxRepository`
+3. Use `logger.{module}.info('{methodName}')` at start and `logger.{module}.info('{methodName} completed')` at end
+4. Use `logger.{module}.warn('{methodName}: not found')` for missing entities
+5. Accept optional `tx?: Tx` parameter for write methods
+6. NOT wrap in try-catch — let errors propagate to service/route handler
+
+Exception: composite/junction operations (setMembers, addMember, removeMember) that combine multiple DB writes should be called within a service-level `db.transaction`.
+
+---
+
+## Service Pattern
+
+Every service must:
+1. Check actor permissions at the start of write operations (defense-in-depth)
+2. Use `db.transaction` for operations that combine multiple DB writes atomically
+3. Log operation start and end via `logger.{module}`
+4. Throw `AppError` with appropriate status codes and error codes
+5. Never call repository directly from route — always through service
+
+Permission check example:
+```typescript
+const actorRole = await workspaceRepository.getMemberRole(workspaceId, userId);
+if (actorRole !== ROLE.OWNER && actorRole !== ROLE.MANAGER) {
+  throw new AppError(MEMBER.ERRORS.MANAGER_RESTRICTED_ROLE, 403, MEMBER.ERROR_CODE);
+}
+```
 
 ---
 
