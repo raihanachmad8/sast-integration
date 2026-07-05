@@ -35,7 +35,7 @@ export const teamsApi = {
 
   /** Update an existing team. */
   async update(workspaceId: string, id: string, data: TeamFormInput): Promise<Team> {
-    const { data: response } = await _api.Patch<ApiResponse<Team>>(ENDPOINTS.TEAMS.DETAIL(workspaceId, id), data);
+    const { data: response } = await _api.Put<ApiResponse<Team>>(ENDPOINTS.TEAMS.DETAIL(workspaceId, id), data);
     return response;
   },
 
