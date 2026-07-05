@@ -6,7 +6,9 @@ import { use } from 'react';
 import { ComingSoonCard } from '@/commons/components/ComingSoonCard';
 import { FeatureGate } from '@/commons/components/FeatureGate';
 import { PageHeader } from '@/commons/components/PageHeader';
+import { PermissionGate, PermissionHint } from '@/commons/components/PermissionGate';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
+import { PERMISSION } from '@/commons/constants/permissions';
 import { EditProjectPage } from '@/features/projects';
 
 /**
@@ -38,7 +40,9 @@ export default function Page({ params }: { params: Promise<{ projectId: string }
         </Flex>
       }
     >
-      <EditProjectPage projectId={projectId} />
+      <PermissionGate permission={PERMISSION.PROJECT_MANAGE} fallback={<PermissionHint permission={PERMISSION.PROJECT_MANAGE} />}>
+        <EditProjectPage projectId={projectId} />
+      </PermissionGate>
     </FeatureGate>
   );
 }

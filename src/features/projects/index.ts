@@ -4,7 +4,6 @@ export { ProjectFormModal } from './ProjectFormModal';
 export { ProjectDetailDrawer } from './ProjectDetailDrawer';
 export { ProjectForm } from './ProjectForm';
 export { ProjectApiTokens } from './ProjectApiTokens';
-export { EditProjectPage } from './EditProjectPage';
 export { ProjectDetailPage } from './ProjectDetailPage';
 export { ProjectListCard } from './ProjectListCard';
 export { NewProjectPage } from './NewProjectPage';

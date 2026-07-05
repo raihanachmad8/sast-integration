@@ -7,8 +7,10 @@ import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '
 import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { StatusPill } from '@/commons/components/StatusPill';
+import { PERMISSION } from '@/commons/constants/permissions';
 import type { Project } from '@/commons/types';
 import { useLazySelect } from '@/lib/hooks/useLazySelect';
+import { usePermissions } from '@/lib/hooks/usePermissions';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { membersApi } from '@/modules/members/api';
@@ -21,6 +23,7 @@ import { teamKeys } from '@/modules/teams/keys';
 
 interface ProjectsTableProps {
   onView: (project: Project) => void;
+  onDelete: (project: Project) => void;
 }
 
 /**
@@ -29,8 +32,10 @@ interface ProjectsTableProps {
  * Uses shared DataTable with server-side pagination, lazy-loaded filter dropdowns,
  * and row click to view details.
  */
-export function ProjectsTable({ onView }: ProjectsTableProps) {
+export function ProjectsTable({ onView, onDelete }: ProjectsTableProps) {
   const { token } = theme.useToken();
+  const { has } = usePermissions();
+  const canManage = has(PERMISSION.PROJECT_MANAGE);
   const { workspaceId } = useWorkspace();
 
   const { params, setPagination, setSearch, setFilter, setSort } = useTableParams({
@@ -142,6 +147,13 @@ export function ProjectsTable({ onView }: ProjectsTableProps) {
       label: 'View',
       icon: <FaIcon icon="fa-eye" />,
       onClick: (project) => onView(project),
+    },
+    {
+      label: 'Delete',
+      icon: <FaIcon icon="fa-trash" />,
+      onClick: (project) => onDelete(project),
+      show: () => canManage,
+      variant: 'danger',
     },
   ];
 

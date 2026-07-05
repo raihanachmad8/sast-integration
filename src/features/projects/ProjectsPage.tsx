@@ -8,7 +8,7 @@ import type { Project } from '@/commons/types';
 import { ProjectsPageHeader, ProjectsTable, ProjectFormModal } from '@/features/projects';
 import { errorMessage } from '@/lib/api/errors';
 import { useSessionData } from '@/modules/auth/queries';
-import { useCreateProjectMutation, useUpdateProjectMutation } from '@/modules/projects';
+import { useCreateProjectMutation, useDeleteProjectMutation, useUpdateProjectMutation } from '@/modules/projects';
 import type { ProjectFormInput } from '@/modules/projects/types';
 
 /**
@@ -30,6 +30,7 @@ export function ProjectsPage() {
 
   const createMutation = useCreateProjectMutation();
   const updateMutation = useUpdateProjectMutation();
+  const deleteMutation = useDeleteProjectMutation();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -51,11 +52,18 @@ export function ProjectsPage() {
 
   const handleView = (project: Project) => { router.push(`/${workspaceSlug}/projects/${project.id}`); };
 
+  const handleDelete = (project: Project) => {
+    deleteMutation.mutate(project.id, {
+      onSuccess: () => message.success(`Project "${project.name}" deleted`),
+      onError: (err) => message.error(errorMessage(err)),
+    });
+  };
+
   return (
     <Flex vertical gap={token.paddingXL}>
       <ProjectsPageHeader onNewProject={() => { setEditingProject(null); setFormOpen(true); }} />
 
-      <ProjectsTable onView={handleView} />
+      <ProjectsTable onView={handleView} onDelete={handleDelete} />
 
       <ProjectFormModal
         open={formOpen}
