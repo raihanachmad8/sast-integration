@@ -55,3 +55,23 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
   }
 }
+
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  logger.workspace.info('deleteWorkspace');
+  const auth = await authenticate(request);
+  if (!auth.success) return auth.response;
+  const { workspaceId } = await params;
+
+  const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.WORKSPACE_SETTINGS_MANAGE);
+  if (!workspace.success) return workspace.response;
+
+  try {
+    await workspaceService.delete(workspaceId, auth.context.userId);
+    logger.workspace.info('deleteWorkspace completed');
+    return ApiResponse.noContent();
+  } catch (e) {
+    logger.workspace.error('deleteWorkspace failed', { error: e instanceof Error ? e.message : e });
+    if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
+    return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
+  }
+}

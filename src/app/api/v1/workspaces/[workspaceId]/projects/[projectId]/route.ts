@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server';
-import { ZodError } from 'zod';
 
 import { PERMISSION } from '@/commons/constants/permissions';
 import { projectUpdateSchema } from '@/commons/schemas/project.schema';
@@ -40,16 +39,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const workspace = await requirePermission(withWorkspaceId(request, workspaceId), auth.context, PERMISSION.PROJECT_MANAGE);
   if (!workspace.success) return workspace.response;
 
+  const validation = await validateBody(request, projectUpdateSchema);
+  if (!validation.success) return validation.response;
+
   try {
-    const validation = await validateBody(request, projectUpdateSchema);
-    if (!validation.success) return validation.response;
     const project = await projectService.update(workspaceId, projectId, validation.data, auth.context.userId);
     logger.project.info('updateProject completed');
     return ApiResponse.success('Project updated', project);
   } catch (e) {
     logger.project.error('updateProject failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
-    if (e instanceof ZodError) return ApiResponse.error('Validation failed', 'VALIDATION_ERROR', { fields: e.issues }, 422);
     return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
   }
 }

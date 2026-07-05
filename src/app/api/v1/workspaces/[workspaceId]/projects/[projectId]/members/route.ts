@@ -26,12 +26,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   if (!workspace.success) return workspace.response;
 
   try {
-    const members = await projectService.listMembers(projectId, auth.context.userId);
+    const members = await projectService.listMembers(workspaceId, projectId, auth.context.userId);
 
     return ApiResponse.success('Project members retrieved', members);
   } catch (e) {
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
-    logger.project.error('listProjectMembers failed', { error: e instanceof Error ? e.message : String(e) });
+    logger.project.error('listProjectMembers failed', { error: e instanceof Error ? e.message : e });
     return ApiResponse.error('Failed to list project members', 'INTERNAL_ERROR', undefined, 500);
   }
 }
