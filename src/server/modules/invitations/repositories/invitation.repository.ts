@@ -24,7 +24,8 @@ export interface InvitationRepository {
 }
 
 export const invitationRepository: InvitationRepository = {
-  async list(workspaceId: string, params?: InvitationListQuery) {
+  async list(workspaceId: string, params?: InvitationListQuery, tx?: Tx) {
+    const exec = tx ?? db;
     logger.invitation.info('listInvitations', { workspaceId });
     const conditions = [
       eq(workspaceInvitations.workspaceId, workspaceId),
@@ -52,7 +53,7 @@ export const invitationRepository: InvitationRepository = {
     ));
 
     // Count total
-    const [{ count: total }] = await db
+    const [{ count: total }] = await exec
       .select({ count: count() })
       .from(workspaceInvitations)
       .leftJoin(users, eq(users.id, workspaceInvitations.createdBy))
@@ -71,7 +72,7 @@ export const invitationRepository: InvitationRepository = {
     const perPage = params?.perPage ?? 10;
     const offset = (page - 1) * perPage;
 
-    const data = await db
+    const data = await exec
       .select({
         id: workspaceInvitations.id,
         email: workspaceInvitations.email,
