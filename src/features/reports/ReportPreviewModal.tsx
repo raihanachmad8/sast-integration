@@ -16,6 +16,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ENDPOINTS } from '@/commons/constants/endpoints';
 import { REPORT_FORMAT } from '@/commons/constants/layout';
 import type { ReportRow } from '@/commons/types/reports';
+import { getAccessToken } from '@/lib/api/client';
 import { reportsApi } from '@/modules/reports/api';
 
 const PdfViewer = dynamic(() => import('./PdfViewer').then((m) => m.PdfViewer), { ssr: false, loading: () => <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 420 }}><Spin description="Memuat PDF..." /></div> });
@@ -41,14 +42,6 @@ const FILE_ICONS: Record<string, typeof FilePdfOutlined> = {
   xlsx: FileExcelOutlined,
   csv: FileTextOutlined,
 };
-
-function getToken(): string {
-  try {
-    return (window as unknown as Record<string, string>).__accessToken ?? '';
-  } catch {
-    return '';
-  }
-}
 
 /* ── Excel preview data types ───────────────────────── */
 
@@ -145,11 +138,29 @@ const ReportPreviewModal = React.memo(function ReportPreviewModal({
 
     try {
       const url = ENDPOINTS.REPORTS.PREVIEW(wsId, report.id);
-      const token = getToken();
+      const token = getAccessToken();
 
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+
+      // Auto-refresh token if 401
+      if (response.status === 401) {
+        const refreshRes = await fetch('/api/v1/auth/refresh', {
+          method: 'POST',
+          headers: { 'x-refresh-request': '1' },
+          credentials: 'include',
+        });
+        if (refreshRes.ok) {
+          const { data } = await refreshRes.json();
+          const newToken = data?.accessToken;
+          if (newToken) {
+            const { setAccessToken } = await import('@/lib/api/client');
+            setAccessToken(newToken);
+            response = await fetch(url, { headers: { Authorization: `Bearer ${newToken}` } });
+          }
+        }
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);

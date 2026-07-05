@@ -7,6 +7,7 @@ import { DataTable, makeSource, type DataTableColumn, type ActionConfig } from '
 import { FaIcon } from '@/commons/components/FaIcon';
 import { IdentityCell } from '@/commons/components/IdentityCell';
 import { StatusPill } from '@/commons/components/StatusPill';
+import { ROLE } from '@/commons/constants/permissions';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { formatDate } from '@/lib/utils/formatDate';
@@ -43,7 +44,7 @@ const STATUS_FILTER_OPTIONS = [
  */
 export function InvitationsTable({ onRevoke, tabId }: InvitationsTableProps) {
   const { isAtLeast } = usePermissions();
-  const canManage = isAtLeast('manager');
+  const canManage = isAtLeast(ROLE.MANAGER);
   const { token } = theme.useToken();
 
   const { params, setPagination, setSearch, setFilter } = useTableParams({

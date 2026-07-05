@@ -140,8 +140,6 @@ export const aiModelsRepository = {
         ...(data.priority !== undefined && { priority: data.priority }),
         ...(data.promptPreset !== undefined && { promptPreset: data.promptPreset }),
         ...(data.customSystemPrompt !== undefined && { customSystemPrompt: data.customSystemPrompt }),
-        ...(data.status !== undefined && { status: data.status }),
-        ...(data.lastTestedAt !== undefined && { lastTestedAt: data.lastTestedAt }),
         updatedAt: new Date(),
       })
       .where(and(eq(models.id, id), eq(models.workspaceId, workspaceId)))

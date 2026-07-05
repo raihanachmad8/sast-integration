@@ -460,8 +460,6 @@ export class GitHubScmService implements ScmApiService {
             updated++;
           } else {
             failed++;
-            const errorText = await postResponse.text().catch(() => '');
-            logger.scan.warn('GitHub: failed to POST inline comment', { fingerprint: c.fingerprint, status: postResponse.status, error: errorText, filePath: c.filePath, line: c.lineNumber });
           }
         }
       } catch (err) {

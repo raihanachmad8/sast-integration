@@ -116,7 +116,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const goToWorkspaceChooser = () => { setAccountOpen(false); router.push(ROUTES.CHOOSER); };
+  const goToWorkspaceChooser = () => { setAccountOpen(false); window.location.assign(ROUTES.CHOOSER); };
 
   const handleSignout = () => {
     setAccountOpen(false);

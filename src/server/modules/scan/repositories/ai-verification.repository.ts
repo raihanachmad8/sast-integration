@@ -1,4 +1,4 @@
-import { eq, desc, and, asc, inArray } from 'drizzle-orm';
+import { eq, desc, and, asc, inArray, sql } from 'drizzle-orm';
 
 import { db, type Tx } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
@@ -118,16 +118,19 @@ export const aiVerificationRepository = {
   },
 
   /**
-   * Batch check which groups have ANY AI verification attempt.
-   * Returns array of group IDs that have at least one verification record.
-   * This prevents re-enqueuing findings that already succeeded OR failed.
+   * Batch check which groups have high-confidence AI verification.
+   * Returns array of group IDs that have at least one verification with confidence > 80.
+   * Groups with only low-confidence verifications are NOT returned — they should be re-verified.
    */
   async hasVerificationBatch(groupIds: string[], tx?: Tx): Promise<string[]> {
     if (groupIds.length === 0) return [];
     const executor = tx ?? db;
     const results = await executor.select({ groupId: aiVerifications.groupId })
       .from(aiVerifications)
-      .where(inArray(aiVerifications.groupId, groupIds))
+      .where(and(
+        inArray(aiVerifications.groupId, groupIds),
+        sql`CAST(${aiVerifications.confidence} AS numeric) > 80`,
+      ))
       .groupBy(aiVerifications.groupId);
     return results.map((r) => r.groupId).filter((id): id is string => id !== null);
   },

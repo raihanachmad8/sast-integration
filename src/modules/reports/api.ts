@@ -3,10 +3,34 @@ import type { ApiResponse } from '@/commons/types/api';
 import type { ListParams, PaginatedResponse } from '@/commons/types/pagination';
 import type { ReportRow } from '@/commons/types/reports';
 import { clientEnv } from '@/config/client-env';
-import { Api } from '@/lib/api/client';
+import { Api, getAccessToken, setAccessToken } from '@/lib/api/client';
 import { extractPaginated } from '@/lib/api/pagination';
 
 const _api = Api({ baseUrl: clientEnv.apiUrl });
+
+async function fetchWithRefresh<T>(url: string): Promise<T> {
+  const token = getAccessToken();
+  let res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+
+  if (res.status === 401) {
+    const refreshRes = await fetch('/api/v1/auth/refresh', {
+      method: 'POST',
+      headers: { 'x-refresh-request': '1' },
+      credentials: 'include',
+    });
+    if (refreshRes.ok) {
+      const { data } = await refreshRes.json();
+      const newToken = data?.accessToken;
+      if (newToken) {
+        setAccessToken(newToken);
+        res = await fetch(url, { headers: { Authorization: `Bearer ${newToken}` } });
+      }
+    }
+  }
+
+  if (!res.ok) throw new Error(`Preview fetch failed: ${res.status}`);
+  return res.json() as Promise<T>;
+}
 
 export const reportsApi = {
   async list(workspaceId: string, params: ListParams): Promise<PaginatedResponse<ReportRow>> {
@@ -38,13 +62,7 @@ export const reportsApi = {
 
   async fetchPreviewJson<T = unknown>(workspaceId: string, reportId: string): Promise<T> {
     const url = ENDPOINTS.REPORTS.PREVIEW(workspaceId, reportId);
-    let token = '';
-    try { token = (window as unknown as Record<string, string>).__accessToken ?? ''; } catch { /* noop */ }
-    const res = await fetch(url, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) throw new Error(`Preview fetch failed: ${res.status}`);
-    const json = (await res.json()) as { data: T };
+    const json = await fetchWithRefresh<{ data: T }>(url);
     return json.data;
   },
 };

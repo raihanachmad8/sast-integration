@@ -101,9 +101,6 @@ export interface PrCommentFinding {
   codeSnippet: string | null;
   aiVerdict: string | null;
   confidence: string | null;
-  explanation?: string | null;
-  dataFlow?: string | null;
-  fixSuggestion?: string | null;
   findingId: string;
   fingerprint: string;
 }
@@ -287,7 +284,7 @@ export function buildPrComment(
 
   // Link
   comment += `\n[View report](${appBaseUrl}/${workspaceSlug}/findings?scanId=${scanId})`;
-  comment += ` · Scan: \`${scanId.substring(0, 8)}\`\n`;
+  comment += ` · \`${scanId.substring(0, 8)}\`\n`;
 
   return comment;
 }
@@ -310,28 +307,7 @@ export function buildInlineReviewComment(
   let comment = `<!-- sast-integration:inline-review:${finding.fingerprint} -->\n`;
   comment += `${sev} **${finding.severity.toUpperCase()}** \`${finding.scanner}\` — ${finding.rule || 'Unknown'}\n\n`;
   comment += `> ${(finding.message || 'No description').split('\n')[0]}\n\n`;
-
-  // Enrich with AI verification details
-  if (finding.aiVerdict && finding.aiVerdict !== 'pending') {
-    const confidenceStr = finding.confidence ? ` · Confidence: ${finding.confidence}` : '';
-    comment += `${vEmoji} **AI Verdict:** ${finding.aiVerdict}${confidenceStr}\n`;
-
-    if (finding.explanation) {
-      comment += `> ${finding.explanation}\n\n`;
-    }
-
-    if (finding.dataFlow) {
-      comment += `**Data Flow:** ${finding.dataFlow}\n\n`;
-    }
-
-    if (finding.fixSuggestion) {
-      comment += `**Fix:** ${finding.fixSuggestion}\n\n`;
-    }
-
-    comment += `[View Full Report](${link})\n`;
-  } else {
-    comment += `${vEmoji} AI: pending · [Details](${link})\n`;
-  }
+  comment += `${vEmoji} AI: ${finding.aiVerdict ?? 'pending'} · [Details](${link})\n`;
 
   return comment;
 }

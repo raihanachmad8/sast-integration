@@ -66,14 +66,34 @@ function normalizeBaseUrl(url: string): string {
 
 // ─── Token Storage ───────────────────────────────────────────
 
+const TOKEN_KEY = 'sast_access_token';
 const isBrowser = typeof window !== 'undefined';
 
 export function setAccessToken(token: string) {
-  if (isBrowser) window.__accessToken = token;
+  if (!isBrowser) return;
+  try {
+    if (token) {
+      sessionStorage.setItem(TOKEN_KEY, token);
+    } else {
+      sessionStorage.removeItem(TOKEN_KEY);
+    }
+  } catch { /* non-critical */ }
 }
 
 export function getAccessToken(): string | undefined {
-  return isBrowser ? window.__accessToken : undefined;
+  if (!isBrowser) return undefined;
+  try {
+    return sessionStorage.getItem(TOKEN_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function clearAccessToken() {
+  if (!isBrowser) return;
+  try {
+    sessionStorage.removeItem(TOKEN_KEY);
+  } catch { /* non-critical */ }
 }
 
 // ─── Workspace ID Storage ──────────────────────────────────
@@ -158,13 +178,10 @@ export function getCachedWorkspaceSlug(): string | null {
  */
 export { clearCachedWorkspace as clearWorkspaceCache };
 
-declare global {
-  interface Window {
-    __accessToken?: string;
-  }
-}
-
 // ─── Refresh Token Queue ──────────────────────────────────
+
+const REFRESH_TIMEOUT = 15_000;
+const REFRESH_RETRY_MAX = 2;
 
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -181,6 +198,38 @@ function processQueue(error: unknown, token: string | null) {
     }
   }
   failedQueue = [];
+}
+
+/**
+ * Call refresh endpoint with retry logic.
+ * Retries on network/timeout errors only (not on 4xx/5xx).
+ */
+async function callRefreshEndpoint(baseUrl: string, attempt = 0): Promise<string> {
+  try {
+    const { data } = await axios.post(
+      `${baseUrl}/auth/refresh`,
+      {},
+      {
+        headers: {
+          [SECURITY.REFRESH_CSRF_HEADER]: SECURITY.REFRESH_CSRF_HEADER_VALUE,
+        },
+        withCredentials: true,
+        timeout: REFRESH_TIMEOUT,
+      },
+    );
+    return data.data.accessToken;
+  } catch (error) {
+    // Non-retryable: 4xx (auth failure) or 5xx (server error)
+    if (axios.isAxiosError(error) && error.response) {
+      throw error;
+    }
+    // Network / timeout error — retry if attempts remain
+    if (attempt < REFRESH_RETRY_MAX) {
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      return callRefreshEndpoint(baseUrl, attempt + 1);
+    }
+    throw error;
+  }
 }
 
 // ─── Private request helper ───────────────────────────────
@@ -274,19 +323,7 @@ export function Api({ baseUrl }: TApi): IApiClient {
       isRefreshing = true;
 
       try {
-        // Use the RAW baseUrl (before normalization) for the refresh call
-        const { data } = await axios.post(
-          `${baseUrl}/auth/refresh`,
-          {},
-          {
-            headers: {
-              [SECURITY.REFRESH_CSRF_HEADER]: SECURITY.REFRESH_CSRF_HEADER_VALUE,
-            },
-            withCredentials: true,
-          },
-        );
-
-        const newAccessToken = data.data.accessToken;
+        const newAccessToken = await callRefreshEndpoint(baseUrl);
         setAccessToken(newAccessToken);
         processQueue(null, newAccessToken);
 
@@ -345,6 +382,7 @@ export async function refreshAccessToken() {
         [SECURITY.REFRESH_CSRF_HEADER]: SECURITY.REFRESH_CSRF_HEADER_VALUE,
       },
       withCredentials: true,
+      timeout: REFRESH_TIMEOUT,
     },
   );
   return data;

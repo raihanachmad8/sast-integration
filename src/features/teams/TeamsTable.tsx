@@ -73,10 +73,10 @@ export function TeamsTable({ onView, onEdit, onDelete }: TeamsTableProps) {
     queueMicrotask(() => {
       if (cancelled) return;
       if (projectPage === 1) {
-        // Ketika halaman 1, selalu set ulang (termasuk ketika hasilnya kosong)
+        // On page 1, always reset (including when results are empty)
         setAllProjects(d);
       } else if (d.length > 0) {
-        // Ketika halaman lebih dari 1 dan ada data, append
+        // On pages beyond 1 with data, append
         setAllProjects((prev) => {
           const ids = new Set(prev.map((x) => x.id));
           return [...prev, ...d.filter((x) => !ids.has(x.id))];
@@ -86,7 +86,7 @@ export function TeamsTable({ onView, onEdit, onDelete }: TeamsTableProps) {
     return () => { cancelled = true; };
   }, [projectsQuery.data, projectPage]);
 
-  // Debounce untuk project search (sama seperti useTableParams)
+  // Debounce project search (same as useTableParams)
   useEffect(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {

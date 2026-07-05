@@ -415,8 +415,7 @@ export const findingService = {
       rule?: string | null;
       groupId?: string | null;
     },
-    verdict: string,
-    confidence?: string | null
+    verdict: string
   ) {
     if (!finding.fingerprint) return;
 
@@ -426,20 +425,14 @@ export const findingService = {
     const openPrs = await db
       .select({
         repoName: repositories.name,
-        repositoryId: repositories.id,
-        repoProvider: repositories.provider,
         prNumber: scans.prNumber,
         provider: sourceControls.provider,
-        scmId: sourceControls.id,
         credentials: sourceControls.credentials,
         workspaceId: repositories.workspaceId,
       })
       .from(scans)
       .innerJoin(repositories, eq(scans.repositoryId, repositories.id))
-      .innerJoin(sourceControls, and(
-        eq(repositories.workspaceId, sourceControls.workspaceId),
-        eq(repositories.provider, sourceControls.provider),
-      ))
+      .innerJoin(sourceControls, eq(repositories.workspaceId, sourceControls.workspaceId))
       .innerJoin(findingGroupScans, eq(findingGroupScans.scanId, scans.id))
       .innerJoin(findingGroups, eq(findingGroups.id, findingGroupScans.groupId))
       .where(
@@ -452,10 +445,7 @@ export const findingService = {
       .groupBy(
         scans.prNumber,
         repositories.name,
-        repositories.id,
-        repositories.provider,
         repositories.workspaceId,
-        sourceControls.id,
         sourceControls.provider,
         sourceControls.credentials
       );
@@ -473,7 +463,6 @@ export const findingService = {
     logger.scan.info('updateInlineCommentsForVerdict: found open PRs', {
       fingerprint: finding.fingerprint,
       prCount: openPrs.length,
-      prs: openPrs.map((p) => ({ pr: p.prNumber, repoProvider: p.repoProvider, scmProvider: p.provider, scmId: p.scmId, repoName: p.repoName })),
     });
 
     const appBaseUrl = env.APP_URL;
@@ -482,25 +471,6 @@ export const findingService = {
     for (const pr of openPrs) {
       try {
         if (!pr.credentials || !pr.provider || !pr.prNumber) continue;
-
-        // Fetch latest AI verification details for this group
-        let aiDetails: { explanation?: string | null; dataFlow?: string | null; fixSuggestion?: string | null; confidence?: string | null } = {};
-        if (finding.groupId) {
-          try {
-            const { aiVerificationRepository } = await import('@/server/modules/scan/repositories/ai-verification.repository');
-            const latestVerdict = await aiVerificationRepository.getLatestByGroup(finding.groupId);
-            if (latestVerdict) {
-              aiDetails = {
-                explanation: latestVerdict.explanation,
-                dataFlow: latestVerdict.dataFlow,
-                fixSuggestion: latestVerdict.fixSuggestion,
-                confidence: latestVerdict.confidence,
-              };
-            }
-          } catch {
-            // Skip if fetch fails
-          }
-        }
 
         const [owner, repo] = parseRepoName(pr.repoName);
         const scm = createScmApiService(pr.provider, pr.credentials as ScmCredentials);
@@ -515,10 +485,7 @@ export const findingService = {
             scanner: finding.scanner ?? null,
             codeSnippet: null,
             aiVerdict: verdictDisplay,
-            confidence: aiDetails.confidence ?? confidence ?? null,
-            explanation: aiDetails.explanation,
-            dataFlow: aiDetails.dataFlow,
-            fixSuggestion: aiDetails.fixSuggestion,
+            confidence: '',
             findingId: finding.findingId ?? '',
             fingerprint: finding.fingerprint,
           },

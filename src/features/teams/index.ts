@@ -4,7 +4,5 @@ export { TeamsPage } from './TeamsPage';
 export { TeamFormModal } from './TeamFormModal';
 export { TeamDetailDrawer } from './TeamDetailDrawer';
 export { TeamForm } from './TeamForm';
-export { EditTeamPage } from './EditTeamPage';
-export { NewTeamPage } from './NewTeamPage';
 export type { TeamFormInput } from '@/commons/schemas/team.schema';
 export type { Team, TeamMember } from '@/commons/types';

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { LoadingState } from '@/commons/components/LoadingState';
 import { ROUTES } from '@/commons/constants';
 import { EmailVerificationBanner } from '@/features/auth/components/EmailVerificationBanner';
-import { getCachedWorkspace } from '@/lib/api/client';
+import { getCachedWorkspace, clearWorkspaceCache } from '@/lib/api/client';
 import type { CachedWorkspace } from '@/lib/api/client';
 import { useSessionQuery } from '@/modules/auth/queries';
 
@@ -44,6 +44,8 @@ export function AuthenticatedShell({ children }: { children: React.ReactNode }) 
     if (hasRedirected.current) return;
     if (pathname === ROUTES.CHOOSER) return;
     if (session.isLoading || session.isFetching) return;
+    // SSR lapor isLoading=false meski data belum tersedia
+    if (!session.data) return;
 
     if (session.isError) {
       hasRedirected.current = true;
@@ -53,10 +55,14 @@ export function AuthenticatedShell({ children }: { children: React.ReactNode }) 
 
     const currentWorkspace = session.data?.workspace;
     if (!currentWorkspace || currentWorkspace.slug !== routeWorkspaceSlug) {
+      // Workspace tidak valid (dihapus/hilang akses) — bersihkan cache
+      if (cachedWorkspace?.slug && cachedWorkspace.slug !== sessionSlug) {
+        clearWorkspaceCache();
+      }
       hasRedirected.current = true;
       router.replace(`${ROUTES.CHOOSER}?redirect=${encodeURIComponent(pathname)}`);
     }
-  }, [pathname, routeWorkspaceSlug, session.data?.workspace, session.isError, session.isFetching, session.isLoading, router]);
+  }, [pathname, routeWorkspaceSlug, session.data, session.data?.workspace, session.isError, session.isFetching, session.isLoading, router, cachedWorkspace?.slug, sessionSlug]);
 
   if (pathname === ROUTES.CHOOSER) {
     return <>{children}</>;
@@ -66,7 +72,7 @@ export function AuthenticatedShell({ children }: { children: React.ReactNode }) 
     return <LoadingState text="Signing you in..." fullHeight />;
   }
 
-  if ((session.isLoading || session.isFetching) && !canRenderOptimistically) {
+  if (!session.data || ((session.isLoading || session.isFetching) && !canRenderOptimistically)) {
     return <LoadingState text="Loading workspace..." fullHeight />;
   }
 

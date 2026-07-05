@@ -7,7 +7,6 @@ import { useState, useMemo, useCallback } from 'react';
 
 import type { MemberListQuery as _MemberListQuery } from '@/commons/schemas/member.schema';
 import type { Finding } from '@/commons/types';
-import { normalizeFinding } from '@/commons/types/findings';
 import { useLazySelect } from '@/lib/hooks/useLazySelect';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useWorkspace } from '@/lib/hooks/useWorkspace';
@@ -91,9 +90,42 @@ export function useFindingsPageState() {
     ? { key: params.sortKey, dir: params.sortDir }
     : null;
 
-  const findings: Finding[] = useMemo(() => {
-    const raw = (findingsQuery.data?.data ?? []) as unknown as Record<string, unknown>[];
-    return raw.map(normalizeFinding);
+  const findings = useMemo(() => {
+    const raw = (findingsQuery.data?.data ?? []) as unknown as Array<{
+      id: string; scanId: string; groupId: string; projectId: string; cweId: string | null;
+      severity: string; groupStatus: string; filePath: string | null; lineNumber: number | null;
+      description: string | null; rule: string; scanner: string; message: string | null;
+      assignedTo: string | null; createdAt: string;
+      repositoryName: string | null; verdict: string | null; model: string | null; confidence: number | null;
+      explanation: string | null; fixSuggestion: string | null; codeSnippet: string | null;
+      matchDetail: string | null; likelyCwe: string[] | null;
+      dataFlow: string | null; taintSource: string | null;
+    }>;
+    return raw.map((f) => ({
+      id: f.id,
+      projectId: f.projectId ?? undefined,
+      rule: f.rule ?? '',
+      repo: f.repositoryName ?? '',
+      file: f.filePath ?? '',
+      filePath: f.filePath ?? undefined,
+      severity: f.severity as Finding['severity'],
+      scanner: f.scanner ?? '',
+      verdict: (f.verdict ?? 'Pending') as Finding['verdict'],
+      confidence: f.confidence ?? null,
+      model: f.model ?? '',
+      assignee: f.assignedTo ?? null,
+      status: (f.groupStatus ?? 'open') as Finding['status'],
+      cwe: f.cweId ?? '',
+      lineNumber: f.lineNumber ?? undefined,
+      message: f.message ?? undefined,
+      codeSnippet: f.codeSnippet ?? undefined,
+      explanation: f.explanation ?? undefined,
+      fixSuggestion: f.fixSuggestion ?? undefined,
+      matchDetail: f.matchDetail ?? undefined,
+      likelyCwe: f.likelyCwe ?? undefined,
+      dataFlow: f.dataFlow ?? undefined,
+      taintSource: f.taintSource ?? undefined,
+    }));
   }, [findingsQuery.data]);
   const totalCount = findingsQuery.data?.meta?.total ?? 0;
 

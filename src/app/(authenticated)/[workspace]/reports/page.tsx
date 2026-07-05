@@ -17,6 +17,7 @@ import { StatusPill } from '@/commons/components/StatusPill';
 import { FEATURE_FLAG } from '@/commons/constants/feature-flags';
 import { PERMISSION } from '@/commons/constants/permissions';
 import type { ReportRow } from '@/commons/types/reports';
+import { getAccessToken } from '@/lib/api/client';
 import { errorMessage } from '@/lib/api/errors';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { useTableParams } from '@/lib/hooks/useTableParams';
@@ -153,7 +154,7 @@ function ReportsPageContent() {
     try {
       const url = await reportsApi.getDownloadUrl(workspaceId, report.id);
       const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${window.__accessToken ?? ''}` },
+        headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
       });
       if (!response.ok) throw new Error('Download failed');
       const blob = await response.blob();

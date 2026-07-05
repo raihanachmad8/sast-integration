@@ -133,22 +133,21 @@ function AiModelsPageContent() {
       message.warning('No models configured');
       return;
     }
-    let completed = 0;
-    let failed = 0;
+    let tested = 0;
     models.forEach((model) => {
       testMutation.mutate(model.id, {
-        onSuccess: () => {
-          completed++;
-          if (completed + failed === models.length) {
-            message.success(failed > 0
-              ? `Tested ${models.length} models — ${failed} failed`
-              : `All ${models.length} models tested`);
+        onSuccess: (_data) => {
+          tested++;
+          if (tested === models.length) {
+            message.success(`All ${models.length} models tested`);
+            modelsQuery.refetch();
           }
         },
         onError: () => {
-          failed++;
-          if (completed + failed === models.length) {
-            message.warning(`Tested ${models.length} models — ${failed} failed`);
+          tested++;
+          if (tested === models.length) {
+            message.warning('Some models failed — check status column');
+            modelsQuery.refetch();
           }
         },
       });
@@ -201,12 +200,13 @@ function AiModelsPageContent() {
 
   const handleTest = useCallback(async (model: AiModelRow) => {
     try {
-      const result = await testMutation.mutateAsync(model.id);
-      message.success(`${model.name} is ${result?.status ?? 'unknown'}`);
+      const data = await testMutation.mutateAsync(model.id);
+      message.success(`${model.name} is ${data?.status ?? 'unknown'}`);
+      modelsQuery.refetch();
     } catch {
       message.error(`${model.name} is unreachable`);
     }
-  }, [testMutation, message]);
+  }, [testMutation, message, modelsQuery]);
 
   const moveUp = (index: number) => {
     if (index === 0) return;
@@ -295,7 +295,7 @@ function AiModelsPageContent() {
         rowKey={(r) => r.id}
         actions={actions}
         emptyText="No models configured."
-        isLoading={modelsQuery.isFetching}
+        isLoading={modelsQuery.isLoading}
         searchable
         searchPlaceholder="Search models"
         searchValue={params.search}

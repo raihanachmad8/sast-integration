@@ -7,8 +7,8 @@ import { useState, useMemo, useCallback } from 'react';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { MODAL_WIDTH, MODEL_ROLE } from '@/commons/constants/layout';
 import { createAiModelSchema } from '@/commons/schemas/ai-model.schema';
-import { aiModelsApi } from '@/modules/ai-models/api';
 import { createZodSync } from '@/lib/utils/zod-sync';
+import { aiModelsApi } from '@/modules/ai-models/api';
 
 import { PROVIDERS, ROLE_OPTIONS, PROFILE_TYPE_OPTIONS, PROVIDER } from './providers';
 

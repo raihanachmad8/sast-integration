@@ -1,7 +1,6 @@
 'use client';
 
 import { Modal, Select, Form, Card, Flex, Tag, Typography, theme } from 'antd';
-import { useEffect } from 'react';
 
 import { changeRoleSchema } from '@/commons/schemas';
 import { ASSIGNABLE_ROLES, ROLE_HELP, roleLabel } from '@/lib/utils/roleLabel';
@@ -38,12 +37,6 @@ interface ChangeRoleModalProps {
 export function ChangeRoleModal({ open, email, newRole, onConfirm, onCancel, isLoading }: ChangeRoleModalProps) {
   const [form] = Form.useForm();
   const { token } = theme.useToken();
-
-  useEffect(() => {
-    if (open) {
-      form.setFieldsValue({ role: newRole });
-    }
-  }, [open, newRole, form]);
 
   const handleOk = async () => {
     try {

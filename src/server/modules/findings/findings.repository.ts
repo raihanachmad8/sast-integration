@@ -5,7 +5,7 @@ import { db, type Tx } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
 import { buildSearch, buildFilters, buildSort, buildPaginationMeta } from '@/server/lib/query';
 import { workspaces, workspaceMembers } from '@drizzle/schema';
-import { findings, findingGroups, findingGroupScans, aiVerifications } from '@drizzle/schema/findings';
+import { findings, findingGroups, aiVerifications } from '@drizzle/schema/findings';
 import { models } from '@drizzle/schema/integrations';
 import { projects } from '@drizzle/schema/projects';
 import { scans } from '@drizzle/schema/scans';
@@ -152,11 +152,6 @@ export const findingsRepository = {
           verdict: aiVerifications.verdict,
           explanation: aiVerifications.explanation,
           confidence: aiVerifications.confidence,
-          dataFlow: aiVerifications.dataFlow,
-          taintSource: aiVerifications.taintSource,
-          matchDetail: aiVerifications.matchDetail,
-          likelyCwe: aiVerifications.likelyCwe,
-          fixSuggestion: aiVerifications.fixSuggestion,
           modelId: aiVerifications.modelId,
           modelName: models.name,
         })
@@ -178,11 +173,6 @@ export const findingsRepository = {
           (row as Record<string, unknown>).verdict = v.verdict;
           (row as Record<string, unknown>).explanation = v.explanation;
           (row as Record<string, unknown>).confidence = v.confidence;
-          (row as Record<string, unknown>).dataFlow = v.dataFlow;
-          (row as Record<string, unknown>).taintSource = v.taintSource;
-          (row as Record<string, unknown>).matchDetail = v.matchDetail;
-          (row as Record<string, unknown>).likelyCwe = v.likelyCwe;
-          (row as Record<string, unknown>).fixSuggestion = v.fixSuggestion;
           (row as Record<string, unknown>).model = v.modelName;
         }
       }
@@ -231,11 +221,6 @@ export const findingsRepository = {
         verdict: aiVerifications.verdict,
         explanation: aiVerifications.explanation,
         confidence: aiVerifications.confidence,
-        dataFlow: aiVerifications.dataFlow,
-        taintSource: aiVerifications.taintSource,
-        matchDetail: aiVerifications.matchDetail,
-        likelyCwe: aiVerifications.likelyCwe,
-        fixSuggestion: aiVerifications.fixSuggestion,
         modelName: models.name,
       })
       .from(aiVerifications)
@@ -248,11 +233,6 @@ export const findingsRepository = {
       (result as Record<string, unknown>).verdict = verification.verdict;
       (result as Record<string, unknown>).explanation = verification.explanation;
       (result as Record<string, unknown>).confidence = verification.confidence;
-      (result as Record<string, unknown>).dataFlow = verification.dataFlow;
-      (result as Record<string, unknown>).taintSource = verification.taintSource;
-      (result as Record<string, unknown>).matchDetail = verification.matchDetail;
-      (result as Record<string, unknown>).likelyCwe = verification.likelyCwe;
-      (result as Record<string, unknown>).fixSuggestion = verification.fixSuggestion;
       (result as Record<string, unknown>).model = verification.modelName;
     }
 
@@ -278,12 +258,6 @@ export const findingsRepository = {
       if (!updated) {
         logger.finding.warn('updateStatus: finding not found', { id });
       }
-
-      // When resolved or dismissed, mark group scans as not-new
-      if (updated && (status === 'resolved' || status === 'dismissed')) {
-        await findingsRepository.markGroupScansNotNew([id], tx);
-      }
-
       return updated ?? null;
     } catch (error) {
       logger.finding.error('updateStatus failed', { id, status, error: error instanceof Error ? error.message : error });
@@ -349,43 +323,11 @@ export const findingsRepository = {
         .where(inArray(findings.id, ids))
         .returning();
 
-      // When resolved or dismissed, mark group scans as not-new
-      if (payload.status && (payload.status === 'resolved' || payload.status === 'dismissed')) {
-        await findingsRepository.markGroupScansNotNew(ids, tx);
-      }
-
       logger.finding.info('bulkUpdate completed', { requested: ids.length, updated: updated.length });
       return updated;
     } catch (error) {
       logger.finding.error('bulkUpdate failed', { count: ids.length, error: error instanceof Error ? error.message : error });
       throw error;
     }
-  },
-
-  /**
-   * Mark finding_group_scans.isNew = false for all groups whose findings
-   * are being resolved or dismissed. This prevents resolved findings from
-   * appearing as "new" in subsequent scans.
-   *
-   * Called internally by updateStatus and bulkUpdate when status is terminal.
-   */
-  async markGroupScansNotNew(findingIds: string[], tx?: Tx) {
-    const exec = tx ?? db;
-    logger.finding.info('markGroupScansNotNew', { count: findingIds.length });
-    if (findingIds.length === 0) return;
-
-    // Get groupIds from the findings being updated
-    const rows = await exec
-      .select({ groupId: findings.groupId })
-      .from(findings)
-      .where(inArray(findings.id, findingIds));
-
-    const groupIds = rows.map((r) => r.groupId).filter((id): id is string => id !== null);
-    if (groupIds.length === 0) return;
-
-    await exec
-      .update(findingGroupScans)
-      .set({ isNew: false })
-      .where(inArray(findingGroupScans.groupId, groupIds));
   },
 };

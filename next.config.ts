@@ -48,6 +48,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }];
   },
+  allowedDevOrigins: ['local.raihanachmad.web.id'],
 };
 
 export default withBundleAnalyzer(nextConfig);

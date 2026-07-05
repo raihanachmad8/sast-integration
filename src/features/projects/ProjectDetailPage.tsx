@@ -3,7 +3,7 @@
 import { DeleteOutlined } from '@ant-design/icons';
 import { App, Button, Card, Flex, Form, Input, Select, Typography, Tabs, Descriptions, Statistic, theme } from 'antd';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 import { useConfirm } from '@/commons/components/ConfirmDialog';
 import { ErrorState } from '@/commons/components/ErrorState';
@@ -75,19 +75,6 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
   const reposQuery = useRepositoriesQuery({ page: 1, perPage: 100 });
   const repoOptions = (reposQuery.data?.data ?? []).map((r) => ({ value: r.id, label: r.name }));
 
-  useEffect(() => {
-    if (project && isEditing) {
-      form.setFieldsValue({
-        name: project.name,
-        description: project.description || '',
-        lead: project.lead || '',
-        repositoryIds: project.repositories.map((r) => r.id),
-        teamIds: project.teams.map((t) => t.id),
-        memberIds: project.members.map((m) => m.id),
-      });
-    }
-  }, [project, isEditing, form]);
-
   if (projectQuery.isLoading) {
     return <LoadingState text="Loading project..." />;
   }
@@ -109,6 +96,15 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
       </Flex>
     );
   }
+
+  const editInitialValues = {
+    name: project.name,
+    description: project.description || '',
+    lead: project.lead || '',
+    repositoryIds: project.repositories.map((r) => r.id),
+    teamIds: project.teams.map((t) => t.id),
+    memberIds: project.members.map((m) => m.id),
+  };
 
   const handleSave = () => {
     form.validateFields().then((values) => {
@@ -170,7 +166,7 @@ export function ProjectDetailPage({ projectId }: ProjectDetailPageProps) {
           </Flex>
 
           {isEditing ? (
-            <Form form={form} layout="vertical">
+            <Form form={form} key={project.id} layout="vertical" initialValues={editInitialValues}>
               <div style={{ display: 'grid', gap: token.paddingXL, maxWidth: 720 }}>
                 <Form.Item label="Project name" name="name" rules={[{ required: true, message: 'Project name is required' }, rule]}>
                   <Input placeholder="e.g. Backend API" />

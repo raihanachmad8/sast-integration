@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 
 import { STALE } from '@/commons/constants/query';
 import type { ApiResponse } from '@/commons/types/api';
-import { setAccessToken, setWorkspaceId, refreshAccessToken, clearWorkspaceCache } from '@/lib/api/client';
+import { setAccessToken, setWorkspaceId, refreshAccessToken, clearWorkspaceCache, getAccessToken } from '@/lib/api/client';
 
 import { authApi } from './api';
 import { authKeys } from './keys';
@@ -21,7 +21,7 @@ export function useSessionQuery() {
   const query = useQuery({
     queryKey: authKeys.session(),
     queryFn: async (): Promise<SessionData & { accessToken: string }> => {
-      const existingToken = typeof window !== 'undefined' ? window.__accessToken : undefined;
+      const existingToken = getAccessToken();
 
       if (existingToken) {
         const res: ApiResponse<SessionData> = await authApi.me();

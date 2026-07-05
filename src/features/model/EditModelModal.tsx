@@ -1,14 +1,14 @@
 'use client';
 
 import { LoadingOutlined } from '@ant-design/icons';
-import { Modal, Input, Select, Form, App, theme, Flex, Typography, Tooltip, AutoComplete } from 'antd';
-import { useState, useMemo, useCallback } from 'react';
+import { Modal, Input, Select, Form, App, theme, Flex, Typography, Tooltip } from 'antd';
+import { useState, useMemo } from 'react';
 
 import { FaIcon } from '@/commons/components/FaIcon';
 import { MODAL_WIDTH, MODEL_ROLE } from '@/commons/constants/layout';
 import { updateAiModelSchema } from '@/commons/schemas/ai-model.schema';
-import { aiModelsApi } from '@/modules/ai-models/api';
 import { createZodSync } from '@/lib/utils/zod-sync';
+import { aiModelsApi } from '@/modules/ai-models/api';
 
 import { PROVIDERS, ROLE_OPTIONS, PROFILE_TYPE_OPTIONS, PROVIDER } from './providers';
 
@@ -74,7 +74,7 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
     }
   };
 
-  const handleFetchModels = useCallback(async () => {
+  const handleFetchModels = async () => {
     const baseUrl = form.getFieldValue('baseUrl');
     if (!baseUrl) {
       message.warning('Enter a Base URL first');
@@ -94,7 +94,7 @@ export function EditModelModal({ open, model, onClose, onSave }: EditModelModalP
     } finally {
       setFetchingModels(false);
     }
-  }, [form, message, aiModelsApi]);
+  };
 
   const handleSave = async () => {
     try {

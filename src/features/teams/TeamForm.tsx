@@ -2,7 +2,6 @@
 
 import { Button, App, Select, Form, Input, Flex, theme } from 'antd';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 import { teamFormSchema } from '@/commons/schemas';
 import type { Team } from '@/commons/types';
@@ -12,7 +11,7 @@ import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { createZodSync } from '@/lib/utils/zod-sync';
 import { membersApi } from '@/modules/members/api';
 import { memberKeys } from '@/modules/members/keys';
-import { useCreateTeamMutation, useUpdateTeamMutation, useTeamQuery } from '@/modules/teams';
+import { useCreateTeamMutation, useUpdateTeamMutation } from '@/modules/teams';
 
 const rule = createZodSync(teamFormSchema);
 
@@ -39,9 +38,6 @@ export function TeamForm({ team }: TeamFormProps) {
   const createMutation = useCreateTeamMutation();
   const updateMutation = useUpdateTeamMutation();
 
-  // Fetch full team data with members when editing
-  const { data: fullTeam } = useTeamQuery(team?.id ?? '');
-
   // Lazy select for members with infinite scroll and debounced search
   const members = useLazySelect({
     workspaceId: workspaceId ?? '',
@@ -52,21 +48,14 @@ export function TeamForm({ team }: TeamFormProps) {
     baseKey: memberKeys.all,
   });
 
-  // Use fullTeam (with members) if available, fall back to team prop
-  const activeTeam = fullTeam ?? team;
-
-  useEffect(() => {
-    if (activeTeam) {
-      form.setFieldsValue({ 
-        name: activeTeam.name, 
-        slug: activeTeam.slug, 
-        description: activeTeam.description, 
-        memberIds: activeTeam.members?.map((m) => m.userId) || [] 
-      });
-    } else {
-      form.resetFields();
-    }
-  }, [activeTeam, form]);
+  const initialValues = team
+    ? {
+        name: team.name,
+        slug: team.slug,
+        description: team.description,
+        memberIds: team.members?.map((m) => m.userId) ?? [],
+      }
+    : { name: '', slug: '', description: '', memberIds: [] };
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const name = e.target.value;
@@ -89,7 +78,7 @@ export function TeamForm({ team }: TeamFormProps) {
       createMutation.mutate(values, {
         onSuccess: () => {
           message.success(`Team "${values.name}" created`);
-          router.push('/' + window.location.pathname.split('/')[1] + '/teams');
+          router.push(`/${workspaceId}/teams`);
         },
         onError: (err) => message.error(errorMessage(err)),
       });
@@ -97,7 +86,7 @@ export function TeamForm({ team }: TeamFormProps) {
   };
 
   return (
-    <Form form={form} layout="vertical" onFinish={handleFinish} initialValues={{ name: '', slug: '', description: '', memberIds: [] }} style={{ maxWidth: 720 }}>
+    <Form form={form} layout="vertical" onFinish={handleFinish} initialValues={initialValues} style={{ maxWidth: 720 }}>
       <Form.Item
         label="Team name"
         name="name"

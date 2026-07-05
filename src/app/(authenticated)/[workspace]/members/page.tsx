@@ -54,8 +54,8 @@ export default function MembersPage() {
     return <LoadingState text="Loading members..." />;
   }
 
-  if (membersQuery.error) {
-    return <ErrorBanner message={errorMessage(membersQuery.error)} />;
+  if (membersQuery.error || invitationsQuery.error) {
+    return <ErrorBanner message={errorMessage(membersQuery.error ?? invitationsQuery.error)} />;
   }
 
   const handleInvite = (values: { email: string; role: string }) => {

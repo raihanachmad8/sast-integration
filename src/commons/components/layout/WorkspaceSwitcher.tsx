@@ -4,6 +4,7 @@ import { theme } from 'antd';
 import { useRef, useEffect } from 'react';
 
 import { FaIcon } from '@/commons/components/FaIcon';
+import { ROUTES } from '@/commons/constants';
 import { getInitials } from '@/lib/utils/getInitials';
 
 interface WorkspaceSwitcherProps {
@@ -94,13 +95,13 @@ export function WorkspaceSwitcher({ user, currentWorkspace, currentWorkspaceDeta
             ))}
 
             {currentWorkspace && (
-              <button style={{ display: 'flex', width: '100%', alignItems: 'center', gap: token.marginXS, border: 0, borderRadius: token.borderRadius, background: 'transparent', color: token.colorText, cursor: 'pointer', padding: `${token.paddingXS}px ${token.paddingSM}px`, textAlign: 'left' }} type="button" role="menuitem" onClick={onGoToChooser}>
+              <a href={ROUTES.CHOOSER} style={{ display: 'flex', width: '100%', alignItems: 'center', gap: token.marginXS, border: 0, borderRadius: token.borderRadius, background: 'transparent', color: token.colorText, cursor: 'pointer', padding: `${token.paddingXS}px ${token.paddingSM}px`, textAlign: 'left', textDecoration: 'none' }} role="menuitem" onClick={() => onToggleAccount()}>
                 <FaIcon icon="fa-table-cells-large" style={{ width: token.size, flexShrink: 0, color: token.colorTextDescription, textAlign: 'center' }} />
                 <div style={{ display: 'grid', minWidth: 0, flex: 1, lineHeight: 1.25 }}>
-                  <span style={{ overflow: 'hidden', color: token.colorText, fontWeight: token.fontWeightStrong, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>All workspaces</span>
-                  <span style={{ overflow: 'hidden', color: token.colorTextDescription, fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Manage workspace access and invitations</span>
+                  <span style={{ overflow: 'hidden', color: token.colorText, fontWeight: token.fontWeightStrong, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Manage workspaces</span>
+                  <span style={{ overflow: 'hidden', color: token.colorTextDescription, fontSize: token.fontSizeSM, fontWeight: token.fontWeightStrong, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Workspace list, invitations, and settings</span>
                 </div>
-              </button>
+              </a>
             )}
           </div>
 

@@ -1,18 +1,23 @@
 'use client';
 
 import { CloseOutlined } from '@ant-design/icons';
-import { Drawer, Typography, Avatar, Card, Statistic, Flex, Table, theme } from 'antd';
+import { Drawer, Typography, Avatar, Card, Statistic, Flex, Table, Button, theme } from 'antd';
 
 import { EmptyState } from '@/commons/components/EmptyState';
 import { FaIcon } from '@/commons/components/FaIcon';
+import { PermissionGate } from '@/commons/components/PermissionGate';
 import { StatusPill } from '@/commons/components/StatusPill';
+import { PERMISSION } from '@/commons/constants/permissions';
 import type { Team, TeamMember } from '@/commons/types';
+import { formatDate } from '@/lib/utils/formatDate';
+import { getInitials } from '@/lib/utils/getInitials';
 
 interface TeamDetailDrawerProps {
   open: boolean;
   team: Team | null;
   members: TeamMember[];
   onClose: () => void;
+  onDelete?: (team: Team) => void;
 }
 
 /**
@@ -29,7 +34,7 @@ interface TeamDetailDrawerProps {
  *   onClose={() => setOpen(false)}
  * />
  */
-export function TeamDetailDrawer({ open, team, members, onClose }: TeamDetailDrawerProps) {
+export function TeamDetailDrawer({ open, team, members, onClose, onDelete }: TeamDetailDrawerProps) {
   const { token } = theme.useToken();
 
   if (!team) {
@@ -48,7 +53,7 @@ export function TeamDetailDrawer({ open, team, members, onClose }: TeamDetailDra
       render: (name: string, record: TeamMember) => (
         <Flex align="center" gap={token.paddingSM}>
           <Avatar size={32} style={{ background: token.colorPrimary, flexShrink: 0 }}>
-            {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+            {getInitials(name, record.email)}
           </Avatar>
           <div>
             <div style={{ fontWeight: token.fontWeightStrong, fontSize: token.fontSize }}>{name}</div>
@@ -87,7 +92,19 @@ export function TeamDetailDrawer({ open, team, members, onClose }: TeamDetailDra
       placement="right"
       size="large"
       closeIcon={<CloseOutlined />}
-      footer={null}
+      footer={
+        <PermissionGate permission={PERMISSION.TEAM_MANAGE}>
+          <Flex justify="flex-end">
+            <Button
+              danger
+              icon={<FaIcon icon="fa-trash" />}
+              onClick={() => team && onDelete?.(team)}
+            >
+              Delete
+            </Button>
+          </Flex>
+        </PermissionGate>
+      }
     >
       <Flex vertical gap={token.paddingXL}>
         {/* Stats */}
@@ -100,7 +117,7 @@ export function TeamDetailDrawer({ open, team, members, onClose }: TeamDetailDra
           </Card>
           <Card size="small">
             <Typography.Text type="secondary" style={{ fontSize: token.fontSizeSM, display: 'block', marginBottom: token.marginXS }}>Created</Typography.Text>
-            <Typography.Text style={{ fontSize: token.fontSize }}>{team.createdAt}</Typography.Text>
+            <Typography.Text style={{ fontSize: token.fontSize }}>{formatDate(team.createdAt)}</Typography.Text>
           </Card>
         </div>
 

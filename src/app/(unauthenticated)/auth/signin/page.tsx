@@ -15,13 +15,30 @@ import { useSigninMutation } from '@/modules/auth/queries';
 /** Zod-powered form rule — validates email + password from single schema. */
 const rule = createZodSync(signinSchema);
 
-function resolvePostSigninPath(redirect: string | null, inviteToken: string | null) {
+/**
+ * Resolve the post-signin redirect path.
+ *
+ * Priority:
+ * 1. Invite token → invite page
+ * 2. Explicit ?redirect= param
+ * 3. Last workspace from API response (server-validated) → its dashboard
+ * 4. Fallback → workspace chooser
+ *
+ * LocalStorage cache tidak dipakai di sini karena workspace mungkin sudah dihapus.
+ * Chooser page nanti yang akan auto-redirect jika cache masih valid.
+ */
+function resolvePostSigninPath(redirect: string | null, inviteToken: string | null, workspaceSlug?: string | null) {
   if (inviteToken) {
     return `${ROUTES.AUTH.INVITE}?token=${encodeURIComponent(inviteToken)}`;
   }
 
   if (redirect?.startsWith('/') && !redirect.startsWith('//') && !redirect.startsWith(ROUTES.AUTH.SIGNIN)) {
     return redirect;
+  }
+
+  // Last workspace from API response — sudah divalidasi server
+  if (workspaceSlug) {
+    return ROUTES.WORKSPACE.DASHBOARD(workspaceSlug);
   }
 
   return ROUTES.CHOOSER;
@@ -36,8 +53,9 @@ function SigninForm() {
 
   const onFinish = (values: Record<string, string>) => {
     signin.mutate(values as { email: string; password: string }, {
-      onSuccess: () => {
-        window.location.assign(resolvePostSigninPath(searchParams.get('redirect'), inviteToken));
+      onSuccess: (data) => {
+        const workspaceSlug = data.workspace?.slug;
+        window.location.assign(resolvePostSigninPath(searchParams.get('redirect'), inviteToken, workspaceSlug));
       },
     });
   };

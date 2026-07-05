@@ -19,6 +19,7 @@ import { WEBHOOK_STATUS } from '@/commons/constants/layout';
 import { PERMISSION } from '@/commons/constants/permissions';
 import type { WebhookRow } from '@/commons/types/webhooks';
 import { WebhookFormModal } from '@/features/webhooks';
+import { getAccessToken } from '@/lib/api/client';
 import { errorMessage } from '@/lib/api/errors';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useSessionData } from '@/modules/auth/queries';
@@ -202,7 +203,7 @@ function WebhookDeliveryHistory({ webhookId }: { webhookId: string }) {
     queryKey: ['webhook-deliveries', webhookId],
     queryFn: async () => {
       const res = await fetch(`/api/v1/workspaces/${workspaceId}/webhooks/${webhookId}/deliveries`, {
-        headers: { Authorization: `Bearer ${window.__accessToken}` },
+        headers: { Authorization: `Bearer ${getAccessToken()}` },
       });
       const json = await res.json();
       return json.data as Array<{ id: string; event: string; status: string; responseStatus: number | null; durationMs: number | null; createdAt: string }>;

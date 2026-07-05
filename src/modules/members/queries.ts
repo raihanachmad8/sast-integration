@@ -4,10 +4,13 @@ import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tansta
 
 import { STALE } from '@/commons/constants/query';
 import type { MemberListQuery } from '@/commons/schemas/member.schema';
+import type { PaginatedResponse } from '@/commons/types/pagination';
 import { useWorkspace } from '@/lib/hooks/useWorkspace';
 
 import { membersApi, type Member } from './api';
 import { memberKeys } from './keys';
+
+type MembersQueryData = PaginatedResponse<Member>;
 /** Query hook for fetching all members in a workspace. */
 export function useMembersQuery(params?: Partial<Omit<MemberListQuery, 'workspace_id'>>, enabled?: boolean) {
   const { workspaceId } = useWorkspace();
@@ -29,8 +32,8 @@ export function useUpdateMemberRoleMutation() {
       membersApi.changeRole(workspaceId!, userId, role),
     onMutate: async ({ userId, role }) => {
       await queryClient.cancelQueries({ queryKey: memberKeys.all });
-      const previous = queryClient.getQueriesData({ queryKey: memberKeys.all });
-      queryClient.setQueriesData({ queryKey: memberKeys.all }, (old: { data: Member[]; meta: Record<string, unknown> } | undefined) => {
+      const previous = queryClient.getQueriesData<MembersQueryData>({ queryKey: memberKeys.all });
+      queryClient.setQueriesData<MembersQueryData>({ queryKey: memberKeys.all }, (old) => {
         if (!old) return old;
         return {
           ...old,
@@ -60,13 +63,13 @@ export function useRemoveMemberMutation() {
     mutationFn: (userId: string) => membersApi.remove(workspaceId!, userId),
     onMutate: async (userId) => {
       await queryClient.cancelQueries({ queryKey: memberKeys.all });
-      const previous = queryClient.getQueriesData({ queryKey: memberKeys.all });
-      queryClient.setQueriesData({ queryKey: memberKeys.all }, (old: { data: Member[]; meta: Record<string, unknown> } | undefined) => {
+      const previous = queryClient.getQueriesData<MembersQueryData>({ queryKey: memberKeys.all });
+      queryClient.setQueriesData<MembersQueryData>({ queryKey: memberKeys.all }, (old) => {
         if (!old) return old;
         return {
           ...old,
           data: old.data.filter((m) => m.userId !== userId),
-          meta: { ...old.meta, total: Math.max(0, ((old.meta.total as number) ?? 1) - 1) },
+          meta: { ...old.meta, total: Math.max(0, old.meta.total - 1) },
         };
       });
       return { previous };
