@@ -287,36 +287,3 @@ describe('workspaceService.switchWorkspace', () => {
     await expect(workspaceService.switchWorkspace('ws-1', 'user-1')).rejects.toThrow(WORKSPACE.ERRORS.NOT_MEMBER);
   });
 });
-
-describe('workspaceService.acceptInvitation', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-
-  /**
-   * Purpose: Validates that a workspace invitation can be accepted successfully
-   */
-  it('+ should accept invitation successfully', async () => {
-    mockRepo.acceptInvitation.mockResolvedValue({ workspaceId: 'ws-1', email: 'a@test.com' });
-    const result = await workspaceService.acceptInvitation('inv-1', 'user-1');
-    expect(result.workspaceId).toBe('ws-1');
-  });
-
-  /**
-   * Purpose: Validates that accepting a nonexistent invitation throws INVITATION_NOT_FOUND
-   */
-  it('- should throw INVITATION_NOT_FOUND when invitation does not exist', async () => {
-    mockRepo.acceptInvitation.mockResolvedValue(null);
-    await expect(workspaceService.acceptInvitation('inv-1', 'user-1')).rejects.toThrow(WORKSPACE.ERRORS.INVITATION_NOT_FOUND);
-  });
-});
-
-describe('workspaceService.declineInvitation', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-
-  /**
-   * Purpose: Validates that a workspace invitation can be declined successfully
-   */
-  it('+ should decline invitation successfully', async () => {
-    mockRepo.revokeInvitation.mockResolvedValue(undefined);
-    await expect(workspaceService.declineInvitation('inv-1')).resolves.toBeUndefined();
-  });
-});

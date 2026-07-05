@@ -112,6 +112,9 @@ describe('memberService.changeRole', () => {
     ).rejects.toThrow(MEMBER.ERRORS.MEMBER_NOT_FOUND);
   });
 
+  /**
+   * Purpose: Validates that a manager can assign the reviewer role to a member.
+   */
   it('should allow manager to assign reviewer role', async () => {
     mockRepo.getMemberRole
       .mockResolvedValueOnce(ROLE.MANAGER)
@@ -155,7 +158,7 @@ describe('memberService.remove', () => {
 
     await memberService.remove('ws-1', 'target', 'actor');
 
-    expect(mockRepo.remove).toHaveBeenCalledWith('ws-1', 'target');
+    expect(mockRepo.remove).toHaveBeenCalledWith('ws-1', 'target', expect.anything());
   });
 
   /**
@@ -218,7 +221,7 @@ describe('memberService.remove', () => {
   });
 });
 
-describe('❌ negative', () => {
+describe('negative cases', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   /**
@@ -256,7 +259,7 @@ describe('❌ negative', () => {
   });
 });
 
-describe('🔲 edge cases', () => {
+describe('edge cases', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   /**

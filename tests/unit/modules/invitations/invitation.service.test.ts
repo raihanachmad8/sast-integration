@@ -22,6 +22,12 @@ vi.mock('@/server/modules/mail/templates', () => ({
   workspaceInviteTemplate: vi.fn().mockReturnValue('<p>Invite</p>'),
 }));
 
+vi.mock('@/server/db/client', () => ({
+  db: {
+    transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(null)),
+  },
+}));
+
 vi.mock('@/server/modules/members/repositories/member.repository', () => ({
   memberRepository: {
     getMemberRole: vi.fn(),
@@ -40,6 +46,7 @@ vi.mock('@/server/modules/invitations/repositories/invitation.repository', () =>
   },
 }));
 
+import { ROLE } from '@/commons/constants/permissions';
 import { invitationService } from '@/server/modules/invitations/services/invitation.service';
 import { invitationRepository } from '@/server/modules/invitations/repositories/invitation.repository';
 import { memberRepository } from '@/server/modules/members/repositories/member.repository';
@@ -47,7 +54,10 @@ import { sendMail } from '@/server/modules/mail/mail.service';
 import { INVITATION } from '@/server/modules/invitations/constants';
 
 describe('invitationService', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(memberRepository.getMemberRole).mockResolvedValue(ROLE.OWNER);
+  });
 
   describe('list', () => {
     it('should return paginated invitations', async () => {
@@ -103,7 +113,7 @@ describe('invitationService', () => {
 
       await invitationService.invite('ws-1', { email: 'user@test.com', role: 'manager' }, 'actor-1');
 
-      expect(invitationRepository.revoke).toHaveBeenCalledWith('old-inv');
+      expect(invitationRepository.revoke).toHaveBeenCalledWith('old-inv', null);
       expect(invitationRepository.create).toHaveBeenCalledOnce();
     });
 

@@ -145,40 +145,4 @@ export const workspaceService = {
     await workspaceRepository.switchWorkspace(userId, workspaceId);
     logger.workspace.info('switchWorkspace completed', { workspaceId, userId });
   },
-
-  /**
-   * List all pending invitations for a user by email.
-   * @param email - User's email address
-   */
-  async listPendingInvitations(email: string) {
-    logger.workspace.info('listPendingInvitations', { email });
-    const result = await workspaceRepository.listPendingInvitationsByEmail(email);
-    logger.workspace.info('listPendingInvitations completed', { count: result.length });
-    return result;
-  },
-
-  /**
-   * Accept a pending invitation. Adds user to workspace.
-   * @param invitationId - Invitation UUID
-   * @param userId - Authenticated user ID
-   */
-  async acceptInvitation(invitationId: string, userId: string) {
-    logger.workspace.info('acceptInvitation', { invitationId, userId });
-    const result = await db.transaction(async (tx) => {
-      return workspaceRepository.acceptInvitation(invitationId, userId, tx);
-    });
-    if (!result) throw new AppError(WORKSPACE.ERRORS.INVITATION_NOT_FOUND, 404, WORKSPACE.ERROR_CODE);
-    logger.workspace.info('acceptInvitation completed', { invitationId, workspaceId: result.workspaceId });
-    return result;
-  },
-
-  /**
-   * Decline (delete) a pending invitation.
-   * @param invitationId - Invitation UUID
-   */
-  async declineInvitation(invitationId: string) {
-    logger.workspace.info('declineInvitation', { invitationId });
-    await workspaceRepository.revokeInvitation(invitationId);
-    logger.workspace.info('declineInvitation completed', { invitationId });
-  },
 };

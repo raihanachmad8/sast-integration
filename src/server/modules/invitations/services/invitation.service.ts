@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { ROLE } from '@/commons/constants/permissions';
 import { ROUTES } from '@/commons/constants/routes';
 import type { InvitationListQuery } from '@/commons/schemas/member.schema';
+import { db } from '@/server/db/client';
 import { env } from '@/server/env';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
@@ -14,6 +15,8 @@ import { memberRepository } from '@/server/modules/members/repositories/member.r
 
 import { INVITATION } from '../constants';
 import { invitationRepository } from '../repositories/invitation.repository';
+
+import { assertCanManageInvitations } from './invitation.validators';
 
 type Role = typeof ROLE[keyof typeof ROLE];
 
@@ -38,6 +41,9 @@ export const invitationService = {
   async invite(workspaceId: string, data: { email: string; role: Role }, actorUserId: string) {
     logger.invitation.info('invite', { workspaceId, email: data.email });
 
+    const actorRole = await memberRepository.getMemberRole(workspaceId, actorUserId);
+    assertCanManageInvitations(actorRole);
+
     // Prevent inviting existing workspace members
     const isMember = await invitationRepository.isEmailWorkspaceMember(workspaceId, data.email);
     if (isMember) {
@@ -45,26 +51,29 @@ export const invitationService = {
       throw new AppError(INVITATION.ERRORS.ALREADY_MEMBER, 409, INVITATION.ERROR_CODE);
     }
 
-    // Revoke any existing pending invitation for this email in this workspace
-    const existingInvitation = await invitationRepository.findPending(workspaceId, data.email);
-    if (existingInvitation) {
-      logger.invitation.info('inviteMember: revoking previous pending invitation', {
-        workspaceId,
-        email: data.email,
-        existingInvitationId: existingInvitation.id,
-      });
-      await invitationRepository.revoke(existingInvitation.id);
-    }
-
     const token = randomBytes(INVITATION.INVITE_TOKEN_BYTES).toString('hex');
     const expiresAt = new Date(Date.now() + AUTH.INVITE_EXPIRY_MS);
-    const result = await invitationRepository.create({
-      email: data.email,
-      role: data.role,
-      workspaceId,
-      invitedBy: actorUserId,
-      token,
-      expiresAt,
+
+    // Atomic: revoke existing pending invitation + create new one
+    const result = await db.transaction(async (tx) => {
+      const existingInvitation = await invitationRepository.findPending(workspaceId, data.email);
+      if (existingInvitation) {
+        logger.invitation.info('inviteMember: revoking previous pending invitation', {
+          workspaceId,
+          email: data.email,
+          existingInvitationId: existingInvitation.id,
+        });
+        await invitationRepository.revoke(existingInvitation.id, tx);
+      }
+
+      return invitationRepository.create({
+        email: data.email,
+        role: data.role,
+        workspaceId,
+        invitedBy: actorUserId,
+        token,
+        expiresAt,
+      }, tx);
     });
 
     // Send invitation email
@@ -100,11 +109,8 @@ export const invitationService = {
   async revoke(workspaceId: string, invitationId: string, actorUserId: string) {
     logger.invitation.info('revoke', { workspaceId, invitationId });
 
-    // Defense-in-depth: verify actor is owner or manager
     const actorRole = await memberRepository.getMemberRole(workspaceId, actorUserId);
-    if (!actorRole || (actorRole !== ROLE.OWNER && actorRole !== ROLE.MANAGER)) {
-      throw new AppError('Insufficient permissions to revoke invitations', 403, INVITATION.ERROR_CODE);
-    }
+    assertCanManageInvitations(actorRole);
 
     const invitation = await invitationRepository.find(invitationId);
     if (!invitation || invitation.workspaceId !== workspaceId) {
@@ -114,5 +120,33 @@ export const invitationService = {
 
     await invitationRepository.revoke(invitationId);
     logger.invitation.info('revoke completed', { invitationId });
+  },
+
+  // ─── User-facing operations ────────────────────────────────────────────────
+
+  async listPending(email: string) {
+    logger.invitation.info('listPending', { email });
+    const result = await invitationRepository.listPendingInvitationsByEmail(email);
+    logger.invitation.info('listPending completed', { count: result.length });
+    return result;
+  },
+
+  async accept(invitationId: string, userId: string) {
+    logger.invitation.info('accept', { invitationId, userId });
+    const result = await db.transaction(async (tx) => {
+      return invitationRepository.acceptInvitation(invitationId, userId, tx);
+    });
+    if (!result) {
+      logger.invitation.warn('accept: invitation not found', { invitationId });
+      throw new AppError(INVITATION.ERRORS.INVITATION_NOT_FOUND, 404, INVITATION.ERROR_CODE);
+    }
+    logger.invitation.info('accept completed', { invitationId, workspaceId: result.workspaceId });
+    return result;
+  },
+
+  async decline(invitationId: string) {
+    logger.invitation.info('decline', { invitationId });
+    await invitationRepository.revoke(invitationId);
+    logger.invitation.info('decline completed', { invitationId });
   },
 };
