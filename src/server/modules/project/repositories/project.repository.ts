@@ -207,12 +207,14 @@ export const projectRepository = {
   },
 
   /** Update project */
-  async update(id: string, data: Record<string, unknown>) {
+  async update(id: string, data: Record<string, unknown>, updatedBy?: string, tx?: Tx) {
     logger.project.info('update', { id });
-    const [project] = await db
+    const executor = tx ?? db;
+    const [project] = await executor
       .update(projects)
       .set({
         ...data,
+        updatedBy,
         updatedAt: new Date(),
       })
       .where(eq(projects.id, id))

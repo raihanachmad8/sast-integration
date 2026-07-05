@@ -542,11 +542,6 @@ export const aiVerificationService = {
           findingId, modelUsed: model.name, provider: model.provider,
           verdict: aiResponse.verdict, confidence: aiResponse.confidence,
           explanation: aiResponse.explanation?.slice(0, 200),
-          dataFlow: aiResponse.dataFlow?.slice(0, 150),
-          taintSource: aiResponse.taintSource,
-          matchDetail: aiResponse.matchDetail?.slice(0, 150),
-          likelyCwe: aiResponse.likelyCwe,
-          fixSuggestion: aiResponse.fixSuggestion?.slice(0, 150),
           attemptNumber: attempts.length, totalLatencyMs: Date.now() - attemptStart,
         });
 
@@ -799,7 +794,7 @@ export const aiVerificationService = {
           ],
           format: 'json',
           stream: false,
-          options: { num_predict: 4096 },
+          options: { num_predict: 2048 },
         }),
         signal,
       });
@@ -862,7 +857,7 @@ export const aiVerificationService = {
             { role: 'user', content: userPrompt },
           ],
           temperature: 0.1,
-          max_tokens: 4096,
+          max_tokens: 2048,
           stream: false,
         }),
         signal,
@@ -923,9 +918,17 @@ export const aiVerificationService = {
    */
   extractVerdict(parsed: Record<string, unknown>): AiModelResponse {
     const verdict = parsed.verdict === 'true_positive' ? 'true_positive' : 'false_positive';
-    const confidence = typeof parsed.confidence === 'number'
-      ? (parsed.confidence > 1 && parsed.confidence === Math.floor(parsed.confidence) ? parsed.confidence / 100 : Math.min(1, Math.max(0, parsed.confidence)))
-      : 0.5;
+    let confidence = 0.5;
+    if (typeof parsed.confidence === 'number') {
+      const raw = parsed.confidence;
+      if (raw >= 0 && raw <= 1) {
+        confidence = raw;
+      } else if (raw > 1 && raw <= 100 && Number.isInteger(raw)) {
+        confidence = raw / 100;
+      } else {
+        confidence = Math.min(1, Math.max(0, raw));
+      }
+    }
     const explanation = typeof parsed.explanation === 'string'
       ? parsed.explanation
       : typeof parsed.reasoning === 'string'
@@ -991,29 +994,19 @@ export const aiVerificationService = {
 
   /**
    * Extract verdict from truncated JSON using regex.
-   * Last resort when JSON repair fails — tries to salvage as many fields as possible.
+   * Last resort when JSON repair fails.
    */
   extractPartialVerdict(text: string): AiModelResponse | null {
     const verdictMatch = text.match(/"verdict"\s*:\s*"(true_positive|false_positive)"/);
-    if (!verdictMatch) return null;
-
     const confidenceMatch = text.match(/"confidence"\s*:\s*([\d.]+)/);
     const explanationMatch = text.match(/"explanation"\s*:\s*"((?:[^"\\]|\\.)*)/);
-    const dataFlowMatch = text.match(/"dataFlow"\s*:\s*"((?:[^"\\]|\\.)*)/);
-    const taintSourceMatch = text.match(/"taintSource"\s*:\s*"((?:[^"\\]|\\.)*)/);
-    const matchDetailMatch = text.match(/"matchDetail"\s*:\s*"((?:[^"\\]|\\.)*)/);
-    const fixSuggestionMatch = text.match(/"fixSuggestion"\s*:\s*"((?:[^"\\]|\\.)*)/);
-    const likelyCweMatch = text.match(/"likelyCwe"\s*:\s*\[((?:[^"\]])*)\]/);
+
+    if (!verdictMatch) return null;
 
     return {
       verdict: verdictMatch[1] as 'true_positive' | 'false_positive',
       confidence: confidenceMatch ? Math.min(1, Math.max(0, parseFloat(confidenceMatch[1]))) : 0.5,
       explanation: explanationMatch ? explanationMatch[1] : 'Response truncated — partial extraction',
-      dataFlow: dataFlowMatch ? dataFlowMatch[1] : undefined,
-      taintSource: taintSourceMatch ? taintSourceMatch[1] : undefined,
-      matchDetail: matchDetailMatch ? matchDetailMatch[1] : undefined,
-      fixSuggestion: fixSuggestionMatch ? fixSuggestionMatch[1] : undefined,
-      likelyCwe: likelyCweMatch ? likelyCweMatch[1].split(',').map(s => s.trim().replace(/"/g, '')) : undefined,
     };
   },
 };

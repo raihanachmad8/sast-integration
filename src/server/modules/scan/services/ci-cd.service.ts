@@ -7,7 +7,7 @@ import { db } from '@/server/db/client';
 import { env } from '@/server/env';
 import { logger } from '@/server/lib/logger';
 import { repositoriesRepository } from '@/server/modules/repositories/repositories.repository';
-import { createScmApiService, parseRepoName, buildPrComment, buildInlineReviewComment } from '@/server/modules/source-control/scm-api.service';
+import { createScmApiService, parseRepoName, buildPrComment, buildInlineReviewComment, detectProviderFromUrl } from '@/server/modules/source-control/scm-api.service';
 import type { InlineReviewComment } from '@/server/modules/source-control/scm-api.service';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 import { findings, findingGroupScans } from '@drizzle/schema/findings';
@@ -74,16 +74,16 @@ export const ciCdService = {
    * @returns Credentials with provider or null if not configured
    */
   async getCredentialsWithProvider(workspaceId: string, preferredProvider?: string): Promise<ScmCredentialsWithProvider | null> {
-    if (!preferredProvider) {
-      logger.scan.warn('getCredentialsWithProvider: no preferredProvider specified, skipping');
-      return null;
-    }
-
-    const [sourceControl] = await db
+    let sourceControlsList = await db
       .select()
       .from(sourceControls)
-      .where(and(eq(sourceControls.workspaceId, workspaceId), eq(sourceControls.provider, preferredProvider)))
-      .limit(1);
+      .where(eq(sourceControls.workspaceId, workspaceId));
+
+    if (preferredProvider) {
+      sourceControlsList = sourceControlsList.filter((sc) => sc.provider === preferredProvider);
+    }
+
+    const sourceControl = sourceControlsList[0];
 
     if (!sourceControl?.credentials) return null;
 
@@ -129,7 +129,7 @@ export const ciCdService = {
     platform?: string,
   ) {
     const repoUrl = url || `external://${name}`;
-    const provider = platform;
+    const provider = detectProviderFromUrl(repoUrl) ?? platform;
     return repositoriesRepository.findOrCreate({
       workspaceId,
       projectId,
@@ -155,9 +155,10 @@ export const ciCdService = {
     const resolvedBranch = branch || 'main';
     const resolvedCommit = commit || '';
 
-    // Use explicit platform from CI workflow
-    const scmCreds = platform ? await this.getCredentialsWithProvider(workspaceId, platform) : null;
-    logger.scan.info('CI/CD init: provider', { platform, repoUrl, hasScmConnection: !!scmCreds });
+    // Detect SCM provider from repo URL or explicit platform hint
+    const detectedProvider = detectProviderFromUrl(repoUrl) ?? platform;
+    const scmCreds = detectedProvider ? await this.getCredentialsWithProvider(workspaceId, detectedProvider) : null;
+    logger.scan.info('CI/CD init: provider detected', { repoUrl, detectedProvider, hasScmConnection: !!scmCreds });
 
     // Find or auto-create repository (atomic)
     const repository = await this.findOrCreateForCi(workspaceId, projectId, repoName, repoUrl || '', resolvedBranch, platform);
@@ -379,7 +380,7 @@ export const ciCdService = {
 
     // 4b. Queue AI verification for NEW findings first, then pre-existing if not yet verified
     if (scan.repositoryId) {
-      await this.enqueueAiVerification(scanId, workspaceId, scan.prNumber ?? 0, scan.repositoryId, gateResult);
+      await this.enqueueAiVerification(scanId, workspaceId, scan.prNumber ?? 0, scan.repositoryId, gateResult ? { newFindingsData: gateResult.newFindingsData } : {});
     }
 
     // 5. Post inline comments
@@ -441,7 +442,7 @@ export const ciCdService = {
     workspaceId: string,
     _prNumber: number,
     _repositoryId: string,
-    _gateResult: { newFindingsData?: Array<{ id?: string; groupId?: string | null }> } | null,
+    _gateResult: { newFindingsData?: Array<{ id?: string; groupId?: string | null }> },
   ) {
     try {
       const { enqueue } = await import('@/server/modules/queue/queue.service');
@@ -449,16 +450,17 @@ export const ciCdService = {
       const model = await aiVerificationRepository.getPrimaryModel();
       if (!model) return;
 
-      // Get ALL findings for this scan with their isNew status from junction table.
-      // Join on groupId only — findings.scanId may differ from findingGroupScans.scanId
-      // for pre-existing findings (created in a previous scan).
+      // Get ALL findings for this scan with their isNew status from junction table
       const allFindings = await db.select({
         findingId: findings.id,
         groupId: findingGroupScans.groupId,
         isNew: findingGroupScans.isNew,
       })
         .from(findingGroupScans)
-        .innerJoin(findings, eq(findings.groupId, findingGroupScans.groupId))
+        .innerJoin(findings, and(
+          eq(findings.groupId, findingGroupScans.groupId),
+          eq(findings.scanId, findingGroupScans.scanId),
+        ))
         .where(eq(findingGroupScans.scanId, scanId));
 
       if (allFindings.length === 0) return;
@@ -471,10 +473,11 @@ export const ciCdService = {
         verifiedGroups.forEach((id) => verifiedGroupIds.add(id));
       }
 
-      // Priority 1: NEW findings (isNew=true) — in PR diff, always verify even if previously verified
+      // Priority 1: NEW findings (isNew=true) that don't have verification
       const newFindingsToVerify = allFindings.filter((f) => {
         if (!f.findingId) return false;
         if (!f.isNew) return false;
+        if (f.groupId && verifiedGroupIds.has(f.groupId)) return false;
         return true;
       });
 

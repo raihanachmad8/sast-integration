@@ -196,14 +196,13 @@ export const projectService: ProjectService = {
 
     const result = await db.transaction(async (tx) => {
       const project = await projectRepository.create(
-        workspaceId,
         {
+          workspaceId,
           name: input.name,
           slug: input.slug || generateSlug(input.name, PROJECT.MAX_SLUG_LENGTH),
           description: input.description,
-          lead: input.lead,
+          createdBy: userId,
         },
-        userId,
         tx,
       );
 

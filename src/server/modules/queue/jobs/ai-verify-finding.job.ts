@@ -55,7 +55,7 @@ export async function processAiVerifyJob(job: JobWithMetadata<AiVerifyJobData>) 
               severity: finding.severity,
               rule: finding.rule,
               groupId: finding.groupId,
-            }, latestVerdict.verdict, latestVerdict.confidence ? String(latestVerdict.confidence) : null);
+            }, latestVerdict.verdict);
             logger.queue.info('processAiVerifyJob: inline comment updated', { findingId, verdict: latestVerdict.verdict });
           }
         }
