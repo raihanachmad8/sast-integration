@@ -35,34 +35,28 @@ export const projectApiTokenService = {
       ? new Date(Date.now() + input.expiresInDays * MS_PER_DAY)
       : null;
 
-    try {
-      const { token, rawToken } = await projectApiTokenRepository.create({
-        projectId,
-        createdBy: userId,
-        name: input.name,
-        permissions,
-        expiresAt: expiresAt ?? undefined,
-      });
+    const { token, rawToken } = await projectApiTokenRepository.create({
+      projectId,
+      createdBy: userId,
+      name: input.name,
+      permissions,
+      expiresAt: expiresAt ?? undefined,
+    });
 
-      const result = {
-        token: {
-          id: token.id,
-          name: token.name,
-          tokenPrefix: token.tokenPrefix,
-          permissions: token.permissions,
-          expiresAt: token.expiresAt,
-          createdAt: token.createdAt,
-        },
-        rawToken,
-      };
+    const result = {
+      token: {
+        id: token.id,
+        name: token.name,
+        tokenPrefix: token.tokenPrefix,
+        permissions: token.permissions,
+        expiresAt: token.expiresAt,
+        createdAt: token.createdAt,
+      },
+      rawToken,
+    };
 
-      logger.project.info('apiToken.create completed', { projectId, tokenId: token.id });
-      return result;
-    } catch (err) {
-      if (err instanceof AppError) throw err;
-      logger.project.error('apiToken.create failed', { projectId, name: input.name, error: err });
-      throw err;
-    }
+    logger.project.info('apiToken.create completed', { projectId, tokenId: token.id });
+    return result;
   },
 
   /**
@@ -75,26 +69,20 @@ export const projectApiTokenService = {
   async list(projectId: string, params?: { page?: number; perPage?: number }) {
     logger.project.info('list', { projectId });
 
-    try {
-      const result = await projectApiTokenRepository.listByProjectPaginated(projectId, params);
-      const data = result.data.map((t) => ({
-        id: t.id,
-        name: t.name,
-        tokenPrefix: t.tokenPrefix,
-        permissions: t.permissions,
-        lastUsedAt: t.lastUsedAt,
-        createdAt: t.createdAt,
-        expiresAt: t.expiresAt,
-        revokedAt: t.revokedAt,
-      }));
+    const result = await projectApiTokenRepository.listByProjectPaginated(projectId, params);
+    const data = result.data.map((t) => ({
+      id: t.id,
+      name: t.name,
+      tokenPrefix: t.tokenPrefix,
+      permissions: t.permissions,
+      lastUsedAt: t.lastUsedAt,
+      createdAt: t.createdAt,
+      expiresAt: t.expiresAt,
+      revokedAt: t.revokedAt,
+    }));
 
-      logger.project.info('apiToken.list completed', { count: data.length, total: result.total });
-      return { ...result, data };
-    } catch (err) {
-      if (err instanceof AppError) throw err;
-      logger.project.error('apiToken.list failed', { projectId, error: err });
-      throw err;
-    }
+    logger.project.info('apiToken.list completed', { count: data.length, total: result.total });
+    return { ...result, data };
   },
 
   /**
@@ -110,21 +98,15 @@ export const projectApiTokenService = {
   async revoke(projectId: string, tokenId: string, userId: string) {
     logger.project.info('apiToken.revoke', { projectId, tokenId });
 
-    try {
-      const token = await projectApiTokenRepository.findById(tokenId);
-      if (!token || token.projectId !== projectId) {
-        logger.project.warn('apiToken.revoke token not found or mismatch', { projectId, tokenId });
-        throw new AppError(PROJECT.ERRORS.TOKEN_NOT_FOUND, 404, PROJECT.ERROR_CODE);
-      }
-
-      const result = await projectApiTokenRepository.revoke(tokenId, userId);
-      logger.project.info('apiToken.revoke completed', { tokenId });
-      return result;
-    } catch (err) {
-      if (err instanceof AppError) throw err;
-      logger.project.error('apiToken.revoke failed', { projectId, tokenId, error: err });
-      throw err;
+    const token = await projectApiTokenRepository.findById(tokenId);
+    if (!token || token.projectId !== projectId) {
+      logger.project.warn('apiToken.revoke token not found or mismatch', { projectId, tokenId });
+      throw new AppError(PROJECT.ERRORS.TOKEN_NOT_FOUND, 404, PROJECT.ERROR_CODE);
     }
+
+    const result = await projectApiTokenRepository.revoke(tokenId, userId);
+    logger.project.info('apiToken.revoke completed', { tokenId });
+    return result;
   },
 
   /**
@@ -135,12 +117,7 @@ export const projectApiTokenService = {
    * @returns The token record if valid, null otherwise
    */
   async findActiveBySha256(rawToken: string): Promise<ProjectApiToken | null> {
-    try {
-      return await projectApiTokenRepository.findActiveBySha256(rawToken);
-    } catch (err) {
-      logger.project.error('apiToken.findActiveBySha256 failed', { error: err });
-      return null;
-    }
+    return projectApiTokenRepository.findActiveBySha256(rawToken);
   },
 
   /**
@@ -152,12 +129,7 @@ export const projectApiTokenService = {
    * @returns The token record if valid for this project, null otherwise
    */
   async findValidForProject(projectId: string, rawToken: string): Promise<ProjectApiToken | null> {
-    try {
-      return await projectApiTokenRepository.findValidForProject(projectId, rawToken);
-    } catch (err) {
-      logger.project.error('apiToken.findValidForProject failed', { projectId, error: err });
-      return null;
-    }
+    return projectApiTokenRepository.findValidForProject(projectId, rawToken);
   },
 
   /**
@@ -170,12 +142,7 @@ export const projectApiTokenService = {
   async findAnyValidProjectToken(rawToken: string): Promise<ProjectApiToken | null> {
     if (!rawToken.startsWith('sast_p_')) return null;
 
-    try {
-      return await projectApiTokenRepository.findAnyValidProjectToken(rawToken);
-    } catch (err) {
-      logger.project.error('apiToken.findAnyValidProjectToken failed', { error: err });
-      return null;
-    }
+    return projectApiTokenRepository.findAnyValidProjectToken(rawToken);
   },
 
   /**
@@ -184,12 +151,7 @@ export const projectApiTokenService = {
    * @param tokenId - Token UUID to update
    */
   async touchLastUsed(tokenId: string): Promise<void> {
-    try {
-      await projectApiTokenRepository.touchLastUsed(tokenId);
-    } catch (err) {
-      // Best effort — don't throw on failure
-      logger.project.warn('apiToken.touchLastUsed failed (non-critical)', { tokenId, error: err });
-    }
+    await projectApiTokenRepository.touchLastUsed(tokenId);
   },
 
   /**
@@ -199,11 +161,6 @@ export const projectApiTokenService = {
    * @returns The token record, or null if not found
    */
   async findById(id: string): Promise<ProjectApiToken | null> {
-    try {
-      return await projectApiTokenRepository.findById(id);
-    } catch (err) {
-      logger.project.error('apiToken.findById failed', { id, error: err });
-      return null;
-    }
+    return projectApiTokenRepository.findById(id);
   },
 };

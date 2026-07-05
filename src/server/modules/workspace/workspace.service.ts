@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { ROLE } from '@/commons/constants/permissions';
 import type { WorkspaceCreateInput as CreateWorkspaceInput, WorkspaceUpdateInput as UpdateWorkspaceInput } from '@/commons/schemas';
 import { db } from '@/server/db/client';
+import type { Tx } from '@/server/db/client';
 import { env } from '@/server/env';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
@@ -10,8 +11,6 @@ import { WORKSPACE_MODE, WORKSPACE_DEFAULTS } from '@/server/modules/auth/consta
 
 import { WORKSPACE } from './constants';
 import { workspaceRepository } from './repositories/workspace.repository';
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 async function nextPersonalSlug(userId: string, tx: Tx) {
   const baseSlug = `${WORKSPACE_DEFAULTS.PERSONAL_SLUG_PREFIX}${userId.slice(0, 8)}`;

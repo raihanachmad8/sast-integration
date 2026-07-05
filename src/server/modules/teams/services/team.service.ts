@@ -270,6 +270,6 @@ async function assertWorkspaceMemberIds(workspaceId: string, userIds: string[]) 
   const validIds = await workspaceRepository.findMemberUserIds(workspaceId, uniqueIds);
   if (validIds.length !== uniqueIds.length) {
     logger.team.error('assertWorkspaceMemberIds: some members do not belong to workspace', { workspaceId, userIds: uniqueIds });
-    throw new AppError('Team members must belong to this workspace', 400, 'TEAM_MEMBER_NOT_IN_WORKSPACE');
+    throw new AppError('Team members must belong to this workspace', 400, TEAM.ERROR_CODE);
   }
 }
