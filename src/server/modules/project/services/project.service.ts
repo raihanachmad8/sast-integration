@@ -1,5 +1,7 @@
 import { PERMISSION } from '@/commons/constants/permissions';
 import type { ProjectFormInput as CreateProjectInput, ProjectUpdateInput as UpdateProjectInput, ProjectListQuery } from '@/commons/schemas';
+import type { CreateApiTokenInput, ApiTokenListQuery } from '@/commons/schemas/api-token.schema';
+import type { AttachRepositoryInput } from '@/commons/schemas/repository.schema';
 import type { ProjectMemberSummary, ProjectTeamSummary, ProjectRepositorySummary } from '@/commons/types';
 import { generateSlug } from '@/commons/utils/slug';
 import { db } from '@/server/db/client';
@@ -9,6 +11,7 @@ import { logger } from '@/server/lib/logger';
 import type { IEntityService, Paginated } from '@/server/modules/shared/contracts';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 import type { Project } from '@drizzle/schema/projects';
+import type { Repository } from '@drizzle/schema/source-controls';
 
 import { PROJECT } from '../constants';
 import { projectRepository } from '../repositories/project.repository';
@@ -46,21 +49,23 @@ type ProjectRepositoryListItem = {
 interface ProjectService extends IEntityService<Project, CreateProjectInput, UpdateProjectInput, ProjectListQuery> {
   list(workspaceId: string, userId: string, params?: ProjectListQuery): Promise<Paginated<ProjectWithSummary>>;
   getById(workspaceId: string, projectId: string, userId: string): Promise<ProjectWithSummary>;
-  listMembers(projectId: string, userId: string): Promise<ProjectMemberSummary[]>;
-  listRepositories(projectId: string, userId: string): Promise<(typeof import('@drizzle/schema/source-controls').repositories.$inferSelect)[]>;
+  listMembers(workspaceId: string, projectId: string, userId: string): Promise<ProjectMemberSummary[]>;
+  listRepositories(workspaceId: string, projectId: string, userId: string): Promise<Repository[]>;
   listRepositoriesByWorkspace(workspaceId: string, accessibleProjectIds?: string[]): Promise<ProjectRepositoryListItem[]>;
   attachRepository(
+    workspaceId: string,
     projectId: string,
-    data: { name: string; url: string; defaultBranch?: string; connectionType: string[]; sourceControlId?: string },
+    data: AttachRepositoryInput,
     userId: string,
-  ): Promise<typeof import('@drizzle/schema/source-controls').repositories.$inferSelect>;
+  ): Promise<Repository>;
   createApiToken(
+    workspaceId: string,
     projectId: string,
-    input: { name: string; permissions?: string[]; expiresInDays?: number | null },
+    input: CreateApiTokenInput,
     userId: string,
   ): Promise<Awaited<ReturnType<typeof projectApiTokenService.create>>>;
-  listApiTokens(projectId: string, userId: string, params?: { page?: number; perPage?: number }): Promise<Awaited<ReturnType<typeof projectApiTokenService.list>>>;
-  revokeApiToken(projectId: string, tokenId: string, userId: string): Promise<Awaited<ReturnType<typeof projectApiTokenService.revoke>>>;
+  listApiTokens(workspaceId: string, projectId: string, userId: string, params?: ApiTokenListQuery): Promise<Awaited<ReturnType<typeof projectApiTokenService.list>>>;
+  revokeApiToken(workspaceId: string, projectId: string, tokenId: string, userId: string): Promise<Awaited<ReturnType<typeof projectApiTokenService.revoke>>>;
 }
 
 export const projectService: ProjectService = {
@@ -143,18 +148,11 @@ export const projectService: ProjectService = {
    * @throws {AppError} 404 - Project not found
    * @throws {AppError} 403 - User is not a member of the workspace
    */
-  async listMembers(projectId: string, userId: string) {
+  async listMembers(workspaceId: string, projectId: string, userId: string) {
     logger.project.info('listMembers', { projectId });
-    const project = await projectRepository.findById(projectId);
-    if (!project) {
-      throw new AppError(PROJECT.ERRORS.NOT_FOUND, 404, PROJECT.ERROR_CODE);
-    }
-
-    if (project.workspaceId) {
-      const role = await workspaceRepository.getMemberRole(project.workspaceId, userId);
-      if (!role) {
-        throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
-      }
+    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
+    if (!role) {
+      throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
     }
 
     const result = await projectRepository.listMemberSummaries(projectId);
@@ -309,18 +307,11 @@ export const projectService: ProjectService = {
    * @throws {AppError} 404 - Project not found
    * @throws {AppError} 403 - User is not a member of the workspace
    */
-  async listRepositories(projectId: string, userId: string) {
+  async listRepositories(workspaceId: string, projectId: string, userId: string) {
     logger.project.info('listRepositories', { projectId });
-    const project = await projectRepository.findById(projectId);
-    if (!project) {
-      throw new AppError(PROJECT.ERRORS.NOT_FOUND, 404, PROJECT.ERROR_CODE);
-    }
-
-    if (project.workspaceId) {
-      const role = await workspaceRepository.getMemberRole(project.workspaceId, userId);
-      if (!role) {
-        throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
-      }
+    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
+    if (!role) {
+      throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
     }
 
     const result = await projectRepository.listRepositories(projectId);
@@ -356,29 +347,22 @@ export const projectService: ProjectService = {
    * Attach or create a repository under this project.
    */
   async attachRepository(
+    workspaceId: string,
     projectId: string,
-    data: {
-      name: string;
-      url: string;
-      defaultBranch?: string;
-      connectionType: string[];
-      sourceControlId?: string;
-    },
+    data: AttachRepositoryInput,
     userId: string
   ) {
     logger.project.info('attachRepository', { projectId, name: data.name });
+    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
+    if (!role) {
+      logger.project.warn('attachRepository not member', { projectId, userId });
+      throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
+    }
+
     const project = await projectRepository.findById(projectId);
     if (!project) {
       logger.project.warn('attachRepository project not found', { projectId });
       throw new AppError(PROJECT.ERRORS.NOT_FOUND, 404, PROJECT.ERROR_CODE);
-    }
-
-    if (project.workspaceId) {
-      const role = await workspaceRepository.getMemberRole(project.workspaceId, userId);
-      if (!role) {
-        logger.project.warn('attachRepository not member', { projectId, userId });
-        throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
-      }
     }
 
     const result = await projectRepository.attachRepository(projectId, project.workspaceId, data, userId);
@@ -395,23 +379,16 @@ export const projectService: ProjectService = {
    * The raw token is returned ONLY ONCE.
    */
   async createApiToken(
+    workspaceId: string,
     projectId: string,
-    input: { name: string; permissions?: string[]; expiresInDays?: number | null },
+    input: CreateApiTokenInput,
     userId: string,
   ) {
     logger.project.info('createApiToken', { projectId, name: input.name });
-    const project = await projectRepository.findById(projectId);
-    if (!project) {
-      logger.project.warn('createApiToken: project not found', { projectId });
-      throw new AppError(PROJECT.ERRORS.NOT_FOUND, 404, PROJECT.ERROR_CODE);
-    }
-
-    if (project.workspaceId) {
-      const role = await workspaceRepository.getMemberRole(project.workspaceId, userId);
-      if (!role) {
-        logger.project.warn('createApiToken: user is not a workspace member', { projectId, userId });
-        throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
-      }
+    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
+    if (!role) {
+      logger.project.warn('createApiToken: user is not a workspace member', { projectId, userId });
+      throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
     }
 
     const result = await projectApiTokenService.create(projectId, input, userId);
@@ -419,20 +396,12 @@ export const projectService: ProjectService = {
     return result;
   },
 
-  async listApiTokens(projectId: string, userId: string, params?: { page?: number; perPage?: number }) {
+  async listApiTokens(workspaceId: string, projectId: string, userId: string, params?: ApiTokenListQuery) {
     logger.project.info('listApiTokens', { projectId });
-    const project = await projectRepository.findById(projectId);
-    if (!project) {
-      logger.project.warn('listApiTokens: project not found', { projectId });
-      throw new AppError(PROJECT.ERRORS.NOT_FOUND, 404, PROJECT.ERROR_CODE);
-    }
-
-    if (project.workspaceId) {
-      const role = await workspaceRepository.getMemberRole(project.workspaceId, userId);
-      if (!role) {
-        logger.project.warn('listApiTokens: user is not a workspace member', { projectId, userId });
-        throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
-      }
+    const role = await workspaceRepository.getMemberRole(workspaceId, userId);
+    if (!role) {
+      logger.project.warn('listApiTokens: user is not a workspace member', { projectId, userId });
+      throw new AppError(PROJECT.ERRORS.NOT_MEMBER, 403, PROJECT.ERROR_CODE);
     }
 
     const result = await projectApiTokenService.list(projectId, params);
@@ -440,7 +409,7 @@ export const projectService: ProjectService = {
     return result;
   },
 
-  async revokeApiToken(projectId: string, tokenId: string, userId: string) {
+  async revokeApiToken(workspaceId: string, projectId: string, tokenId: string, userId: string) {
     logger.project.info('revokeApiToken', { projectId, tokenId });
     const result = await projectApiTokenService.revoke(projectId, tokenId, userId);
     logger.project.info('revokeApiToken completed', { projectId, tokenId });

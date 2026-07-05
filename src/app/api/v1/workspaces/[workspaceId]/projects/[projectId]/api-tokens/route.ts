@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return ApiResponse.error(parsed.error.issues[0].message, 'VALIDATION_ERROR', undefined, 422);
     }
 
-    const result = await projectService.listApiTokens(projectId, auth.context.userId, parsed.data);
+    const result = await projectService.listApiTokens(workspaceId, projectId, auth.context.userId, parsed.data);
     logger.project.info('listApiTokens completed', { total: result.total });
     return ApiResponse.paginated('API tokens retrieved', result.data, { page: result.page, perPage: result.perPage, total: result.total, lastPage: result.lastPage });
   } catch (e) {
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!validation.success) return validation.response;
 
   try {
-    const result = await projectService.createApiToken(projectId, validation.data, auth.context.userId);
+    const result = await projectService.createApiToken(workspaceId, projectId, validation.data, auth.context.userId);
     logger.project.info('createApiToken completed');
     return ApiResponse.created('API token created', result);
   } catch (e) {

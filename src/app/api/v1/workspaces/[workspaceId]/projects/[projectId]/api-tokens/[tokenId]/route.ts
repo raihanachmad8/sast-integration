@@ -19,7 +19,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (!workspace.success) return workspace.response;
 
   try {
-    await projectService.revokeApiToken(projectId, tokenId, auth.context.userId);
+    await projectService.revokeApiToken(workspaceId, projectId, tokenId, auth.context.userId);
     logger.project.info('revokeApiToken completed');
     return ApiResponse.noContent();
   } catch (e) {

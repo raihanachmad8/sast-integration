@@ -7,6 +7,18 @@ import { z } from 'zod';
 
 import { lenientEnum, lenientInt, SORT_ORDERS } from './lenient-helpers';
 
+// ─── Attach schema (strict) ────────────────────────────────────────────────────
+
+export const attachRepositorySchema = z.object({
+  name: z.string().min(1, 'Repository name is required').max(255),
+  url: z.string().url('Please enter a valid URL'),
+  defaultBranch: z.string().max(100).optional(),
+  connectionType: z.array(z.string()).min(1, 'Connection type is required'),
+  sourceControlId: z.string().uuid().optional(),
+});
+
+export type AttachRepositoryInput = z.infer<typeof attachRepositorySchema>;
+
 // ─── Update schema (partial) ──────────────────────────────────────────────────
 
 export const updateRepoSchema = z.object({

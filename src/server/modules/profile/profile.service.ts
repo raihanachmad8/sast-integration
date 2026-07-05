@@ -1,14 +1,13 @@
 import { hash, compare } from 'bcryptjs';
-import { eq } from 'drizzle-orm';
 
-import { db } from '@/server/db/client';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
 import { AUTH } from '@/server/modules/auth/constants';
 import { getStorageDriver } from '@/server/modules/storage/storage.service';
-import { users } from '@drizzle/schema/users';
 
-import { profileRepository, type UpdateProfileInput } from './profile.repository';
+import type { ProfileUpdateInput } from '@/commons/schemas/profile.schema';
+
+import { profileRepository } from './profile.repository';
 
 export const profileService = {
   async get(userId: string) {
@@ -21,7 +20,7 @@ export const profileService = {
     return user;
   },
 
-  async update(userId: string, data: UpdateProfileInput) {
+  async update(userId: string, data: ProfileUpdateInput) {
     logger.profile.info('update', { userId });
     const updated = await profileRepository.update(userId, data);
     if (!updated) {
@@ -67,7 +66,7 @@ export const profileService = {
       throw new AppError('User not found', 404, 'NOT_FOUND');
     }
     logger.profile.info('removeAvatar completed', { userId });
-    return { avatarUrl: null as string | null };
+    return { avatarUrl: null };
   },
 
   async getSessions(userId: string) {
@@ -88,20 +87,19 @@ export const profileService = {
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
     logger.profile.info('changePassword', { userId });
-    const user = await profileRepository.get(userId);
-    if (!user) {
+
+    const passwordHash = await profileRepository.getPasswordHash(userId);
+    if (!passwordHash) {
       throw new AppError('User not found', 404, 'NOT_FOUND');
     }
 
-    const valid = await compare(currentPassword, (user as Record<string, unknown>).passwordHash as string);
+    const valid = await compare(currentPassword, passwordHash);
     if (!valid) {
       throw new AppError('Current password is incorrect', 400, 'VALIDATION_ERROR');
     }
 
     const newHash = await hash(newPassword, AUTH.SALT_ROUNDS);
-    await db.update(users)
-      .set({ passwordHash: newHash, updatedAt: new Date() })
-      .where(eq(users.id, userId));
+    await profileRepository.updatePassword(userId, newHash);
 
     logger.profile.info('changePassword completed', { userId });
   },

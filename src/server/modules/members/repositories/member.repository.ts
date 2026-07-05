@@ -1,23 +1,13 @@
 import { and, eq, isNull, count } from 'drizzle-orm';
 
 import type { MemberListQuery } from '@/commons/schemas/member.schema';
+import type { MemberView, MemberRoleUpdateResult } from '@/commons/types/member';
 import { db, type Tx } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
 import { buildSearch, buildFilters, buildSort, buildPaginationMeta } from '@/server/lib/query';
 import type { Paginated } from '@/server/modules/shared/contracts';
 import { workspaces, workspaceMembers } from '@drizzle/schema';
 import { users } from '@drizzle/schema/users';
-
-export type MemberView = {
-  userId: string;
-  email: string;
-  name: string;
-  avatarUrl: string | null;
-  role: string;
-  joinedAt: Date;
-};
-
-export type MemberRoleUpdateResult = { userId: string; role: string } | null;
 
 export interface MemberRepository {
   getMemberRole(workspaceId: string, userId: string, tx?: Tx): Promise<string | null>;
@@ -105,7 +95,13 @@ export const memberRepository: MemberRepository = {
       .offset((page - 1) * perPage);
 
     logger.member.info('list completed', { workspaceId, count: data.length });
-    return { data, ...buildPaginationMeta(total, page, perPage) };
+    return {
+      data: data.map((row) => ({
+        ...row,
+        joinedAt: row.joinedAt.toISOString(),
+      })),
+      ...buildPaginationMeta(total, page, perPage),
+    };
   },
 
   /**

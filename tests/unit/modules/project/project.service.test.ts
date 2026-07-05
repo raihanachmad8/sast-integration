@@ -417,24 +417,20 @@ describe('projectService.listRepositories', () => {
    * Purpose: Validates that repositories attached to a project are returned
    */
   it('should return repositories for a project', async () => {
-    mockProjectRepo.findById.mockResolvedValue(createMockProject());
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     mockProjectRepo.listRepositories.mockResolvedValue([{ id: 'repo-1', name: 'frontend' }]);
 
-    const result = await projectService.listRepositories('proj-1', 'user-1');
+    const result = await projectService.listRepositories('ws-1', 'proj-1', 'user-1');
 
     expect(result).toHaveLength(1);
   });
 
-  /**
-   * Purpose: Validates that listing repositories for a nonexistent project throws NOT_FOUND
-   */
-  it('should throw NOT_FOUND when project does not exist', async () => {
-    mockProjectRepo.findById.mockResolvedValue(null);
+  it('should throw NOT_MEMBER when user is not workspace member', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
 
     await expect(
-      projectService.listRepositories('proj-1', 'user-1')
-    ).rejects.toThrow(PROJECT.ERRORS.NOT_FOUND);
+      projectService.listRepositories('ws-1', 'proj-1', 'user-1')
+    ).rejects.toThrow(PROJECT.ERRORS.NOT_MEMBER);
   });
 });
 
@@ -492,12 +488,12 @@ describe('projectService.createApiToken', () => {
     expect(result.token.name).toBe('CI Token');
   });
 
-  it('should throw NOT_FOUND when project does not exist', async () => {
-    mockProjectRepo.findById.mockResolvedValue(null);
+  it('should throw NOT_MEMBER when user is not workspace member', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
 
     await expect(
-      projectService.createApiToken('proj-1', { name: 'Token' }, 'user-1')
-    ).rejects.toThrow(PROJECT.ERRORS.NOT_FOUND);
+      projectService.createApiToken('ws-1', 'proj-1', { name: 'Token' }, 'user-1')
+    ).rejects.toThrow(PROJECT.ERRORS.NOT_MEMBER);
   });
 });
 
@@ -508,7 +504,6 @@ describe('projectService.listApiTokens', () => {
    * Purpose: Validates that all API tokens for a project are returned
    */
   it('should list API tokens for a project', async () => {
-    mockProjectRepo.findById.mockResolvedValue(createMockProject());
     mockWorkspaceRepo.getMemberRole.mockResolvedValue('member');
     const { projectApiTokenService } = await import('@/server/modules/project/services/project-api-token.service');
     vi.mocked(projectApiTokenService.list).mockResolvedValue({
@@ -519,21 +514,18 @@ describe('projectService.listApiTokens', () => {
       lastPage: 1,
     });
 
-    const result = await projectService.listApiTokens('proj-1', 'user-1');
+    const result = await projectService.listApiTokens('ws-1', 'proj-1', 'user-1');
 
     expect(result.data).toHaveLength(1);
     expect(result.data[0].name).toBe('CI Token');
   });
 
-  /**
-   * Purpose: Validates that listing tokens for a nonexistent project throws NOT_FOUND
-   */
-  it('should throw NOT_FOUND when project does not exist', async () => {
-    mockProjectRepo.findById.mockResolvedValue(null);
+  it('should throw NOT_MEMBER when user is not workspace member', async () => {
+    mockWorkspaceRepo.getMemberRole.mockResolvedValue(null);
 
     await expect(
-      projectService.listApiTokens('proj-1', 'user-1')
-    ).rejects.toThrow(PROJECT.ERRORS.NOT_FOUND);
+      projectService.listApiTokens('ws-1', 'proj-1', 'user-1')
+    ).rejects.toThrow(PROJECT.ERRORS.NOT_MEMBER);
   });
 });
 

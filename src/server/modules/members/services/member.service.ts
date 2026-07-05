@@ -1,5 +1,6 @@
 import { ROLE } from '@/commons/constants/permissions';
 import type { MemberListQuery } from '@/commons/schemas/member.schema';
+import type { MemberView, MemberRoleUpdateResult } from '@/commons/types/member';
 import { db } from '@/server/db/client';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
@@ -7,7 +8,6 @@ import type { Paginated } from '@/server/modules/shared/contracts';
 
 import { MEMBER } from '../constants';
 import { memberRepository } from '../repositories/member.repository';
-import type { MemberRoleUpdateResult, MemberView } from '../repositories/member.repository';
 
 import {
   assertCanChangeRole,

@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockRepo = {
   get: vi.fn(),
+  getPasswordHash: vi.fn(),
   update: vi.fn(),
   setAvatarUrl: vi.fn(),
+  updatePassword: vi.fn(),
   listSessions: vi.fn(),
   deleteSession: vi.fn(),
 };
@@ -161,19 +163,19 @@ describe('profileService.changePassword', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it('+ should change password successfully', async () => {
-    mockRepo.get.mockResolvedValue({ id: 'u-1', passwordHash: '$2a$12$oldhash' });
+    mockRepo.getPasswordHash.mockResolvedValue('$2a$12$oldhash');
     await expect(profileService.changePassword('u-1', 'old', 'new')).resolves.toBeUndefined();
   });
 
   it('- should throw NOT_FOUND when user does not exist', async () => {
-    mockRepo.get.mockResolvedValue(null);
+    mockRepo.getPasswordHash.mockResolvedValue(null);
     await expect(profileService.changePassword('u-1', 'old', 'new')).rejects.toThrow('User not found');
   });
 
   it('- should throw VALIDATION_ERROR when current password is incorrect', async () => {
     const { compare } = await import('bcryptjs');
     vi.mocked(compare).mockResolvedValueOnce(false);
-    mockRepo.get.mockResolvedValue({ id: 'u-1', passwordHash: '$2a$12$hash' });
+    mockRepo.getPasswordHash.mockResolvedValue('$2a$12$hash');
     await expect(profileService.changePassword('u-1', 'wrong', 'new')).rejects.toThrow('Current password is incorrect');
   });
 });
