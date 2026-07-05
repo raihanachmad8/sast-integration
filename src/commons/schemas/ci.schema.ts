@@ -1,4 +1,11 @@
+/**
+ * CI/CD schemas — single source of truth for CI pipeline validation.
+ *
+ * @module schemas/ci
+ */
 import { z } from 'zod';
+
+// ─── CI Init schema (strict) ───────────────────────────────────────────────────
 
 export const ciInitSchema = z.object({
   repoName: z.string().min(1, 'repoName is required'),
@@ -14,6 +21,8 @@ export const ciInitSchema = z.object({
   platform: z.string().max(20).optional(),
 });
 
+// ─── CI Complete schema (strict) ───────────────────────────────────────────────
+
 export const ciCompleteSchema = z.object({
   scanId: z.string().uuid('scanId must be a valid UUID'),
   status: z.enum(['completed', 'failed'], { message: 'Status must be completed or failed' }).optional(),
@@ -25,6 +34,8 @@ export const ciCompleteSchema = z.object({
   platform: z.string().optional(),
   trigger: z.string().optional(),
 });
+
+// ─── Inferred types ────────────────────────────────────────────────────────────
 
 export type CiInitInput = z.infer<typeof ciInitSchema>;
 export type CiCompleteInput = z.infer<typeof ciCompleteSchema>;

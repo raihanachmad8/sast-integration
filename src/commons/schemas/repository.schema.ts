@@ -5,12 +5,15 @@
  */
 import { z } from 'zod';
 
-import { lenientEnum, lenientInt, SORT_ORDERS } from './member.schema';
+import { lenientEnum, lenientInt, SORT_ORDERS } from './lenient-helpers';
 
-/** Update repository schema — partial update. */
+// ─── Update schema (partial) ──────────────────────────────────────────────────
+
 export const updateRepoSchema = z.object({
   projectId: z.string().optional(),
 });
+
+// ─── List query schema (lenient) ──────────────────────────────────────────────
 
 export const REPOSITORY_SORT_FIELDS = ['name', 'url', 'defaultBranch', 'createdAt'] as const;
 

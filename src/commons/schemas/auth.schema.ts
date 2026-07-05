@@ -1,6 +1,13 @@
+/**
+ * Auth schemas — single source of truth for authentication validation.
+ *
+ * @module schemas/auth
+ */
 import { z } from 'zod';
 
 import { assignableRoles } from './member.schema';
+
+// ─── Invite schema (strict) ────────────────────────────────────────────────────
 
 export const inviteSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
@@ -8,6 +15,8 @@ export const inviteSchema = z.object({
 });
 
 export type InviteInput = z.infer<typeof inviteSchema>;
+
+// ─── Signup schema (strict) ────────────────────────────────────────────────────
 
 export const signupSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
@@ -19,10 +28,14 @@ export const signupSchema = z.object({
   path: ['confirmPassword'],
 });
 
+// ─── Signin schema (strict) ────────────────────────────────────────────────────
+
 export const signinSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
   password: z.string().min(1, 'Password is required').max(128),
 });
+
+// ─── Reset password schema (strict) ────────────────────────────────────────────
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(1, 'Token is required'),
@@ -32,6 +45,8 @@ export const resetPasswordSchema = z.object({
   message: 'Passwords do not match',
   path: ['confirmPassword'],
 });
+
+// ─── Forgot password schema (strict) ───────────────────────────────────────────
 
 export const forgotPasswordSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),

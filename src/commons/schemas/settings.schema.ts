@@ -1,4 +1,11 @@
+/**
+ * Settings schemas — single source of truth for settings validation.
+ *
+ * @module schemas/settings
+ */
 import { z } from 'zod';
+
+// ─── PR Review settings schema (strict) ────────────────────────────────────────
 
 /**
  * Zod schema for updating PR review settings.
@@ -11,6 +18,8 @@ export const updatePrReviewSettingsSchema = z.object({
   statusContext: z.string().max(255, 'Status context must be 255 characters or fewer').optional(),
   reviewSummaryFormat: z.enum(['compact', 'detailed']).optional(),
 });
+
+// ─── Inferred types ────────────────────────────────────────────────────────────
 
 export type UpdatePrReviewSettingsInput = z.infer<typeof updatePrReviewSettingsSchema>;
 

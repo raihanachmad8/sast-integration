@@ -23,49 +23,20 @@ import { z } from 'zod';
 
 import { ROLE } from '@/commons/constants/permissions';
 
-// ---------------------------------------------------------------------------
-// Allowed value arrays
-// ---------------------------------------------------------------------------
+import { lenientEnum, lenientInt, SORT_ORDERS } from './lenient-helpers';
+
+// Re-export for backward compatibility — prefer importing from lenient-helpers directly
+export { lenientEnum, lenientInt, SORT_ORDERS };
+
+// ─── Allowed value arrays ─────────────────────────────────────────────────────
 
 export const assignableRoles = [ROLE.MANAGER, ROLE.REVIEWER, ROLE.MEMBER] as const;
 export const allRoles = [ROLE.OWNER, ROLE.MANAGER, ROLE.REVIEWER, ROLE.MEMBER] as const;
 
 export const MEMBER_SORT_FIELDS = ['name', 'email', 'role', 'joinedAt'] as const;
 export const INVITATION_SORT_FIELDS = ['email', 'role', 'createdAt', 'expiresAt'] as const;
-export const TEAM_SORT_FIELDS = ['name', 'createdAt', 'updatedAt'] as const;
-export const PROJECT_SORT_FIELDS = ['name', 'createdAt', 'repositories', 'teams', 'members'] as const;
-export const SORT_ORDERS = ['asc', 'desc'] as const;
 
-// ---------------------------------------------------------------------------
-// Lenient transform helpers — accept any string, return valid value or
-// undefined (for invalid/missing values) so the route can fall back to a
-// default rather than failing validation.
-// ---------------------------------------------------------------------------
-
-export function lenientEnum<T extends readonly string[]>(allowed: T) {
-  return z
-    .string()
-    .optional()
-    .transform((val) => {
-      if (val === undefined) return undefined;
-      const lower = val.toLowerCase();
-      return (allowed as readonly string[]).includes(lower) ? (lower as T[number]) : undefined;
-    });
-}
-
-export function lenientInt(defaultVal: number, max?: number) {
-  return z.string().optional().transform((val) => {
-    if (val === undefined || val === '') return defaultVal;
-    const num = Number(val);
-    if (isNaN(num) || !Number.isInteger(num) || num < 1) return defaultVal;
-    if (max && num > max) return max;
-    return num;
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Member list query schema (GET /workspaces/:workspaceId/members)
-// ---------------------------------------------------------------------------
+// ─── Member list query (GET /workspaces/:workspaceId/members) ──────────────────
 
 export const memberListQuerySchema = z.object({
   page: lenientInt(1),
@@ -76,9 +47,7 @@ export const memberListQuerySchema = z.object({
   order: lenientEnum(SORT_ORDERS),
 });
 
-// ---------------------------------------------------------------------------
-// Invitation list query schema (GET /workspaces/:workspaceId/invitations)
-// ---------------------------------------------------------------------------
+// ─── Invitation list query (GET /workspaces/:workspaceId/invitations) ───────────
 
 export const invitationListQuerySchema = z.object({
   page: lenientInt(1),
@@ -90,9 +59,7 @@ export const invitationListQuerySchema = z.object({
   order: lenientEnum(SORT_ORDERS),
 });
 
-// ---------------------------------------------------------------------------
-// Body schemas (mutations) — kept strict since these are intentional actions
-// ---------------------------------------------------------------------------
+// ─── Body schemas (mutations — strict validation) ──────────────────────────────
 
 export const inviteMemberSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Please enter a valid email address'),
@@ -103,9 +70,7 @@ export const changeRoleSchema = z.object({
   role: z.enum(assignableRoles),
 });
 
-// ---------------------------------------------------------------------------
-// Inferred types
-// ---------------------------------------------------------------------------
+// ─── Inferred types ────────────────────────────────────────────────────────────
 
 export type MemberListQuery = z.infer<typeof memberListQuerySchema>;
 export type InvitationListQuery = z.infer<typeof invitationListQuerySchema>;

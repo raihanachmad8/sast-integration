@@ -1,4 +1,11 @@
+/**
+ * Workspace schemas — single source of truth for workspace validation.
+ *
+ * @module schemas/workspace
+ */
 import { z } from 'zod';
+
+// ─── Form schemas (strict) ─────────────────────────────────────────────────────
 
 export const workspaceCreateSchema = z.object({
   name: z.string().min(1, 'Workspace name is required').max(100),
@@ -12,6 +19,8 @@ export const workspaceUpdateSchema = z.object({
   slug: z.string().min(1, 'Slug is required').max(100).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens').optional(),
   description: z.string().max(500).optional(),
 });
+
+// ─── Inferred types ────────────────────────────────────────────────────────────
 
 export type WorkspaceCreateInput = z.infer<typeof workspaceCreateSchema>;
 export type WorkspaceUpdateInput = z.infer<typeof workspaceUpdateSchema>;

@@ -28,9 +28,11 @@
  */
 import { z } from 'zod';
 
-import { lenientEnum, lenientInt, PROJECT_SORT_FIELDS, SORT_ORDERS } from './member.schema';
+import { lenientEnum, lenientInt, SORT_ORDERS } from './lenient-helpers';
 
-// --- Form schemas (existing, unchanged) ---
+export const PROJECT_SORT_FIELDS = ['name', 'createdAt', 'repositories', 'teams', 'members'] as const;
+
+// ─── Form schemas (strict) ─────────────────────────────────────────────────────
 
 export const projectFormSchema = z.object({
   name: z.string().min(1, 'Project name is required').max(100),
@@ -50,7 +52,7 @@ export const projectFormSchema = z.object({
 /** PUT update schema — identical shape to create (full replace semantics). */
 export const projectUpdateSchema = projectFormSchema;
 
-// --- List query schema (lenient validation) ---
+// ─── List query schema (lenient) ───────────────────────────────────────────────
 
 export const projectListQuerySchema = z.object({
   search: z.string().optional(),

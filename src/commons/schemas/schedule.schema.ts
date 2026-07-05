@@ -1,6 +1,13 @@
+/**
+ * Schedule schemas — single source of truth for schedule validation.
+ *
+ * @module schemas/schedule
+ */
 import { z } from 'zod';
 
-import { lenientEnum, lenientInt, SORT_ORDERS } from './member.schema';
+import { lenientEnum, lenientInt, SORT_ORDERS } from './lenient-helpers';
+
+// ─── Form schemas (strict) ─────────────────────────────────────────────────────
 
 export const createScheduleSchema = z.object({
   repositoryId: z.string().uuid('Invalid repository ID'),
@@ -20,6 +27,8 @@ export const updateScheduleSchema = z.object({
 
 export const SCHEDULE_SORT_FIELDS = ['cronExpression', 'branch', 'active', 'createdAt'] as const;
 
+// ─── List query schema (lenient) ───────────────────────────────────────────────
+
 export const scheduleListQuerySchema = z.object({
   page: lenientInt(1),
   perPage: lenientInt(10, 100),
@@ -27,6 +36,8 @@ export const scheduleListQuerySchema = z.object({
   sort: lenientEnum(SCHEDULE_SORT_FIELDS),
   order: lenientEnum(SORT_ORDERS),
 });
+
+// ─── Inferred types ────────────────────────────────────────────────────────────
 
 export type CreateScheduleInput = z.infer<typeof createScheduleSchema>;
 export type UpdateScheduleInput = z.infer<typeof updateScheduleSchema>;

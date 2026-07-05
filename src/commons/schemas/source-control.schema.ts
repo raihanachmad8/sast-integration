@@ -1,8 +1,15 @@
+/**
+ * Source Control schemas — single source of truth for source control validation.
+ *
+ * @module schemas/source-control
+ */
 import { z } from 'zod';
 
-import { lenientEnum, lenientInt, SORT_ORDERS } from './member.schema';
+import { lenientEnum, lenientInt, SORT_ORDERS } from './lenient-helpers';
 
 const PROVIDERS = ['github', 'gitlab', 'gitea', 'bitbucket', 'azure-devops'] as const;
+
+// ─── Form schemas (strict) ─────────────────────────────────────────────────────
 
 export const createSourceControlSchema = z.object({
   provider: z.enum(PROVIDERS, { message: 'Provider must be one of: github, gitlab, gitea, bitbucket, azure-devops' }),

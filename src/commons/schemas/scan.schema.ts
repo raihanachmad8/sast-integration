@@ -1,3 +1,8 @@
+/**
+ * Scan schemas — single source of truth for scan validation.
+ *
+ * @module schemas/scan
+ */
 import { z } from 'zod';
 
 const SCANNER_NAMES = ['semgrep', 'cppcheck', 'gitleaks', 'flawfinder', 'clang-tidy', 'gcc-fanalyzer'] as const;

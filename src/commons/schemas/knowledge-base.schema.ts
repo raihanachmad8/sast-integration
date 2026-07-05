@@ -1,6 +1,13 @@
+/**
+ * Knowledge Base schemas — single source of truth for knowledge base validation.
+ *
+ * @module schemas/knowledge-base
+ */
 import { z } from 'zod';
 
 const KNOWLEDGE_SOURCE_TYPES = ['cwe', 'nvd', 'custom'] as const;
+
+// ─── Source schemas (strict) ───────────────────────────────────────────────────
 
 export const createKnowledgeSourceSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -14,6 +21,8 @@ export const updateKnowledgeSourceSchema = z.object({
   url: z.url('Invalid URL').max(500).optional().nullable(),
   status: z.enum(['connected', 'disconnected', 'syncing', 'error'], { message: 'Status is required' }).optional(),
 });
+
+// ─── Entry schemas (strict) ────────────────────────────────────────────────────
 
 export const createKnowledgeEntrySchema = z.object({
   sourceId: z.string().uuid('Invalid source ID'),
@@ -35,6 +44,8 @@ export const updateKnowledgeEntrySchema = z.object({
   tags: z.array(z.string()).optional(),
   muted: z.boolean().optional(),
 });
+
+// ─── Inferred types ────────────────────────────────────────────────────────────
 
 export type CreateKnowledgeSourceInput = z.infer<typeof createKnowledgeSourceSchema>;
 export type UpdateKnowledgeSourceInput = z.infer<typeof updateKnowledgeSourceSchema>;

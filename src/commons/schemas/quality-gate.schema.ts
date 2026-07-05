@@ -1,4 +1,11 @@
+/**
+ * Quality Gate schemas — single source of truth for quality gate validation.
+ *
+ * @module schemas/quality-gate
+ */
 import { z } from 'zod';
+
+// ─── Update schema (strict) ────────────────────────────────────────────────────
 
 export const updateQualityGateSchema = z.object({
   workspaceId: z.string().uuid('Invalid workspace ID'),
@@ -15,6 +22,8 @@ export const updateQualityGateSchema = z.object({
   pendingBehavior: z.enum(['warn', 'fail', 'ignore'], { message: 'Pending behavior is required' }).optional(),
 });
 
+// ─── Config schema (strict) ────────────────────────────────────────────────────
+
 export const qualityGateConfigSchema = z.object({
   failOnCritical: z.boolean(),
   failOnHighTp: z.boolean(),
@@ -29,10 +38,14 @@ export const qualityGateConfigSchema = z.object({
   pendingBehavior: z.enum(['warn', 'fail', 'ignore'], { message: 'Pending behavior is required' }),
 });
 
+// ─── Evaluate schema (strict) ──────────────────────────────────────────────────
+
 export const evaluateQualityGateSchema = z.object({
   scanId: z.string().uuid('Invalid scan ID'),
   workspaceId: z.string().uuid('Invalid workspace ID'),
 });
+
+// ─── Inferred types ────────────────────────────────────────────────────────────
 
 export type UpdateQualityGateInput = z.infer<typeof updateQualityGateSchema>;
 export type QualityGateConfigInput = z.infer<typeof qualityGateConfigSchema>;

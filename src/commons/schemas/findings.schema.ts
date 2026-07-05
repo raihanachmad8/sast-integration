@@ -7,16 +7,13 @@
  * - Unified bulk action
  * - AI verify
  * - Verify single finding
+ *
+ * @module schemas/findings
  */
 
 import { z } from 'zod';
 
-// ─── Reusable helpers ─────────────────────────────────────────────────────────
-
-const lenientInt = (fallback: number) =>
-  z.coerce.number().int().nonnegative().catch(fallback);
-
-const lenientSortOrder = z.enum(['asc', 'desc']).catch('desc');
+import { lenientEnum, lenientInt, SORT_ORDERS } from './lenient-helpers';
 
 // ─── Finding status / severity enums ──────────────────────────────────────────
 
@@ -37,10 +34,12 @@ export const findingListQuerySchema = z.object({
     z.boolean().optional(),
   ),
   sort: z.string().optional().catch('createdAt'),
-  order: lenientSortOrder,
+  order: lenientEnum(SORT_ORDERS),
   page: lenientInt(1),
   perPage: lenientInt(10),
 });
+
+// ─── Inferred types ────────────────────────────────────────────────────────────
 
 export type FindingListQuery = z.infer<typeof findingListQuerySchema>;
 

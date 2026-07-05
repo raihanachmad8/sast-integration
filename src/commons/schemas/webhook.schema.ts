@@ -1,6 +1,13 @@
+/**
+ * Webhook schemas — single source of truth for webhook validation.
+ *
+ * @module schemas/webhook
+ */
 import { z } from 'zod';
 
-import { lenientEnum, lenientInt, SORT_ORDERS } from './member.schema';
+import { lenientEnum, lenientInt, SORT_ORDERS } from './lenient-helpers';
+
+// ─── Form schemas (strict) ─────────────────────────────────────────────────────
 
 export const createWebhookSchema = z.object({
   name: z.string().min(1, 'Webhook name is required').max(100),
@@ -13,6 +20,8 @@ export const createWebhookSchema = z.object({
 export const updateWebhookSchema = createWebhookSchema.partial();
 
 export const WEBHOOK_SORT_FIELDS = ['name', 'url', 'active', 'createdAt'] as const;
+
+// ─── List query schema (lenient) ───────────────────────────────────────────────
 
 export const webhookListQuerySchema = z.object({
   page: lenientInt(1),

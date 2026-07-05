@@ -21,9 +21,11 @@
  */
 import { z } from 'zod';
 
-import { lenientEnum, lenientInt, TEAM_SORT_FIELDS, SORT_ORDERS } from './member.schema';
+import { lenientEnum, lenientInt, SORT_ORDERS } from './lenient-helpers';
 
-// --- Form schemas (strict) ---
+export const TEAM_SORT_FIELDS = ['name', 'createdAt', 'updatedAt'] as const;
+
+// ─── Form schemas (strict) ─────────────────────────────────────────────────────
 
 export const teamFormSchema = z.object({
   name: z.string().min(1, 'Team name is required').max(100),
@@ -39,7 +41,7 @@ export const teamFormSchema = z.object({
 
 export const teamUpdateSchema = teamFormSchema.partial();
 
-// --- List query schema (lenient) ---
+// ─── List query schema (lenient) ───────────────────────────────────────────────
 
 export const teamListQuerySchema = z.object({
   page: lenientInt(1),

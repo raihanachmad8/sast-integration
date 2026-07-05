@@ -1,6 +1,13 @@
+/**
+ * Report schemas — single source of truth for report validation.
+ *
+ * @module schemas/report
+ */
 import { z } from 'zod';
 
-import { lenientEnum, lenientInt, SORT_ORDERS } from './member.schema';
+import { lenientEnum, lenientInt, SORT_ORDERS } from './lenient-helpers';
+
+// ─── Form schemas (strict) ─────────────────────────────────────────────────────
 
 export const createReportSchema = z.object({
   type: z.enum(['findings', 'verdict', 'executive', 'compliance']),
@@ -11,6 +18,8 @@ export const createReportSchema = z.object({
 
 export const REPORT_SORT_FIELDS = ['title', 'type', 'format', 'status', 'createdAt'] as const;
 
+// ─── List query schema (lenient) ───────────────────────────────────────────────
+
 export const reportListQuerySchema = z.object({
   page: lenientInt(1),
   perPage: lenientInt(10, 100),
@@ -18,6 +27,8 @@ export const reportListQuerySchema = z.object({
   sort: lenientEnum(REPORT_SORT_FIELDS),
   order: lenientEnum(SORT_ORDERS),
 });
+
+// ─── Inferred types ────────────────────────────────────────────────────────────
 
 export type CreateReportInput = z.infer<typeof createReportSchema>;
 export type ReportListQuery = z.infer<typeof reportListQuerySchema>;
