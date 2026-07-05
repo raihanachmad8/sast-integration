@@ -1,19 +1,19 @@
 /**
  * Build-time search index generator.
- * Run: node scripts/generate-search-index.js
+ * Run: bun run scripts/generate-search-index.ts
  *
  * Generates src/lib/docs/search-index.ts with all headings and content
  * extracted from markdown files under docs/site/content/.
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 const CONTENT_DIR = path.join(__dirname, '../docs/site/content');
 const OUTPUT_FILE = path.join(__dirname, '../src/lib/docs/search-index.ts');
 
-function extractHeadings(content) {
-  const headings = [];
+function extractHeadings(content: string): string[] {
+  const headings: string[] = [];
   for (const line of content.split('\n')) {
     const match = line.match(/^#{1,3}\s+(.+)/);
     if (match) headings.push(match[1].trim());
@@ -21,8 +21,8 @@ function extractHeadings(content) {
   return headings;
 }
 
-function extractParagraphs(content) {
-  const paragraphs = [];
+function extractParagraphs(content: string): string[] {
+  const paragraphs: string[] = [];
   let inCodeBlock = false;
 
   for (const line of content.split('\n')) {
@@ -35,8 +35,8 @@ function extractParagraphs(content) {
   return paragraphs;
 }
 
-function walkDir(dir) {
-  const files = [];
+function walkDir(dir: string): string[] {
+  const files: string[] = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) files.push(...walkDir(fullPath));
@@ -45,8 +45,8 @@ function walkDir(dir) {
   return files;
 }
 
-function main() {
-  const index = {};
+function main(): void {
+  const index: Record<string, { headings: string[]; content: string }> = {};
   const mdFiles = walkDir(CONTENT_DIR);
 
   for (const filePath of mdFiles) {
@@ -62,7 +62,7 @@ function main() {
 
   const tsContent = `/**
  * Auto-generated search index from markdown files.
- * Run: node scripts/generate-search-index.js
+ * Run: bun run scripts/generate-search-index.ts
  *
  * Last generated: ${new Date().toISOString()}
  */
