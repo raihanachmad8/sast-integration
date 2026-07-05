@@ -3,8 +3,8 @@ import { eq, and, isNull, gt, inArray } from 'drizzle-orm';
 import { ROLE } from '@/commons/constants/permissions';
 import { db, type Tx } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
-import { workspaces, workspaceMembers } from '@drizzle/schema';
-import { workspaceInvitations } from '@drizzle/schema/auth';
+import { workspaces, workspaceMembers, type Workspace, type WorkspaceMember } from '@drizzle/schema';
+import { workspaceInvitations, type WorkspaceInvitation } from '@drizzle/schema/auth';
 import { users } from '@drizzle/schema/users';
 
 import { WORKSPACE } from '../constants';
@@ -12,36 +12,56 @@ import { WORKSPACE } from '../constants';
 
 type Role = typeof ROLE[keyof typeof ROLE];
 
-export const workspaceRepository = {
+export interface IWorkspaceRepository {
+  list(userId: string, tx?: Tx): Promise<{ id: string; name: string; slug: string; type: 'personal' | 'organization'; description: string | null; avatarUrl: string | null; role: Role; joinedAt: Date }[]>;
+  findById(id: string): Promise<Workspace | null>;
+  findBySlug(slug: string, tx?: Tx): Promise<Workspace | null>;
+  findActivePersonalByOwner(userId: string, tx?: Tx): Promise<Workspace | null>;
+  getMemberRole(workspaceId: string, userId: string): Promise<string | null>;
+  create(data: { name: string; slug: string; type?: 'personal' | 'organization'; description?: string; createdBy: string }, tx?: Tx): Promise<Workspace>;
+  addMember(workspaceId: string, userId: string, role: Role, tx?: Tx): Promise<void>;
+  update(id: string, data: { name?: string; slug?: string; description?: string; updatedBy: string }, tx?: Tx): Promise<Workspace | undefined>;
+  delete(id: string, deletedBy: string): Promise<void>;
+  switchWorkspace(userId: string, workspaceId: string, tx?: Tx): Promise<void>;
+  members(workspaceId: string, tx?: Tx): Promise<{ userId: string; email: string; name: string; avatarUrl: string | null; role: Role; joinedAt: Date }[]>;
+  updateRole(workspaceId: string, userId: string, role: Role): Promise<WorkspaceMember | null>;
+  removeMember(workspaceId: string, userId: string): Promise<void>;
+  invitations(workspaceId: string, tx?: Tx): Promise<{ id: string; email: string; role: string; invitedBy: string | null; createdAt: Date; expiresAt: Date }[]>;
+  revokeInvitation(invitationId: string, tx?: Tx): Promise<void>;
+  findInvitation(invitationId: string, tx?: Tx): Promise<WorkspaceInvitation | null>;
+  findPendingInvitation(workspaceId: string, email: string, tx?: Tx): Promise<WorkspaceInvitation | null>;
+  createInvitation(data: { email: string; role: string; workspaceId: string; invitedBy: string; token: string; expiresAt: Date }, tx?: Tx): Promise<WorkspaceInvitation>;
+  findMemberUserIds(workspaceId: string, userIds: string[]): Promise<string[]>;
+  listPendingInvitationsByEmail(email: string): Promise<{ id: string; email: string; role: string; workspaceId: string; workspaceName: string; workspaceSlug: string; invitedBy: string | null; createdAt: Date; expiresAt: Date }[]>;
+  acceptInvitation(invitationId: string, userId: string, tx?: Tx): Promise<{ workspaceId: string; role: string } | null>;
+}
+
+export const workspaceRepository: IWorkspaceRepository = {
   /**
    * List all non-deleted workspaces for a user with their role.
    *
    * @param userId - User UUID
    * @returns Array of workspace records with role and joinedAt
    */
-  async list(userId: string) {
+  async list(userId: string, tx?: Tx) {
     logger.workspace.info('listByUser', { userId });
-    try {
-      const rows = await db
-        .select({
-          id: workspaces.id,
-          name: workspaces.name,
-          slug: workspaces.slug,
-          type: workspaces.type,
-          description: workspaces.description,
-          avatarUrl: workspaces.avatarUrl,
-          role: workspaceMembers.role,
-          joinedAt: workspaceMembers.joinedAt,
-        })
-        .from(workspaceMembers)
-        .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
-        .where(and(eq(workspaceMembers.userId, userId), isNull(workspaces.deletedAt)));
-      logger.workspace.info('list completed', { userId, count: rows.length });
-      return rows;
-    } catch (error) {
-      logger.workspace.error('listByUser failed', { userId, error: error instanceof Error ? error.message : error });
-      throw error;
-    }
+    const executor = tx ?? db;
+    const rows = await executor
+      .select({
+        id: workspaces.id,
+        name: workspaces.name,
+        slug: workspaces.slug,
+        type: workspaces.type,
+        description: workspaces.description,
+        avatarUrl: workspaces.avatarUrl,
+        role: workspaceMembers.role,
+        joinedAt: workspaceMembers.joinedAt,
+      })
+      .from(workspaceMembers)
+      .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
+      .where(and(eq(workspaceMembers.userId, userId), isNull(workspaces.deletedAt)));
+    logger.workspace.info('list completed', { userId, count: rows.length });
+    return rows;
   },
 
   /**
@@ -115,22 +135,17 @@ export const workspaceRepository = {
    */
   async create(data: { name: string; slug: string; type?: 'personal' | 'organization'; description?: string; createdBy: string }, tx?: Tx) {
     logger.workspace.info('create workspace', { name: data.name, slug: data.slug, createdBy: data.createdBy });
-    try {
-      const executor = tx ?? db;
-      const [ws] = await executor.insert(workspaces).values({
-        name: data.name,
-        slug: data.slug,
-        type: data.type ?? WORKSPACE.TYPE.ORGANIZATION,
-        description: data.description,
-        createdBy: data.createdBy,
-        updatedBy: data.createdBy,
-      }).returning();
-      logger.workspace.info('create workspace completed', { workspaceId: ws.id, name: data.name });
-      return ws;
-    } catch (error) {
-      logger.workspace.error('create workspace failed', { name: data.name, slug: data.slug, error: error instanceof Error ? error.message : error });
-      throw error;
-    }
+    const executor = tx ?? db;
+    const [ws] = await executor.insert(workspaces).values({
+      name: data.name,
+      slug: data.slug,
+      type: data.type ?? WORKSPACE.TYPE.ORGANIZATION,
+      description: data.description,
+      createdBy: data.createdBy,
+      updatedBy: data.createdBy,
+    }).returning();
+    logger.workspace.info('create workspace completed', { workspaceId: ws.id, name: data.name });
+    return ws;
   },
 
   /**
@@ -149,21 +164,17 @@ export const workspaceRepository = {
   },
 
   /** Update workspace fields */
-  async update(id: string, data: { name?: string; slug?: string; description?: string; updatedBy: string }) {
+  async update(id: string, data: { name?: string; slug?: string; description?: string; updatedBy: string }, tx?: Tx) {
     logger.workspace.info('update workspace', { id });
-    try {
-      const [ws] = await db.update(workspaces)
-        .set({ ...data, updatedAt: new Date() })
-        .where(eq(workspaces.id, id))
-        .returning();
-      if (!ws) {
-        logger.workspace.warn('update: workspace not found', { id });
-      }
-      return ws;
-    } catch (error) {
-      logger.workspace.error('update workspace failed', { id, error: error instanceof Error ? error.message : error });
-      throw error;
+    const executor = tx ?? db;
+    const [ws] = await executor.update(workspaces)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(workspaces.id, id))
+      .returning();
+    if (!ws) {
+      logger.workspace.warn('update: workspace not found', { id });
     }
+    return ws;
   },
 
   /** Soft delete workspace */
@@ -186,27 +197,23 @@ export const workspaceRepository = {
   },
 
   /** List all members of a workspace with user details. Excludes soft-deleted users. */
-  async members(workspaceId: string) {
+  async members(workspaceId: string, tx?: Tx) {
     logger.workspace.info('listMembers', { workspaceId });
-    try {
-      const rows = await db
-        .select({
-          userId: workspaceMembers.userId,
-          email: users.email,
-          name: users.name,
-          avatarUrl: users.avatarUrl,
-          role: workspaceMembers.role,
-          joinedAt: workspaceMembers.joinedAt,
-        })
-        .from(workspaceMembers)
-        .innerJoin(users, eq(users.id, workspaceMembers.userId))
-        .where(and(eq(workspaceMembers.workspaceId, workspaceId), isNull(users.deletedAt)));
-      logger.workspace.info('members completed', { workspaceId, count: rows.length });
-      return rows;
-    } catch (error) {
-      logger.workspace.error('listMembers failed', { workspaceId, error: error instanceof Error ? error.message : error });
-      throw error;
-    }
+    const executor = tx ?? db;
+    const rows = await executor
+      .select({
+        userId: workspaceMembers.userId,
+        email: users.email,
+        name: users.name,
+        avatarUrl: users.avatarUrl,
+        role: workspaceMembers.role,
+        joinedAt: workspaceMembers.joinedAt,
+      })
+      .from(workspaceMembers)
+      .innerJoin(users, eq(users.id, workspaceMembers.userId))
+      .where(and(eq(workspaceMembers.workspaceId, workspaceId), isNull(users.deletedAt)));
+    logger.workspace.info('members completed', { workspaceId, count: rows.length });
+    return rows;
   },
 
   /** Update a member's role */
@@ -233,45 +240,43 @@ export const workspaceRepository = {
   },
 
   /** List pending (not accepted, not expired) invitations for a workspace */
-  async invitations(workspaceId: string) {
+  async invitations(workspaceId: string, tx?: Tx) {
     logger.workspace.info('listInvitations', { workspaceId });
-    try {
-      const rows = await db
-        .select({
-          id: workspaceInvitations.id,
-          email: workspaceInvitations.email,
-          role: workspaceInvitations.role,
-          invitedBy: users.name,
-          createdAt: workspaceInvitations.createdAt,
-          expiresAt: workspaceInvitations.expiresAt,
-        })
-        .from(workspaceInvitations)
-        .innerJoin(users, eq(users.id, workspaceInvitations.createdBy))
-        .where(and(
-          eq(workspaceInvitations.workspaceId, workspaceId),
-          isNull(workspaceInvitations.acceptedAt),
-          gt(workspaceInvitations.expiresAt, new Date()),
-          isNull(users.deletedAt),
-        ));
-      logger.workspace.info('invitations completed', { workspaceId, count: rows.length });
-      return rows;
-    } catch (error) {
-      logger.workspace.error('listInvitations failed', { workspaceId, error: error instanceof Error ? error.message : error });
-      throw error;
-    }
+    const executor = tx ?? db;
+    const rows = await executor
+      .select({
+        id: workspaceInvitations.id,
+        email: workspaceInvitations.email,
+        role: workspaceInvitations.role,
+        invitedBy: users.name,
+        createdAt: workspaceInvitations.createdAt,
+        expiresAt: workspaceInvitations.expiresAt,
+      })
+      .from(workspaceInvitations)
+      .innerJoin(users, eq(users.id, workspaceInvitations.createdBy))
+      .where(and(
+        eq(workspaceInvitations.workspaceId, workspaceId),
+        isNull(workspaceInvitations.acceptedAt),
+        gt(workspaceInvitations.expiresAt, new Date()),
+        isNull(users.deletedAt),
+      ));
+    logger.workspace.info('invitations completed', { workspaceId, count: rows.length });
+    return rows;
   },
 
   /** Delete an invitation by ID */
-  async revokeInvitation(invitationId: string) {
+  async revokeInvitation(invitationId: string, tx?: Tx) {
     logger.workspace.info('revokeInvitation', { invitationId });
-    await db.delete(workspaceInvitations).where(eq(workspaceInvitations.id, invitationId));
+    const executor = tx ?? db;
+    await executor.delete(workspaceInvitations).where(eq(workspaceInvitations.id, invitationId));
     logger.workspace.info('revokeInvitation completed', { invitationId });
   },
 
   /** Find invitation by ID (for ownership check) */
-  async findInvitation(invitationId: string) {
+  async findInvitation(invitationId: string, tx?: Tx) {
     logger.workspace.info('findInvitation', { invitationId });
-    const [inv] = await db.select().from(workspaceInvitations).where(eq(workspaceInvitations.id, invitationId)).limit(1);
+    const executor = tx ?? db;
+    const [inv] = await executor.select().from(workspaceInvitations).where(eq(workspaceInvitations.id, invitationId)).limit(1);
     if (!inv) {
       logger.workspace.warn('findInvitation: not found', { invitationId });
     }
@@ -279,9 +284,10 @@ export const workspaceRepository = {
   },
 
   /** Find a pending (not accepted, not expired) invitation for a workspace + email */
-  async findPendingInvitation(workspaceId: string, email: string) {
+  async findPendingInvitation(workspaceId: string, email: string, tx?: Tx) {
     logger.workspace.info('findPendingInvitation', { workspaceId, email });
-    const [inv] = await db
+    const executor = tx ?? db;
+    const [inv] = await executor
       .select()
       .from(workspaceInvitations)
       .where(and(
@@ -298,9 +304,10 @@ export const workspaceRepository = {
   },
 
   /** Create a workspace invitation record */
-  async createInvitation(data: { email: string; role: string; workspaceId: string; invitedBy: string; token: string; expiresAt: Date }) {
+  async createInvitation(data: { email: string; role: string; workspaceId: string; invitedBy: string; token: string; expiresAt: Date }, tx?: Tx) {
     logger.workspace.info('createInvitation', { email: data.email, role: data.role, workspaceId: data.workspaceId });
-    const [invitation] = await db.insert(workspaceInvitations).values({
+    const executor = tx ?? db;
+    const [invitation] = await executor.insert(workspaceInvitations).values({
       email: data.email,
       role: data.role,
       workspaceId: data.workspaceId,
@@ -335,35 +342,30 @@ export const workspaceRepository = {
   /** List all pending invitations for a user by email (not accepted, not expired) */
   async listPendingInvitationsByEmail(email: string) {
     logger.workspace.info('listPendingInvitationsByEmail', { email });
-    try {
-      const rows = await db
-        .select({
-          id: workspaceInvitations.id,
-          email: workspaceInvitations.email,
-          role: workspaceInvitations.role,
-          workspaceId: workspaceInvitations.workspaceId,
-          workspaceName: workspaces.name,
-          workspaceSlug: workspaces.slug,
-          invitedBy: users.name,
-          createdAt: workspaceInvitations.createdAt,
-          expiresAt: workspaceInvitations.expiresAt,
-        })
-        .from(workspaceInvitations)
-        .innerJoin(workspaces, eq(workspaces.id, workspaceInvitations.workspaceId))
-        .leftJoin(users, eq(users.id, workspaceInvitations.createdBy))
-        .where(and(
-          eq(workspaceInvitations.email, email),
-          isNull(workspaceInvitations.acceptedAt),
-          gt(workspaceInvitations.expiresAt, new Date()),
-          isNull(workspaces.deletedAt),
-          isNull(users.deletedAt),
-        ));
-      logger.workspace.info('listPendingInvitationsByEmail completed', { email, count: rows.length });
-      return rows;
-    } catch (error) {
-      logger.workspace.error('listPendingInvitationsByEmail failed', { email, error: error instanceof Error ? error.message : error });
-      throw error;
-    }
+    const rows = await db
+      .select({
+        id: workspaceInvitations.id,
+        email: workspaceInvitations.email,
+        role: workspaceInvitations.role,
+        workspaceId: workspaceInvitations.workspaceId,
+        workspaceName: workspaces.name,
+        workspaceSlug: workspaces.slug,
+        invitedBy: users.name,
+        createdAt: workspaceInvitations.createdAt,
+        expiresAt: workspaceInvitations.expiresAt,
+      })
+      .from(workspaceInvitations)
+      .innerJoin(workspaces, eq(workspaces.id, workspaceInvitations.workspaceId))
+      .leftJoin(users, eq(users.id, workspaceInvitations.createdBy))
+      .where(and(
+        eq(workspaceInvitations.email, email),
+        isNull(workspaceInvitations.acceptedAt),
+        gt(workspaceInvitations.expiresAt, new Date()),
+        isNull(workspaces.deletedAt),
+        isNull(users.deletedAt),
+      ));
+    logger.workspace.info('listPendingInvitationsByEmail completed', { email, count: rows.length });
+    return rows;
   },
 
   /** Accept an invitation: add user to workspace + mark invitation accepted */

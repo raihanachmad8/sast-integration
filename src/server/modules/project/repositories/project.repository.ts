@@ -5,8 +5,8 @@ import type { ProjectMemberSummary, ProjectTeamSummary, ProjectRepositorySummary
 import { db, type Tx } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
 import { buildSearch, buildSort, buildPaginationMeta } from '@/server/lib/query';
-import { projects, projectMembers, projectTeams } from '@drizzle/schema/projects';
-import { repositories } from '@drizzle/schema/source-controls';
+import { projects, projectMembers, projectTeams, type Project } from '@drizzle/schema/projects';
+import { repositories, type Repository } from '@drizzle/schema/source-controls';
 import { sourceControlImports, sourceControls } from '@drizzle/schema/source-controls';
 import { teams, teamMembers } from '@drizzle/schema/teams';
 import { users } from '@drizzle/schema/users';
@@ -18,7 +18,39 @@ export type UpdateProjectData = {
   lead?: string;
 };
 
-export const projectRepository = {
+export interface IProjectRepository {
+  listAll(workspaceId: string): Promise<Project[]>;
+  list(workspaceId: string, params?: ProjectListQuery): Promise<{ data: Project[]; total: number; page: number; perPage: number; lastPage: number }>;
+  findById(id: string): Promise<Project | null>;
+  findRepositoryByIdAndWorkspace(repositoryId: string, workspaceId: string): Promise<{ repository: Repository; project: Project | null } | null>;
+  getWorkspaceIdByRepositoryId(repositoryId: string): Promise<string | null>;
+  findBySlug(workspaceId: string, slug: string, tx?: Tx): Promise<Project | null>;
+  create(data: { workspaceId: string; name: string; slug: string; description?: string; createdBy: string }, tx?: Tx): Promise<Project>;
+  update(id: string, data: Record<string, unknown>, updatedBy?: string, tx?: Tx): Promise<Project>;
+  softDelete(id: string, deletedBy: string): Promise<Project>;
+  listRepositories(projectId: string): Promise<Repository[]>;
+  listRepositoriesByWorkspace(
+    workspaceId: string,
+    filterMode?: 'imported' | 'manual',
+    accessibleProjectIds?: string[],
+    params?: { page?: number; perPage?: number; search?: string; sort?: string; order?: string },
+  ): Promise<{ data: { id: string; name: string; url: string; defaultBranch: string | null; connectionType: string[]; importMode: string | null; projectId: string | null; projectName: string | null; provider: string | null;         providerName: string | null; createdAt: Date; lastSyncedAt: Date | null; scanCount: number; findingCount: number; lastScan: Date | null }[]; total: number; page: number; perPage: number; lastPage: number }>;
+  attachRepository(projectId: string, workspaceId: string, repositoryData: { name: string; url: string; defaultBranch?: string; connectionType: string[] }, createdBy: string): Promise<Repository>;
+  findExternalRepositoryByUrl(projectId: string, url?: string): Promise<Repository | null>;
+  listMemberSummaries(projectId: string): Promise<ProjectMemberSummary[]>;
+  listTeamSummaries(projectId: string): Promise<ProjectTeamSummary[]>;
+  listRepositorySummaries(projectId: string): Promise<ProjectRepositorySummary[]>;
+  setMembers(projectId: string, userIds: string[], tx?: Tx): Promise<void>;
+  setTeams(projectId: string, teamIds: string[], tx?: Tx): Promise<void>;
+  setRepositories(projectId: string, repositoryIds: string[], tx?: Tx): Promise<void>;
+  listMemberSummariesByProjectIds(projectIds: string[]): Promise<Map<string, ProjectMemberSummary[]>>;
+  listTeamSummariesByProjectIds(projectIds: string[]): Promise<Map<string, ProjectTeamSummary[]>>;
+  listRepositorySummariesByProjectIds(projectIds: string[]): Promise<Map<string, ProjectRepositorySummary[]>>;
+  getAccessibleProjectIds(workspaceId: string, userId: string, role?: string): Promise<string[] | null>;
+  getProjectMembers(projectId: string, workspaceId: string): Promise<Array<{ userId: string; name: string; email: string; avatarUrl: string | null; role: string | null }>>;
+}
+
+export const projectRepository: IProjectRepository = {
   /** List all projects for a workspace (with soft delete filter) */
   async listAll(workspaceId: string) {
     logger.project.info('listByWorkspace', { workspaceId });
@@ -427,18 +459,13 @@ export const projectRepository = {
     if (userIds.length === 0) {
       logger.project.warn('setMembers called with empty userIds — all members will be removed', { projectId });
     }
-    try {
-      const executor = tx ?? db;
-      await executor.delete(projectMembers).where(eq(projectMembers.projectId, projectId));
-      if (userIds.length === 0) return;
-      await executor.insert(projectMembers).values(
-        userIds.map((userId) => ({ projectId: projectId, userId: userId, role: 'member' }))
-      );
-      logger.project.info('setMembers completed', { projectId, count: userIds.length });
-    } catch (err) {
-      logger.project.error('setMembers failed', { projectId, error: err });
-      throw err;
-    }
+    const executor = tx ?? db;
+    await executor.delete(projectMembers).where(eq(projectMembers.projectId, projectId));
+    if (userIds.length === 0) return;
+    await executor.insert(projectMembers).values(
+      userIds.map((userId) => ({ projectId: projectId, userId: userId, role: 'member' }))
+    );
+    logger.project.info('setMembers completed', { projectId, count: userIds.length });
   },
 
   /** Set project teams (replace all) — should be called within a transaction */
@@ -447,18 +474,13 @@ export const projectRepository = {
     if (teamIds.length === 0) {
       logger.project.warn('setTeams called with empty teamIds — all teams will be removed', { projectId });
     }
-    try {
-      const executor = tx ?? db;
-      await executor.delete(projectTeams).where(eq(projectTeams.projectId, projectId));
-      if (teamIds.length === 0) return;
-      await executor.insert(projectTeams).values(
-        teamIds.map((teamId) => ({ projectId: projectId, teamId: teamId, role: 'member' }))
-      );
-      logger.project.info('setTeams completed', { projectId, count: teamIds.length });
-    } catch (err) {
-      logger.project.error('setTeams failed', { projectId, error: err });
-      throw err;
-    }
+    const executor = tx ?? db;
+    await executor.delete(projectTeams).where(eq(projectTeams.projectId, projectId));
+    if (teamIds.length === 0) return;
+    await executor.insert(projectTeams).values(
+      teamIds.map((teamId) => ({ projectId: projectId, teamId: teamId, role: 'member' }))
+    );
+    logger.project.info('setTeams completed', { projectId, count: teamIds.length });
   },
 
   /** Set project repositories (replace all) — should be called within a transaction */
@@ -467,20 +489,15 @@ export const projectRepository = {
     if (repositoryIds.length === 0) {
       logger.project.warn('setRepositories called with empty repositoryIds — all repositories will be unlinked', { projectId });
     }
-    try {
-      const executor = tx ?? db;
-      // Unlink all repositories currently assigned to this project
-      await executor.update(repositories).set({ projectId: null }).where(eq(repositories.projectId, projectId));
-      if (repositoryIds.length === 0) return;
-      // Link new repositories
-      for (const repoId of repositoryIds) {
-        await executor.update(repositories).set({ projectId }).where(eq(repositories.id, repoId));
-      }
-      logger.project.info('setRepositories completed', { projectId, count: repositoryIds.length });
-    } catch (err) {
-      logger.project.error('setRepositories failed', { projectId, error: err });
-      throw err;
+    const executor = tx ?? db;
+    // Unlink all repositories currently assigned to this project
+    await executor.update(repositories).set({ projectId: null }).where(eq(repositories.projectId, projectId));
+    if (repositoryIds.length === 0) return;
+    // Link new repositories
+    for (const repoId of repositoryIds) {
+      await executor.update(repositories).set({ projectId }).where(eq(repositories.id, repoId));
     }
+    logger.project.info('setRepositories completed', { projectId, count: repositoryIds.length });
   },
 
   /** Batch: list member summaries for multiple projects. Excludes soft-deleted users. */

@@ -19,7 +19,19 @@ function sha256(input: string): string {
   return crypto.createHash('sha256').update(input).digest('hex');
 }
 
-export const projectApiTokenRepository = {
+export interface IProjectApiTokenRepository {
+  create(data: { projectId: string; createdBy: string; name: string; permissions?: string[]; expiresAt?: Date | null }, tx?: Tx): Promise<{ token: ProjectApiToken; rawToken: string }>;
+  findActiveBySha256(rawToken: string): Promise<ProjectApiToken | null>;
+  findValidForProject(projectId: string, rawToken: string): Promise<ProjectApiToken | null>;
+  listByProject(projectId: string): Promise<ProjectApiToken[]>;
+  listByProjectPaginated(projectId: string, params?: { page?: number; perPage?: number; search?: string; sort?: string; order?: string }): Promise<{ data: ProjectApiToken[]; total: number; page: number; perPage: number; lastPage: number }>;
+  revoke(tokenId: string, revokedBy: string): Promise<ProjectApiToken | null>;
+  touchLastUsed(tokenId: string): Promise<void>;
+  findById(id: string): Promise<ProjectApiToken | null>;
+  findAnyValidProjectToken(rawToken: string): Promise<ProjectApiToken | null>;
+}
+
+export const projectApiTokenRepository: IProjectApiTokenRepository = {
   /**
    * Generate a new project API token.
    * Returns the created record + the raw token (ONLY shown once to caller).
