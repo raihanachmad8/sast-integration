@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 
 import { PERMISSION } from '@/commons/constants/permissions';
-import { inviteMemberSchema, invitationListQuerySchema } from '@/commons/schemas/member.schema';
+import { inviteMemberSchema, invitationListQuerySchema } from '@/commons/schemas/invitation.schema';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
 import { ApiResponse } from '@/server/http/response';

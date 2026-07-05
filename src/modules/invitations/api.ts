@@ -1,5 +1,5 @@
 import { ENDPOINTS } from '@/commons/constants/endpoints';
-import type { InvitationListQuery as _InvitationListQuery } from '@/commons/schemas/member.schema';
+import type { InvitationListQuery as _InvitationListQuery } from '@/commons/schemas/invitation.schema';
 import type { ApiResponse } from '@/commons/types/api';
 import type { PaginatedResponse } from '@/commons/types/pagination';
 import { clientEnv } from '@/config/client-env';

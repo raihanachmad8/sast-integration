@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 
 import { ROLE } from '@/commons/constants/permissions';
 import { ROUTES } from '@/commons/constants/routes';
-import type { InvitationListQuery } from '@/commons/schemas/member.schema';
+import type { InvitationListQuery } from '@/commons/schemas/invitation.schema';
 import { db } from '@/server/db/client';
 import { env } from '@/server/env';
 import { AppError } from '@/server/http/errors';

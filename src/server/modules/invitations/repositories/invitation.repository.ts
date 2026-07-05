@@ -1,6 +1,6 @@
 import { and, eq, gt, isNull, isNotNull, lte, count } from 'drizzle-orm';
 
-import type { InvitationListQuery } from '@/commons/schemas/member.schema';
+import type { InvitationListQuery } from '@/commons/schemas/invitation.schema';
 import { db, type Tx } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
 import { buildSearch, buildFilters, buildSort, buildPaginationMeta } from '@/server/lib/query';

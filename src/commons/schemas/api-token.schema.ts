@@ -6,7 +6,8 @@
  * ### List Query (server-side)
  * 1. Route handler reads `request.nextUrl.searchParams`
  * 2. Parsed via `apiTokenListQuerySchema.safeParse(Object.fromEntries(...))`
- * 3. Simple page/perPage with defaults — no lenient helpers needed.
+ * 3. Lenient transforms (`lenientInt`) coerce invalid values to defaults
+ *    instead of returning 422 — the route falls back to safe defaults.
  *
  * ### Create Token (server-side)
  * 1. `react-hook-form` with `zodResolver(createApiTokenSchema)` validates in-browser
@@ -22,7 +23,9 @@
  */
 import { z } from 'zod';
 
-// --- Form schemas (existing, unchanged) ---
+import { lenientInt } from './lenient-helpers';
+
+// ─── Form schemas (strict) ─────────────────────────────────────────────────────
 
 export const createApiTokenSchema = z.object({
   name: z.string().min(1, 'Token name is required').max(100),
@@ -34,14 +37,16 @@ export const revokeApiTokenSchema = z.object({
   tokenId: z.string().uuid('Invalid token ID'),
 });
 
+// ─── Inferred types ────────────────────────────────────────────────────────────
+
 export type CreateApiTokenInput = z.infer<typeof createApiTokenSchema>;
 export type RevokeApiTokenInput = z.infer<typeof revokeApiTokenSchema>;
 
-// --- List query schema (lenient validation) ---
+// ─── List query schema (lenient validation) ───────────────────────────────────
 
 export const apiTokenListQuerySchema = z.object({
-  page: z.coerce.number().int().positive().default(1).catch(1),
-  perPage: z.coerce.number().int().positive().max(100).default(10).catch(10),
+  page: lenientInt(1),
+  perPage: lenientInt(10, 100),
 });
 
 export type ApiTokenListQuery = z.infer<typeof apiTokenListQuerySchema>;

@@ -1,4 +1,5 @@
 export * from './member.schema';
+export * from './invitation.schema';
 export * from './team.schema';
 export * from './project.schema';
 export * from './workspace.schema';

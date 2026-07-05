@@ -1,9 +1,38 @@
 /**
  * Workspace schemas — single source of truth for workspace validation.
  *
+ * ## Validation Flow
+ *
+ * ### List Query (server-side)
+ * 1. Route handler reads `request.nextUrl.searchParams`
+ * 2. Parsed via `workspaceListQuerySchema.safeParse(Object.fromEntries(...))`
+ * 3. Lenient transforms (`lenientEnum`, `lenientInt`) coerce invalid values to defaults
+ *    instead of returning 422 — the route falls back to safe defaults.
+ *
+ * ### Form (client-side)
+ * 1. `react-hook-form` with `zodResolver(workspaceCreateSchema)` validates in-browser
+ * 2. Same schema used on server and client ensures consistency.
+ *
  * @module schemas/workspace
  */
 import { z } from 'zod';
+
+import { lenientEnum, lenientInt, SORT_ORDERS } from './lenient-helpers';
+
+// ─── Allowed value arrays ─────────────────────────────────────────────────────
+
+export const WORKSPACE_SORT_FIELDS = ['name', 'createdAt', 'updatedAt'] as const;
+
+// ─── Workspace list query (GET /workspaces) ────────────────────────────────────
+
+export const workspaceListQuerySchema = z.object({
+  page: lenientInt(1),
+  perPage: lenientInt(10, 100),
+  search: z.string().optional(),
+  type: lenientEnum(['personal', 'organization']),
+  sort: lenientEnum(WORKSPACE_SORT_FIELDS),
+  order: lenientEnum(SORT_ORDERS),
+});
 
 // ─── Form schemas (strict) ─────────────────────────────────────────────────────
 
@@ -22,6 +51,7 @@ export const workspaceUpdateSchema = z.object({
 
 // ─── Inferred types ────────────────────────────────────────────────────────────
 
+export type WorkspaceListQuery = z.infer<typeof workspaceListQuerySchema>;
 export type WorkspaceCreateInput = z.infer<typeof workspaceCreateSchema>;
 export type WorkspaceUpdateInput = z.infer<typeof workspaceUpdateSchema>;
 

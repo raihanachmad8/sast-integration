@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 
 import { STALE } from '@/commons/constants/query';
-import type { InvitationListQuery } from '@/commons/schemas/member.schema';
+import type { InvitationListQuery } from '@/commons/schemas/invitation.schema';
 import { useWorkspace } from '@/lib/hooks/useWorkspace';
 
 import { invitationsApi, type Invitation } from './api';
