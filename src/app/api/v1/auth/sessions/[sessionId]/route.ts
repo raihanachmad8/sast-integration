@@ -1,12 +1,10 @@
-import { eq, and } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 
-import { db } from '@/server/db/client';
 import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
 import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
-import { sessions } from '@drizzle/schema/users';
+import { profileService } from '@/server/modules/profile';
 
 type RouteContext = { params: Promise<{ sessionId: string }> };
 
@@ -15,7 +13,7 @@ type RouteContext = { params: Promise<{ sessionId: string }> };
  * Revoke (delete) a specific session.
  */
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
-  logger.auth.info('delete request');
+  logger.profile.info('revokeSession');
 
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
@@ -23,27 +21,16 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
   const { sessionId } = await params;
 
   try {
-    // Only allow users to revoke their own sessions
-    const [session] = await db
-      .select()
-      .from(sessions)
-      .where(and(eq(sessions.id, sessionId), eq(sessions.userId, auth.context.userId)))
-      .limit(1);
-
-    if (!session) {
-      return ApiResponse.error('Session not found', 'NOT_FOUND', undefined, 404);
-    }
-
     // Don't allow revoking the current session
-    const currentSessionId = auth.context.sessionId;
-    if (sessionId === currentSessionId) {
+    if (sessionId === auth.context.sessionId) {
       return ApiResponse.error('Cannot revoke current session', 'VALIDATION_ERROR', undefined, 400);
     }
 
-    await db.delete(sessions).where(eq(sessions.id, sessionId));
-
+    await profileService.revokeSession(auth.context.userId, sessionId);
+    logger.profile.info('revokeSession completed');
     return ApiResponse.success('Session revoked', null);
   } catch (e) {
+    logger.profile.error('revokeSession failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
     return ApiResponse.error('Failed to revoke session', 'INTERNAL_ERROR', undefined, 500);
   }

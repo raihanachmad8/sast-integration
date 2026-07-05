@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 
-import { authenticate } from '@/server/http/authenticate';
+import { authenticate, getUserId } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
 import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
@@ -11,8 +11,13 @@ export async function GET(request: NextRequest) {
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
 
+  const userId = getUserId(auth.context);
+  if (!userId) {
+    return ApiResponse.error('This action requires user authentication', 'FORBIDDEN', undefined, 403);
+  }
+
   try {
-    const user = await profileService.get(auth.context.userId);
+    const user = await profileService.get(userId);
     logger.profile.info('getProfile completed');
     return ApiResponse.success('Profile retrieved', user);
   } catch (e) {

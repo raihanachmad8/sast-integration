@@ -11,16 +11,16 @@ import { profileService } from '@/server/modules/profile';
  * List active sessions for the current user.
  */
 export async function GET(request: NextRequest) {
-  logger.auth.info('sessions');
+  logger.profile.info('listSessions');
   const auth = await authenticate(request);
   if (!auth.success) return auth.response;
 
   try {
     const result = await profileService.getSessions(auth.context.userId);
-    logger.auth.info('sessions completed');
+    logger.profile.info('listSessions completed');
     return ApiResponse.success('Sessions retrieved', result.sessions);
   } catch (e) {
-    logger.auth.error('sessions failed', { error: e instanceof Error ? e.message : e });
+    logger.profile.error('listSessions failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
     return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
   }

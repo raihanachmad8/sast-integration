@@ -1,11 +1,7 @@
-import { hash, compare } from 'bcryptjs';
 import { eq, and } from 'drizzle-orm';
 
-import { db } from '@/server/db/client';
-import { AppError } from '@/server/http/errors';
+import { db, type Tx } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
-import { AUTH } from '@/server/modules/auth/constants';
-import { getStorageDriver } from '@/server/modules/storage/storage.service';
 import { users, sessions } from '@drizzle/schema/users';
 
 export interface UpdateProfileInput {
@@ -16,117 +12,69 @@ export interface UpdateProfileInput {
   language?: string;
 }
 
-export const profileRepository = {
-  /**
-   * Get a user profile by user ID.
-   * @param userId - User UUID
-   * @returns User record or null if not found
-   */
+export interface ProfileView {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  username: string | null;
+  bio: string | null;
+  timezone: string | null;
+  language: string | null;
+  emailVerifiedAt: Date | null;
+  createdAt: Date;
+}
+
+export interface ProfileRepository {
+  get(userId: string): Promise<ProfileView | null>;
+  update(userId: string, data: UpdateProfileInput, tx?: Tx): Promise<ProfileView | null>;
+  setAvatarUrl(userId: string, avatarUrl: string | null, tx?: Tx): Promise<ProfileView | null>;
+  listSessions(userId: string): Promise<{ id: string; userId: string; ipAddress: string | null; userAgent: string | null; lastActivity: Date; createdAt: Date }[]>;
+  deleteSession(userId: string, sessionId: string): Promise<boolean>;
+}
+
+export const profileRepository: ProfileRepository = {
   async get(userId: string) {
-    logger.profile.debug('get called', { userId });
+    logger.profile.info('get', { userId });
     const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    logger.profile.info('get completed', { userId, found: !!user });
     return user ?? null;
   },
 
-  /**
-   * Update a user's profile fields.
-   * @param userId - User UUID
-   * @param data - Profile fields to update (name, username, bio, timezone, language)
-   * @returns Updated user record or null if not found
-   */
-  async update(userId: string, data: UpdateProfileInput) {
-    logger.profile.debug('update called', { userId });
-    try {
-      const [updated] = await db
-        .update(users)
-        .set({
-          ...(data.name !== undefined && { name: data.name }),
-          ...(data.username !== undefined && { username: data.username }),
-          ...(data.bio !== undefined && { bio: data.bio }),
-          ...(data.timezone !== undefined && { timezone: data.timezone }),
-          ...(data.language !== undefined && { language: data.language }),
-          updatedAt: new Date(),
-        })
-        .where(eq(users.id, userId))
-        .returning();
-      return updated ?? null;
-    } catch (error) {
-      logger.profile.error('update failed', { error });
-      throw error;
-    }
+  async update(userId: string, data: UpdateProfileInput, tx?: Tx) {
+    logger.profile.info('update', { userId });
+    const executor = tx ?? db;
+    const [updated] = await executor
+      .update(users)
+      .set({
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.username !== undefined && { username: data.username }),
+        ...(data.bio !== undefined && { bio: data.bio }),
+        ...(data.timezone !== undefined && { timezone: data.timezone }),
+        ...(data.language !== undefined && { language: data.language }),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    logger.profile.info('update completed', { userId });
+    return updated ?? null;
   },
 
-  /**
-   * Upload and set a user's avatar image.
-   * @param userId - User UUID
-   * @param file - Image file to upload (max 5MB, PNG/JPEG/GIF/WebP)
-   * @returns The avatar URL or null on failure
-   * @throws {AppError} 400 - File size exceeds 5MB limit or invalid file type
-   */
-  async uploadAvatar(userId: string, file: File) {
-    logger.profile.debug('uploadAvatar called', { userId });
-    try {
-      // Validate file size (max 5MB)
-      const MAX_SIZE = 5 * 1024 * 1024;
-      if (file.size > MAX_SIZE) {
-        throw new AppError('File size exceeds 5MB limit', 400, 'VALIDATION_ERROR');
-      }
-
-      // Validate MIME type
-      const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        throw new AppError('Invalid file type. Allowed: PNG, JPEG, GIF, WebP', 400, 'VALIDATION_ERROR');
-      }
-
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const ext = file.name.split('.').pop() ?? 'png';
-      const key = `avatars/${userId}.${ext}`;
-
-      const storage = await getStorageDriver();
-      const result = await storage.upload(buffer, key, { contentType: file.type || 'image/png' });
-
-      const [updated] = await db
-        .update(users)
-        .set({ avatarUrl: result.url, updatedAt: new Date() })
-        .where(eq(users.id, userId))
-        .returning();
-
-      return updated?.avatarUrl ?? null;
-    } catch (error) {
-      logger.profile.error('uploadAvatar failed', { error });
-      throw error;
-    }
+  async setAvatarUrl(userId: string, avatarUrl: string | null, tx?: Tx) {
+    logger.profile.info('setAvatarUrl', { userId });
+    const executor = tx ?? db;
+    const [updated] = await executor
+      .update(users)
+      .set({ avatarUrl, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    logger.profile.info('setAvatarUrl completed', { userId });
+    return updated ?? null;
   },
 
-  /**
-   * Remove a user's avatar by setting avatarUrl to null.
-   * @param userId - User UUID
-   * @returns Updated user record or null if not found
-   */
-  async removeAvatar(userId: string) {
-    logger.profile.debug('removeAvatar called', { userId });
-    try {
-      const [updated] = await db
-        .update(users)
-        .set({ avatarUrl: null, updatedAt: new Date() })
-        .where(eq(users.id, userId))
-        .returning();
-
-      return updated ?? null;
-    } catch (error) {
-      logger.profile.error('removeAvatar failed', { error });
-      throw error;
-    }
-  },
-
-  /**
-   * List all sessions for a user.
-   * @param userId - User UUID
-   * @returns Array of session records with id, ipAddress, userAgent, lastActivity, and createdAt
-   */
   async listSessions(userId: string) {
-    logger.profile.debug('listSessions called', { userId });
-    return db
+    logger.profile.info('listSessions', { userId });
+    const rows = await db
       .select({
         id: sessions.id,
         userId: sessions.userId,
@@ -137,52 +85,18 @@ export const profileRepository = {
       })
       .from(sessions)
       .where(eq(sessions.userId, userId));
+    logger.profile.info('listSessions completed', { userId, count: rows.length });
+    return rows;
   },
 
-  /**
-   * Delete a specific session for a user.
-   * @param userId - User UUID (for scoping)
-   * @param sessionId - Session UUID to delete
-   * @returns Deleted session record or null if not found
-   */
   async deleteSession(userId: string, sessionId: string) {
-    logger.profile.debug('deleteSession called', { userId, sessionId });
-    try {
-      const [deleted] = await db
-        .delete(sessions)
-        .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId)))
-        .returning();
-      return deleted ?? null;
-    } catch (error) {
-      logger.profile.error('deleteSession failed', { error });
-      throw error;
-    }
-  },
-
-  /**
-   * Change a user's password after verifying the current password.
-   * @param userId - User UUID
-   * @param currentPassword - Current plaintext password for verification
-   * @param newPassword - New plaintext password to hash and store
-   * @returns true if password was changed, false if current password is invalid or user not found
-   */
-  async changePassword(userId: string, currentPassword: string, newPassword: string) {
-    logger.profile.debug('changePassword called', { userId });
-    try {
-      return db.transaction(async (tx) => {
-        const [user] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
-        if (!user) return false;
-
-        const valid = await compare(currentPassword, user.passwordHash);
-        if (!valid) return false;
-
-        const newHash = await hash(newPassword, AUTH.SALT_ROUNDS);
-        await tx.update(users).set({ passwordHash: newHash, updatedAt: new Date() }).where(eq(users.id, userId));
-        return true;
-      });
-    } catch (error) {
-      logger.profile.error('changePassword failed', { error });
-      throw error;
-    }
+    logger.profile.info('deleteSession', { userId, sessionId });
+    const [deleted] = await db
+      .delete(sessions)
+      .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId)))
+      .returning();
+    const result = !!deleted;
+    logger.profile.info('deleteSession completed', { userId, sessionId, deleted: result });
+    return result;
   },
 };
