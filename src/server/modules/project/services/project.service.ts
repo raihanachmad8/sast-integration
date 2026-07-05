@@ -6,20 +6,64 @@ import { db } from '@/server/db/client';
 import { assertHasPermission } from '@/server/http/authorization';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
+import type { IEntityService, Paginated } from '@/server/modules/shared/contracts';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import type { Project } from '@drizzle/schema/projects';
 
 import { PROJECT } from '../constants';
 import { projectRepository } from '../repositories/project.repository';
+import type { UpdateProjectData } from '../repositories/project.repository';
 
 import { projectApiTokenService } from './project-api-token.service';
 
 
 
+type ProjectWithSummary = Project & {
+  members: ProjectMemberSummary[];
+  teams: ProjectTeamSummary[];
+  repositories: ProjectRepositorySummary[];
+};
+
+type ProjectRepositoryListItem = {
+  id: string;
+  name: string;
+  url: string;
+  branch: string;
+  status: 'active';
+  project: string | null;
+  policyName: null;
+  connectionType: string[];
+  provider: null;
+  findings: number;
+  scans: number;
+  lastScan: string | null;
+};
+
 /**
  * Project service following the established workspace module patterns.
  * Projects are strictly scoped to a workspace.
  */
-export const projectService = {
+interface ProjectService extends IEntityService<Project, CreateProjectInput, UpdateProjectInput, ProjectListQuery> {
+  list(workspaceId: string, userId: string, params?: ProjectListQuery): Promise<Paginated<ProjectWithSummary>>;
+  getById(workspaceId: string, projectId: string, userId: string): Promise<ProjectWithSummary>;
+  listMembers(projectId: string, userId: string): Promise<ProjectMemberSummary[]>;
+  listRepositories(projectId: string, userId: string): Promise<(typeof import('@drizzle/schema/source-controls').repositories.$inferSelect)[]>;
+  listRepositoriesByWorkspace(workspaceId: string, accessibleProjectIds?: string[]): Promise<ProjectRepositoryListItem[]>;
+  attachRepository(
+    projectId: string,
+    data: { name: string; url: string; defaultBranch?: string; connectionType: string[]; sourceControlId?: string },
+    userId: string,
+  ): Promise<typeof import('@drizzle/schema/source-controls').repositories.$inferSelect>;
+  createApiToken(
+    projectId: string,
+    input: { name: string; permissions?: string[]; expiresInDays?: number | null },
+    userId: string,
+  ): Promise<Awaited<ReturnType<typeof projectApiTokenService.create>>>;
+  listApiTokens(projectId: string, userId: string, params?: { page?: number; perPage?: number }): Promise<Awaited<ReturnType<typeof projectApiTokenService.list>>>;
+  revokeApiToken(projectId: string, tokenId: string, userId: string): Promise<Awaited<ReturnType<typeof projectApiTokenService.revoke>>>;
+}
+
+export const projectService: ProjectService = {
   /**
    * List all projects belonging to a workspace.
    *
@@ -150,36 +194,34 @@ export const projectService = {
       logger.project.warn('create called with empty repositoryIds', { workspaceId, name: input.name });
     }
 
-    try {
-      const result = await db.transaction(async (tx) => {
-        const project = await projectRepository.create({
-          workspaceId,
+    const result = await db.transaction(async (tx) => {
+      const project = await projectRepository.create(
+        workspaceId,
+        {
           name: input.name,
           slug: input.slug || generateSlug(input.name, PROJECT.MAX_SLUG_LENGTH),
           description: input.description,
-          createdBy: userId,
-        }, tx);
+          lead: input.lead,
+        },
+        userId,
+        tx,
+      );
 
-        if (input.memberIds?.length) {
-          await projectRepository.setMembers(project.id, input.memberIds, tx);
-        }
-        if (input.teamIds?.length) {
-          await projectRepository.setTeams(project.id, input.teamIds, tx);
-        }
-        if (input.repositoryIds) {
-          await projectRepository.setRepositories(project.id, input.repositoryIds, tx);
-        }
+      if (input.memberIds?.length) {
+        await projectRepository.setMembers(project.id, input.memberIds, tx);
+      }
+      if (input.teamIds?.length) {
+        await projectRepository.setTeams(project.id, input.teamIds, tx);
+      }
+      if (input.repositoryIds) {
+        await projectRepository.setRepositories(project.id, input.repositoryIds, tx);
+      }
 
-        return project;
-      });
+      return project;
+    });
 
-      logger.project.info('create completed', { projectId: result.id });
-      return result;
-    } catch (err) {
-      if (err instanceof AppError) throw err;
-      logger.project.error('create failed', { workspaceId, name: input.name, error: err });
-      throw err;
-    }
+    logger.project.info('create completed', { projectId: result.id });
+    return result;
   },
 
   /**
@@ -216,31 +258,24 @@ export const projectService = {
       }
     }
 
-    try {
-      const updateData: Record<string, unknown> = {
-        name: input.name,
-        slug: input.slug,
-        description: input.description,
-        lead: input.lead,
-        updatedBy: userId,
-      };
+    const updateData: UpdateProjectData = {
+      name: input.name,
+      slug: input.slug,
+      description: input.description,
+      lead: input.lead,
+    };
 
-      const result = await projectRepository.update(projectId, updateData);
+    // Always replace all relation arrays (PUT = full replace) in one transaction
+    const result = await db.transaction(async (tx) => {
+      const project = await projectRepository.update(projectId, updateData, userId, tx);
+      await projectRepository.setMembers(projectId, input.memberIds ?? [], tx);
+      await projectRepository.setTeams(projectId, input.teamIds ?? [], tx);
+      await projectRepository.setRepositories(projectId, input.repositoryIds ?? [], tx);
+      return project;
+    });
 
-      // Always replace all relation arrays (PUT = full replace)
-      await db.transaction(async (tx) => {
-        await projectRepository.setMembers(projectId, input.memberIds ?? [], tx);
-        await projectRepository.setTeams(projectId, input.teamIds ?? [], tx);
-        await projectRepository.setRepositories(projectId, input.repositoryIds ?? [], tx);
-      });
-
-      logger.project.info('update completed', { projectId });
-      return result;
-    } catch (err) {
-      if (err instanceof AppError) throw err;
-      logger.project.error('update failed', { projectId, error: err });
-      throw err;
-    }
+    logger.project.info('update completed', { projectId });
+    return result;
   },
 
   /**
@@ -261,15 +296,9 @@ export const projectService = {
     }
     assertHasPermission(role, PERMISSION.PROJECT_MANAGE, PROJECT.ERROR_CODE);
 
-    try {
-      const result = await projectRepository.softDelete(projectId, userId);
-      logger.project.info('softDelete completed', { projectId });
-      return result;
-    } catch (err) {
-      if (err instanceof AppError) throw err;
-      logger.project.error('softDelete failed', { projectId, error: err });
-      throw err;
-    }
+    const result = await projectRepository.softDelete(projectId, userId);
+    logger.project.info('softDelete completed', { projectId });
+    return result;
   },
 
   /**
@@ -353,15 +382,9 @@ export const projectService = {
       }
     }
 
-    try {
-      const result = await projectRepository.attachRepository(projectId, project.workspaceId, data, userId);
-      logger.project.info('attachRepository completed', { projectId });
-      return result;
-    } catch (err) {
-      if (err instanceof AppError) throw err;
-      logger.project.error('attachRepository failed', { projectId, name: data.name, error: err });
-      throw err;
-    }
+    const result = await projectRepository.attachRepository(projectId, project.workspaceId, data, userId);
+    logger.project.info('attachRepository completed', { projectId });
+    return result;
   },
 
   // ============================================================

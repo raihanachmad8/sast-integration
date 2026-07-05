@@ -32,31 +32,26 @@ export const projectApiTokenRepository = {
     expiresAt?: Date | null;
   }, tx?: Tx): Promise<{ token: ProjectApiToken; rawToken: string }> {
     logger.project.info('create API token', { projectId: data.projectId, name: data.name });
-    try {
-      const executor = tx ?? db;
-      const rawToken = generateRawToken();
-      const tokenSha256Val = sha256(rawToken);
-      const prefix = rawToken.slice(0, 12) + '...';
+    const executor = tx ?? db;
+    const rawToken = generateRawToken();
+    const tokenSha256Val = sha256(rawToken);
+    const prefix = rawToken.slice(0, 12) + '...';
 
-      const [created] = await executor
-        .insert(projectApiTokens)
-        .values({
-          projectId: data.projectId,
-          createdBy: data.createdBy,
-          name: data.name.trim(),
-          tokenSha256: tokenSha256Val,
-          tokenPrefix: prefix,
-          permissions: data.permissions ?? [PERMISSION.SCAN_UPLOAD],
-          expiresAt: data.expiresAt ?? undefined,
-        } as NewProjectApiToken)
-        .returning();
+    const [created] = await executor
+      .insert(projectApiTokens)
+      .values({
+        projectId: data.projectId,
+        createdBy: data.createdBy,
+        name: data.name.trim(),
+        tokenSha256: tokenSha256Val,
+        tokenPrefix: prefix,
+        permissions: data.permissions ?? [PERMISSION.SCAN_UPLOAD],
+        expiresAt: data.expiresAt ?? undefined,
+      } as NewProjectApiToken)
+      .returning();
 
-      logger.project.info('create API token completed', { projectId: data.projectId, tokenId: created.id });
-      return { token: created, rawToken };
-    } catch (error) {
-      logger.project.error('create API token failed', { projectId: data.projectId, name: data.name, error: error instanceof Error ? error.message : error });
-      throw error;
-    }
+    logger.project.info('create API token completed', { projectId: data.projectId, tokenId: created.id });
+    return { token: created, rawToken };
   },
 
   /** Find active token by exact SHA-256 hash (fast O(1) lookup) */
@@ -106,18 +101,13 @@ export const projectApiTokenRepository = {
   /** List active (non-revoked) tokens for a project */
   async listByProject(projectId: string) {
     logger.project.info('listByProject', { projectId });
-    try {
-      const rows = await db
-        .select()
-        .from(projectApiTokens)
-        .where(and(eq(projectApiTokens.projectId, projectId), isNull(projectApiTokens.revokedAt)))
-        .orderBy(projectApiTokens.createdAt);
-      logger.project.info('listByProject completed', { projectId, count: rows.length });
-      return rows;
-    } catch (error) {
-      logger.project.error('listByProject failed', { projectId, error: error instanceof Error ? error.message : error });
-      throw error;
-    }
+    const rows = await db
+      .select()
+      .from(projectApiTokens)
+      .where(and(eq(projectApiTokens.projectId, projectId), isNull(projectApiTokens.revokedAt)))
+      .orderBy(projectApiTokens.createdAt);
+    logger.project.info('listByProject completed', { projectId, count: rows.length });
+    return rows;
   },
 
   /**

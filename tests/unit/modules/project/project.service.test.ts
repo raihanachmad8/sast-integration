@@ -18,7 +18,6 @@ import { createMockProject, createMockWorkspace } from '../../../helpers/factori
 
 const mockProjectRepo = {
   list: vi.fn(),
-  listByWorkspaceFiltered: vi.fn(),
   findById: vi.fn(),
   findBySlug: vi.fn(),
   create: vi.fn(),
