@@ -3,25 +3,27 @@ import type { MemberListQuery } from '@/commons/schemas/member.schema';
 import { db } from '@/server/db/client';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
+import type { Paginated } from '@/server/modules/shared/contracts';
 
 import { MEMBER } from '../constants';
 import { memberRepository } from '../repositories/member.repository';
+import type { MemberRoleUpdateResult, MemberView } from '../repositories/member.repository';
 
-type Role = typeof ROLE[keyof typeof ROLE];
+import {
+  assertCanChangeRole,
+  assertCanRemoveMember,
+  assertNotAssigningOwner,
+  assertNotSelf,
+  assertValidRole,
+} from './member.validators';
 
-const VALID_ROLES: readonly string[] = [ROLE.OWNER, ROLE.MANAGER, ROLE.REVIEWER, ROLE.MEMBER];
-
-/**
- * Assert that the given role is a valid role value.
- * Purpose: Fail fast on invalid input before any DB queries.
- */
-function assertValidRole(role: string): void {
-  if (!VALID_ROLES.includes(role)) {
-    throw new AppError(`Invalid role: ${role}. Must be one of: ${VALID_ROLES.join(', ')}`, 400, MEMBER.ERROR_CODE);
-  }
+interface MemberService {
+  list(workspaceId: string, params?: MemberListQuery): Promise<Paginated<MemberView>>;
+  changeRole(workspaceId: string, targetUserId: string, newRole: string, actorUserId: string): Promise<MemberRoleUpdateResult>;
+  remove(workspaceId: string, targetUserId: string, actorUserId: string): Promise<void>;
 }
 
-export const memberService = {
+export const memberService: MemberService = {
   /**
    * List workspace members with filtering, sorting, and pagination.
    *
@@ -52,13 +54,8 @@ export const memberService = {
   async changeRole(workspaceId: string, targetUserId: string, newRole: string, actorUserId: string) {
     logger.member.info('changeRole', { workspaceId, targetUserId, newRole });
     assertValidRole(newRole);
-
-    if (targetUserId === actorUserId) {
-      throw new AppError(MEMBER.ERRORS.CANNOT_CHANGE_OWN_ROLE, 403, MEMBER.ERROR_CODE);
-    }
-    if (newRole === ROLE.OWNER) {
-      throw new AppError(MEMBER.ERRORS.CANNOT_ASSIGN_OWNER, 403, MEMBER.ERROR_CODE);
-    }
+    assertNotSelf(targetUserId, actorUserId, 'changeRole');
+    assertNotAssigningOwner(newRole);
 
     return db.transaction(async (tx) => {
       const [actorRole, targetRole] = await Promise.all([
@@ -66,24 +63,8 @@ export const memberService = {
         memberRepository.getMemberRole(workspaceId, targetUserId, tx),
       ]);
 
-      if (!actorRole) {
-        throw new AppError(MEMBER.ERRORS.MEMBER_NOT_FOUND, 403, MEMBER.ERROR_CODE);
-      }
-      if (actorRole !== ROLE.OWNER) {
-        if (newRole !== ROLE.REVIEWER && newRole !== ROLE.MEMBER) {
-          throw new AppError(MEMBER.ERRORS.MANAGER_RESTRICTED_ROLE, 403, MEMBER.ERROR_CODE);
-        }
-      }
+      assertCanChangeRole(actorRole, targetRole, newRole);
 
-      if (!targetRole) {
-        throw new AppError(MEMBER.ERRORS.MEMBER_NOT_FOUND, 404, MEMBER.ERROR_CODE);
-      }
-      if (targetRole === ROLE.OWNER) {
-        throw new AppError(MEMBER.ERRORS.CANNOT_CHANGE_OWNER_ROLE, 403, MEMBER.ERROR_CODE);
-      }
-      if (actorRole === ROLE.MANAGER && targetRole === ROLE.MANAGER) {
-        throw new AppError(MEMBER.ERRORS.MANAGER_CANNOT_CHANGE_MANAGER, 403, MEMBER.ERROR_CODE);
-      }
       if (targetRole === newRole) {
         logger.member.warn('changeRole: target already has the requested role', { workspaceId, targetUserId, role: newRole });
       }
@@ -106,9 +87,7 @@ export const memberService = {
    */
   async remove(workspaceId: string, targetUserId: string, actorUserId: string) {
     logger.member.info('remove', { workspaceId, targetUserId });
-    if (targetUserId === actorUserId) {
-      throw new AppError(MEMBER.ERRORS.CANNOT_REMOVE_SELF, 403, MEMBER.ERROR_CODE);
-    }
+    assertNotSelf(targetUserId, actorUserId, 'remove');
 
     return db.transaction(async (tx) => {
       const [actorRole, targetRole] = await Promise.all([
@@ -116,27 +95,17 @@ export const memberService = {
         memberRepository.getMemberRole(workspaceId, targetUserId, tx),
       ]);
 
-      if (!actorRole) {
-        throw new AppError(MEMBER.ERRORS.MEMBER_NOT_FOUND, 403, MEMBER.ERROR_CODE);
-      }
-      if (!targetRole) {
-        throw new AppError(MEMBER.ERRORS.MEMBER_NOT_FOUND, 404, MEMBER.ERROR_CODE);
-      }
-      if (targetRole === ROLE.OWNER) {
-        throw new AppError(MEMBER.ERRORS.CANNOT_REMOVE_OWNER, 403, MEMBER.ERROR_CODE);
-      }
-      if (actorRole === ROLE.MANAGER && targetRole === ROLE.MANAGER) {
-        throw new AppError(MEMBER.ERRORS.MANAGER_CANNOT_REMOVE_MANAGER, 403, MEMBER.ERROR_CODE);
-      }
+      assertCanRemoveMember(actorRole, targetRole);
+
       if (targetRole === ROLE.MANAGER) {
         const membersResult = await memberRepository.list(workspaceId);
-        const managerCount = membersResult.data.filter((m: { role: Role }) => m.role === ROLE.MANAGER).length;
+        const managerCount = membersResult.data.filter((m) => m.role === ROLE.MANAGER).length;
         if (managerCount <= 1) {
-          logger.member.warn('remove: removing last manager from workspace', { workspaceId, targetUserId, managerCount });
+          throw new AppError('Cannot remove the last manager from workspace', 403, MEMBER.ERROR_CODE);
         }
       }
 
-      await memberRepository.remove(workspaceId, targetUserId);
+      await memberRepository.remove(workspaceId, targetUserId, tx);
       logger.member.info('remove completed', { workspaceId, targetUserId });
     });
   },

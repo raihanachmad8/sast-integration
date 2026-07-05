@@ -4,10 +4,29 @@ import type { MemberListQuery } from '@/commons/schemas/member.schema';
 import { db, type Tx } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
 import { buildSearch, buildFilters, buildSort, buildPaginationMeta } from '@/server/lib/query';
+import type { Paginated } from '@/server/modules/shared/contracts';
 import { workspaces, workspaceMembers } from '@drizzle/schema';
 import { users } from '@drizzle/schema/users';
 
-export const memberRepository = {
+export type MemberView = {
+  userId: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  role: string;
+  joinedAt: Date;
+};
+
+export type MemberRoleUpdateResult = { userId: string; role: string } | null;
+
+export interface MemberRepository {
+  getMemberRole(workspaceId: string, userId: string, tx?: Tx): Promise<string | null>;
+  list(workspaceId: string, params?: MemberListQuery, tx?: Tx): Promise<Paginated<MemberView>>;
+  updateMemberRole(workspaceId: string, userId: string, role: string, tx?: Tx): Promise<MemberRoleUpdateResult>;
+  remove(workspaceId: string, userId: string, tx?: Tx): Promise<void>;
+}
+
+export const memberRepository: MemberRepository = {
   /**
    * Get a user's role in a workspace.
    * @param workspaceId - Workspace UUID
@@ -23,8 +42,12 @@ export const memberRepository = {
       .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
       .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId), isNull(workspaces.deletedAt)))
       .limit(1);
-    logger.member.info('getMemberRole completed', { workspaceId, userId, role: member?.role ?? null });
-    return member?.role ?? null;
+    const role = member?.role ?? null;
+    if (!role) {
+      logger.member.warn('getMemberRole: member not found', { workspaceId, userId });
+    }
+    logger.member.info('getMemberRole completed', { workspaceId, userId, role });
+    return role;
   },
 
   /**
@@ -48,7 +71,7 @@ export const memberRepository = {
     ));
 
     // Count total
-    const [{ total }] = await db
+    const [{ total }] = await exec
       .select({ total: count() })
       .from(workspaceMembers)
       .innerJoin(users, eq(users.id, workspaceMembers.userId))
@@ -81,6 +104,7 @@ export const memberRepository = {
       .limit(perPage)
       .offset((page - 1) * perPage);
 
+    logger.member.info('list completed', { workspaceId, count: data.length });
     return { data, ...buildPaginationMeta(total, page, perPage) };
   },
 
@@ -112,9 +136,10 @@ export const memberRepository = {
    * @param workspaceId - Workspace UUID
    * @param userId - User UUID
    */
-  async remove(workspaceId: string, userId: string) {
+  async remove(workspaceId: string, userId: string, tx?: Tx) {
     logger.member.info('remove', { workspaceId, userId });
-    await db
+    const exec = tx ?? db;
+    await exec
       .delete(workspaceMembers)
       .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
     logger.member.info('remove completed', { workspaceId, userId });
