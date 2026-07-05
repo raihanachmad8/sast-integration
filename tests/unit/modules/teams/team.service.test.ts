@@ -489,7 +489,7 @@ describe('generateSlug', () => {
   });
 });
 
-describe('❌ negative', () => {
+describe('negative cases', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   /**
@@ -525,7 +525,7 @@ describe('❌ negative', () => {
   });
 });
 
-describe('🔲 edge cases', () => {
+describe('edge cases', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   /**

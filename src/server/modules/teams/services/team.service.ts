@@ -5,16 +5,26 @@ import { db } from '@/server/db/client';
 import { assertHasPermission } from '@/server/http/authorization';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
+import type { IEntityService, Paginated } from '@/server/modules/shared/contracts';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
+import type { Team, TeamMember } from '@drizzle/schema/teams';
 
 import { TEAM } from '../constants';
 import { teamRepository } from '../repositories/team.repository';
+import type { TeamWithMembers, TeamWithSummary } from '../repositories/team.repository';
 
 /**
  * Team service following the established workspace module patterns.
  * Teams are strictly scoped to a workspace.
  */
-export const teamService = {
+interface TeamService extends IEntityService<Team, CreateTeamInput, UpdateTeamInput, TeamListQuery> {
+  list(workspaceId: string, userId: string, params?: TeamListQuery): Promise<Paginated<TeamWithSummary>>;
+  getById(workspaceId: string, teamId: string, userId: string): Promise<TeamWithMembers>;
+  addMember(workspaceId: string, teamId: string, memberUserId: string, userId: string): Promise<TeamMember>;
+  removeMember(workspaceId: string, teamId: string, memberUserId: string, userId: string): Promise<void>;
+}
+
+export const teamService: TeamService = {
   /**
    * List teams belonging to a workspace with DB-level search, sort, and pagination.
    * Results are enriched with member counts and project associations.
@@ -35,7 +45,7 @@ export const teamService = {
 
     const result = await teamRepository.listPaginatedWithSummaries(workspaceId, params);
     logger.team.info('list completed', { count: result.data.length });
-    return result;
+    return result as Paginated<TeamWithSummary>;
   },
 
   /**
@@ -98,13 +108,16 @@ export const teamService = {
     }
 
     const team = await db.transaction(async (tx) => {
-      const created = await teamRepository.create({
+      const created = await teamRepository.create(
         workspaceId,
-        name: input.name,
-        slug: input.slug || generateSlug(input.name, TEAM.MAX_SLUG_LENGTH),
-        description: input.description,
-        createdBy: userId,
-      }, tx);
+        {
+          name: input.name,
+          slug: input.slug || generateSlug(input.name, TEAM.MAX_SLUG_LENGTH),
+          description: input.description,
+        },
+        userId,
+        tx,
+      );
 
       if (input.memberIds && input.memberIds.length > 0) {
         await assertWorkspaceMemberIds(workspaceId, input.memberIds);
@@ -144,23 +157,32 @@ export const teamService = {
       }
     }
 
-    const updated = await teamRepository.update(teamId, {
-      name: input.name,
-      slug: input.slug,
-      description: input.description,
-      updatedBy: userId,
-    });
-
-    if (input.memberIds !== undefined) {
-      if (input.memberIds.length === 0) {
-        logger.team.warn('update: empty memberIds provided, skipping member assignment', { teamId });
-      }
-      const memberIds = input.memberIds;
+    const memberIds = input.memberIds;
+    if (memberIds !== undefined && memberIds.length > 0) {
       await assertWorkspaceMemberIds(workspaceId, memberIds);
-      await db.transaction(async (tx) => {
-        await teamRepository.setMembers(teamId, dedupeIds(memberIds), tx);
-      });
     }
+
+    const updated = await db.transaction(async (tx) => {
+      const teamRecord = await teamRepository.update(
+        teamId,
+        {
+          name: input.name,
+          slug: input.slug,
+          description: input.description,
+        },
+        userId,
+        tx,
+      );
+
+      if (memberIds !== undefined) {
+        if (memberIds.length === 0) {
+          logger.team.warn('update: empty memberIds provided, clearing team members', { teamId });
+        }
+        await teamRepository.setMembers(teamId, dedupeIds(memberIds), tx);
+      }
+
+      return teamRecord;
+    });
 
     logger.team.info('update completed', { teamId });
     return updated;

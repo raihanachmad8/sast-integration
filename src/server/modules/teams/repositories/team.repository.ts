@@ -1,23 +1,59 @@
 import { eq, and, isNull, inArray, count, sql } from 'drizzle-orm';
 
-import type { TeamListQuery } from '@/commons/schemas';
+import type { TeamFormInput, TeamListQuery, TeamUpdateInput } from '@/commons/schemas';
+import type { Tx } from '@/server/db/client';
 import { db } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
 import { buildSearch, buildSort, buildPaginationMeta } from '@/server/lib/query';
+import type { IRepository, Paginated } from '@/server/modules/shared/contracts';
 import { projectTeams, projects } from '@drizzle/schema/projects';
-import { teams, teamMembers } from '@drizzle/schema/teams';
+import { teams, teamMembers, type Team, type TeamMember } from '@drizzle/schema/teams';
 import { users } from '@drizzle/schema/users';
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type TeamMemberView = {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  joinedAt: Date;
+};
 
-export const teamRepository = {
+export type TeamWithSummary = Team & {
+  memberCount: number;
+  projects: string[];
+  projectIds: string[];
+};
+
+export type TeamWithMembers = Team & {
+  members: TeamMemberView[];
+};
+
+type CreateTeamData = Omit<TeamFormInput, 'memberIds'>;
+type UpdateTeamData = Omit<TeamUpdateInput, 'memberIds'>;
+
+export interface TeamRepository extends IRepository<Team, CreateTeamData, UpdateTeamData, TeamListQuery> {
+  findBySlug(workspaceId: string, slug: string, tx?: Tx): Promise<Team | null>;
+  setMembers(teamId: string, memberIds: string[], tx?: Tx): Promise<TeamMember[]>;
+  getMemberIds(teamId: string): Promise<string[]>;
+  getMemberCount(teamId: string): Promise<number>;
+  getProjectCount(teamId: string): Promise<number>;
+  getProjectNames(teamId: string): Promise<string[]>;
+  listMembers(teamId: string): Promise<TeamMemberView[]>;
+  addMember(teamId: string, userId: string): Promise<TeamMember>;
+  removeMember(teamId: string, userId: string): Promise<void>;
+  listByWorkspaceWithSummaries(workspaceId: string): Promise<TeamWithSummary[]>;
+  listPaginatedWithSummaries(workspaceId: string, params?: TeamListQuery): Promise<Paginated<TeamWithSummary>>;
+}
+
+export const teamRepository: TeamRepository = {
   /**
    * List non-deleted teams in a workspace (unpaginated — used for enrichment).
    */
-  async list(workspaceId: string) {
-    logger.team.info('list', { workspaceId });
+  async listAll(workspaceId: string) {
+    logger.team.info('listAll', { workspaceId });
     const rows = await db.select().from(teams).where(and(eq(teams.workspaceId, workspaceId), isNull(teams.deletedAt)));
-    logger.team.info('list completed', { workspaceId, count: rows.length });
+    logger.team.info('listAll completed', { workspaceId, count: rows.length });
     return rows;
   },
 
@@ -28,8 +64,9 @@ export const teamRepository = {
    * @param params - Query parameters (lenient validation from Zod)
    * @returns Paginated team list with total, page, perPage, lastPage
    */
-  async listPaginated(workspaceId: string, params?: TeamListQuery) {
-    logger.team.info('listByWorkspacePaginated', { workspaceId });
+  async list(workspaceId: string, params?: TeamListQuery, tx?: Tx) {
+    logger.team.info('list', { workspaceId });
+    const exec = tx ?? db;
     const conditions = [eq(teams.workspaceId, workspaceId), isNull(teams.deletedAt)];
 
     // Search (name, description)
@@ -43,7 +80,7 @@ export const teamRepository = {
     }
 
     // Count total
-    const [{ total }] = await db
+    const [{ total }] = await exec
       .select({ total: count() })
       .from(teams)
       .where(and(...conditions));
@@ -59,7 +96,7 @@ export const teamRepository = {
     const page = params?.page ?? 1;
     const perPage = params?.perPage ?? 10;
 
-    const data = await db
+    const data = await exec
       .select()
       .from(teams)
       .where(and(...conditions))
@@ -67,7 +104,7 @@ export const teamRepository = {
       .limit(perPage)
       .offset((page - 1) * perPage);
 
-    logger.team.info('listByWorkspacePaginated completed', { workspaceId, count: data.length, total });
+    logger.team.info('list completed', { workspaceId, count: data.length, total });
     return { data, ...buildPaginationMeta(total, page, perPage) };
   },
 
@@ -78,7 +115,7 @@ export const teamRepository = {
    */
   async listByWorkspaceWithSummaries(workspaceId: string) {
     logger.team.info('listByWorkspaceWithSummaries', { workspaceId });
-    const rows = await this.list(workspaceId);
+    const rows = await this.listAll(workspaceId);
     const teamIds = rows.map((team) => team.id);
 
     if (teamIds.length === 0) {
@@ -162,14 +199,17 @@ export const teamRepository = {
 
   /**
    * Create a new team record.
-   * @param data - Team data (workspaceId, name, slug, optional description, createdBy)
+   * @param workspaceId - Workspace UUID
+   * @param data - Team data (name, slug, optional description)
+   * @param createdBy - User UUID of the creator
    * @param tx - Optional transaction context for atomic operations
    * @returns Created team record
    */
-  async create(data: { workspaceId: string; name: string; slug: string; description?: string; createdBy: string }, tx?: Tx) {
-    logger.team.info('create', { workspaceId: data.workspaceId, name: data.name, slug: data.slug });
+  async create(workspaceId: string, data: CreateTeamData, createdBy: string, tx?: Tx) {
+    const slug = data.slug || data.name.toLowerCase().replace(/\s+/g, '-').slice(0, 100);
+    logger.team.info('create', { workspaceId, name: data.name, slug });
     const executor = tx ?? db;
-    const [team] = await executor.insert(teams).values({ workspaceId: data.workspaceId, name: data.name, slug: data.slug, description: data.description, createdBy: data.createdBy, updatedBy: data.createdBy }).returning();
+    const [team] = await executor.insert(teams).values({ workspaceId, name: data.name, slug, description: data.description, createdBy, updatedBy: createdBy }).returning();
     logger.team.info('create completed', { teamId: team.id, name: data.name });
     return team;
   },
@@ -177,12 +217,15 @@ export const teamRepository = {
   /**
    * Update a team record.
    * @param id - Team UUID
-   * @param data - Fields to update (name, slug, description, updatedBy)
+   * @param data - Fields to update (name, slug, description)
+   * @param updatedBy - User UUID of the updater
+   * @param tx - Optional transaction context for atomic operations
    * @returns Updated team record
    */
-  async update(id: string, data: { name?: string; slug?: string; description?: string; updatedBy: string }) {
+  async update(id: string, data: UpdateTeamData, updatedBy: string, tx?: Tx) {
     logger.team.info('update', { id });
-    const [team] = await db.update(teams).set({ name: data.name, slug: data.slug, description: data.description, updatedBy: data.updatedBy, updatedAt: new Date() }).where(eq(teams.id, id)).returning();
+    const executor = tx ?? db;
+    const [team] = await executor.update(teams).set({ name: data.name, slug: data.slug, description: data.description, updatedBy, updatedAt: new Date() }).where(eq(teams.id, id)).returning();
     logger.team.info('update completed', { id });
     return team;
   },
@@ -193,9 +236,10 @@ export const teamRepository = {
    * @param deletedBy - User UUID of the deleter
    * @returns Updated team record
    */
-  async softDelete(id: string, deletedBy: string) {
+  async softDelete(id: string, deletedBy: string, tx?: Tx) {
     logger.team.info('softDelete', { id, deletedBy });
-    const [team] = await db.update(teams).set({ deletedAt: new Date(), deletedBy }).where(eq(teams.id, id)).returning();
+    const exec = tx ?? db;
+    const [team] = await exec.update(teams).set({ deletedAt: new Date(), deletedBy }).where(eq(teams.id, id)).returning();
     logger.team.info('softDelete completed', { id });
     return team;
   },
@@ -231,14 +275,9 @@ export const teamRepository = {
    */
   async addMember(teamId: string, userId: string) {
     logger.team.info('addMember', { teamId, userId });
-    try {
-      const [member] = await db.insert(teamMembers).values({ teamId, userId }).returning();
-      logger.team.info('addMember completed', { teamId, userId });
-      return member;
-    } catch (error) {
-      logger.team.error('addMember: failed to add member', { teamId, userId, error: error instanceof Error ? error.message : error });
-      throw error;
-    }
+    const [member] = await db.insert(teamMembers).values({ teamId, userId }).returning();
+    logger.team.info('addMember completed', { teamId, userId });
+    return member;
   },
 
   /**
@@ -248,13 +287,8 @@ export const teamRepository = {
    */
   async removeMember(teamId: string, userId: string) {
     logger.team.info('removeMember', { teamId, userId });
-    try {
-      await db.delete(teamMembers).where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)));
-      logger.team.info('removeMember completed', { teamId, userId });
-    } catch (error) {
-      logger.team.error('removeMember: failed to remove member', { teamId, userId, error: error instanceof Error ? error.message : error });
-      throw error;
-    }
+    await db.delete(teamMembers).where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)));
+    logger.team.info('removeMember completed', { teamId, userId });
   },
 
   /**
@@ -267,18 +301,13 @@ export const teamRepository = {
   async setMembers(teamId: string, memberIds: string[], tx?: Tx) {
     logger.team.info('setMembers', { teamId, count: memberIds.length });
     if (memberIds.length === 0) logger.team.warn('setMembers: empty memberIds', { teamId });
-    try {
-      const executor = tx ?? db;
-      await executor.delete(teamMembers).where(eq(teamMembers.teamId, teamId));
-      if (memberIds.length === 0) return [];
-      const rows = memberIds.map((userId) => ({ teamId, userId, role: 'contributor' as const }));
-      const result = await executor.insert(teamMembers).values(rows).returning();
-      logger.team.info('setMembers completed', { teamId, count: result.length });
-      return result;
-    } catch (error) {
-      logger.team.error('setMembers: failed to set members', { teamId, count: memberIds.length, error: error instanceof Error ? error.message : error });
-      throw error;
-    }
+    const executor = tx ?? db;
+    await executor.delete(teamMembers).where(eq(teamMembers.teamId, teamId));
+    if (memberIds.length === 0) return [];
+    const rows = memberIds.map((userId) => ({ teamId, userId, role: 'contributor' as const }));
+    const result = await executor.insert(teamMembers).values(rows).returning();
+    logger.team.info('setMembers completed', { teamId, count: result.length });
+    return result;
   },
 
   /**
@@ -334,7 +363,7 @@ export const teamRepository = {
    */
   async listPaginatedWithSummaries(workspaceId: string, params?: TeamListQuery) {
     logger.team.info('listPaginatedWithSummaries', { workspaceId });
-    const paginated = await this.listPaginated(workspaceId, params);
+    const paginated = await this.list(workspaceId, params);
     if (paginated.data.length === 0) {
       return { data: [], total: paginated.total, page: paginated.page, perPage: paginated.perPage, lastPage: paginated.lastPage };
     }
