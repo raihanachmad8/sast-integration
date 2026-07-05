@@ -17,14 +17,8 @@
  */
 import { z } from 'zod';
 
-import { ROLE } from '@/commons/constants/permissions';
-
 import { lenientEnum, lenientInt, SORT_ORDERS } from './lenient-helpers';
-
-// ─── Allowed value arrays ─────────────────────────────────────────────────────
-
-const assignableRoles = [ROLE.MANAGER, ROLE.REVIEWER, ROLE.MEMBER] as const;
-const allRoles = [ROLE.OWNER, ROLE.MANAGER, ROLE.REVIEWER, ROLE.MEMBER] as const;
+import { assignableRoles, allRoles } from './member.schema';
 
 export const INVITATION_SORT_FIELDS = ['createdAt', 'email', 'role'] as const;
 
