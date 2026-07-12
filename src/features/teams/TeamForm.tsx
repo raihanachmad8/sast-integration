@@ -4,7 +4,7 @@ import { Button, App, Select, Form, Input, Flex, theme } from 'antd';
 import { useRouter } from 'next/navigation';
 
 import { teamFormSchema } from '@/commons/schemas';
-import type { Team } from '@/commons/types';
+import type { TeamWithSummary } from '@/commons/types/team';
 import { errorMessage } from '@/lib/api/errors';
 import { useLazySelect } from '@/lib/hooks/useLazySelect';
 import { useWorkspace } from '@/lib/hooks/useWorkspace';
@@ -17,7 +17,7 @@ const rule = createZodSync(teamFormSchema);
 
 interface TeamFormProps {
   /** The team being edited (null for creating a new team). */
-  team?: Team | null;
+  team?: TeamWithSummary | null;
 }
 
 /**

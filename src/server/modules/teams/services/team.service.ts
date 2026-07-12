@@ -1,30 +1,32 @@
 import { PERMISSION } from '@/commons/constants/permissions';
 import type { TeamFormInput as CreateTeamInput, TeamUpdateInput as UpdateTeamInput, TeamListQuery } from '@/commons/schemas';
+import type { TeamWithSummary } from '@/commons/types/team';
 import { generateSlug } from '@/commons/utils/slug';
 import { db } from '@/server/db/client';
 import { assertHasPermission } from '@/server/http/authorization';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
-import type { IEntityService, Paginated } from '@/server/modules/shared/contracts';
+import { serializeRow } from '@/server/lib/query';
+import type { IEntityService } from '@/server/modules/shared/contracts';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
-import type { Team, TeamMember } from '@drizzle/schema/teams';
+import type { TeamMemberView } from '@/commons/types/team';
+import type { TeamMember } from '@drizzle/schema/teams';
 
 import { TEAM } from '../constants';
 import { teamRepository } from '../repositories/team.repository';
-import type { TeamWithMembers, TeamWithSummary } from '../repositories/team.repository';
 
 /**
  * Team service following the established workspace module patterns.
  * Teams are strictly scoped to a workspace.
  */
-interface TeamService extends IEntityService<Team, CreateTeamInput, UpdateTeamInput, TeamListQuery> {
-  list(workspaceId: string, userId: string, params?: TeamListQuery): Promise<Paginated<TeamWithSummary>>;
-  getById(workspaceId: string, teamId: string, userId: string): Promise<TeamWithMembers>;
+interface ITeamService extends IEntityService<TeamWithSummary, CreateTeamInput, UpdateTeamInput, TeamListQuery> {
+  getById(workspaceId: string, teamId: string, userId: string): Promise<TeamWithSummary>;
   addMember(workspaceId: string, teamId: string, memberUserId: string, userId: string): Promise<TeamMember>;
   removeMember(workspaceId: string, teamId: string, memberUserId: string, userId: string): Promise<void>;
+  softDelete(workspaceId: string, id: string, userId: string): Promise<void>;
 }
 
-export const teamService: TeamService = {
+export const teamService: ITeamService = {
   /**
    * List teams belonging to a workspace with DB-level search, sort, and pagination.
    * Results are enriched with member counts and project associations.
@@ -45,7 +47,7 @@ export const teamService: TeamService = {
 
     const result = await teamRepository.listPaginatedWithSummaries(workspaceId, params);
     logger.team.info('list completed', { count: result.data.length });
-    return result as Paginated<TeamWithSummary>;
+    return result;
   },
 
   /**
@@ -72,11 +74,17 @@ export const teamService: TeamService = {
       throw new AppError(TEAM.ERRORS.NOT_FOUND, 404, TEAM.ERROR_CODE);
     }
 
-    // Include members in detail response
-    const members = await teamRepository.listMembers(teamId);
-
     logger.team.info('getById completed', { teamId });
-    return { ...team, members };
+    const [members, projects] = await Promise.all([
+      teamRepository.listMembers(teamId),
+      teamRepository.getTeamProjects(teamId),
+    ]);
+    const result = {
+      ...serializeRow(team),
+      members,
+      projects,
+    };
+    return result;
   },
 
   /**
@@ -128,7 +136,11 @@ export const teamService: TeamService = {
     });
 
     logger.team.info('create completed', { teamId: team.id });
-    return team;
+    return {
+      ...serializeRow(team),
+      memberCount: input.memberIds?.length ?? 0,
+      projects: [],
+    };
   },
 
   /**
@@ -185,7 +197,11 @@ export const teamService: TeamService = {
     });
 
     logger.team.info('update completed', { teamId });
-    return updated;
+    return {
+      ...serializeRow(updated),
+      memberCount: memberIds?.length ?? (await teamRepository.getMemberCount(teamId)),
+      projects: [],
+    };
   },
 
   /**
@@ -206,9 +222,8 @@ export const teamService: TeamService = {
       throw new AppError(TEAM.ERRORS.NOT_FOUND, 404, TEAM.ERROR_CODE);
     }
 
-    const result = await teamRepository.softDelete(teamId, userId);
+    await teamRepository.softDelete(teamId, userId);
     logger.team.info('softDelete completed', { teamId });
-    return result;
   },
 
   /**

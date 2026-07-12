@@ -1,10 +1,9 @@
 'use client';
 
 import { Modal, Input, Select, Form, Typography, theme } from 'antd';
-import { useEffect } from 'react';
 
 import { teamFormSchema } from '@/commons/schemas/team.schema';
-import type { Team } from '@/commons/types';
+import type { TeamWithSummary } from '@/commons/types/team';
 import { useLazySelect } from '@/lib/hooks/useLazySelect';
 import { useWorkspace } from '@/lib/hooks/useWorkspace';
 import { createZodSync } from '@/lib/utils/zod-sync';
@@ -15,7 +14,7 @@ import type { TeamFormInput } from '@/modules/teams/types';
 
 interface TeamFormModalProps {
   open: boolean;
-  team?: Team | null;
+  team?: TeamWithSummary | null;
   onCancel: () => void;
   onConfirm: (input: TeamFormInput) => void;
   isLoading?: boolean;
@@ -68,23 +67,27 @@ export function TeamFormModal({ open, team, onCancel, onConfirm, isLoading }: Te
   // Use fullTeam (with members) if available, fall back to team prop
   const activeTeam = fullTeam ?? team;
 
-  useEffect(() => {
-    if (!open) return;
-    if (activeTeam) {
-      form.setFieldsValue({ 
-        name: activeTeam.name, 
-        slug: activeTeam.slug, 
-        description: activeTeam.description, 
-        memberIds: activeTeam.members?.map((m) => m.userId) || [] 
-      });
-    } else {
-      form.resetFields();
-    }
-  }, [open, activeTeam, form]);
+  const openChange = (visible: boolean) => {
+    if (!visible) return;
+    // Use microtask to ensure the Form element is connected after Modal renders children
+    queueMicrotask(() => {
+      if (activeTeam) {
+        form.setFieldsValue({ 
+          name: activeTeam.name, 
+          slug: activeTeam.slug, 
+          description: activeTeam.description, 
+          memberIds: activeTeam.members?.map((m) => m.userId) || [] 
+        });
+      } else {
+        form.resetFields();
+      }
+    });
+  };
 
   return (
     <Modal
       open={open}
+      afterOpenChange={openChange}
       destroyOnHidden
       onCancel={onCancel}
       title={team ? 'Edit team' : 'New team'}

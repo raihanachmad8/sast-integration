@@ -4,7 +4,7 @@ import { App, Flex, theme } from 'antd';
 import { useState } from 'react';
 
 import { useConfirm } from '@/commons/components/ConfirmDialog';
-import type { Team } from '@/commons/types';
+import type { TeamWithSummary, TeamDetail } from '@/commons/types/team';
 import { TeamsPageHeader, TeamsTable, TeamFormModal, TeamDetailDrawer } from '@/features/teams';
 import { errorMessage } from '@/lib/api/errors';
 import { useTeamQuery, useCreateTeamMutation, useUpdateTeamMutation, useDeleteTeamMutation } from '@/modules/teams';
@@ -24,13 +24,11 @@ export function TeamsPage() {
   const deleteMutation = useDeleteTeamMutation();
 
   const [formOpen, setFormOpen] = useState(false);
-  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
+  const [editingTeam, setEditingTeam] = useState<TeamWithSummary | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<TeamWithSummary | null>(null);
 
   const membersQuery = useTeamQuery(selectedTeam?.id ?? '');
-  const editingTeamDetail = useTeamQuery(editingTeam?.id ?? '');
-  const teamDetail = editingTeam ? (editingTeamDetail.data ?? editingTeam) : null; // eslint-disable-line @typescript-eslint/no-unused-vars
 
   const handleCreate = (input: TeamFormInput) => {
     createMutation.mutate(input, {
@@ -47,9 +45,9 @@ export function TeamsPage() {
     });
   };
 
-  const handleView = (team: Team) => { setSelectedTeam(team); setDetailOpen(true); };
+  const handleView = (team: TeamWithSummary) => { setSelectedTeam(team); setDetailOpen(true); };
 
-  const handleDelete = (team: Team) => {
+  const handleDelete = (team: TeamWithSummary) => {
     confirm({
       title: 'Delete team?',
       content: `Delete "${team.name}"? This cannot be undone.`,

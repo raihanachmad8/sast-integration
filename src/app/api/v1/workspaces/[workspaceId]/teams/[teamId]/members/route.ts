@@ -5,7 +5,7 @@ import { authenticate } from '@/server/http/authenticate';
 import { AppError } from '@/server/http/errors';
 import { ApiResponse } from '@/server/http/response';
 import { logger } from '@/server/lib/logger';
-import { teamService } from '@/server/modules/teams';
+import { teamRepository } from '@/server/modules/teams/repositories/team.repository';
 import { requirePermission, withWorkspaceId } from '@/server/modules/workspace/workspace.middleware';
 
 /**
@@ -22,9 +22,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!workspace.success) return workspace.response;
 
   try {
-    const team = await teamService.getById(workspaceId, teamId, auth.context.userId);
-    logger.team.info('listTeamMembers completed', { teamId, count: team.members.length });
-    return ApiResponse.success('Team members retrieved', team.members);
+    const members = await teamRepository.listMembers(teamId);
+    logger.team.info('listTeamMembers completed', { teamId, count: members.length });
+    return ApiResponse.success('Team members retrieved', members);
   } catch (e) {
     logger.team.error('listTeamMembers failed', { error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);

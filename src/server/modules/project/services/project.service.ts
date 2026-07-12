@@ -2,13 +2,13 @@ import { PERMISSION } from '@/commons/constants/permissions';
 import type { ProjectFormInput as CreateProjectInput, ProjectUpdateInput as UpdateProjectInput, ProjectListQuery } from '@/commons/schemas';
 import type { CreateApiTokenInput, ApiTokenListQuery } from '@/commons/schemas/api-token.schema';
 import type { AttachRepositoryInput } from '@/commons/schemas/repository.schema';
-import type { ProjectMemberSummary, ProjectTeamSummary, ProjectRepositorySummary } from '@/commons/types';
+import type { ProjectMemberSummary, ProjectTeamSummary, ProjectRepositorySummary, ProjectRepositoryListItem, ProjectWithSummary } from '@/commons/types';
 import { generateSlug } from '@/commons/utils/slug';
 import { db } from '@/server/db/client';
 import { assertHasPermission } from '@/server/http/authorization';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
-import type { IEntityService, Paginated } from '@/server/modules/shared/contracts';
+import type { IEntityService } from '@/server/modules/shared/contracts';
 import { workspaceRepository } from '@/server/modules/workspace/repositories/workspace.repository';
 import type { Project } from '@drizzle/schema/projects';
 import type { Repository } from '@drizzle/schema/source-controls';
@@ -21,34 +21,35 @@ import { projectApiTokenService } from './project-api-token.service';
 
 
 
-type ProjectWithSummary = Project & {
-  members: ProjectMemberSummary[];
-  teams: ProjectTeamSummary[];
-  repositories: ProjectRepositorySummary[];
-};
-
-type ProjectRepositoryListItem = {
-  id: string;
-  name: string;
-  url: string;
-  branch: string;
-  status: 'active';
-  project: string | null;
-  policyName: null;
-  connectionType: string[];
-  provider: null;
-  findings: number;
-  scans: number;
-  lastScan: string | null;
-};
+/**
+ * Map a Drizzle project row into the shared ProjectWithSummary shape.
+ * Purpose: centralize timestamp conversion and enforce non-null createdAt/updatedAt.
+ */
+function toProjectWithSummary(
+  row: Project,
+  summaries: {
+    members: ProjectMemberSummary[];
+    teams: ProjectTeamSummary[];
+    repositories: ProjectRepositorySummary[];
+  },
+): ProjectWithSummary {
+  if (!row.createdAt || !row.updatedAt) {
+    throw new Error('Project row is missing required timestamps');
+  }
+  return {
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+    deletedAt: row.deletedAt?.toISOString() ?? null,
+    ...summaries,
+  };
+}
 
 /**
  * Project service following the established workspace module patterns.
  * Projects are strictly scoped to a workspace.
  */
-interface ProjectService extends IEntityService<Project, CreateProjectInput, UpdateProjectInput, ProjectListQuery> {
-  list(workspaceId: string, userId: string, params?: ProjectListQuery): Promise<Paginated<ProjectWithSummary>>;
-  getById(workspaceId: string, projectId: string, userId: string): Promise<ProjectWithSummary>;
+interface IProjectService extends IEntityService<ProjectWithSummary, CreateProjectInput, UpdateProjectInput, ProjectListQuery> {
   listMembers(workspaceId: string, projectId: string, userId: string): Promise<ProjectMemberSummary[]>;
   listRepositories(workspaceId: string, projectId: string, userId: string): Promise<Repository[]>;
   listRepositoriesByWorkspace(workspaceId: string, accessibleProjectIds?: string[]): Promise<ProjectRepositoryListItem[]>;
@@ -68,7 +69,7 @@ interface ProjectService extends IEntityService<Project, CreateProjectInput, Upd
   revokeApiToken(workspaceId: string, projectId: string, tokenId: string, userId: string): Promise<Awaited<ReturnType<typeof projectApiTokenService.revoke>>>;
 }
 
-export const projectService: ProjectService = {
+export const projectService: IProjectService = {
   /**
    * List all projects belonging to a workspace.
    *
@@ -97,12 +98,13 @@ export const projectService: ProjectService = {
       projectRepository.listRepositorySummariesByProjectIds(projectIds),
     ]);
 
-    const data = rows.map((p) => ({
-      ...p,
-      members: membersMap.get(p.id) ?? [] as ProjectMemberSummary[],
-      teams: teamsMap.get(p.id) ?? [] as ProjectTeamSummary[],
-      repositories: repositoriesMap.get(p.id) ?? [] as ProjectRepositorySummary[],
-    }));
+    const data: ProjectWithSummary[] = rows.map((p) =>
+      toProjectWithSummary(p, {
+        members: membersMap.get(p.id) ?? [],
+        teams: teamsMap.get(p.id) ?? [],
+        repositories: repositoriesMap.get(p.id) ?? [],
+      }),
+    );
 
     logger.project.info('list completed', { count: data.length });
     return { data, total, page, perPage, lastPage };
@@ -136,7 +138,7 @@ export const projectService: ProjectService = {
     ]);
 
     logger.project.info('getById completed', { projectId });
-    return { ...project, members, teams, repositories };
+    return toProjectWithSummary(project, { members, teams, repositories });
   },
 
   /**
@@ -218,7 +220,7 @@ export const projectService: ProjectService = {
     });
 
     logger.project.info('create completed', { projectId: result.id });
-    return result;
+    return toProjectWithSummary(result, { members: [], teams: [], repositories: [] });
   },
 
   /**
@@ -272,7 +274,7 @@ export const projectService: ProjectService = {
     });
 
     logger.project.info('update completed', { projectId });
-    return result;
+    return toProjectWithSummary(result, { members: [], teams: [], repositories: [] });
   },
 
   /**
@@ -293,9 +295,8 @@ export const projectService: ProjectService = {
     }
     assertHasPermission(role, PERMISSION.PROJECT_MANAGE, PROJECT.ERROR_CODE);
 
-    const result = await projectRepository.softDelete(projectId, userId);
+    await projectRepository.softDelete(projectId, userId);
     logger.project.info('softDelete completed', { projectId });
-    return result;
   },
 
   /**

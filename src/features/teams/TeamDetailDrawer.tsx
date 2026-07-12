@@ -8,16 +8,16 @@ import { FaIcon } from '@/commons/components/FaIcon';
 import { PermissionGate } from '@/commons/components/PermissionGate';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { PERMISSION } from '@/commons/constants/permissions';
-import type { Team, TeamMember } from '@/commons/types';
+import type { TeamDetail, TeamMemberView, TeamWithSummary } from '@/commons/types/team';
 import { formatDate } from '@/lib/utils/formatDate';
 import { getInitials } from '@/lib/utils/getInitials';
 
 interface TeamDetailDrawerProps {
   open: boolean;
-  team: Team | null;
-  members: TeamMember[];
+  team: TeamWithSummary | TeamDetail | null;
+  members: TeamMemberView[];
   onClose: () => void;
-  onDelete?: (team: Team) => void;
+  onDelete?: (team: TeamWithSummary | TeamDetail) => void;
 }
 
 /**
@@ -50,7 +50,7 @@ export function TeamDetailDrawer({ open, team, members, onClose, onDelete }: Tea
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
-      render: (name: string, record: TeamMember) => (
+      render: (name: string, record: TeamMemberView) => (
         <Flex align="center" gap={token.paddingSM}>
           <Avatar size={32} style={{ background: token.colorPrimary, flexShrink: 0 }}>
             {getInitials(name, record.email)}
@@ -110,7 +110,7 @@ export function TeamDetailDrawer({ open, team, members, onClose, onDelete }: Tea
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: token.marginMD }}>
           <Card size="small">
-            <Statistic title="Members" value={team.memberCount} />
+            <Statistic title="Members" value={members.length} />
           </Card>
           <Card size="small">
             <Statistic title="Projects" value={(team.projects ?? []).length} />
@@ -150,7 +150,11 @@ export function TeamDetailDrawer({ open, team, members, onClose, onDelete }: Tea
         <Card size="small" title={`Projects (${(team.projects ?? []).length})`}>
           {(team.projects ?? []).length > 0 ? (
             <Flex wrap="wrap" gap={token.paddingXS}>
-              {(team.projects ?? []).map((p) => <StatusPill key={p} variant="teal">{p}</StatusPill>)}
+              {(team.projects ?? []).map((p) => {
+                const id = typeof p === 'string' ? p : p.id;
+                const name = typeof p === 'string' ? p : p.name;
+                return <StatusPill key={id} variant="teal">{name}</StatusPill>;
+              })}
             </Flex>
           ) : (
             <Typography.Text type="secondary" style={{ fontSize: token.fontSize }}>

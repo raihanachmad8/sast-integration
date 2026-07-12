@@ -8,16 +8,16 @@ import { ErrorState } from '@/commons/components/ErrorState';
 import { FaIcon } from '@/commons/components/FaIcon';
 import { StatusPill } from '@/commons/components/StatusPill';
 import { PERMISSION } from '@/commons/constants/permissions';
-import type { Team } from '@/commons/types';
+import type { TeamWithSummary } from '@/commons/types/team';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { useTableParams } from '@/lib/hooks/useTableParams';
 import { useProjectsQuery } from '@/modules/projects/queries';
 import { useTeamsQuery } from '@/modules/teams';
 
 interface TeamsTableProps {
-  onView: (team: Team) => void;
-  onEdit: (team: Team) => void;
-  onDelete: (team: Team) => void;
+  onView: (team: TeamWithSummary) => void;
+  onEdit: (team: TeamWithSummary) => void;
+  onDelete: (team: TeamWithSummary) => void;
 }
 
 const VALID_TEAM_SORT_KEYS = ['name', 'createdAt', 'updatedAt'] as const;
@@ -118,7 +118,7 @@ export function TeamsTable({ onView, onEdit, onDelete }: TeamsTableProps) {
     return [{ key: 'project', label: 'Project', value: params.filters.project }];
   }, [params.filters.project]);
 
-  const columns: DataTableColumn<Team>[] = [
+  const columns: DataTableColumn<TeamWithSummary>[] = [
     {
       key: 'name',
       header: 'Team',
@@ -164,7 +164,7 @@ export function TeamsTable({ onView, onEdit, onDelete }: TeamsTableProps) {
     },
   ];
 
-  const actions: ActionConfig<Team>[] = [
+  const actions: ActionConfig<TeamWithSummary>[] = [
     {
       label: 'View',
       icon: <FaIcon icon="fa-eye" />,

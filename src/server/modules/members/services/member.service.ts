@@ -17,13 +17,13 @@ import {
   assertValidRole,
 } from './member.validators';
 
-interface MemberService {
+interface IMemberService {
   list(workspaceId: string, params?: MemberListQuery): Promise<Paginated<MemberView>>;
   changeRole(workspaceId: string, targetUserId: string, newRole: string, actorUserId: string): Promise<MemberRoleUpdateResult>;
   remove(workspaceId: string, targetUserId: string, actorUserId: string): Promise<void>;
 }
 
-export const memberService: MemberService = {
+export const memberService: IMemberService = {
   /**
    * List workspace members with filtering, sorting, and pagination.
    *

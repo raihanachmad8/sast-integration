@@ -1,11 +1,10 @@
 import { hash, compare } from 'bcryptjs';
 
+import type { ProfileUpdateInput } from '@/commons/schemas/profile.schema';
 import { AppError } from '@/server/http/errors';
 import { logger } from '@/server/lib/logger';
 import { AUTH } from '@/server/modules/auth/constants';
 import { getStorageDriver } from '@/server/modules/storage/storage.service';
-
-import type { ProfileUpdateInput } from '@/commons/schemas/profile.schema';
 
 import { profileRepository } from './profile.repository';
 

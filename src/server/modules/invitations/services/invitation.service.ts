@@ -1,8 +1,8 @@
 import { randomBytes } from 'crypto';
 
-import { ROLE } from '@/commons/constants/permissions';
 import { ROUTES } from '@/commons/constants/routes';
-import type { InvitationListQuery } from '@/commons/schemas/invitation.schema';
+import type { InvitationListQuery, InviteMemberInput } from '@/commons/schemas/invitation.schema';
+import type { InvitationListItem, PendingInvitationWithEmail } from '@/commons/types/invitation';
 import { db } from '@/server/db/client';
 import { env } from '@/server/env';
 import { AppError } from '@/server/http/errors';
@@ -12,15 +12,23 @@ import { MAIL } from '@/server/modules/mail/constants';
 import { sendMail } from '@/server/modules/mail/mail.service';
 import { workspaceInviteTemplate } from '@/server/modules/mail/templates';
 import { memberRepository } from '@/server/modules/members/repositories/member.repository';
+import type { Paginated } from '@/server/modules/shared/contracts';
+import type { WorkspaceInvitation } from '@drizzle/schema/auth';
 
 import { INVITATION } from '../constants';
 import { invitationRepository } from '../repositories/invitation.repository';
 
 import { assertCanManageInvitations } from './invitation.validators';
 
-type Role = typeof ROLE[keyof typeof ROLE];
+interface IInvitationService {
+  list(workspaceId: string, params?: InvitationListQuery): Promise<Paginated<InvitationListItem>>;
+  invite(workspaceId: string, data: InviteMemberInput, actorUserId: string): Promise<WorkspaceInvitation>;
+  revoke(workspaceId: string, invitationId: string, actorUserId: string): Promise<void>;
+  listPending(email: string): Promise<PendingInvitationWithEmail[]>;
+  accept(invitationId: string, userId: string): Promise<{ workspaceId: string; role: string }>;
+}
 
-export const invitationService = {
+export const invitationService: IInvitationService = {
   /**
    * List pending invitations for a workspace.
    * Owner or manager can view.
@@ -38,7 +46,7 @@ export const invitationService = {
    *
    * @returns Created invitation record
    */
-  async invite(workspaceId: string, data: { email: string; role: Role }, actorUserId: string) {
+  async invite(workspaceId: string, data: InviteMemberInput, actorUserId: string) {
     logger.invitation.info('invite', { workspaceId, email: data.email });
 
     const actorRole = await memberRepository.getMemberRole(workspaceId, actorUserId);
@@ -63,17 +71,16 @@ export const invitationService = {
           email: data.email,
           existingInvitationId: existingInvitation.id,
         });
-        await invitationRepository.revoke(existingInvitation.id, tx);
+        await invitationRepository.revoke(workspaceId, existingInvitation.id, tx);
       }
 
-      return invitationRepository.create({
+      return invitationRepository.create(workspaceId, {
         email: data.email,
         role: data.role,
-        workspaceId,
         invitedBy: actorUserId,
         token,
         expiresAt,
-      }, tx);
+      }, actorUserId, tx);
     });
 
     // Send invitation email
@@ -118,8 +125,8 @@ export const invitationService = {
       throw new AppError(INVITATION.ERRORS.INVITATION_NOT_FOUND, 404, INVITATION.ERROR_CODE);
     }
 
-    await invitationRepository.revoke(invitationId);
-    logger.invitation.info('revoke completed', { invitationId });
+    await invitationRepository.revoke(workspaceId, invitationId);
+    logger.invitation.info('revoke completed', { workspaceId, invitationId });
   },
 
   // ─── User-facing operations ────────────────────────────────────────────────
@@ -142,11 +149,5 @@ export const invitationService = {
     }
     logger.invitation.info('accept completed', { invitationId, workspaceId: result.workspaceId });
     return result;
-  },
-
-  async decline(invitationId: string) {
-    logger.invitation.info('decline', { invitationId });
-    await invitationRepository.revoke(invitationId);
-    logger.invitation.info('decline completed', { invitationId });
   },
 };

@@ -5,4 +5,4 @@ export { TeamFormModal } from './TeamFormModal';
 export { TeamDetailDrawer } from './TeamDetailDrawer';
 export { TeamForm } from './TeamForm';
 export type { TeamFormInput } from '@/commons/schemas/team.schema';
-export type { Team, TeamMember } from '@/commons/types';
+export type { TeamWithSummary, TeamDetail, TeamMemberView } from '@/commons/types/team';
