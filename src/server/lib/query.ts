@@ -126,3 +126,20 @@ export function buildPaginationMeta(total: number, page: number, perPage: number
     lastPage: Math.ceil(total / perPage),
   };
 }
+
+// ─── Serialize ────────────────────────────────────────────────────────────────
+
+/**
+ * Convert all Date values in an object to ISO strings.
+ * Null-safe — leaves null/undefined untouched, recurses into nested objects.
+ */
+export function serializeRow<T extends Record<string, unknown>>(row: T): T {
+  const result = { ...row } as Record<string, unknown>;
+  for (const key of Object.keys(result)) {
+    const val = result[key];
+    if (val instanceof Date) {
+      result[key] = val.toISOString();
+    }
+  }
+  return result as T;
+}

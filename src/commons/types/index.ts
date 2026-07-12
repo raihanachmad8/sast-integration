@@ -9,6 +9,7 @@ export * from './webhooks';
 export * from './knowledge';
 export * from './schedules';
 export * from './scanner';
+export * from './project';
 
 export const DATE_LOCALE = 'en-US';
 
