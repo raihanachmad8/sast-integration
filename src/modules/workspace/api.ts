@@ -102,20 +102,4 @@ export const workspaceApi = {
   listPendingInvitations: async () => {
     return _api.Get<ApiResponse<PendingInvitation[]>>(ENDPOINTS.WORKSPACES.PENDING_INVITATIONS);
   },
-
-  /**
-   * Accept a pending invitation.
-   * @param invitationId - The invitation ID to accept.
-   */
-  acceptInvitation: async (invitationId: string) => {
-    return _api.Post<ApiResponse<{ workspaceId: string; role: string }>>(ENDPOINTS.WORKSPACES.ACCEPT_INVITATION(invitationId));
-  },
-
-  /**
-   * Decline (delete) a pending invitation.
-   * @param invitationId - The invitation ID to decline.
-   */
-  declineInvitation: async (invitationId: string) => {
-    return _api.Post<ApiResponse<null>>(ENDPOINTS.WORKSPACES.DECLINE_INVITATION(invitationId));
-  },
 };

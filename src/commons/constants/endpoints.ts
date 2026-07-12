@@ -42,8 +42,6 @@ export const ENDPOINTS = {
     INVITATIONS: (id: string) => `/api/v1/workspaces/${id}/invitations`,
     INVITATION: (id: string, invitationId: string) => `/api/v1/workspaces/${id}/invitations/${invitationId}`,
     PENDING_INVITATIONS: '/api/v1/workspaces/invitations/pending',
-    ACCEPT_INVITATION: (id: string) => `/api/v1/workspaces/invitations/${id}/accept`,
-    DECLINE_INVITATION: (id: string) => `/api/v1/workspaces/invitations/${id}/decline`,
   },
 
   // ── Projects ──────────────────────────────────────────

@@ -18,7 +18,5 @@ export {
   useWorkspaceDetailQuery,
   useUpdateWorkspaceMutation,
   usePendingInvitationsQuery,
-  useAcceptInvitationMutation,
-  useDeclineInvitationMutation,
 } from './queries';
 export type { WorkspaceItem, PendingInvitation } from './types';

@@ -88,50 +88,6 @@ export function usePendingInvitationsQuery() {
 }
 
 /**
- * Mutation hook for accepting a pending invitation.
- */
-export function useAcceptInvitationMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (invitationId: string) =>
-      workspaceApi.acceptInvitation(invitationId).then((res) => res.data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
-    },
-  });
-}
-
-/**
- * Mutation hook for declining a pending invitation.
- */
-export function useDeclineInvitationMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (invitationId: string) =>
-      workspaceApi.declineInvitation(invitationId),
-    onMutate: async (invitationId) => {
-      await queryClient.cancelQueries({ queryKey: workspaceKeys.pendingInvitations() });
-      const previous = queryClient.getQueryData(workspaceKeys.pendingInvitations());
-      queryClient.setQueryData(workspaceKeys.pendingInvitations(), (old: Array<{ id: string }> | undefined) => {
-        if (!old) return old;
-        return old.filter((inv) => inv.id !== invitationId);
-      });
-      return { previous };
-    },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(workspaceKeys.pendingInvitations(), context.previous);
-      }
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.pendingInvitations() });
-    },
-  });
-}
-
-/**
  * Mutation hook for updating workspace settings (name, slug, description).
  * Invalidates both the list and detail queries on success.
  */
