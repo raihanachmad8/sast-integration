@@ -1,29 +1,32 @@
 import { and, eq, gt, isNull, isNotNull, lte, count } from 'drizzle-orm';
 
-import type { InvitationListQuery } from '@/commons/schemas/invitation.schema';
+import type { InvitationListQuery, InviteMemberInput } from '@/commons/schemas/invitation.schema';
+import type { InvitationListItem, PendingInvitationWithEmail } from '@/commons/types/invitation';
 import { db, type Tx } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
 import { buildSearch, buildFilters, buildSort, buildPaginationMeta } from '@/server/lib/query';
-import type { Paginated } from '@/server/modules/shared/contracts';
+import type { IEntityRepository, Paginated } from '@/server/modules/shared/contracts';
 import { workspaceMembers } from '@drizzle/schema';
 import { workspaces } from '@drizzle/schema';
 import { workspaceInvitations } from '@drizzle/schema/auth';
 import type { WorkspaceInvitation } from '@drizzle/schema/auth';
 import { users } from '@drizzle/schema/users';
 
-export interface InvitationRepository {
-  list(workspaceId: string, params?: InvitationListQuery, tx?: Tx): Promise<Paginated<{ id: string; email: string; role: string; invitedBy: string | null; createdAt: Date; expiresAt: Date }>>;
+type InvitationCreateData = InviteMemberInput & { invitedBy: string; token: string; expiresAt: Date };
+
+export interface IInvitationRepository extends Omit<IEntityRepository<WorkspaceInvitation, InviteMemberInput, never, InvitationListQuery>, 'create' | 'findById' | 'list' | 'update' | 'softDelete' | 'listAll'> {
+  list(workspaceId: string, params?: InvitationListQuery, tx?: Tx): Promise<Paginated<InvitationListItem>>;
   find(invitationId: string, tx?: Tx): Promise<WorkspaceInvitation | null>;
   findPending(workspaceId: string, email: string, tx?: Tx): Promise<WorkspaceInvitation | null>;
-  create(data: { email: string; role: string; workspaceId: string; invitedBy: string; token: string; expiresAt: Date }, tx?: Tx): Promise<WorkspaceInvitation>;
-  revoke(invitationId: string, tx?: Tx): Promise<void>;
+  create(workspaceId: string, data: InvitationCreateData, createdBy: string, tx?: Tx): Promise<WorkspaceInvitation>;
+  revoke(workspaceId: string, invitationId: string, tx?: Tx): Promise<void>;
   findWorkspaceById(id: string): Promise<{ id: string; name: string } | null>;
   isEmailWorkspaceMember(workspaceId: string, email: string, tx?: Tx): Promise<boolean>;
-  listPendingInvitationsByEmail(email: string): Promise<{ id: string; email: string; role: string; workspaceId: string; workspaceName: string; workspaceSlug: string; invitedBy: string | null; createdAt: Date; expiresAt: Date }[]>;
+  listPendingInvitationsByEmail(email: string): Promise<PendingInvitationWithEmail[]>;
   acceptInvitation(invitationId: string, userId: string, tx?: Tx): Promise<{ workspaceId: string; role: string } | null>;
 }
 
-export const invitationRepository: InvitationRepository = {
+export const invitationRepository: IInvitationRepository = {
   async list(workspaceId: string, params?: InvitationListQuery, tx?: Tx) {
     const exec = tx ?? db;
     logger.invitation.info('listInvitations', { workspaceId });
@@ -72,7 +75,7 @@ export const invitationRepository: InvitationRepository = {
     const perPage = params?.perPage ?? 10;
     const offset = (page - 1) * perPage;
 
-    const data = await exec
+    const rows = await exec
       .select({
         id: workspaceInvitations.id,
         email: workspaceInvitations.email,
@@ -87,6 +90,13 @@ export const invitationRepository: InvitationRepository = {
       .orderBy(sortExpr)
       .limit(perPage)
       .offset(offset);
+
+    const data: InvitationListItem[] = rows.map((row) => ({
+      ...row,
+      invitedBy: row.invitedBy ?? null,
+      createdAt: row.createdAt.toISOString(),
+      expiresAt: row.expiresAt.toISOString(),
+    }));
 
     logger.invitation.info('listInvitations completed', { workspaceId, count: data.length });
     return { data, ...buildPaginationMeta(total, page, perPage) };
@@ -123,23 +133,16 @@ export const invitationRepository: InvitationRepository = {
     return inv ?? null;
   },
 
-  async create(data: {
-    email: string;
-    role: string;
-    workspaceId: string;
-    invitedBy: string;
-    token: string;
-    expiresAt: Date;
-  }, tx?: Tx) {
+  async create(workspaceId: string, data: InvitationCreateData, createdBy: string, tx?: Tx) {
     const exec = tx ?? db;
-    logger.invitation.info('createInvitation', { workspaceId: data.workspaceId, email: data.email });
+    logger.invitation.info('createInvitation', { workspaceId, email: data.email });
     const [invitation] = await exec
       .insert(workspaceInvitations)
       .values({
         email: data.email,
         role: data.role,
-        workspaceId: data.workspaceId,
-        createdBy: data.invitedBy,
+        workspaceId,
+        createdBy,
         token: data.token,
         expiresAt: data.expiresAt,
       })
@@ -148,22 +151,24 @@ export const invitationRepository: InvitationRepository = {
     return invitation;
   },
 
-  async revoke(invitationId: string, tx?: Tx) {
+  async revoke(workspaceId: string, invitationId: string, tx?: Tx) {
     const exec = tx ?? db;
-    logger.invitation.info('revokeInvitation', { invitationId });
+    logger.invitation.info('revokeInvitation', { workspaceId, invitationId });
     await exec
       .update(workspaceInvitations)
       .set({ expiresAt: new Date() })
       .where(and(
         eq(workspaceInvitations.id, invitationId),
+        eq(workspaceInvitations.workspaceId, workspaceId),
         isNull(workspaceInvitations.acceptedAt),
       ));
-    logger.invitation.info('revokeInvitation completed', { invitationId });
+    logger.invitation.info('revokeInvitation completed', { workspaceId, invitationId });
   },
 
   async findWorkspaceById(id: string) {
     logger.invitation.info('findWorkspaceById', { workspaceId: id });
-    const [ws] = await db.select().from(workspaces).where(and(eq(workspaces.id, id), isNull(workspaces.deletedAt))).limit(1);
+    const executor = db;
+    const [ws] = await executor.select().from(workspaces).where(and(eq(workspaces.id, id), isNull(workspaces.deletedAt))).limit(1);
     if (!ws) {
       logger.invitation.warn('findWorkspaceById: workspace not found', { workspaceId: id });
     }
@@ -191,7 +196,8 @@ export const invitationRepository: InvitationRepository = {
 
   async listPendingInvitationsByEmail(email: string) {
     logger.invitation.info('listPendingInvitationsByEmail', { email });
-    const rows = await db
+    const executor = db;
+    const rows = await executor
       .select({
         id: workspaceInvitations.id,
         email: workspaceInvitations.email,
@@ -213,8 +219,14 @@ export const invitationRepository: InvitationRepository = {
         isNull(workspaces.deletedAt),
         isNull(users.deletedAt),
       ));
-    logger.invitation.info('listPendingInvitationsByEmail completed', { email, count: rows.length });
-    return rows;
+    const data: PendingInvitationWithEmail[] = rows.map((row) => ({
+      ...row,
+      invitedBy: row.invitedBy ?? null,
+      createdAt: row.createdAt.toISOString(),
+      expiresAt: row.expiresAt.toISOString(),
+    }));
+    logger.invitation.info('listPendingInvitationsByEmail completed', { email, count: data.length });
+    return data;
   },
 
   async acceptInvitation(invitationId: string, userId: string, tx?: Tx) {

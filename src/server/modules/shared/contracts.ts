@@ -57,7 +57,7 @@ export interface IEntityRepository<T, CreateInput, UpdateInput, ListQuery = unkn
  *     count(parentId: string, tx?: Tx): Promise<number>;
  *   }
  */
-export interface IJunctionRepository<T> {
+export interface IJunctionRepository<_T> {
   /** Replace all children for a parent (delete all → insert new set). */
   set(parentId: string, childIds: string[], tx?: Tx): Promise<void>;
   /** Get all child IDs for a parent. */

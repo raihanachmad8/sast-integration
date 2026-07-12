@@ -1,44 +1,28 @@
-import { eq, and, isNull, inArray, count, sql } from 'drizzle-orm';
+import { eq, and, isNull, inArray, count, sql, getTableColumns } from 'drizzle-orm';
 
 import type { TeamFormInput, TeamListQuery, TeamUpdateInput } from '@/commons/schemas';
+import type { TeamMemberView, TeamWithSummary } from '@/commons/types/team';
 import type { Tx } from '@/server/db/client';
 import { db } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
-import { buildSearch, buildSort, buildPaginationMeta } from '@/server/lib/query';
-import type { IRepository, Paginated } from '@/server/modules/shared/contracts';
+import { buildSearch, buildSort, buildPaginationMeta, serializeRow } from '@/server/lib/query';
+import type { IEntityRepository, Paginated } from '@/server/modules/shared/contracts';
 import { projectTeams, projects } from '@drizzle/schema/projects';
 import { teams, teamMembers, type Team, type TeamMember } from '@drizzle/schema/teams';
 import { users } from '@drizzle/schema/users';
 
-export type TeamMemberView = {
-  id: string;
-  userId: string;
-  name: string;
-  email: string;
-  avatarUrl: string | null;
-  joinedAt: Date;
-};
-
-export type TeamWithSummary = Team & {
-  memberCount: number;
-  projects: string[];
-  projectIds: string[];
-};
-
-export type TeamWithMembers = Team & {
-  members: TeamMemberView[];
-};
-
 type CreateTeamData = Omit<TeamFormInput, 'memberIds'>;
 type UpdateTeamData = Omit<TeamUpdateInput, 'memberIds'>;
 
-export interface TeamRepository extends IRepository<Team, CreateTeamData, UpdateTeamData, TeamListQuery> {
+export interface ITeamRepository extends Omit<IEntityRepository<Team, CreateTeamData, UpdateTeamData, TeamListQuery>, 'create'> {
+  create(workspaceId: string, data: CreateTeamData, createdBy: string, tx?: Tx): Promise<Team>;
   findBySlug(workspaceId: string, slug: string, tx?: Tx): Promise<Team | null>;
   setMembers(teamId: string, memberIds: string[], tx?: Tx): Promise<TeamMember[]>;
   getMemberIds(teamId: string): Promise<string[]>;
   getMemberCount(teamId: string): Promise<number>;
   getProjectCount(teamId: string): Promise<number>;
   getProjectNames(teamId: string): Promise<string[]>;
+  getTeamProjects(teamId: string): Promise<Array<{ id: string; name: string }>>;
   listMembers(teamId: string): Promise<TeamMemberView[]>;
   addMember(teamId: string, userId: string): Promise<TeamMember>;
   removeMember(teamId: string, userId: string): Promise<void>;
@@ -46,7 +30,7 @@ export interface TeamRepository extends IRepository<Team, CreateTeamData, Update
   listPaginatedWithSummaries(workspaceId: string, params?: TeamListQuery): Promise<Paginated<TeamWithSummary>>;
 }
 
-export const teamRepository: TeamRepository = {
+export const teamRepository: ITeamRepository = {
   /**
    * List non-deleted teams in a workspace (unpaginated — used for enrichment).
    */
@@ -79,12 +63,6 @@ export const teamRepository: TeamRepository = {
       );
     }
 
-    // Count total
-    const [{ total }] = await exec
-      .select({ total: count() })
-      .from(teams)
-      .where(and(...conditions));
-
     // Sort (reusable)
     const sortExpr = buildSort(
       params?.sort, params?.order,
@@ -92,17 +70,23 @@ export const teamRepository: TeamRepository = {
       teams.createdAt,
     );
 
-    // Paginate
+    // Paginate with total count via window function (1 query instead of COUNT + SELECT)
     const page = params?.page ?? 1;
     const perPage = params?.perPage ?? 10;
 
-    const data = await exec
-      .select()
+    const rows = await exec
+      .select({
+        ...getTableColumns(teams),
+        totalCount: sql<number>`count(*) over()`,
+      })
       .from(teams)
       .where(and(...conditions))
       .orderBy(sortExpr)
       .limit(perPage)
       .offset((page - 1) * perPage);
+
+    const total = rows.length > 0 ? Number(rows[0].totalCount) : 0;
+    const data: Team[] = rows.map(({ totalCount: _tc, ...team }) => team);
 
     logger.team.info('list completed', { workspaceId, count: data.length, total });
     return { data, ...buildPaginationMeta(total, page, perPage) };
@@ -145,23 +129,17 @@ export const teamRepository: TeamRepository = {
 
     const memberCountByTeam = new Map(memberCounts.map((row) => [row.teamId, row.memberCount]));
     const projectsByTeam = new Map<string, string[]>();
-    const projectIdsByTeam = new Map<string, string[]>();
     for (const row of projectRows) {
       if (!row.teamId || !row.projectName) continue;
       const current = projectsByTeam.get(row.teamId) ?? [];
       current.push(row.projectName);
       projectsByTeam.set(row.teamId, current);
-      
-      const currentIds = projectIdsByTeam.get(row.teamId) ?? [];
-      currentIds.push(row.projectId);
-      projectIdsByTeam.set(row.teamId, currentIds);
     }
 
-    const result = rows.map((team) => ({
-      ...team,
+    const result: TeamWithSummary[] = rows.map((team) => ({
+      ...serializeRow(team),
       memberCount: memberCountByTeam.get(team.id) ?? 0,
       projects: projectsByTeam.get(team.id) ?? [],
-      projectIds: projectIdsByTeam.get(team.id) ?? [],
     }));
 
     logger.team.info('listByWorkspaceWithSummaries completed', { workspaceId, count: result.length });
@@ -239,9 +217,8 @@ export const teamRepository: TeamRepository = {
   async softDelete(id: string, deletedBy: string, tx?: Tx) {
     logger.team.info('softDelete', { id, deletedBy });
     const exec = tx ?? db;
-    const [team] = await exec.update(teams).set({ deletedAt: new Date(), deletedBy }).where(eq(teams.id, id)).returning();
+    await exec.update(teams).set({ deletedAt: new Date(), deletedBy }).where(eq(teams.id, id));
     logger.team.info('softDelete completed', { id });
-    return team;
   },
 
   /**
@@ -251,7 +228,8 @@ export const teamRepository: TeamRepository = {
    */
   async listMembers(teamId: string) {
     logger.team.info('listMembers', { teamId });
-    const rows = await db
+    const executor = db;
+    const rows = await executor
       .select({
         id: teamMembers.id,
         userId: teamMembers.userId,
@@ -263,8 +241,9 @@ export const teamRepository: TeamRepository = {
       .from(teamMembers)
       .innerJoin(users, eq(teamMembers.userId, users.id))
       .where(and(eq(teamMembers.teamId, teamId), isNull(users.deletedAt)));
-    logger.team.info('listMembers completed', { teamId, count: rows.length });
-    return rows;
+    const data: TeamMemberView[] = rows.map((row) => serializeRow(row));
+    logger.team.info('listMembers completed', { teamId, count: data.length });
+    return data;
   },
 
   /**
@@ -358,6 +337,25 @@ export const teamRepository: TeamRepository = {
   },
 
   /**
+   * Get project IDs and names associated with a single team.
+   * @param teamId - Team UUID
+   * @returns Object with projectIds and projectNames arrays
+   */
+  async getTeamProjects(teamId: string) {
+    logger.team.info('getTeamProjects', { teamId });
+    const rows = await db
+      .select({
+        id: projectTeams.projectId,
+        name: projects.name,
+      })
+      .from(projectTeams)
+      .innerJoin(projects, eq(projectTeams.projectId, projects.id))
+      .where(and(eq(projectTeams.teamId, teamId), isNull(projects.deletedAt)));
+    logger.team.info('getTeamProjects completed', { teamId, count: rows.length });
+    return rows;
+  },
+
+  /**
    * List teams with pagination + enrichment (member counts, projects).
    * Combines listPaginated with summary data.
    */
@@ -382,22 +380,17 @@ export const teamRepository: TeamRepository = {
 
     const memberCountByTeam = new Map(memberCounts.map((r) => [r.teamId, r.memberCount]));
     const projectsByTeam = new Map<string, string[]>();
-    const projectIdsByTeam = new Map<string, string[]>();
     for (const row of projectRows) {
       if (!row.teamId || !row.projectName) continue;
       const names = projectsByTeam.get(row.teamId) ?? [];
       names.push(row.projectName);
       projectsByTeam.set(row.teamId, names);
-      const ids = projectIdsByTeam.get(row.teamId) ?? [];
-      ids.push(row.projectId);
-      projectIdsByTeam.set(row.teamId, ids);
     }
 
-    const data = paginated.data.map((team) => ({
-      ...team,
+    const data: TeamWithSummary[] = paginated.data.map((team) => ({
+      ...serializeRow(team),
       memberCount: memberCountByTeam.get(team.id) ?? 0,
       projects: projectsByTeam.get(team.id) ?? [],
-      projectIds: projectIdsByTeam.get(team.id) ?? [],
     }));
 
     logger.team.info('listPaginatedWithSummaries completed', { workspaceId, count: data.length });

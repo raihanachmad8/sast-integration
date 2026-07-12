@@ -95,39 +95,6 @@ export interface ScannerEvidence {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Team
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/** Team — used by teams, projects */
-export interface Team {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  memberCount?: number;
-  projects?: string[];
-  projectIds?: string[];
-  members?: TeamMember[];
-  createdAt: string;
-  workspaceId?: string;
-  createdBy?: string;
-  updatedAt?: string;
-  updatedBy?: string;
-  deletedAt?: string | null;
-  deletedBy?: string | null;
-}
-
-/** Team member — used by teams, projects (member picker) */
-export interface TeamMember {
-  id: string;
-  userId: string;
-  name: string;
-  email: string;
-  avatarUrl?: string;
-  joinedAt: string;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // Repository
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -146,42 +113,6 @@ export interface Repository {
   findings: number;
   scans: number;
   lastScan: string | null;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Project
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/** Summary object for a project member. */
-export interface ProjectMemberSummary {
-  id: string;
-  name: string;
-  email?: string;
-}
-
-/** Summary object for a project team. */
-export interface ProjectTeamSummary {
-  id: string;
-  name: string;
-}
-
-/** Summary object for a project repository. */
-export interface ProjectRepositorySummary {
-  id: string;
-  name: string;
-}
-
-/** Project — used by projects, repositories */
-export interface Project {
-  id: string;
-  name: string;
-  description: string;
-  lead: string;
-  repositories: ProjectRepositorySummary[];
-  teams: ProjectTeamSummary[];
-  members: ProjectMemberSummary[];
-  /** ISO 8601 timestamp of when the project was created. */
-  createdAt?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

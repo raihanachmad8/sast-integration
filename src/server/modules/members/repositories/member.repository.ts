@@ -5,18 +5,17 @@ import type { MemberView, MemberRoleUpdateResult } from '@/commons/types/member'
 import { db, type Tx } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
 import { buildSearch, buildFilters, buildSort, buildPaginationMeta } from '@/server/lib/query';
-import type { Paginated } from '@/server/modules/shared/contracts';
+import type { IEntityRepository } from '@/server/modules/shared/contracts';
 import { workspaces, workspaceMembers } from '@drizzle/schema';
 import { users } from '@drizzle/schema/users';
 
-export interface MemberRepository {
+export interface IMemberRepository extends Omit<IEntityRepository<MemberView, never, never, MemberListQuery>, 'findById' | 'create' | 'update' | 'softDelete' | 'listAll'> {
   getMemberRole(workspaceId: string, userId: string, tx?: Tx): Promise<string | null>;
-  list(workspaceId: string, params?: MemberListQuery, tx?: Tx): Promise<Paginated<MemberView>>;
   updateMemberRole(workspaceId: string, userId: string, role: string, tx?: Tx): Promise<MemberRoleUpdateResult>;
   remove(workspaceId: string, userId: string, tx?: Tx): Promise<void>;
 }
 
-export const memberRepository: MemberRepository = {
+export const memberRepository: IMemberRepository = {
   /**
    * Get a user's role in a workspace.
    * @param workspaceId - Workspace UUID

@@ -1,10 +1,11 @@
 import { eq, and, or, isNull, inArray, sql, asc, desc, count } from 'drizzle-orm';
 
-import type { ProjectListQuery } from '@/commons/schemas/project.schema';
-import type { ProjectMemberSummary, ProjectTeamSummary, ProjectRepositorySummary } from '@/commons/types/domain';
+import type { ProjectFormInput, ProjectListQuery } from '@/commons/schemas/project.schema';
+import type { ProjectMemberSummary, ProjectTeamSummary, ProjectRepositorySummary } from '@/commons/types';
 import { db, type Tx } from '@/server/db/client';
 import { logger } from '@/server/lib/logger';
 import { buildSearch, buildSort, buildPaginationMeta } from '@/server/lib/query';
+import type { IEntityRepository, Paginated } from '@/server/modules/shared/contracts';
 import { projects, projectMembers, projectTeams, type Project } from '@drizzle/schema/projects';
 import { repositories, type Repository } from '@drizzle/schema/source-controls';
 import { sourceControlImports, sourceControls } from '@drizzle/schema/source-controls';
@@ -18,16 +19,12 @@ export type UpdateProjectData = {
   lead?: string;
 };
 
-export interface IProjectRepository {
-  listAll(workspaceId: string): Promise<Project[]>;
-  list(workspaceId: string, params?: ProjectListQuery): Promise<{ data: Project[]; total: number; page: number; perPage: number; lastPage: number }>;
-  findById(id: string): Promise<Project | null>;
+export interface IProjectRepository extends Omit<IEntityRepository<Project, ProjectFormInput, UpdateProjectData, ProjectListQuery>, 'create' | 'softDelete'> {
+  create(data: { workspaceId: string; name: string; slug: string; description?: string; createdBy: string }, tx?: Tx): Promise<Project>;
+  softDelete(id: string, deletedBy: string): Promise<Project>;
+  findBySlug(workspaceId: string, slug: string, tx?: Tx): Promise<Project | null>;
   findRepositoryByIdAndWorkspace(repositoryId: string, workspaceId: string): Promise<{ repository: Repository; project: Project | null } | null>;
   getWorkspaceIdByRepositoryId(repositoryId: string): Promise<string | null>;
-  findBySlug(workspaceId: string, slug: string, tx?: Tx): Promise<Project | null>;
-  create(data: { workspaceId: string; name: string; slug: string; description?: string; createdBy: string }, tx?: Tx): Promise<Project>;
-  update(id: string, data: Record<string, unknown>, updatedBy?: string, tx?: Tx): Promise<Project>;
-  softDelete(id: string, deletedBy: string): Promise<Project>;
   listRepositories(projectId: string): Promise<Repository[]>;
   listRepositoriesByWorkspace(
     workspaceId: string,
@@ -52,9 +49,10 @@ export interface IProjectRepository {
 
 export const projectRepository: IProjectRepository = {
   /** List all projects for a workspace (with soft delete filter) */
-  async listAll(workspaceId: string) {
+  async listAll(workspaceId: string, tx?: Tx) {
     logger.project.info('listByWorkspace', { workspaceId });
-    const rows = await db
+    const exec = tx ?? db;
+    const rows = await exec
       .select()
       .from(projects)
       .where(and(eq(projects.workspaceId, workspaceId), isNull(projects.deletedAt)));
@@ -67,8 +65,9 @@ export const projectRepository: IProjectRepository = {
    * Uses shared query helpers for search and pagination meta.
    * Subquery-based sorts (repositories/teams/members count) handled inline.
    */
-  async list(workspaceId: string, params?: ProjectListQuery) {
+  async list(workspaceId: string, params?: ProjectListQuery, tx?: Tx): Promise<Paginated<Project>> {
     logger.project.info('list', { workspaceId });
+    const exec = tx ?? db;
     const conditions = [
       eq(projects.workspaceId, workspaceId),
       isNull(projects.deletedAt),
@@ -99,7 +98,7 @@ export const projectRepository: IProjectRepository = {
     }
 
     // Count total
-    const [{ count: total }] = await db
+    const [{ count: total }] = await exec
       .select({ count: count() })
       .from(projects)
       .where(and(...conditions));
@@ -131,7 +130,7 @@ export const projectRepository: IProjectRepository = {
     const page = params?.page ?? 1;
     const perPage = params?.perPage ?? 10;
 
-    const data = await db
+    const data = await exec
       .select()
       .from(projects)
       .where(and(...conditions))
@@ -144,9 +143,10 @@ export const projectRepository: IProjectRepository = {
   },
 
   /** Find project by ID */
-  async findById(id: string) {
+  async findById(id: string, tx?: Tx) {
     logger.project.info('findById', { id });
-    const [project] = await db
+    const exec = tx ?? db;
+    const [project] = await exec
       .select()
       .from(projects)
       .where(and(eq(projects.id, id), isNull(projects.deletedAt)))
@@ -239,7 +239,7 @@ export const projectRepository: IProjectRepository = {
   },
 
   /** Update project */
-  async update(id: string, data: Record<string, unknown>, updatedBy?: string, tx?: Tx) {
+  async update(id: string, data: UpdateProjectData, updatedBy: string, tx?: Tx) {
     logger.project.info('update', { id });
     const executor = tx ?? db;
     const [project] = await executor
