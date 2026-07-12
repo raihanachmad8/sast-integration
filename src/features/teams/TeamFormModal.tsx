@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { Modal, Input, Select, Form, Typography, theme } from 'antd';
 
 import { teamFormSchema } from '@/commons/schemas/team.schema';
@@ -64,25 +65,33 @@ export function TeamFormModal({ open, team, onCancel, onConfirm, isLoading }: Te
     form.setFieldsValue({ slug: slugify(v) });
   };
 
-  // Use fullTeam (with members) if available, fall back to team prop
-  const activeTeam = fullTeam ?? team;
+  const populateForm = (source: { name: string; slug: string; description?: string | null; members?: Array<{ userId: string }> } | null | undefined) => {
+    if (source) {
+      form.setFieldsValue({
+        name: source.name,
+        slug: source.slug,
+        description: source.description ?? '',
+        memberIds: source.members?.map((m) => m.userId) ?? [],
+      });
+    } else {
+      form.resetFields();
+    }
+  };
 
   const openChange = (visible: boolean) => {
     if (!visible) return;
-    // Use microtask to ensure the Form element is connected after Modal renders children
-    queueMicrotask(() => {
-      if (activeTeam) {
-        form.setFieldsValue({ 
-          name: activeTeam.name, 
-          slug: activeTeam.slug, 
-          description: activeTeam.description, 
-          memberIds: activeTeam.members?.map((m) => m.userId) || [] 
-        });
-      } else {
-        form.resetFields();
-      }
-    });
+    // Microtask ensures Form is connected after Modal renders children.
+    // Initial population uses the team prop (no members yet).
+    queueMicrotask(() => populateForm(team));
   };
+
+  // Re-populate when async fullTeam data arrives (includes members)
+  useEffect(() => {
+    if (!open) return;
+    if (fullTeam) {
+      populateForm(fullTeam);
+    }
+  }, [open, fullTeam]);
 
   return (
     <Modal
