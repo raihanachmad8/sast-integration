@@ -112,6 +112,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
     await sourceControlService.delete(workspaceId, providerId, userId);
     return ApiResponse.noContent();
   } catch (e) {
+    logger.sourceControl.error('delete failed', { providerId, error: e instanceof Error ? e.message : e });
     if (e instanceof AppError) return ApiResponse.error(e.message, e.code, undefined, e.statusCode);
     return ApiResponse.error('Internal server error', 'INTERNAL_ERROR', undefined, 500);
   }

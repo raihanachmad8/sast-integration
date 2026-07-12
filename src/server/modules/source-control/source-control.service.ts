@@ -158,15 +158,9 @@ export const sourceControlService = {
     const { sourceControlImportService } = await import('./source-control-import.service');
     await sourceControlImportService.uninstallByConnectionId(userId, id);
 
-    // Delete source_control_repositories and source_controls record in a transaction.
-    // Hard-delete source_control_imports first — their FK (ON DELETE NO ACTION)
-    // blocks the cascade from source_controls → source_control_repositories.
-    const { sourceControlRepositoryService } = await import('./source-control-repository.service');
-    await db.transaction(async (tx) => {
-      await tx.delete(sourceControlImports).where(eq(sourceControlImports.sourceControlId, id));
-      await sourceControlRepositoryService.deleteByConnectionId(id);
-      await sourceControlRepository.delete(id, tx);
-    });
+    // Hard-delete source_controls record — FK cascades handle
+    // source_control_imports and source_control_repositories cleanup.
+    await sourceControlRepository.delete(id);
 
     logger.sourceControl.info('delete completed', { id });
     return existing;

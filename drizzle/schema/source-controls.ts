@@ -45,7 +45,7 @@ export const sourceControlRepositories = pgTable('source_control_repositories', 
 export const sourceControlImports = pgTable('source_control_imports', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id),
-  sourceControlId: uuid('source_control_id').notNull().references(() => sourceControls.id),
+  sourceControlId: uuid('source_control_id').notNull().references(() => sourceControls.id, { onDelete: 'cascade' }),
   sourceControlRepositoryId: uuid('source_control_repository_id').notNull(),
   repositoryId: uuid('repository_id').references(() => repositories.id),
   webhookExternalId: varchar('webhook_external_id', { length: 255 }),
@@ -61,7 +61,7 @@ export const sourceControlImports = pgTable('source_control_imports', {
     columns: [t.sourceControlRepositoryId],
     foreignColumns: [sourceControlRepositories.id],
     name: 'sci_srcr_fk',
-  }),
+  }).onDelete('cascade'),
 ]);
 
 export const repositories = pgTable('repositories', {

@@ -160,13 +160,11 @@ export const sourceControlImportService = {
 
     const imports = await sourceControlImportRepository.findActiveImportsByConnectionId(connectionId);
 
-    for (const imp of imports) {
-      try {
-        await this.uninstall(userId, imp.id);
-      } catch (e) {
+    await Promise.allSettled(
+      imports.map((imp) => this.uninstall(userId, imp.id).catch((e) => {
         logger.sourceControl.error('uninstallByConnectionId — failed for import', { importId: imp.id, error: e instanceof Error ? e.message : e });
-      }
-    }
+      })),
+    );
 
     logger.sourceControl.info('uninstallByConnectionId completed', { connectionId, count: imports.length });
   },
