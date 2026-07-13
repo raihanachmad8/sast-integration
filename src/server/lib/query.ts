@@ -133,7 +133,7 @@ export function buildPaginationMeta(total: number, page: number, perPage: number
  * Convert all Date values in an object to ISO strings.
  * Null-safe — leaves null/undefined untouched, recurses into nested objects.
  */
-export function serializeRow<T extends Record<string, unknown>>(row: T): T {
+export function serializeRow<T extends Record<string, unknown>>(row: T): { [K in keyof T]: [T[K]] extends [Date] ? string : [T[K]] extends [Date | null] ? string | null : T[K] } {
   const result = { ...row } as Record<string, unknown>;
   for (const key of Object.keys(result)) {
     const val = result[key];
@@ -141,5 +141,5 @@ export function serializeRow<T extends Record<string, unknown>>(row: T): T {
       result[key] = val.toISOString();
     }
   }
-  return result as T;
+  return result as any;
 }

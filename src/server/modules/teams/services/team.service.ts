@@ -1,6 +1,6 @@
 import { PERMISSION } from '@/commons/constants/permissions';
 import type { TeamFormInput as CreateTeamInput, TeamUpdateInput as UpdateTeamInput, TeamListQuery } from '@/commons/schemas';
-import type { TeamWithSummary } from '@/commons/types/team';
+import type { TeamWithSummary, TeamDetail } from '@/commons/types/team';
 import { generateSlug } from '@/commons/utils/slug';
 import { db } from '@/server/db/client';
 import { assertHasPermission } from '@/server/http/authorization';
@@ -20,7 +20,6 @@ import { teamRepository } from '../repositories/team.repository';
  * Teams are strictly scoped to a workspace.
  */
 interface ITeamService extends IEntityService<TeamWithSummary, CreateTeamInput, UpdateTeamInput, TeamListQuery> {
-  getById(workspaceId: string, teamId: string, userId: string): Promise<TeamWithSummary>;
   addMember(workspaceId: string, teamId: string, memberUserId: string, userId: string): Promise<TeamMember>;
   removeMember(workspaceId: string, teamId: string, memberUserId: string, userId: string): Promise<void>;
   softDelete(workspaceId: string, id: string, userId: string): Promise<void>;
@@ -60,7 +59,7 @@ export const teamService: ITeamService = {
    * @throws {AppError} 403 - User is not a member of the workspace
    * @throws {AppError} 404 - Team not found or not in this workspace
    */
-  async getById(workspaceId: string, teamId: string, userId: string) {
+  async getById(workspaceId: string, teamId: string, userId: string): Promise<TeamWithSummary> {
     logger.team.info('getById', { workspaceId, teamId });
     const role = await workspaceRepository.getMemberRole(workspaceId, userId);
     if (!role) {
@@ -81,10 +80,12 @@ export const teamService: ITeamService = {
     ]);
     const result = {
       ...serializeRow(team),
+      memberCount: members.length,
+      projects: projects.map((p) => p.name),
       members,
-      projects,
+      teamProjects: projects,
     };
-    return result;
+    return result as any;
   },
 
   /**
@@ -98,7 +99,7 @@ export const teamService: ITeamService = {
    * @throws {AppError} 409 - Slug already exists in this workspace
    * @throws {AppError} 400 - Team members must belong to this workspace
    */
-  async create(workspaceId: string, input: CreateTeamInput, userId: string) {
+  async create(workspaceId: string, input: CreateTeamInput, userId: string): Promise<TeamWithSummary> {
     logger.team.info('create', { workspaceId, name: input.name });
     const actorRole = await workspaceRepository.getMemberRole(workspaceId, userId);
     assertHasPermission(actorRole, PERMISSION.TEAM_MANAGE, TEAM.ERROR_CODE);
@@ -146,7 +147,7 @@ export const teamService: ITeamService = {
   /**
    * Update team metadata.
    */
-  async update(workspaceId: string, teamId: string, input: UpdateTeamInput, userId: string) {
+  async update(workspaceId: string, teamId: string, input: UpdateTeamInput, userId: string): Promise<TeamWithSummary> {
     logger.team.info('update', { workspaceId, teamId });
     const role = await workspaceRepository.getMemberRole(workspaceId, userId);
     if (!role) {
