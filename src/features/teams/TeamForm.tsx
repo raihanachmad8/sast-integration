@@ -53,7 +53,7 @@ export function TeamForm({ team }: TeamFormProps) {
         name: team.name,
         slug: team.slug,
         description: team.description,
-        memberIds: team.members?.map((m) => m.userId) ?? [],
+        memberIds: [],
       }
     : { name: '', slug: '', description: '', memberIds: [] };
 

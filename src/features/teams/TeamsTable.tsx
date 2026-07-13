@@ -145,9 +145,9 @@ export function TeamsTable({ onView, onEdit, onDelete }: TeamsTableProps) {
     {
       key: 'members',
       header: 'Members',
-      render: (team) => <Typography.Text>{team.memberCount ?? team.members?.length ?? 0}</Typography.Text>,
+      render: (team) => <Typography.Text>{team.memberCount}</Typography.Text>,
       sortable: true,
-      sortValue: (t) => t.memberCount ?? t.members?.length ?? 0,
+      sortValue: (t) => t.memberCount,
       hideOnMobile: true,
     },
     {
