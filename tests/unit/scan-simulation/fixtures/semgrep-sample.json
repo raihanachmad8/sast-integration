@@ -1,0 +1,34 @@
+{
+  "results": [
+    {
+      "check_id": "python.lang.security.audit.insecure-deserialization",
+      "path": "app/utils.py",
+      "start": { "line": 42 },
+      "extra": {
+        "message": "Untrusted data is deserialized. This could lead to remote code execution.",
+        "severity": "HIGH",
+        "metadata": { "cwe": "CWE-502" }
+      }
+    },
+    {
+      "check_id": "python.django.security.audit.sql-injection",
+      "path": "app/views.py",
+      "start": { "line": 15 },
+      "extra": {
+        "message": "User input is directly used in SQL query without parameterization.",
+        "severity": "ERROR",
+        "metadata": { "cwe": "CWE-89" }
+      }
+    },
+    {
+      "check_id": "javascript.express.security.audit.xss.mustache-escape",
+      "path": "src/templates/user.ejs",
+      "start": { "line": 8 },
+      "extra": {
+        "message": "Unescaped user input in template may lead to XSS.",
+        "severity": "WARNING",
+        "metadata": { "cwe": "CWE-79" }
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<results>
+  <error id="nullPointer" severity="error" msg="Possible null pointer dereference: ptr" cwe="476">
+    <location file="src/main.c" line="123"/>
+  </error>
+  <error id="unusedVariable" severity="style" msg="Variable 'unused' is assigned a value but is never used." cwe="1164">
+    <location file="src/utils.c" line="45"/>
+  </error>
+</results>

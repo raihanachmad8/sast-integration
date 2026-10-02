@@ -1,0 +1,3 @@
+./src/buffer.c:42:  [3] (buffer) strcpy: Does not check for buffer overflows when copying to destination [CWE-120]
+./src/buffer.c:88:  [5] (format) printf: Uncontrolled format string [CWE-134]
+./src/crypto.c:15:  [4] (random) rand: Standard random number generator is predictable [CWE-330]

@@ -1,0 +1,54 @@
+{
+  "results": [
+    {
+      "check_id": "c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn",
+      "path": "src/true-positives/buffer-overflow.c",
+      "start": { "line": 8 },
+      "extra": {
+        "message": "strcpy does not affirm the size of the destination array. This can lead to buffer overflows.",
+        "severity": "WARNING",
+        "metadata": { "cwe": "CWE-676" }
+      }
+    },
+    {
+      "check_id": "c.lang.security.insecure-use-gets-fn.insecure-use-gets-fn",
+      "path": "src/true-positives/buffer-overflow.c",
+      "start": { "line": 15 },
+      "extra": {
+        "message": "Avoid 'gets()'. This function does not consider buffer boundaries and can lead to buffer overflows.",
+        "severity": "ERROR",
+        "metadata": { "cwe": "CWE-676" }
+      }
+    },
+    {
+      "check_id": "c.lang.security.double-free.double-free",
+      "path": "src/true-positives/double-free.c",
+      "start": { "line": 10 },
+      "extra": {
+        "message": "Variable 'ptr' was freed twice. This can lead to undefined behavior.",
+        "severity": "ERROR",
+        "metadata": { "cwe": "CWE-415" }
+      }
+    },
+    {
+      "check_id": "c.lang.security.use-after-free.use-after-free",
+      "path": "src/true-positives/use-after-free.c",
+      "start": { "line": 19 },
+      "extra": {
+        "message": "Variable 'user' was passed to a function after being freed.",
+        "severity": "WARNING",
+        "metadata": { "cwe": "CWE-416" }
+      }
+    },
+    {
+      "check_id": "c.lang.security.use-after-free.use-after-free",
+      "path": "src/true-positives/use-after-free.c",
+      "start": { "line": 20 },
+      "extra": {
+        "message": "Variable 'user' was used after being freed.",
+        "severity": "WARNING",
+        "metadata": { "cwe": "CWE-416" }
+      }
+    }
+  ]
+}

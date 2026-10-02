@@ -1,0 +1,22 @@
+[
+  {
+    "Description": "AWS Access Key",
+    "StartLine": 15,
+    "EndLine": 15,
+    "StartColumn": 1,
+    "Match": "AKIA_REDACTED_EXAMPLE_KEY",
+    "File": "config/aws.env",
+    "RuleID": "aws-access-key",
+    "Entropy": 3.2
+  },
+  {
+    "Description": "Private Key",
+    "StartLine": 42,
+    "EndLine": 42,
+    "StartColumn": 1,
+    "Match": "-----BEGIN REDACTED PRIVATE KEY-----",
+    "File": "certs/server.key",
+    "RuleID": "private-key",
+    "Entropy": 4.1
+  }
+]

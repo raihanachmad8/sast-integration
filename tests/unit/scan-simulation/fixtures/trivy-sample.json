@@ -1,0 +1,31 @@
+{
+  "SchemaVersion": 2,
+  "Results": [
+    {
+      "Target": "app/package.json",
+      "Class": "os-pkgs",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2023-1234",
+          "PkgName": "lodash",
+          "InstalledVersion": "4.17.20",
+          "Severity": "HIGH",
+          "Title": "Prototype Pollution in lodash",
+          "Description": "Lodash versions prior to 4.17.21 are vulnerable to Prototype Pollution."
+        }
+      ]
+    },
+    {
+      "Target": "Dockerfile",
+      "Class": "config",
+      "Misconfigurations": [
+        {
+          "ID": "DS002",
+          "Title": "Running as root user",
+          "Severity": "MEDIUM",
+          "Message": "Image should be created with a non-root user"
+        }
+      ]
+    }
+  ]
+}
